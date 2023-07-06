@@ -1,0 +1,42 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:latest
+    env_file:
+      - aktivasyon/docker.env
+    environment:
+      - POSTGRES_HOST=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - "postgresql-data:/var/lib/postgresql/data"
+    command: -p 5432
+  app:
+    container_name: app_fadil
+    hostname: app_fadil
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+    env_file:
+      - aktivasyon/docker.env
+    volumes:
+      - .:/srv/app
+    ports:
+      - "0.0.0.0:8000:8000"
+    command: gunicorn aktivasyon.wsgi:application --bind 0.0.0.0:8000
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - 80:80
+
+
+volumes:
+  postgresql-data:
+  static-data:

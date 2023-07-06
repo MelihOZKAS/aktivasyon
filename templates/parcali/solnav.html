@@ -1,0 +1,102 @@
+{% load static %}
+
+<nav id="sidebar" class="sidebar js-sidebar">
+
+    <div class="sidebar-content js-simplebar">
+        <a class="sidebar-brand" href="{% url 'panel' %}">
+            <span class="align-middle">Evrak Başvuru</span>
+        </a>
+
+        <ul class="sidebar-nav">
+            <li class="sidebar-header">
+                Hat Aktivasyonları
+            </li>
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'panel' %}">
+                    <i class="align-middle" data-feather="sliders"></i> <span
+                        class="align-middle me-2">Panel - Duyuru</span>
+                </a>
+            </li>
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'kontorlu-yeni-hat' %}">
+                    <i class="align-middle" data-feather="user"></i> <span
+                        class="align-middle">Kontörlü Yeni Hat</span>
+                </a>
+            </li>
+
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'mnt' %}">
+                    <i class="align-middle" data-feather="user"></i> <span class="align-middle">MNT</span>
+                </a>
+            </li>
+
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'faturali-yeni-hat' %}">
+                    <i class="align-middle" data-feather="user"></i> <span class="align-middle">Yeni Faturalı Hat</span>
+                </a>
+            </li>
+
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'sekebe-ici-gecis' %}">
+                    <i class="align-middle" data-feather="user"></i> <span class="align-middle">Şebekeiçi Geçiş</span>
+                </a>
+            </li>
+
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'evrak-gir-pass' %}">
+                    <i class="align-middle" data-feather="user"></i> <span class="align-middle">Passaport Kontörlü Yeni Hat</span>
+                </a>
+            </li>
+
+            <li class="sidebar-header">
+                ADSL Aktivasyonları
+            </li>
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'internet-basvuru' %}">
+                    <i class="align-middle" data-feather="user"></i> <span class="align-middle">TTNET Aktivasyon</span>
+                </a>
+            </li>
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'alt-yapi-sorgula' %}">
+                    <i class="align-middle" data-feather="user"></i> <span
+                        class="align-middle">Alt Yapı Sorgulama</span>
+                </a>
+            </li>
+
+
+            <li class="sidebar-header">
+                Kontör Yükleme
+            </li>
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'kontor-yukle' %}">
+                    <i class="align-middle" data-feather="user"></i> <span
+                        class="align-middle">7/24 Kontör Yükle</span>
+                </a>
+            </li>
+
+
+            <li class="sidebar-header">
+                Evrak Takip
+            </li>
+
+
+            <li class="sidebar-item">
+                <a class="sidebar-link" href="{% url 'evrak-gir-pass' %}">
+                    <i class="align-middle" data-feather="user"></i> <span class="align-middle">Aktivasyon Takip</span>
+                </a>
+            </li>
+
+        </ul>
+
+
+    </div>
+</nav>
