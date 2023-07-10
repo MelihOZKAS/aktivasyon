@@ -1,5 +1,5 @@
 from django import forms
-from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri
+from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon
 
 
 class GecisNormal(forms.ModelForm):
@@ -53,6 +53,8 @@ class internetform(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['operatortarife'].queryset = OperatorTarifeleri.objects.all()
         self.fields['Operatorler'].queryset = Operatorleri.objects.all()
+        self.fields['sabithat'].queryset = Telefon.objects.all()
+        self.fields['modemolsunmu'].queryset = Modemlimi.objects.all()
 
 class GecisPass(forms.ModelForm):
     class Meta:

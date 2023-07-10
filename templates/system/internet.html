@@ -36,12 +36,12 @@
             </div>
             <div class="mb-3">
                 <label for="tc" class="form-label">TC</label>
-                <input type="text" class="form-control" id="tc" name="tc" required>
+                <input type="number" class="form-control" id="tc" name="tc" required>
             </div>
 
             <div class="mb-3">
                 <label for="numara" class="form-label">Irtibat Numarası</label>
-                <input type="text" class="form-control" id="numara" name="irtibat" required>
+                <input type="number" class="form-control" id="numara" name="irtibat" required>
             </div>
             <!-- Tarifeleri filtrelemek için operatör seçimi -->
             <div class="mb-3">
@@ -84,15 +84,33 @@
                 });
             </script>
 
+            <div class="mb-3">
+                <label for="sabithat" class="form-label">Sabit Hat Olsun Mu ?</label>
+                <select class="form-select" id="sabithat" name="sabithat">
+                    <option value="">Seçiniz</option>
+                    {% for sabit in form.sabithat.field.queryset %}
+                        <option value="{{ sabit.id }}">{{ sabit.ad }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+
+            <div class="mb-3">
+                <label for="modemolsunmu" class="form-label">Modem Olsun Mu ?</label>
+                <select class="form-select" id="modemolsunmu" name="modemolsunmu">
+                    <option value="">Seçiniz</option>
+                    {% for modemi in form.modemolsunmu.field.queryset %}
+                        <option value="{{ modemi.id }}">{{ modemi.ad }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
 
             <div class="mb-3">
                 <label for="aks" class="form-label">Anne Kızlık Soy Ismi</label>
                 <input type="text" class="form-control" id="aks" name="aks" required>
             </div>
-            <div class="mb-3">
-                <label for="simno" class="form-label">Sim Kart Numarası</label>
-                <input type="text" class="form-control" id="simno" name="simno" required>
-            </div>
+
             <div class="mb-3">
                 <label for="adres" class="form-label">Adres</label>
                 <input type="text" class="form-control" id="adres" name="adres" required>

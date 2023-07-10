@@ -3,6 +3,13 @@ from .form import GecisNormal,GecisPass,KontorluYeniform,FaturaliYeniform,Sebeke
 from .models import Duyuru
 from django.contrib.auth.models import auth
 from django.contrib.auth.decorators import login_required
+import environ
+import requests
+
+
+env = environ.Env(DEBUG=(bool,False))
+environ.Env.read_env()
+
 
 # Create your views here.
 def home(request):
@@ -48,6 +55,9 @@ def evrak(request):
         form = GecisNormal(request.POST, request.FILES)
         if form.is_valid():
             form.save()
+            joined_message = "MNT Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
+            url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
+            r = requests.get(url)
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
@@ -66,6 +76,9 @@ def kontorluYeni(request):
         form = KontorluYeniform(request.POST, request.FILES)
         if form.is_valid():
             form.save()
+            joined_message = "KontorlüYeni Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
+            url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
+            r = requests.get(url)
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
@@ -80,6 +93,9 @@ def FaturaliYeni(request):
         form = FaturaliYeniform(request.POST, request.FILES)
         if form.is_valid():
             form.save()
+            joined_message = "FaturaliYeni Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
+            url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
+            r = requests.get(url)
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
@@ -94,6 +110,9 @@ def sebekeicigecis(request):
         form = Sebekeiciform(request.POST, request.FILES)
         if form.is_valid():
             form.save()
+            joined_message = "Şebeke içi Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
+            url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
+            r = requests.get(url)
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
@@ -108,6 +127,9 @@ def internet(request):
         form = internetform(request.POST, request.FILES)
         if form.is_valid():
             form.save()
+            joined_message = "İnternet Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
+            url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
+            r = requests.get(url)
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
@@ -125,6 +147,9 @@ def evrakpass(request):
         form = GecisPass(request.POST, request.FILES)
         if form.is_valid():
             form.save()
+            joined_message = "EvrakPass Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
+            url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
+            r = requests.get(url)
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır

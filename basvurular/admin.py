@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Evrak, EvrakPass,TurkTarife,YabanciTarife,YeniTurkTarife,YeniYabanciTarife,KontorluYeniHat,FaturaliYeniHat,YeniFaturaliYabanciTarife,YeniFaturaliTurkTarife,Sebekeici,SebekeiciTurkTarife,SebekeiciYabanciTarife,Duyuru,OperatorTarifeleri,Operatorleri
+from .models import Evrak, EvrakPass,TurkTarife,YabanciTarife,YeniTurkTarife,YeniYabanciTarife,KontorluYeniHat,FaturaliYeniHat,YeniFaturaliYabanciTarife,YeniFaturaliTurkTarife,Sebekeici,SebekeiciTurkTarife,SebekeiciYabanciTarife,Duyuru,OperatorTarifeleri,Operatorleri,internet,Modemlimi,Telefon
 
 
 class EvrakAdmin(admin.ModelAdmin):
@@ -20,6 +20,12 @@ class YeniFaturaliAdmin(admin.ModelAdmin):
 class SebekeiciAdmin(admin.ModelAdmin):
     list_display = ('id', 'isim', 'soyisim', 'tc', 'numara', 'irtibat', 'operatoru', 'aks')
     list_filter = ('operatoru',)
+    search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
+
+
+class internetAdmin(admin.ModelAdmin):
+    list_display = ('id', 'isim', 'soyisim', 'tc',  'irtibat', 'Operatorler', 'aks')
+    list_filter = ('Operatorler',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
 
 class EvrakPassAdmin(admin.ModelAdmin):
@@ -48,6 +54,13 @@ class YeniTurkTarifeAdmin(admin.ModelAdmin):
     list_display = ('id', 'ad')
 
 class YeniYabanciTarifeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'ad')
+
+
+class TelefonAdmin(admin.ModelAdmin):
+    list_display = ('id', 'ad')
+
+class ModemTarifeAdmin(admin.ModelAdmin):
     list_display = ('id', 'ad')
 
 
@@ -81,8 +94,14 @@ admin.site.register(EvrakPass, EvrakPassAdmin)
 admin.site.register(KontorluYeniHat, YeniKontorluAdmin)
 admin.site.register(FaturaliYeniHat, YeniFaturaliAdmin)
 admin.site.register(Sebekeici, SebekeiciAdmin)
+admin.site.register(internet, internetAdmin)
 
 
+
+
+
+admin.site.register(Telefon, TelefonAdmin)
+admin.site.register(Modemlimi, ModemTarifeAdmin)
 
 
 admin.site.register(TurkTarife, TurkTarifeAdmin)

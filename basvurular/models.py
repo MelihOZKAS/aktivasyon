@@ -44,7 +44,7 @@ class TurkTarife(models.Model):
 
     class Meta:
         ordering = ['ad']
-        verbose_name_plural = 'MNT Turk Tarifeler'
+        verbose_name_plural = '2. MNT Turk Tarifeler'
 
 class YabanciTarife(models.Model):
     ad = models.CharField(max_length=255)
@@ -53,7 +53,8 @@ class YabanciTarife(models.Model):
         return self.ad
 
     class Meta:
-        verbose_name_plural = 'MNT YabanciTarifeler'
+        verbose_name_plural = '1. MNT YabanciTarifeler'
+
 
 class Evrak(models.Model):
     kimlik_tipi = models.CharField(max_length=10)
@@ -236,12 +237,33 @@ class OperatorTarifeleri(models.Model):
 
 
 
+
+
+
+
+class Telefon(models.Model):
+    ad = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.ad
+    class Meta:
+        ordering = ['ad']
+        verbose_name_plural = '81. Telefon Bilgisi'
+
+class Modemlimi(models.Model):
+    ad = models.CharField(max_length=255)
+    def __str__(self):
+        return self.ad
+    class Meta:
+        verbose_name_plural = '82. Modem Bilgisi'
 class internet(models.Model):
     kimlik_tipi = models.CharField(max_length=10)
     isim = models.CharField(max_length=255)
     soyisim = models.CharField(max_length=255)
     tc = models.CharField(max_length=100)
     irtibat = models.CharField(max_length=100)
+    sabithat = models.ForeignKey(Telefon,related_name='SabitHat', blank=True,null=True,on_delete=models.CASCADE)
+    modemolsunmu = models.ForeignKey(Modemlimi,related_name='ModemDurumu', blank=True,null=True,on_delete=models.CASCADE)
     Operatorler = models.ForeignKey(Operatorleri, related_name='Operatorleri', blank=True,null=True,on_delete=models.CASCADE)
     operatortarife = models.ForeignKey(OperatorTarifeleri, related_name='OperatorTarifeleri', blank=True,null=True,on_delete=models.CASCADE)
     aks = models.CharField(max_length=255)
@@ -254,7 +276,7 @@ class internet(models.Model):
     def __str__(self):
         return f"{self.isim} {self.soyisim}"
     class Meta:
-        verbose_name_plural = 'ADSL Başvuru Kayıtları'
+        verbose_name_plural = '80. ADSL Başvuru Kayıtları'
 
 
 ########################################################################################################
