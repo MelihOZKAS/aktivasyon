@@ -10,7 +10,7 @@
                 {% for duyuru in duyurular %}
                     <div class="card mb-4">
                         <div class="card-body p-4">
-                            <h2 class="card-title text-center" >{{ duyuru.baslik }}</h2>
+                            <h2 style="color: red; text-align: center; font-family: 'Arial', sans-serif;">{{ duyuru.baslik }}</h2>
                             <p class="card-text">{{ duyuru.icerik|safe }}</p>
                             <p class="card-text text-center">Tarih: {{ duyuru.tarih }}</p>
                         </div>

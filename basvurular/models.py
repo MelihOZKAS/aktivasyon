@@ -373,3 +373,114 @@ class EvrakPass(models.Model):
 
     class Meta:
         verbose_name_plural = '50. Passaportlu işlemler Başvuru Kayıtları'
+
+
+
+
+
+
+
+
+
+
+class Banka(models.Model):
+    banka_adi = models.CharField(max_length=100)
+    hesap_sahibi = models.CharField(max_length=100)
+    hesap_numarasi = models.CharField(max_length=100)
+    sube_kodu = models.CharField(max_length=100)
+    iban = models.CharField(max_length=50)
+    aciklama = models.TextField(blank=True)
+    bakiye = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    BayiGormesin = models.BooleanField("Bayi Gormesin", default=False)
+    Aktifmi = models.BooleanField("Aktif mi ?", default=True)
+
+    def __str__(self):
+        return self.banka_adi
+
+    class Meta:
+        verbose_name = "Bankalar"
+        verbose_name_plural = "Bankalar"
+
+class Bayi_Listesi(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    Bayi_Bakiyesi = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    Borc = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    Tutar = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    secili_banka = models.ForeignKey(Banka, on_delete=models.CASCADE,null=True,default=None)
+    islem_durumu = models.CharField(max_length=20, choices=(
+        ('islem_sec', 'işlem Türünü Seç'),
+        ('nakit_ekle', 'Nakit/Havele/EFT Bakiye Ekle'),
+        ('borc_ve_bakiye_ekle', 'Hem Borç Hem Bakiye Ekle'),
+        ('bakiye_dus', 'Bakiye Düş'),
+        ('sadece_borc_ekle', 'Sadece Borç Ekle'),
+    ), default='islem_sec')
+
+
+
+    def save(self, *args, **kwargs):
+        if self.pk is None:  # Yeni bir nesne oluşturuluyorsa
+            self.Tutar = 0  # Tutar alanını sıfırla
+
+        # Önce bayi bakiyesine tutarı ekle
+        onceki_bakiye = self.Bayi_Bakiyesi
+        onceki_Borc = self.Borc
+
+
+
+        if self.islem_durumu == "nakit_ekle":
+            self.Bayi_Bakiyesi += self.Tutar
+            # Sonra seçili bankanın bakiyesine de tutarı ekle
+            if self.secili_banka is not None and self.Tutar > 0:
+                self.secili_banka.bakiye += self.Tutar
+                self.secili_banka.save()
+
+
+        elif self.islem_durumu == "borc_ve_bakiye_ekle":
+            self.Bayi_Bakiyesi += self.Tutar
+            self.Borc += self.Tutar
+        elif self.islem_durumu == "bakiye_dus":
+            self.Bayi_Bakiyesi -= self.Tutar
+        elif self.islem_durumu == "sadece_borc_ekle":
+            self.Borc += self.Tutar
+
+
+        # En son Bayi_Listesi nesnesini kaydet
+
+        sonraki_bakiye = self.Bayi_Bakiyesi
+        sonraki_Borc = self.Borc
+
+        bakiye_hareketi = BakiyeHareketleri.objects.create(
+            user=self.user,
+            islem_tutari=self.Tutar,
+            onceki_bakiye=onceki_bakiye,
+            sonraki_bakiye=sonraki_bakiye,
+            onceki_Borc=onceki_Borc,
+            sonraki_Borc=sonraki_Borc,
+#            tarih=timezone.now(),
+            aciklama=f'{self.islem_durumu} bakiye işlemi yapildi.',
+
+        )
+        bakiye_hareketi.save()
+        super(Bayi_Listesi, self).save(*args, **kwargs)
+
+
+        # Tutar alanını sıfırla
+        self.Tutar = 0
+        super(Bayi_Listesi, self).save(update_fields=['Tutar'])
+
+    class Meta:
+        verbose_name = "Bayi Listesi"
+        verbose_name_plural = "Bayi Listesi"
+
+class BakiyeHareketleri(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    islem_tutari = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    onceki_bakiye = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    sonraki_bakiye = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    onceki_Borc = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    sonraki_Borc = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    tarih = models.DateTimeField(auto_now_add=True)
+    aciklama = models.CharField(max_length=255)
+    class Meta:
+        verbose_name = "Bakiye Hareketleri"
+        verbose_name_plural = "Bakiye Hareketleri"

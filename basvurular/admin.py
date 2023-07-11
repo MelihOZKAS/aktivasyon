@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import Evrak, EvrakPass, TurkTarife, YabanciTarife, YeniTurkTarife, YeniYabanciTarife, KontorluYeniHat, \
     FaturaliYeniHat, YeniFaturaliYabanciTarife, YeniFaturaliTurkTarife, Sebekeici, SebekeiciTurkTarife, \
-    SebekeiciYabanciTarife, Duyuru, OperatorTarifeleri, Operatorleri, internet, Modemlimi, Telefon
+    SebekeiciYabanciTarife, Duyuru, OperatorTarifeleri, Operatorleri, internet, Modemlimi, Telefon ,  Bayi_Listesi, Banka,BakiyeHareketleri
+from django.contrib import admin
 from django.utils.html import format_html
 
 
@@ -217,3 +218,20 @@ admin.site.register(SebekeiciYabanciTarife, SebekeiciYabanciTarifeAdmin)
 
 admin.site.register(OperatorTarifeleri, AdslTarifeAdmin)
 admin.site.register(Operatorleri, ADSLOperatorAdmin)
+
+
+class AdminBanka(admin.ModelAdmin):
+    list_display = ('banka_adi', 'hesap_sahibi', 'bakiye','BayiGormesin','Aktifmi')
+    readonly_fields = ('bakiye',)
+
+@admin.register(Bayi_Listesi)
+class Bayi_Bakiyeleri(admin.ModelAdmin):
+    list_display = ('user', 'Bayi_Bakiyesi','Borc')
+    readonly_fields = ('Bayi_Bakiyesi','Borc')
+
+admin.site.register(Banka, AdminBanka)
+
+@admin.register(BakiyeHareketleri)
+class BakiyeHareketleriAdmin(admin.ModelAdmin):
+    list_display = ('user', 'islem_tutari', 'onceki_bakiye', 'sonraki_bakiye', 'onceki_Borc', 'sonraki_Borc','tarih', 'aciklama')
+    readonly_fields = ('user', 'islem_tutari', 'onceki_bakiye', 'sonraki_bakiye', 'onceki_Borc', 'sonraki_Borc','tarih', 'aciklama')
