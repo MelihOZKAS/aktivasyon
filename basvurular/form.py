@@ -14,6 +14,7 @@ class GecisNormal(forms.ModelForm):
 
 
 
+
 class KontorluYeniform(forms.ModelForm):
     class Meta:
         model = KontorluYeniHat

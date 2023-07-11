@@ -16,11 +16,12 @@
         <h1 class="text-center">Bayi Mobil Numara Taşıma Paneli</h1>
         <form method="POST" action="{% url 'mnt' %}" enctype="multipart/form-data">
             {% csrf_token %}
+        <input type="hidden" name="user" value="{{ request.user.id }}">
 
             <div class="mb-3">
                 <label for="kimlikTipi" class="form-label">Kimlik Tipi</label>
-                <select class="form-select" id="kimlikTipi" name="kimlik_tipi" onchange="toggleContent()" required>
-                    <option value="bos">Lütfen Kimlik Tipi Seçiniz.!</option>
+                <select class="form-select" id="kimlikTipi" name="kimlik_tipi" onchange="updateTariffs()" required>
+                    <option value="">Lütfen Kimlik Tipi Seçiniz.!</option>
                     <option value="turk">Türk Kimlik Kartı</option>
                     <option value="yabanci">Yabanci Geçiçi Kimlik Kartı</option>
                 </select>
@@ -42,34 +43,28 @@
                 <label for="numara" class="form-label">işlem Yapılacak Numara</label>
                 <input type="number" class="form-control" id="numara" name="numara" required>
             </div>
-            <div class="mb-3">
+           <div class="mb-3">
                 <label for="numara" class="form-label">Irtibat Numarası</label>
                 <input type="number" class="form-control" id="numara" name="irtibat" required>
             </div>
+
             <div class="mb-3">
-                <label for="operatörü" class="form-label">Operatörü</label>
-                <select class="form-select" id="operatoru" name="operatoru" required>
+                <label for="operator" class="form-label">Operatör:</label>
+                <select class="form-select" id="operator" name="operatoru">
+                    <option value="">Lütfen Operatör Seçiniz.!</option>
                     <option value="Turkcell">Turkcell</option>
                     <option value="Avea">Avea</option>
                     <option value="Vodafone">Vodafone</option>
                 </select>
             </div>
-            <div class="mb-3">
-                <label for="geçeceği_öperatör" class="form-label">Geçeceği Öperatör</label>
-                <select class="form-select" id="gececegi_operator" name="gececegi_operator" required>
-                    <option value="Turkcell-Faturasiz">Turkcell Faturasız</option>
-                    <option value="Turkcell-Faturali">Turkcell Faturalı</option>
-                    <option value="Vodafone-Faturali">Vodafone Faturalı</option>
-                    <option value="Turk-Telekom-Faturasiz">Türk Telekom Faturasız</option>
-                    <option value="Turk-Telekom-Faturali">Türk Telekom Faturalı</option>
-                </select>
-            </div>
 
 
-            <div id="tarifeTurk" style="display: none;">
+
+
+            <div id="tarifeTurkDiv" style="display: none;">
                 <div class="mb-3">
-                    <label for="tarifeTurk" class="form-label">Tarife (Türk)</label>
-                    <select class="form-select" id="tarifeTurk" name="tarifeTurk">
+                    <label for="tarifeTurkSelect" class="form-label">Tarife (Türk)</label>
+                    <select class="form-select" id="tarifeTurkSelect" name="tarifeTurk">
                         <option value="">Lütfen Tarife Seçiniz</option>
                         {% for tarife in form.tarifeTurk.field.queryset %}
                             <option value="{{ tarife.id }}">{{ tarife.ad }}</option>
@@ -78,10 +73,10 @@
                 </div>
             </div>
 
-            <div id="tarifeYabanci" style="display: none;">
+            <div id="tarifeYabanciDiv" style="display: none;">
                 <div class="mb-3">
-                    <label for="tarifeYabanci" class="form-label">Tarife (Yabancı)</label>
-                    <select class="form-select" id="tarifeYabanci" name="tarifeYabanci">
+                    <label for="tarifeYabanciSelect" class="form-label">Tarife (Yabancı)</label>
+                    <select class="form-select" id="tarifeYabanciSelect" name="tarifeYabanci">
                         <option value="">Lütfen Tarife Seçiniz</option>
                         {% for tarife in form.tarifeYabanci.field.queryset %}
                             <option value="{{ tarife.id }}">{{ tarife.ad }}</option>
@@ -89,24 +84,57 @@
                     </select>
                 </div>
             </div>
-
-
             <script>
-                function toggleContent() {
+                function updateTariffs() {
+                    var operator = document.getElementById("operator").value;
                     var kimlikTipi = document.getElementById("kimlikTipi").value;
-                    var tarifeTurk = document.getElementById("tarifeTurk");
-                    var tarifeYabanci = document.getElementById("tarifeYabanci");
+                    var tarifeTurkDiv = document.getElementById("tarifeTurkDiv");
+                    var tarifeYabanciDiv = document.getElementById("tarifeYabanciDiv");
+                    var tarifeTurkSelect = document.getElementById("tarifeTurkSelect");
+                    var tarifeYabanciSelect = document.getElementById("tarifeYabanciSelect");
 
+                    // Show or hide the tariff selects based on the selected identity type
                     if (kimlikTipi === "turk") {
-                        tarifeTurk.style.display = "block";
-                        tarifeYabanci.style.display = "none";
-
+                        tarifeTurkDiv.style.display = "block";
+                        tarifeYabanciDiv.style.display = "none";
                     } else if (kimlikTipi === "yabanci") {
-                        tarifeTurk.style.display = "none";
-                        tarifeYabanci.style.display = "block";
-
+                        tarifeTurkDiv.style.display = "none";
+                        tarifeYabanciDiv.style.display = "block";
+                    } else {
+                        tarifeTurkDiv.style.display = "none";
+                        tarifeYabanciDiv.style.display = "none";
                     }
+
+                    // Get tariffs for the selected operator using an AJAX request
+                    fetch('/get-tariffs?operator4=' + operator)
+                        .then(response => response.json())
+                        .then(data => {
+                            // Update the options in the tariff selects
+                            tarifeTurkSelect.innerHTML = '';
+                            tarifeYabanciSelect.innerHTML = '';
+                            for (let tarife of data.tarifeTurk) {
+                                let option = document.createElement('option');
+                                option.value = tarife.id;
+                                option.text = tarife.ad;
+                                tarifeTurkSelect.add(option);
+                            }
+                            for (let tarife of data.tarifeYabanci) {
+                                let option = document.createElement('option');
+                                option.value = tarife.id;
+                                option.text = tarife.ad;
+                                tarifeYabanciSelect.add(option);
+                            }
+                        });
                 }
+
+                // Call the updateTariffs function when the page loads
+                updateTariffs();
+
+                // Call the updateTariffs function when the operator selection changes
+                document.getElementById("operator").addEventListener("change", updateTariffs);
+
+                // Call the updateTariffs function when the identity type selection changes
+                document.getElementById("kimlikTipi").addEventListener("change", updateTariffs);
             </script>
 
 

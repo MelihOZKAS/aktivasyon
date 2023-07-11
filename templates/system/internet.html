@@ -16,6 +16,8 @@
         <h1 class="text-center">internet Başvuru</h1>
         <form method="POST" action="{% url 'internet-basvuru' %}" enctype="multipart/form-data">
             {% csrf_token %}
+            <input type="hidden" name="user" value="{{ request.user.id }}">
+
 
             <div class="mb-3">
                 <label for="kimlikTipi" class="form-label">Kimlik Tipi</label>

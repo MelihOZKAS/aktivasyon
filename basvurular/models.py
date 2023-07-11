@@ -7,12 +7,40 @@ from django.db import models
 
 from django.db import models
 from django.utils import timezone
+from django.contrib.auth.models import User
+from decimal import Decimal
+
 
 from django.utils import timezone
 from ckeditor.fields import RichTextField
 
+BEKLEMEDE = 'Beklemede'
+ISLEMDE = 'İşlemde'
+EKSIK_EVRAK = 'Eksik Evrak'
+AKTIF = 'Aktif'
+HATALI = 'Hatalı'
+
+AKTIVASYON_DURUMU_CHOICES = [
+    (BEKLEMEDE, 'Beklemede'),
+    (ISLEMDE, 'İşlemde'),
+    (EKSIK_EVRAK, 'Eksik Evrak'),
+    (AKTIF, 'Aktif'),
+    (HATALI, 'Hatalı'),
+]
 
 
+
+
+
+OdemeYapilmadi = 'OdemeYapilmadi'
+OdemeYapildi = 'OdemeYapildi'
+HATALI = 'Hatalı'
+
+Odeme_DURUMU_CHOICES = [
+    (OdemeYapilmadi, 'OdemeYapilmadi'),
+    (OdemeYapildi, 'OdemeYapildi'),
+    (HATALI, 'Hatalı'),
+]
 
 class Duyuru(models.Model):
     baslik = models.CharField(max_length=255)
@@ -35,6 +63,7 @@ def generate_filename(instance, filename):
 
 class TurkTarife(models.Model):
     ad = models.CharField(max_length=255)
+    operator = models.CharField(max_length=100,null=True,blank=True)
 
     def __str__(self):
         return self.ad
@@ -44,19 +73,21 @@ class TurkTarife(models.Model):
 
     class Meta:
         ordering = ['ad']
-        verbose_name_plural = '2. MNT Turk Tarifeler'
+        verbose_name_plural = '12. MNT Turk Tarifeler'
 
 class YabanciTarife(models.Model):
     ad = models.CharField(max_length=255)
+    operator = models.CharField(max_length=100,null=True,blank=True)
 
     def __str__(self):
         return self.ad
 
     class Meta:
-        verbose_name_plural = '1. MNT YabanciTarifeler'
+        verbose_name_plural = '11. MNT YabanciTarifeler'
 
 
 class Evrak(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     kimlik_tipi = models.CharField(max_length=10)
     isim = models.CharField(max_length=255)
     soyisim = models.CharField(max_length=255)
@@ -73,12 +104,17 @@ class Evrak(models.Model):
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
     kimlik_arka = models.ImageField(upload_to='evrak/', blank=True, null=True)
     ikametgah = models.FileField(upload_to='evrak/', blank=True, null=True)
+    aktivasyon_durumu = models.CharField(max_length=20,choices=AKTIVASYON_DURUMU_CHOICES,default=BEKLEMEDE,blank=True,null=True)
+    odeme_durumu = models.CharField(max_length=20,choices=Odeme_DURUMU_CHOICES,default=OdemeYapilmadi,blank=True,null=True)
+    BayiAciklama = models.CharField(max_length=255,blank=True,null=True)
+    GizliAciklama = models.TextField(blank=True,null=True)
+    tutar = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True, default=Decimal('0.00'))
     tarih = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.isim} {self.soyisim}"
     class Meta:
-        verbose_name_plural = 'MNT'
+        verbose_name_plural = '10. MNT Başvuru Kayıtları'
 
 
 ########################################################################################################
@@ -86,23 +122,26 @@ class Evrak(models.Model):
 
 class YeniTurkTarife(models.Model):
     ad = models.CharField(max_length=255)
+    operator = models.CharField(max_length=100,null=True,blank=True)
 
     def __str__(self):
         return self.ad
 
     class Meta:
-        verbose_name_plural = 'Yeni Kontorlu Turk Tarifeler'
+        verbose_name_plural = '22. Yeni Kontorlu Turk Tarifeler'
 
 class YeniYabanciTarife(models.Model):
     ad = models.CharField(max_length=255)
+    operator = models.CharField(max_length=100,null=True,blank=True)
 
     def __str__(self):
         return self.ad
 
     class Meta:
-        verbose_name_plural = 'YeniKontorlu Yabanci Tarifeler'
+        verbose_name_plural = '21. YeniKontorlu Yabanci Tarifeler'
 
 class KontorluYeniHat(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     kimlik_tipi = models.CharField(max_length=10)
     isim = models.CharField(max_length=255)
     soyisim = models.CharField(max_length=255)
@@ -116,12 +155,17 @@ class KontorluYeniHat(models.Model):
     adres = models.CharField(max_length=255)
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
     kimlik_arka = models.ImageField(upload_to='evrak/', blank=True, null=True)
+    aktivasyon_durumu = models.CharField(max_length=20,choices=AKTIVASYON_DURUMU_CHOICES,default=BEKLEMEDE,blank=True,null=True)
+    odeme_durumu = models.CharField(max_length=20,choices=Odeme_DURUMU_CHOICES,default=OdemeYapilmadi,blank=True,null=True)
+    BayiAciklama = models.CharField(max_length=255,blank=True,null=True)
+    GizliAciklama = models.TextField(blank=True,null=True)
+    tutar = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True, default=Decimal('0.00'))
     tarih = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.isim} {self.soyisim}"
     class Meta:
-        verbose_name_plural = 'Kontörlü Yeni Hat'
+        verbose_name_plural = '20. Kontörlü Yeni Hat Başvuru Kayıtları'
 
 
 ########################################################################################################
@@ -130,23 +174,26 @@ class KontorluYeniHat(models.Model):
 
 class YeniFaturaliTurkTarife(models.Model):
     ad = models.CharField(max_length=255)
+    operator = models.CharField(max_length=100,null=True,blank=True)
 
     def __str__(self):
         return self.ad
 
     class Meta:
-        verbose_name_plural = 'Yeni Faturalı Turk Tarifeler'
+        verbose_name_plural = '32. Yeni Faturalı Turk Tarifeler'
 
 class YeniFaturaliYabanciTarife(models.Model):
     ad = models.CharField(max_length=255)
+    operator = models.CharField(max_length=100,null=True,blank=True)
 
     def __str__(self):
         return self.ad
 
     class Meta:
-        verbose_name_plural = 'Yeni Faturalı Yabanci Tarifeler'
+        verbose_name_plural = '31. Yeni Faturalı Yabanci Tarifeler'
 
 class FaturaliYeniHat(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     kimlik_tipi = models.CharField(max_length=10)
     isim = models.CharField(max_length=255)
     soyisim = models.CharField(max_length=255)
@@ -161,12 +208,17 @@ class FaturaliYeniHat(models.Model):
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
     kimlik_arka = models.ImageField(upload_to='evrak/', blank=True, null=True)
     ikametgah = models.FileField(upload_to='evrak/', blank=True, null=True)
+    aktivasyon_durumu = models.CharField(max_length=20,choices=AKTIVASYON_DURUMU_CHOICES,default=BEKLEMEDE,blank=True,null=True)
+    odeme_durumu = models.CharField(max_length=20,choices=Odeme_DURUMU_CHOICES,default=OdemeYapilmadi,blank=True,null=True)
+    BayiAciklama = models.CharField(max_length=255,blank=True,null=True)
+    GizliAciklama = models.TextField(blank=True,null=True)
+    tutar = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True, default=Decimal('0.00'))
     tarih = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.isim} {self.soyisim}"
     class Meta:
-        verbose_name_plural = 'Faturalı Yeni Hat'
+        verbose_name_plural = '30. Faturalı Yeni Hat Başvuru Kayıtları'
 
 
 ########################################################################################################
@@ -175,23 +227,25 @@ class FaturaliYeniHat(models.Model):
 
 class SebekeiciTurkTarife(models.Model):
     ad = models.CharField(max_length=255)
+    operator = models.CharField(max_length=100,null=True,blank=True)
 
     def __str__(self):
         return self.ad
 
     class Meta:
-        verbose_name_plural = 'SebekeiciTurkTarife'
+        verbose_name_plural = '42. SebekeiciTurkTarife'
 
 class SebekeiciYabanciTarife(models.Model):
     ad = models.CharField(max_length=255)
-
+    operator = models.CharField(max_length=100,null=True,blank=True)
     def __str__(self):
         return self.ad
 
     class Meta:
-        verbose_name_plural = 'SebekeiciYabanciTarife'
+        verbose_name_plural = '41. SebekeiciYabanciTarife'
 
 class Sebekeici(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     kimlik_tipi = models.CharField(max_length=10)
     isim = models.CharField(max_length=255)
     soyisim = models.CharField(max_length=255)
@@ -206,12 +260,17 @@ class Sebekeici(models.Model):
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
     kimlik_arka = models.ImageField(upload_to='evrak/', blank=True, null=True)
     ikametgah = models.FileField(upload_to='evrak/', blank=True, null=True)
+    aktivasyon_durumu = models.CharField(max_length=20,choices=AKTIVASYON_DURUMU_CHOICES,default=BEKLEMEDE,blank=True,null=True)
+    odeme_durumu = models.CharField(max_length=20,choices=Odeme_DURUMU_CHOICES,default=OdemeYapilmadi,blank=True,null=True)
+    BayiAciklama = models.CharField(max_length=255,blank=True,null=True)
+    GizliAciklama = models.TextField(blank=True,null=True)
+    tutar = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True, default=Decimal('0.00'))
     tarih = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.isim} {self.soyisim}"
     class Meta:
-        verbose_name_plural = 'Şebeke içi işlemler'
+        verbose_name_plural = '40. Şebeke içi işlemler Başvuru Kayıtları'
 
 
 ########################################################################################################
@@ -220,11 +279,12 @@ class Sebekeici(models.Model):
 class Operatorleri(models.Model):
     ad = models.CharField(max_length=255)
 
+
     def __str__(self):
         return self.ad
 
     class Meta:
-        verbose_name_plural = 'Operatorleri ADSL'
+        verbose_name_plural = '83. ADSL Operatorleri '
 class OperatorTarifeleri(models.Model):
     ad = models.CharField(max_length=255)
     operatoru = models.ForeignKey(Operatorleri, related_name='OperatorTarifeleri', blank=True,null=True,on_delete=models.CASCADE)
@@ -233,7 +293,7 @@ class OperatorTarifeleri(models.Model):
         return self.ad
 
     class Meta:
-        verbose_name_plural = 'ADSL Operator Tarifeleri'
+        verbose_name_plural = '84. ADSL Operator Tarifeleri'
 
 
 
@@ -257,6 +317,7 @@ class Modemlimi(models.Model):
     class Meta:
         verbose_name_plural = '82. Modem Bilgisi'
 class internet(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     kimlik_tipi = models.CharField(max_length=10)
     isim = models.CharField(max_length=255)
     soyisim = models.CharField(max_length=255)
@@ -271,6 +332,11 @@ class internet(models.Model):
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
     kimlik_arka = models.ImageField(upload_to='evrak/', blank=True, null=True)
     ikametgah = models.FileField(upload_to='evrak/', blank=True, null=True)
+    aktivasyon_durumu = models.CharField(max_length=20,choices=AKTIVASYON_DURUMU_CHOICES,default=BEKLEMEDE,blank=True,null=True)
+    odeme_durumu = models.CharField(max_length=20,choices=Odeme_DURUMU_CHOICES,default=OdemeYapilmadi,blank=True,null=True)
+    BayiAciklama = models.CharField(max_length=255,blank=True,null=True)
+    GizliAciklama = models.TextField(blank=True,null=True)
+    tutar = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True, default=Decimal('0.00'))
     tarih = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -283,6 +349,7 @@ class internet(models.Model):
 
 
 class EvrakPass(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     isim = models.CharField(max_length=100)
     soyisim = models.CharField(max_length=100)
     pasaportno = models.CharField(max_length=100)
@@ -294,10 +361,15 @@ class EvrakPass(models.Model):
     pass1 = models.ImageField(upload_to=generate_filename, blank=True)
     pass2 = models.ImageField(upload_to=generate_filename, blank=True)
     ikametgah = models.FileField(upload_to=generate_filename, blank=True)
+    aktivasyon_durumu = models.CharField(max_length=20,choices=AKTIVASYON_DURUMU_CHOICES,default=BEKLEMEDE,blank=True,null=True)
+    odeme_durumu = models.CharField(max_length=20,choices=Odeme_DURUMU_CHOICES,default=OdemeYapilmadi,blank=True,null=True)
+    BayiAciklama = models.CharField(max_length=255,blank=True,null=True)
+    GizliAciklama = models.TextField(blank=True,null=True)
+    tutar = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True, default=Decimal('0.00'))
     tarih = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.isim + ' ' + self.soyisim
 
     class Meta:
-        verbose_name_plural = 'Passaportlu işlemler'
+        verbose_name_plural = '50. Passaportlu işlemler Başvuru Kayıtları'

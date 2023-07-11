@@ -14,6 +14,7 @@
         <h1 class="text-center">Bayi Passaport ile Evrak Giriş Paneli</h1>
         <form method="POST" action="{% url 'evrak-gir-pass' %}" enctype="multipart/form-data">
             {% csrf_token %}
+            <input type="hidden" name="user" value="{{ request.user.id }}">
             <div class="mb-3">
                 <label for="isim" class="form-label">İsim</label>
                 <input type="text" class="form-control" id="isim" name="isim" required>

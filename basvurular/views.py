@@ -1,10 +1,11 @@
-from django.shortcuts import render,redirect
+from django.shortcuts import render,redirect,HttpResponse
 from .form import GecisNormal,GecisPass,KontorluYeniform,FaturaliYeniform,Sebekeiciform,internetform
-from .models import Duyuru
+from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon,Duyuru
 from django.contrib.auth.models import auth
 from django.contrib.auth.decorators import login_required
 import environ
 import requests
+from django.http import JsonResponse
 
 
 env = environ.Env(DEBUG=(bool,False))
@@ -51,6 +52,7 @@ def panel(request):
 
 @login_required(login_url = 'home')
 def evrak(request):
+    #selected_operator = request.GET.get('operator4')
     if request.method == 'POST':
         form = GecisNormal(request.POST, request.FILES)
         if form.is_valid():
@@ -65,9 +67,33 @@ def evrak(request):
 
     else:
         form = GecisNormal()
+        #form.fields['tarifeTurk'].queryset = TurkTarife.objects.filter(operator=selected_operator)
+        #form.fields['tarifeYabanci'].queryset = YabanciTarife.objects.filter(operator=selected_operator)
 
     return render(request,"system/evrak-gir.html", {'form': form})
 
+
+
+
+def get_tariffs(request):
+    if request.GET.get('operator'):
+        operator = request.GET.get('operator')
+        tarifeTurk = list(YeniTurkTarife.objects.filter(operator=operator).values('id', 'ad'))
+        tarifeYabanci = list(YeniYabanciTarife.objects.filter(operator=operator).values('id', 'ad'))
+    elif request.GET.get('operator2'):
+        operator = request.GET.get('operator2')
+        tarifeTurk = list(YeniFaturaliTurkTarife.objects.filter(operator=operator).values('id', 'ad'))
+        tarifeYabanci = list(YeniFaturaliYabanciTarife.objects.filter(operator=operator).values('id', 'ad'))
+    elif request.GET.get('operator3'):
+        operator = request.GET.get('operator3')
+        tarifeTurk = list(SebekeiciTurkTarife.objects.filter(operator=operator).values('id', 'ad'))
+        tarifeYabanci = list(SebekeiciYabanciTarife.objects.filter(operator=operator).values('id', 'ad'))
+    elif request.GET.get('operator4'):
+        operator = request.GET.get('operator4')
+        tarifeTurk = list(TurkTarife.objects.filter(operator=operator).values('id', 'ad'))
+        tarifeYabanci = list(YabanciTarife.objects.filter(operator=operator).values('id', 'ad'))
+
+    return JsonResponse({'tarifeTurk': tarifeTurk, 'tarifeYabanci': tarifeYabanci})
 
 
 @login_required(login_url = 'home')
@@ -82,10 +108,14 @@ def kontorluYeni(request):
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
+            return HttpResponse(form.errors)
     else:
         form = KontorluYeniform()
 
-    return render(request,"system/kontorlu-yeni-hat.html", {'form': form})
+    return render(request,"system/kontorlu-yeni-hat.html", {'form': form,})
+
+
+
 
 @login_required(login_url = 'home')
 def FaturaliYeni(request):
@@ -99,6 +129,7 @@ def FaturaliYeni(request):
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
+            return HttpResponse(form.errors)
     else:
         form = FaturaliYeniform()
 
@@ -116,10 +147,10 @@ def sebekeicigecis(request):
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
+            return HttpResponse(form.errors)
     else:
         form = Sebekeiciform()
-
-    return render(request,"system/sebeke-ici-gecis.html", {'form': form})
+    return render(request,"system/sebeke-ici-gecis.html",{'form': form})
 
 @login_required(login_url = 'home')
 def internet(request):
@@ -133,6 +164,7 @@ def internet(request):
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
+            return HttpResponse(form.errors)
     else:
         form = internetform()
 
