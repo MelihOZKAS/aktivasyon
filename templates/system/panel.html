@@ -7,6 +7,20 @@
     <div class="container mt-5">
         <div class="row justify-content-center">
             <div class="col-lg-12">
+                <div class="d-flex justify-content-center mb-4">
+                    <div class="card text-white bg-danger me-5" style="max-width: 18rem;">
+                        <div class="card-header">Borç</div>
+                        <div class="card-body">
+                            <h5 class="card-title">{{ bayi.Borc }}</h5>
+                        </div>
+                    </div>
+                    <div class="card text-white bg-success" style="max-width: 18rem;">
+                        <div class="card-header">Bakiye</div>
+                        <div class="card-body">
+                            <h5 class="card-title">{{ bayi.Bayi_Bakiyesi }}</h5>
+                        </div>
+                    </div>
+                </div>
                 {% for duyuru in duyurular %}
                     <div class="card mb-4">
                         <div class="card-body p-4">

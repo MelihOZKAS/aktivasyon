@@ -43,8 +43,9 @@ def kontor(request):
 @login_required(login_url = 'home')
 def panel(request):
     duyurular = Duyuru.objects.all()
+    bayi = Bayi_Listesi.objects.get(user=request.user)
 
-    return render(request,"system/panel.html", {'duyurular': duyurular})
+    return render(request,"system/panel.html", {'duyurular': duyurular,'bayi':bayi})
 
 
 
