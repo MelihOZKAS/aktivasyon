@@ -177,6 +177,24 @@
             {% endfor %}
             </tbody>
         </table>
+
+        <div class="pagination">
+            {% if kontorluyenihat_page_obj.has_previous %}
+                <a href="?kontorluyenihat_page={{ kontorluyenihat_page_obj.previous_page_number }}">önceki</a>
+            {% endif %}
+            {% for num in kontorluyenihat_page_obj.paginator.page_range %}
+                {% if kontorluyenihat_page_obj.number == num %}
+                    <strong>{{ num }}</strong>
+                {% else %}
+                    <a href="?kontorluyenihat_page={{ num }}">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+            {% if kontorluyenihat_page_obj.has_next %}
+                <a href="?kontorluyenihat_page={{ kontorluyenihat_page_obj.next_page_number }}">sonraki</a>
+            {% endif %}
+        </div>
+
+
     </div>
     <script>
         var buttons = document.querySelectorAll('button[data-model]');
