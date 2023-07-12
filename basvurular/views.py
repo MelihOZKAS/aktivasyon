@@ -291,7 +291,7 @@ def evrak_list(request):
 
     context = {
         'evrak_page_obj': evrak_page_obj,
-        'kontorluyenihat_page_obj': kontorluyenihat_page_obj,
+        'kontorluyenihatlar': kontorluyenihat_page_obj,
         'faturaliyenihat_page_obj': faturaliyenihat_page_obj,
         'sebekeici_page_obj': sebekeici_page_obj,
         'internet_page_obj': internet_page_obj,
