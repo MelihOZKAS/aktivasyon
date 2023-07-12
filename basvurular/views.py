@@ -264,37 +264,20 @@ def evrakpass(request):
 
 @login_required(login_url = 'home')
 def evrak_list(request):
-    evrak_list = Evrak.objects.all()
-    evrak_paginator = Paginator(evrak_list, 25) # Her sayfada 10 öğe göster
-    evrak_page_number = request.GET.get('evrak_page')
-    evrak_page_obj = evrak_paginator.get_page(evrak_page_number)
+    evraklar = list(Evrak.objects.all())
+    kontorluyenihatlar = list(KontorluYeniHat.objects.all())
+    faturaliyenihatlar = list(FaturaliYeniHat.objects.all())
+    sebekeiciler = list(Sebekeici.objects.all())
+    internetler = list(internet.objects.all())
 
-    kontorluyenihat_list = KontorluYeniHat.objects.all()
-    kontorluyenihat_paginator = Paginator(kontorluyenihat_list, 1)
-    kontorluyenihat_page_number = request.GET.get('kontorluyenihat_page')
-    kontorluyenihat_page_obj = kontorluyenihat_paginator.get_page(kontorluyenihat_page_number)
+    all_items = evraklar + kontorluyenihatlar + faturaliyenihatlar + sebekeiciler + internetler
 
-    faturaliyenihat_list = FaturaliYeniHat.objects.all()
-    faturaliyenihat_paginator = Paginator(faturaliyenihat_list, 25)
-    faturaliyenihat_page_number = request.GET.get('faturaliyenihat_page')
-    faturaliyenihat_page_obj = faturaliyenihat_paginator.get_page(faturaliyenihat_page_number)
-
-    sebekeici_list = Sebekeici.objects.all()
-    sebekeici_paginator = Paginator(sebekeici_list, 25)
-    sebekeici_page_number = request.GET.get('sebekeici_page')
-    sebekeici_page_obj = sebekeici_paginator.get_page(sebekeici_page_number)
-
-    internet_list = internet.objects.all()
-    internet_paginator = Paginator(internet_list, 25)
-    internet_page_number = request.GET.get('internet_page')
-    internet_page_obj = internet_paginator.get_page(internet_page_number)
+    paginator = Paginator(all_items, 2) # Her sayfada 10 öğe göster
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
     context = {
-        'evrak_page_obj': evrak_page_obj,
-        'kontorluyenihat_page_obj': kontorluyenihat_page_obj,
-        'faturaliyenihat_page_obj': faturaliyenihat_page_obj,
-        'sebekeici_page_obj': sebekeici_page_obj,
-        'internet_page_obj': internet_page_obj,
+        'page_obj': page_obj,
     }
 
     return render(request, 'system/takip.html', context)
