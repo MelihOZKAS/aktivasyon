@@ -5,7 +5,10 @@
 <!-- MNT System-->
 
 {% block content %}
-    <h1>Bakiye Hareketleri</h1>
+    <!-- Bootstrap CSS -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <h1 class="text-center">Bakiye Hareketleri</h1>
     <table class="table">
         <thead>
             <tr>
@@ -35,21 +38,21 @@
         </tbody>
     </table>
 
-    <div class="pagination">
+    <div class="pagination d-flex justify-content-center">
         {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}">önceki</a>
+            <a href="?page={{ page_obj.previous_page_number }}" class="btn btn-outline-primary me-2">önceki</a>
         {% endif %}
 
         {% for num in page_obj.paginator.page_range %}
             {% if page_obj.number == num %}
-                <strong>{{ num }}</strong>
+                <span class="btn btn-primary me-2">{{ num }}</span>
             {% else %}
-                <a href="?page={{ num }}">{{ num }}</a>
+                <a href="?page={{ num }}" class="btn btn-outline-primary me-2">{{ num }}</a>
             {% endif %}
         {% endfor %}
 
         {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}">sonraki</a>
+            <a href="?page={{ page_obj.next_page_number }}" class="btn btn-outline-primary">sonraki</a>
         {% endif %}
     </div>
 {% endblock %}
