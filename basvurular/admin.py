@@ -1,17 +1,20 @@
 from django.contrib import admin
 from .models import Evrak, EvrakPass, TurkTarife, YabanciTarife, YeniTurkTarife, YeniYabanciTarife, KontorluYeniHat, \
     FaturaliYeniHat, YeniFaturaliYabanciTarife, YeniFaturaliTurkTarife, Sebekeici, SebekeiciTurkTarife, \
-    SebekeiciYabanciTarife, Duyuru, OperatorTarifeleri, Operatorleri, internet, Modemlimi, Telefon ,  Bayi_Listesi, Banka,BakiyeHareketleri
+    SebekeiciYabanciTarife, Duyuru, OperatorTarifeleri, Operatorleri, internet, Modemlimi, Telefon, Bayi_Listesi, Banka, \
+    BakiyeHareketleri, SimCard, FiyatKategorisi, Urun
 from django.contrib import admin
 from django.utils.html import format_html
 
 
 class EvrakAdmin(admin.ModelAdmin):
-    list_display = ('id' , 'resim' ,  'isim','soyisim', 'tc', 'numara', 'irtibat', 'operatoru', 'gececegi_operator', 'aks')
+    list_display = (
+        'id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat', 'operatoru', 'gececegi_operator', 'aks')
     list_filter = ('operatoru', 'gececegi_operator')
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
-    list_display_links = ('id','resim','isim',)
+    list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
+
     def resim(self, obj):
         if obj.aktivasyon_durumu == 'Beklemede':
             return format_html('<img src="/static/panel/img/Durumlar/new.png" width="32" height="32" />')
@@ -27,13 +30,13 @@ class EvrakAdmin(admin.ModelAdmin):
     resim.short_description = 'Durum'
 
 
-
 class YeniKontorluAdmin(admin.ModelAdmin):
-    list_display = ('id', 'resim' , 'isim', 'soyisim', 'tc', 'irtibat', 'operatoru', 'aks')
+    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat', 'operatoru', 'aks')
     list_filter = ('operatoru',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
-    list_display_links = ('id','resim','isim',)
+    list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
+
     def resim(self, obj):
         if obj.aktivasyon_durumu == 'Beklemede':
             return format_html('<img src="/static/panel/img/Durumlar/new.png" width="32" height="32" />')
@@ -50,11 +53,12 @@ class YeniKontorluAdmin(admin.ModelAdmin):
 
 
 class YeniFaturaliAdmin(admin.ModelAdmin):
-    list_display = ('id', 'resim' , 'isim', 'soyisim', 'tc', 'irtibat', 'operatoru', 'aks')
+    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat', 'operatoru', 'aks')
     list_filter = ('operatoru',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
-    list_display_links = ('id','resim','isim',)
+    list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
+
     def resim(self, obj):
         if obj.aktivasyon_durumu == 'Beklemede':
             return format_html('<img src="/static/panel/img/Durumlar/new.png" width="32" height="32" />')
@@ -71,11 +75,12 @@ class YeniFaturaliAdmin(admin.ModelAdmin):
 
 
 class SebekeiciAdmin(admin.ModelAdmin):
-    list_display = ('id', 'resim','isim', 'soyisim', 'tc', 'numara', 'irtibat', 'operatoru', 'aks')
+    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat', 'operatoru', 'aks')
     list_filter = ('operatoru',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
-    list_display_links = ('id','resim','isim',)
+    list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
+
     def resim(self, obj):
         if obj.aktivasyon_durumu == 'Beklemede':
             return format_html('<img src="/static/panel/img/Durumlar/new.png" width="32" height="32" />')
@@ -93,11 +98,12 @@ class SebekeiciAdmin(admin.ModelAdmin):
 
 class internetAdmin(admin.ModelAdmin):
     list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat', 'Operatorler', 'aks',)
-    list_filter = ('Operatorler','aktivasyon_durumu','odeme_durumu','user__username',)
+    list_filter = ('Operatorler', 'aktivasyon_durumu', 'odeme_durumu', 'user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat',)
-    list_display_links = ('id','resim','isim')
-    list_display_links = ('id','resim','isim',)
+    list_display_links = ('id', 'resim', 'isim')
+    list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
+
     def resim(self, obj):
         if obj.aktivasyon_durumu == 'Beklemede':
             return format_html('<img src="/static/panel/img/Durumlar/new.png" width="32" height="32" />')
@@ -114,11 +120,13 @@ class internetAdmin(admin.ModelAdmin):
 
 
 class EvrakPassAdmin(admin.ModelAdmin):
-    list_display = ('id','resim',  'isim', 'soyisim', 'pasaportno', 'numara', 'operator', 'gececegi_operator', 'irtibat')
+    list_display = (
+        'id', 'resim', 'isim', 'soyisim', 'pasaportno', 'numara', 'operator', 'gececegi_operator', 'irtibat')
     list_filter = ('operator', 'gececegi_operator')
     search_fields = ('isim', 'soyisim', 'numara', 'irtibat')
-    list_display_links = ('id','resim','isim',)
+    list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
+
     def resim(self, obj):
         if obj.aktivasyon_durumu == 'Beklemede':
             return format_html('<img src="/static/panel/img/Durumlar/new.png" width="32" height="32" />')
@@ -132,8 +140,6 @@ class EvrakPassAdmin(admin.ModelAdmin):
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
 
     resim.short_description = 'Durum'
-
-
 
 
 class TurkTarifeAdmin(admin.ModelAdmin):
@@ -221,17 +227,40 @@ admin.site.register(Operatorleri, ADSLOperatorAdmin)
 
 
 class AdminBanka(admin.ModelAdmin):
-    list_display = ('banka_adi', 'hesap_sahibi', 'bakiye','BayiGormesin','Aktifmi')
+    list_display = ('banka_adi', 'hesap_sahibi', 'bakiye', 'BayiGormesin', 'Aktifmi')
     readonly_fields = ('bakiye',)
+
 
 @admin.register(Bayi_Listesi)
 class Bayi_Bakiyeleri(admin.ModelAdmin):
-    list_display = ('user', 'Bayi_Bakiyesi','Borc')
-    readonly_fields = ('Bayi_Bakiyesi','Borc')
+    list_display = ('user', 'Bayi_Bakiyesi', 'Borc')
+    readonly_fields = ('Bayi_Bakiyesi', 'Borc')
+
 
 admin.site.register(Banka, AdminBanka)
 
+
 @admin.register(BakiyeHareketleri)
 class BakiyeHareketleriAdmin(admin.ModelAdmin):
-    list_display = ('user', 'islem_tutari', 'onceki_bakiye', 'sonraki_bakiye', 'onceki_Borc', 'sonraki_Borc','tarih', 'aciklama')
-    readonly_fields = ('user', 'islem_tutari', 'onceki_bakiye', 'sonraki_bakiye', 'onceki_Borc', 'sonraki_Borc','tarih', 'aciklama')
+    list_display = (
+        'user', 'islem_tutari', 'onceki_bakiye', 'sonraki_bakiye', 'onceki_Borc', 'sonraki_Borc', 'tarih', 'aciklama')
+    readonly_fields = (
+        'user', 'islem_tutari', 'onceki_bakiye', 'sonraki_bakiye', 'onceki_Borc', 'sonraki_Borc', 'tarih', 'aciklama')
+
+
+class SimCardAdmin(admin.ModelAdmin):
+    list_display = ('bayi', 'operator', 'imei', 'status', 'dist_status')
+
+
+admin.site.register(SimCard, SimCardAdmin)
+
+class FiyatKategorisiAdmin(admin.ModelAdmin):
+    list_display = ('kategori_adi', )
+
+admin.site.register(FiyatKategorisi, FiyatKategorisiAdmin)
+
+
+class UrunAdmin(admin.ModelAdmin):
+    list_display = ('fiyat_kategorisi','urun_adi','urun_fiyati', )
+
+admin.site.register(Urun, UrunAdmin)

@@ -1,6 +1,6 @@
 from django.shortcuts import render,redirect,HttpResponse
 from .form import GecisNormal,GecisPass,KontorluYeniform,FaturaliYeniform,Sebekeiciform,internetform
-from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon,Duyuru
+from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon,Duyuru,Urun,Bayi_Listesi
 from django.contrib.auth.models import auth
 from django.contrib.auth.decorators import login_required
 import environ
@@ -57,6 +57,10 @@ def evrak(request):
         form = GecisNormal(request.POST, request.FILES)
         if form.is_valid():
             form.save()
+            imei = request.POST.get('simimei')
+            sim_card = SimCard.objects.get(imei=imei)
+            sim_card.status = 'used'
+            sim_card.save()
             joined_message = "MNT Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
             url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
             r = requests.get(url)
@@ -67,10 +71,9 @@ def evrak(request):
 
     else:
         form = GecisNormal()
-        #form.fields['tarifeTurk'].queryset = TurkTarife.objects.filter(operator=selected_operator)
-        #form.fields['tarifeYabanci'].queryset = YabanciTarife.objects.filter(operator=selected_operator)
+        sim_cards = SimCard.objects.filter(bayi=request.user,status="pending")
 
-    return render(request,"system/evrak-gir.html", {'form': form})
+    return render(request,"system/evrak-gir.html",{'form': form, 'sim_cards': sim_cards})
 
 
 
@@ -96,23 +99,53 @@ def get_tariffs(request):
     return JsonResponse({'tarifeTurk': tarifeTurk, 'tarifeYabanci': tarifeYabanci})
 
 
+from django.shortcuts import render
+from .models import SimCard
+
+from django.shortcuts import render
+from .models import SimCard, Bayi_Listesi
+
+from django.shortcuts import render
+from .models import SimCard, Bayi_Listesi
+
 @login_required(login_url = 'home')
 def kontorluYeni(request):
     if request.method == 'POST':
         form = KontorluYeniform(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
-            joined_message = "KontorlüYeni Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
-            url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
-            r = requests.get(url)
-            return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
+            operator = request.POST.get('operatoru')
+            balance = Bayi_Listesi.objects.get(user=request.user)
+            product = Urun.objects.get(fiyat_kategorisi=balance.Fiyati, urun_adi=operator)
+            price = product.urun_fiyati
+
+            if balance.Bayi_Bakiyesi >= price:
+                form.save()
+
+                imei = request.POST.get('simimei')
+                sim_card = SimCard.objects.get(imei=imei)
+                sim_card.status = 'used'
+                sim_card.save()
+
+                balance.Bayi_Bakiyesi -= price
+                balance.save()
+
+                joined_message = "KontorlüYeni Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
+                url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
+                r = requests.get(url)
+                return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
+            else:
+                return HttpResponse("Yetersiz Bakiye Lütfen Bayi Yükleyin.")
         else:
             print(form.errors)  # Hataları konsola yazdır
             return HttpResponse(form.errors)
     else:
         form = KontorluYeniform()
+        sim_cards = SimCard.objects.filter(bayi=request.user,status="pending")
 
-    return render(request,"system/kontorlu-yeni-hat.html", {'form': form,})
+    return render(request,"system/kontorlu-yeni-hat.html", {'form': form, 'sim_cards': sim_cards})
+
+
+
 
 
 
@@ -123,6 +156,10 @@ def FaturaliYeni(request):
         form = FaturaliYeniform(request.POST, request.FILES)
         if form.is_valid():
             form.save()
+            imei = request.POST.get('simimei')
+            sim_card = SimCard.objects.get(imei=imei)
+            sim_card.status = 'used'
+            sim_card.save()
             joined_message = "FaturaliYeni Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
             url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
             r = requests.get(url)
@@ -132,8 +169,10 @@ def FaturaliYeni(request):
             return HttpResponse(form.errors)
     else:
         form = FaturaliYeniform()
+        sim_cards = SimCard.objects.filter(bayi=request.user,status="pending")
 
-    return render(request,"system/faturali-yeni-hat.html", {'form': form})
+    return render(request,"system/faturali-yeni-hat.html", {'form': form, 'sim_cards': sim_cards})
+
 
 @login_required(login_url = 'home')
 def sebekeicigecis(request):

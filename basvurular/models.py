@@ -99,7 +99,7 @@ class Evrak(models.Model):
     tarifeTurk = models.ForeignKey(TurkTarife, related_name='evrak_turk', blank=True,null=True,on_delete=models.CASCADE)
     tarifeYabanci = models.ForeignKey(YabanciTarife, related_name='evrak_yabanci',  blank=True,null=True,on_delete=models.CASCADE)
     aks = models.CharField(max_length=255)
-    simno = models.CharField(max_length=100)
+    simimei = models.CharField(max_length=255,blank=True,null=True)
     adres = models.CharField(max_length=255)
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
     kimlik_arka = models.ImageField(upload_to='evrak/', blank=True, null=True)
@@ -147,11 +147,11 @@ class KontorluYeniHat(models.Model):
     soyisim = models.CharField(max_length=255)
     tc = models.CharField(max_length=100)
     irtibat = models.CharField(max_length=100)
+    simimei = models.CharField(max_length=255,blank=True,null=True)
     operatoru = models.CharField(max_length=100)
     tarifeTurk = models.ForeignKey(YeniTurkTarife, related_name='yeni_kontorlu_evrak_turk', blank=True,null=True,on_delete=models.CASCADE)
     tarifeYabanci = models.ForeignKey(YeniYabanciTarife, related_name='yeni_kontorlu_evrak_yabanci', blank=True,null=True,on_delete=models.CASCADE)
     aks = models.CharField(max_length=255)
-    simno = models.CharField(max_length=100)
     adres = models.CharField(max_length=255)
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
     kimlik_arka = models.ImageField(upload_to='evrak/', blank=True, null=True)
@@ -203,7 +203,7 @@ class FaturaliYeniHat(models.Model):
     tarifeTurk = models.ForeignKey(YeniFaturaliTurkTarife, related_name='yeni_faturali_evrak_turk', blank=True,null=True,on_delete=models.CASCADE)
     tarifeYabanci = models.ForeignKey(YeniFaturaliYabanciTarife, related_name='yeni_faturali_evrak_yabanci', blank=True,null=True,on_delete=models.CASCADE)
     aks = models.CharField(max_length=255)
-    simno = models.CharField(max_length=100)
+    simimei = models.CharField(max_length=255,blank=True,null=True)
     adres = models.CharField(max_length=255)
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
     kimlik_arka = models.ImageField(upload_to='evrak/', blank=True, null=True)
@@ -401,18 +401,74 @@ class Banka(models.Model):
         verbose_name = "Bankalar"
         verbose_name_plural = "Bankalar"
 
+
+class FiyatKategorisi(models.Model):
+    kategori_adi = models.CharField(max_length=255)
+
+    def __str__(self):
+        return self.kategori_adi
+
+class Urun(models.Model):
+    fiyat_kategorisi = models.ForeignKey(FiyatKategorisi, on_delete=models.CASCADE)
+    urun_adi = models.CharField(max_length=255)
+    urun_fiyati = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.fiyat_kategorisi.kategori_adi} - {self.urun_adi} - {self.urun_fiyati}"
+
+
+
+
+class BakiyeHareketleri(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    islem_tutari = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    onceki_bakiye = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    sonraki_bakiye = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    onceki_Borc = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    sonraki_Borc = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    tarih = models.DateTimeField(auto_now_add=True)
+    aciklama = models.CharField(max_length=255)
+    class Meta:
+        verbose_name = "Bakiye Hareketleri"
+        verbose_name_plural = "Bakiye Hareketleri"
+
+
+
+class SimCard(models.Model):
+    bayi = models.ForeignKey(User, on_delete=models.CASCADE)
+    operator = models.CharField(max_length=100,null=True,blank=True)
+    imei = models.CharField(max_length=31,unique=True)
+    status = models.CharField(max_length=20, choices=(
+        ('used', 'Kullanıldı'),
+        ('pending', 'Beklemede'),
+    ), default='pending')
+    dist_status = models.CharField(max_length=20, choices=(
+        ('calculated', 'Hesaplandı'),
+        ('pending', 'Beklemede'),
+    ), default='pending')
+
+    def __str__(self):
+        return f"{self.imei} - {self.bayi.username} - {self.status} - {self.dist_status}"
+
+
+
+
+
 class Bayi_Listesi(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    Fiyati = models.OneToOneField(FiyatKategorisi, on_delete=models.CASCADE, blank=True, null=True)
     Bayi_Bakiyesi = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     Borc = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     Tutar = models.DecimalField(max_digits=10, decimal_places=2,default=0)
     secili_banka = models.ForeignKey(Banka, on_delete=models.CASCADE,null=True,default=None)
+    aciklama = models.CharField(max_length=255,null=True,blank=True)
     islem_durumu = models.CharField(max_length=20, choices=(
         ('islem_sec', 'işlem Türünü Seç'),
         ('nakit_ekle', 'Nakit/Havele/EFT Bakiye Ekle'),
         ('borc_ve_bakiye_ekle', 'Hem Borç Hem Bakiye Ekle'),
         ('bakiye_dus', 'Bakiye Düş'),
         ('sadece_borc_ekle', 'Sadece Borç Ekle'),
+        ('borc_dus_bakiye_ekle', 'Borç Düş Bakiye Ekle'),
     ), default='islem_sec')
 
 
@@ -432,7 +488,15 @@ class Bayi_Listesi(models.Model):
             # Sonra seçili bankanın bakiyesine de tutarı ekle
             if self.secili_banka is not None and self.Tutar > 0:
                 self.secili_banka.bakiye += self.Tutar
+
                 self.secili_banka.save()
+
+        elif self.islem_durumu == "borc_dus_bakiye_ekle":
+            if self.Tutar > self.Borc:
+                self.Bayi_Bakiyesi += self.Tutar - self.Borc
+                self.Borc = 0
+            else:
+                self.Borc -= self.Tutar
 
 
         elif self.islem_durumu == "borc_ve_bakiye_ekle":
@@ -456,8 +520,9 @@ class Bayi_Listesi(models.Model):
             sonraki_bakiye=sonraki_bakiye,
             onceki_Borc=onceki_Borc,
             sonraki_Borc=sonraki_Borc,
+
 #            tarih=timezone.now(),
-            aciklama=f'{self.islem_durumu} bakiye işlemi yapildi.',
+            aciklama=f'{self.aciklama} bakiye işlemi yapildi.',
 
         )
         bakiye_hareketi.save()
@@ -472,15 +537,4 @@ class Bayi_Listesi(models.Model):
         verbose_name = "Bayi Listesi"
         verbose_name_plural = "Bayi Listesi"
 
-class BakiyeHareketleri(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    islem_tutari = models.DecimalField(max_digits=10, decimal_places=2,default=0)
-    onceki_bakiye = models.DecimalField(max_digits=10, decimal_places=2,default=0)
-    sonraki_bakiye = models.DecimalField(max_digits=10, decimal_places=2,default=0)
-    onceki_Borc = models.DecimalField(max_digits=10, decimal_places=2,default=0)
-    sonraki_Borc = models.DecimalField(max_digits=10, decimal_places=2,default=0)
-    tarih = models.DateTimeField(auto_now_add=True)
-    aciklama = models.CharField(max_length=255)
-    class Meta:
-        verbose_name = "Bakiye Hareketleri"
-        verbose_name_plural = "Bakiye Hareketleri"
+
