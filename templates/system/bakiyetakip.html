@@ -6,35 +6,49 @@
 
 {% block content %}
     <!-- Bootstrap CSS -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5/dist/css/bootstrap.min.css" rel="stylesheet">
+
+
+    <style>
+        .table td, .table th {
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .table tr {
+            border-bottom: 1px solid #dee2e6;
+        }
+    </style>
 
     <h1 class="text-center">Bakiye Hareketleri</h1>
     <table class="table">
         <thead>
-            <tr>
-                <th>İşlem Tutarı</th>
-                <th>Önceki Bakiye</th>
-                <th>Sonraki Bakiye</th>
-                <th>Önceki Borç</th>
-                <th>Sonraki Borç</th>
-                <th>Tarih</th>
-                <th>Açıklama</th>
-            </tr>
+        <tr>
+            <th>İşlem Tutarı</th>
+            <th>Önceki Bakiye</th>
+            <th>Sonraki Bakiye</th>
+            <th>Önceki Borç</th>
+            <th>Sonraki Borç</th>
+            <th>Tarih</th>
+            <th>Açıklama</th>
+        </tr>
         </thead>
         <tbody>
-            {% for hareket in page_obj %}
-                <tr>
-                    <td>{{ hareket.islem_tutari }}</td>
-                    <td>{{ hareket.onceki_bakiye }}</td>
-                    <td>{{ hareket.sonraki_bakiye }}</td>
-                    <td>{{ hareket.onceki_Borc }}</td>
-                    <td>{{ hareket.sonraki_Borc }}</td>
-                    <td>{{ hareket.tarih }}</td>
-                    <td>{{ hareket.aciklama }}</td>
-                </tr>
-            {% empty %}
-                <tr><td colspan="7">Bakiye hareketi bulunamadı.</td></tr>
-            {% endfor %}
+        {% for hareket in page_obj %}
+            <tr>
+                <td>{{ hareket.islem_tutari }}</td>
+                <td>{{ hareket.onceki_bakiye }}</td>
+                <td>{{ hareket.sonraki_bakiye }}</td>
+                <td>{{ hareket.onceki_Borc }}</td>
+                <td>{{ hareket.sonraki_Borc }}</td>
+                <td>{{ hareket.tarih }}</td>
+                <td>{{ hareket.aciklama }}</td>
+            </tr>
+        {% empty %}
+            <tr>
+                <td colspan="7">Bakiye hareketi bulunamadı.</td>
+            </tr>
+        {% endfor %}
         </tbody>
     </table>
 
