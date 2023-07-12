@@ -4,7 +4,6 @@
 
 
 
-
 {% block content %}
     <!-- main içerik -->
     <div class="container mt-5">
@@ -14,14 +13,13 @@
                 <div class="card mb-4">
                     <div class="card-body p-4">
                         <div class="text-center">
+                            <h2 style="font-family: 'Arial', sans-serif;">{{ bayi.Bayi_Bakiyesi }}</h2>
+                            <h4 style="font-family: 'Arial', sans-serif;">Bakiye</h4>
+                        </div>
+                        <div class="text-center">
                             {% if bayi.Borc > 0 %}
-                                <h4 style="color: red; font-family: 'Arial', sans-serif;">Borç</h4>
                                 <h2 style="color: red; font-family: 'Arial', sans-serif;">{{ bayi.Borc }}</h2>
-                            {% endif %}
-
-                            {% if bayi.Bayi_Bakiyesi %}
-                                <h4 style="font-family: 'Arial', sans-serif;">Bakiye</h4>
-                                <h2>{{ bayi.Bayi_Bakiyesi }}</h2>
+                                <h4 style="color: red; font-family: 'Arial', sans-serif;">Borç</h4>
                             {% endif %}
                         </div>
                     </div>
