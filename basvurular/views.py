@@ -1,6 +1,6 @@
 from django.shortcuts import render,redirect,HttpResponse
 from .form import GecisNormal,GecisPass,KontorluYeniform,FaturaliYeniform,Sebekeiciform,internetform
-from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon,Duyuru,Urun,Bayi_Listesi
+from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon,Duyuru,Urun,Bayi_Listesi,BakiyeHareketleri
 from django.contrib.auth.models import auth
 from django.contrib.auth.decorators import login_required
 import environ
@@ -113,6 +113,8 @@ def kontorluYeni(request):
         if form.is_valid():
             operator = request.POST.get('operatoru')
             balance = Bayi_Listesi.objects.get(user=request.user)
+            oncekiBakiye = balance.Bayi_Bakiyesi
+            oncekiBorc   = balance.Borc
             product = Urun.objects.get(fiyat_kategorisi=balance.Fiyati, urun_adi=operator)
             price = product.urun_fiyati
 
@@ -126,6 +128,21 @@ def kontorluYeni(request):
 
                 balance.Bayi_Bakiyesi -= price
                 balance.save()
+
+                sonrakikiBakiye = balance.Bayi_Bakiyesi
+                sonrakiBorc = balance.Borc
+
+
+                bakiye_hareketi = BakiyeHareketleri.objects.create(
+                    user=request.user,
+                    islem_tutari=price,
+                    onceki_bakiye=oncekiBakiye,
+                    sonraki_bakiye=sonrakikiBakiye,
+                    onceki_Borc=oncekiBorc,
+                    sonraki_Borc=sonrakiBorc,
+                    aciklama=f'{price} Tutarında Yeni Kontörlü Hat ücreti Düşüldü',
+                )
+                bakiye_hareketi.save()
 
                 joined_message = "KontorlüYeni Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
                 url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
