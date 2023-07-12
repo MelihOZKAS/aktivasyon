@@ -1,24 +1,23 @@
 {% extends 'base.html' %}
 {% load static %}
 
-
 {% block content %}
     <!-- main icerik-->
     <div class="container mt-5">
         <div class="row justify-content-center mb-4">
-            <div class="col-lg-6">
-                <div class="card text-white bg-danger" style="max-width: 18rem;">
+            <div class="col-lg-4 text-center">
+                <div class="card bg-danger text-white" style="max-width: 12rem; margin: 0 auto;">
                     <div class="card-header">Borç</div>
                     <div class="card-body">
                         <h5 class="card-title">{{ bayi.Borc}}</h5>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6">
-                <div class="card text-white bg-success" style="max-width: 18rem;">
+            <div class="col-lg-4 text-center">
+                <div class="card bg-success text-white" style="max-width: 12rem; margin: 0 auto;">
                     <div class="card-header">Bakiye</div>
                     <div class="card-body">
-                        <h5 class="card-title">{{ bayi.Bayi_Bakiyesi}}</h5>
+                        <h5 class="card-title">{{ bayi.Bayi_Bakiyesi }}</h5>
                     </div>
                 </div>
             </div>
@@ -39,4 +38,5 @@
     </div>
 
 {% endblock content %}
+
 
