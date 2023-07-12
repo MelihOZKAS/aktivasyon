@@ -6,6 +6,8 @@ from django.contrib.auth.decorators import login_required
 import environ
 import requests
 from django.http import JsonResponse
+from django.shortcuts import render
+from .models import SimCard, Bayi_Listesi
 
 
 env = environ.Env(DEBUG=(bool,False))
@@ -103,8 +105,25 @@ from .models import SimCard
 from django.shortcuts import render
 from .models import SimCard, Bayi_Listesi
 
+
+
+
+
+from django.core.paginator import Paginator
 from django.shortcuts import render
-from .models import SimCard, Bayi_Listesi
+from .models import BakiyeHareketleri
+
+def bakiye_hareketleri(request):
+    hareket_list = BakiyeHareketleri.objects.filter(user=request.user).order_by('-tarih')
+    paginator = Paginator(hareket_list, 200) # Her sayfada 200 öğe göster
+
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'system/bakiyetakip.html', {'page_obj': page_obj})
+
+
+
 
 @login_required(login_url = 'home')
 def kontorluYeni(request):

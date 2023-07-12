@@ -16,5 +16,6 @@ urlpatterns = [
     path("alt-yapi-sorgula/", views.altYapi, name="alt-yapi-sorgula"),
     path('get-tariffs', views.get_tariffs, name='get-tariffs'),
     path('takip', views.evrak_list, name='takip'),
+    path('bakiyetakip', views.bakiye_hareketleri, name='bakiyetakip'),
 
 ]
