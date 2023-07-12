@@ -16,7 +16,7 @@
         <h1 class="text-center">Bayi Mobil Numara Taşıma Paneli</h1>
         <form method="POST" action="{% url 'mnt' %}" enctype="multipart/form-data">
             {% csrf_token %}
-        <input type="hidden" name="user" value="{{ request.user.id }}">
+            <input type="hidden" name="user" value="{{ request.user.id }}">
 
             <div class="mb-3">
                 <label for="kimlikTipi" class="form-label">Kimlik Tipi</label>
@@ -43,14 +43,14 @@
                 <label for="numara" class="form-label">işlem Yapılacak Numara</label>
                 <input type="number" class="form-control" id="numara" name="numara" required>
             </div>
-           <div class="mb-3">
+            <div class="mb-3">
                 <label for="numara" class="form-label">Irtibat Numarası</label>
                 <input type="number" class="form-control" id="numara" name="irtibat" required>
             </div>
 
             <div class="mb-3">
-                <label for="operator" class="form-label">Operatör:</label>
-                <select class="form-select" id="operator" name="operatoru">
+                <label for="operator" class="form-label"> Geçeceği Operatör:</label>
+                <select class="form-select" id="operator" name="gececegi_operator">
                     <option value="">Lütfen Operatör Seçiniz.!</option>
                     <option value="Turkcell">Turkcell</option>
                     <option value="Avea">Avea</option>
@@ -58,6 +58,15 @@
                 </select>
             </div>
 
+
+            <div class="mb-3">
+                <label for="geçeceği_öperatör" class="form-label">Öperatör</label>
+                <select class="form-select" id="gececegi_operator" name="operatoru" required>
+                    <option value="Turkcell">Turkcell</option>
+                    <option value="Avea">Avea</option>
+                    <option value="Vodafone">Vodafone</option>
+                </select>
+            </div>
 
             <div id="tarifeTurkDiv" style="display: none;">
                 <div class="mb-3">
@@ -143,7 +152,7 @@
             <div class="mb-3">
                 <label for="simimei" class="form-label">IMEI</label>
                 <select class="form-select" id="simimei" name="simimei" required>
-                <option value="">Lütfen Sim Kar imei Seçiniz.</option>
+                    <option value="">Lütfen Sim Kar imei Seçiniz.</option>
                     {% for sim_card in sim_cards %}
                         <option value="{{ sim_card.imei }}">{{ sim_card.operator }} - {{ sim_card.imei }}</option>
                     {% endfor %}

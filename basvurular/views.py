@@ -52,7 +52,6 @@ def panel(request):
 
 @login_required(login_url = 'home')
 def evrak(request):
-    #selected_operator = request.GET.get('operator4')
     if request.method == 'POST':
         form = GecisNormal(request.POST, request.FILES)
         if form.is_valid():
@@ -67,12 +66,12 @@ def evrak(request):
             return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
         else:
             print(form.errors)  # Hataları konsola yazdır
+            return HttpResponse(form.errors)
 
 
     else:
         form = GecisNormal()
         sim_cards = SimCard.objects.filter(bayi=request.user,status="pending")
-
     return render(request,"system/evrak-gir.html",{'form': form, 'sim_cards': sim_cards})
 
 
@@ -134,7 +133,7 @@ def kontorluYeni(request):
                 r = requests.get(url)
                 return redirect('panel')  # Başarılı işlem sonrası yönlendirilecek sayfa
             else:
-                return HttpResponse("Yetersiz Bakiye Lütfen Bayi Yükleyin.")
+                return HttpResponse("Yetersiz Bakiye Lütfen Bakiye Yükleyin.")
         else:
             print(form.errors)  # Hataları konsola yazdır
             return HttpResponse(form.errors)
@@ -192,7 +191,7 @@ def sebekeicigecis(request):
     return render(request,"system/sebeke-ici-gecis.html",{'form': form})
 
 @login_required(login_url = 'home')
-def internet(request):
+def internetBasvuru(request):
     if request.method == 'POST':
         form = internetform(request.POST, request.FILES)
         if form.is_valid():
@@ -229,6 +228,23 @@ def evrakpass(request):
 
     return render(request,"system/evrak-gir-pass.html", {'form': form})
 
+@login_required(login_url = 'home')
+def evrak_list(request):
+    evraklar = Evrak.objects.all()[:100]
+    kontorluyenihatlar = KontorluYeniHat.objects.all()[:100]
+    faturaliyenihatlar = FaturaliYeniHat.objects.all()[:100]
+    sebekeiciler = Sebekeici.objects.all()[:100]
+    internetler = internet.objects.all()[:100]
+
+    context = {
+        'evraklar': evraklar,
+        'kontorluyenihatlar': kontorluyenihatlar,
+        'faturaliyenihatlar': faturaliyenihatlar,
+        'sebekeiciler': sebekeiciler,
+        'internetler': internetler,
+    }
+
+    return render(request, 'system/takip.html', context)
 
 
 @login_required(login_url = 'home')
@@ -240,3 +256,6 @@ def logout(request):
 def duyurular(request):
     duyurular = Duyuru.objects.all()
     return render(request, 'system/panel.html', {'duyurular': duyurular})
+
+
+

@@ -520,10 +520,7 @@ class Bayi_Listesi(models.Model):
             sonraki_bakiye=sonraki_bakiye,
             onceki_Borc=onceki_Borc,
             sonraki_Borc=sonraki_Borc,
-
-#            tarih=timezone.now(),
-            aciklama=f'{self.aciklama} bakiye işlemi yapildi.',
-
+            aciklama=f'{self.aciklama} bakiye işlemi yapildi. {self.islem_durumu}',
         )
         bakiye_hareketi.save()
         super(Bayi_Listesi, self).save(*args, **kwargs)

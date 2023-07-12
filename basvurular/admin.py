@@ -10,7 +10,7 @@ from django.utils.html import format_html
 class EvrakAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat', 'operatoru', 'gececegi_operator', 'aks')
-    list_filter = ('operatoru', 'gececegi_operator')
+    list_filter = ('operatoru', 'gececegi_operator','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
@@ -32,7 +32,7 @@ class EvrakAdmin(admin.ModelAdmin):
 
 class YeniKontorluAdmin(admin.ModelAdmin):
     list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat', 'operatoru', 'aks')
-    list_filter = ('operatoru',)
+    list_filter = ('operatoru','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
@@ -54,7 +54,7 @@ class YeniKontorluAdmin(admin.ModelAdmin):
 
 class YeniFaturaliAdmin(admin.ModelAdmin):
     list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat', 'operatoru', 'aks')
-    list_filter = ('operatoru',)
+    list_filter = ('operatoru','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
@@ -76,7 +76,7 @@ class YeniFaturaliAdmin(admin.ModelAdmin):
 
 class SebekeiciAdmin(admin.ModelAdmin):
     list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat', 'operatoru', 'aks')
-    list_filter = ('operatoru',)
+    list_filter = ('operatoru','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
@@ -122,7 +122,7 @@ class internetAdmin(admin.ModelAdmin):
 class EvrakPassAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'resim', 'isim', 'soyisim', 'pasaportno', 'numara', 'operator', 'gececegi_operator', 'irtibat')
-    list_filter = ('operator', 'gececegi_operator')
+    list_filter = ('operator', 'gececegi_operator','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
@@ -246,10 +246,12 @@ class BakiyeHareketleriAdmin(admin.ModelAdmin):
         'user', 'islem_tutari', 'onceki_bakiye', 'sonraki_bakiye', 'onceki_Borc', 'sonraki_Borc', 'tarih', 'aciklama')
     readonly_fields = (
         'user', 'islem_tutari', 'onceki_bakiye', 'sonraki_bakiye', 'onceki_Borc', 'sonraki_Borc', 'tarih', 'aciklama')
+    list_filter = ('user__username',)
 
 
 class SimCardAdmin(admin.ModelAdmin):
     list_display = ('bayi', 'operator', 'imei', 'status', 'dist_status')
+    list_filter = ('bayi','operator','status','dist_status',)
 
 
 admin.site.register(SimCard, SimCardAdmin)
