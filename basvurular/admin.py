@@ -9,8 +9,8 @@ from django.utils.html import format_html
 
 class EvrakAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat', 'operatoru', 'gececegi_operator', 'aks')
-    list_filter = ('operatoru', 'gececegi_operator','odeme_durumu','aktivasyon_durumu','user__username',)
+        'id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat',  'gececegi_operator', 'aks')
+    list_filter = ('gececegi_operator','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)

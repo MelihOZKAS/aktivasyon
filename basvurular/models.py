@@ -94,7 +94,6 @@ class Evrak(models.Model):
     tc = models.CharField(max_length=100)
     numara = models.CharField(max_length=100)
     irtibat = models.CharField(max_length=100)
-    operatoru = models.CharField(max_length=100)
     gececegi_operator = models.CharField(max_length=100)
     tarifeTurk = models.ForeignKey(TurkTarife, related_name='evrak_turk', blank=True,null=True,on_delete=models.CASCADE)
     tarifeYabanci = models.ForeignKey(YabanciTarife, related_name='evrak_yabanci',  blank=True,null=True,on_delete=models.CASCADE)
