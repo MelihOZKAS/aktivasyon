@@ -24,8 +24,6 @@ def home(request):
             print("Nasip2")
             auth.login(request,user)
             return redirect('panel')
-
-
     return render(request,"login/giris.html")
 
 
