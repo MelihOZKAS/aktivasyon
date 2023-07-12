@@ -264,37 +264,18 @@ def evrakpass(request):
 
 @login_required(login_url = 'home')
 def evrak_list(request):
-    evrak_list = Evrak.objects.all()
-    evrak_paginator = Paginator(evrak_list, 10) # Her sayfada 10 öğe göster
-    evrak_page_number = request.GET.get('evrak_page')
-    evrak_page_obj = evrak_paginator.get_page(evrak_page_number)
-
-    kontorluyenihat_list = KontorluYeniHat.objects.all()
-    kontorluyenihat_paginator = Paginator(kontorluyenihat_list, 10)
-    kontorluyenihat_page_number = request.GET.get('kontorluyenihat_page')
-    kontorluyenihat_page_obj = kontorluyenihat_paginator.get_page(kontorluyenihat_page_number)
-
-    faturaliyenihat_list = FaturaliYeniHat.objects.all()
-    faturaliyenihat_paginator = Paginator(faturaliyenihat_list, 10)
-    faturaliyenihat_page_number = request.GET.get('faturaliyenihat_page')
-    faturaliyenihat_page_obj = faturaliyenihat_paginator.get_page(faturaliyenihat_page_number)
-
-    sebekeici_list = Sebekeici.objects.all()
-    sebekeici_paginator = Paginator(sebekeici_list, 10)
-    sebekeici_page_number = request.GET.get('sebekeici_page')
-    sebekeici_page_obj = sebekeici_paginator.get_page(sebekeici_page_number)
-
-    internet_list = internet.objects.all()
-    internet_paginator = Paginator(internet_list, 10)
-    internet_page_number = request.GET.get('internet_page')
-    internet_page_obj = internet_paginator.get_page(internet_page_number)
+    evraklar = Evrak.objects.all()[:100]
+    kontorluyenihatlar = KontorluYeniHat.objects.all()[:100]
+    faturaliyenihatlar = FaturaliYeniHat.objects.all()[:100]
+    sebekeiciler = Sebekeici.objects.all()[:100]
+    internetler = internet.objects.all()[:100]
 
     context = {
-        'evrak_page_obj': evrak_page_obj,
-        'kontorluyenihat_page_obj': kontorluyenihat_page_obj,
-        'faturaliyenihat_page_obj': faturaliyenihat_page_obj,
-        'sebekeici_page_obj': sebekeici_page_obj,
-        'internet_page_obj': internet_page_obj,
+        'evraklar': evraklar,
+        'kontorluyenihatlar': kontorluyenihatlar,
+        'faturaliyenihatlar': faturaliyenihatlar,
+        'sebekeiciler': sebekeiciler,
+        'internetler': internetler,
     }
 
     return render(request, 'system/takip.html', context)

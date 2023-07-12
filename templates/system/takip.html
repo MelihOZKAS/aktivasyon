@@ -48,7 +48,7 @@
             </tr>
             </thead>
             <tbody>
-            {% for evrak in evrak_page_obj %}
+            {% for evrak in evraklar %}
                 <tr>
                     <td>{{ evrak.isim }}</td>
                     <td>{{ evrak.soyisim }}</td>
@@ -77,7 +77,7 @@
             </tr>
             </thead>
             <tbody>
-            {% for kontorluyenihat in kontorluyenihat_page_obj %}
+            {% for kontorluyenihat in kontorluyenihatlar %}
                 <tr>
                     <td>{{ kontorluyenihat.isim }}</td>
                     <td>{{ kontorluyenihat.soyisim }}</td>
@@ -90,21 +90,6 @@
             {% endfor %}
             </tbody>
         </table>
-        <div class="pagination">
-            {% if kontorluyenihat_#page_obj.has_previous %}
-                <a href="?kontorluyenihat_#page={{ kontorluyenihat_#page_obj.previous_#page_number }}">önceki</a>
-            {% endif %}
-            {% for num in kontorluyenihat_#page_obj.paginator.page_range %}
-                {% if kontorluyenihat_#page_obj.number == num %}
-                    <strong>{{ num }}</strong>
-                {% else %}
-                    <a href="?kontorluyenihat_#page={{ num }}">{{ num }}</a>
-                {% endif %}
-            {% endfor %}
-            {% if kontorluyenihat_#page_obj.has_next %}
-                <a href="?kontorluyenihat_#page={{ kontorluyenihat_#page_obj.next_#page_number }}">sonraki</a>
-            {% endif %}
-        </div>
     </div>
 
     <div id="faturaliyenihat-table" class="model-table" style="display: none;">
@@ -121,7 +106,7 @@
             </tr>
             </thead>
             <tbody>
-            {% for faturaliyenihat in faturaliyenihat_page_obj %}
+            {% for faturaliyenihat in faturaliyenihatlar %}
                 <tr>
                     <td>{{ faturaliyenihat.isim }}</td>
                     <td>{{ faturaliyenihat.soyisim }}</td>
@@ -150,7 +135,7 @@
             </tr>
             </thead>
             <tbody>
-            {% for sebekeici in sebekeici_page_obj %}
+            {% for sebekeici in sebekeiciler %}
                 <tr>
                     <td>{{ sebekeici.isim }}</td>
                     <td>{{ sebekeici.soyisim }}</td>
@@ -179,7 +164,7 @@
             </tr>
             </thead>
             <tbody>
-            {% for internet in internet_page_obj %}
+            {% for internet in internetler %}
                 <tr>
                     <td>{{ internet.isim }}</td>
                     <td>{{ internet.soyisim }}</td>
@@ -192,8 +177,7 @@
             {% endfor %}
             </tbody>
         </table>
-
-
+    
     </div>
     <script>
         var buttons = document.querySelectorAll('button[data-model]');
