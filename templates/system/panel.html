@@ -13,14 +13,14 @@
                 <div class="card mb-4">
                     <div class="card-body p-4">
                         <div class="row">
-                            <div class="col text-end">
-                                <h4 style="font-family: 'Arial', sans-serif;">Bakiye tutarı</h4>
+                            <div class="col text-center">
                                 <h2 style="font-family: 'Arial', sans-serif;">{{ bayi.Bayi_Bakiyesi }}</h2>
+                                <h4 style="font-family: 'Arial', sans-serif;">Bakiye tutarı</h4>
                             </div>
-                            <div class="col text-start">
+                            <div class="col text-center">
                                 {% if bayi.Borc > 0 %}
-                                    <h4 style="color: red; font-family: 'Arial', sans-serif;">Borç tutarı</h4>
                                     <h2 style="color: red; font-family: 'Arial', sans-serif;">{{ bayi.Borc }}</h2>
+                                    <h4 style="color: red; font-family: 'Arial', sans-serif;">Borç tutarı</h4>
                                 {% endif %}
                             </div>
                         </div>
@@ -41,6 +41,7 @@
         </div>
     </div>
 {% endblock content %}
+
 
 
 
