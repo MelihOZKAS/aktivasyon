@@ -264,11 +264,11 @@ def evrakpass(request):
 
 @login_required(login_url = 'home')
 def evrak_list(request):
-    evraklar = Evrak.objects.all()[:100]
-    kontorluyenihatlar = KontorluYeniHat.objects.all()[:100]
-    faturaliyenihatlar = FaturaliYeniHat.objects.all()[:100]
-    sebekeiciler = Sebekeici.objects.all()[:100]
-    internetler = internet.objects.all()[:100]
+    evraklar = Evrak.objects.all()[:150]
+    kontorluyenihatlar = KontorluYeniHat.objects.all()[:150]
+    faturaliyenihatlar = FaturaliYeniHat.objects.all()[:150]
+    sebekeiciler = Sebekeici.objects.all()[:150]
+    internetler = internet.objects.all()[:150]
 
     context = {
         'evraklar': evraklar,
