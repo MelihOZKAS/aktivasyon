@@ -115,7 +115,7 @@ from .models import BakiyeHareketleri
 
 def bakiye_hareketleri(request):
     hareket_list = BakiyeHareketleri.objects.filter(user=request.user).order_by('-tarih')
-    paginator = Paginator(hareket_list, 200) # Her sayfada 200 öğe göster
+    paginator = Paginator(hareket_list, 2) # Her sayfada 200 öğe göster
 
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
