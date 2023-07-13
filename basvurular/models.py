@@ -428,7 +428,7 @@ class BakiyeHareketleri(models.Model):
     onceki_Borc = models.DecimalField(max_digits=10, decimal_places=2,default=0)
     sonraki_Borc = models.DecimalField(max_digits=10, decimal_places=2,default=0)
     tarih = models.DateTimeField(auto_now_add=True)
-    aciklama = models.CharField(max_length=255)
+    aciklama = models.TextField(null=True,blank=True)
     class Meta:
         verbose_name = "Bakiye Hareketleri"
         verbose_name_plural = "Bakiye Hareketleri"
