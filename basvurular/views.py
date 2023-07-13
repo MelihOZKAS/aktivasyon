@@ -390,7 +390,7 @@ def sebekemutabakat(request):
         obj.aktivasyon_durumu = 'Aktif'
         obj.odeme_durumu = 'OdemeYapildi'
         gizli = obj.GizliAciklama
-        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Şebekeiçi primi yüklendi \n Ödeme Yapıldı!!!"
+        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Tutar:{obj.tutar} Tutarında Şebekeiçi primi yüklendi \n Ödeme Yapıldı!!!"
         obj.save()
 
         sonrakikiBakiye = bayi_listesi.Bayi_Bakiyesi
@@ -403,7 +403,7 @@ def sebekemutabakat(request):
             sonraki_bakiye=sonrakikiBakiye,
             onceki_Borc=oncekiBorc,
             sonraki_Borc=sonrakiBorc,
-            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Şebekeiçi primi yüklendi',
+            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Tutar:{obj.tutar} Tutarında Şebekeiçi primi yüklendi',
         )
         bakiye_hareketi.save()
 
@@ -438,7 +438,7 @@ def internetmutabakat(request):
             sonraki_bakiye=sonrakikiBakiye,
             onceki_Borc=oncekiBorc,
             sonraki_Borc=sonrakiBorc,
-            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında internet primi yüklendi',
+            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Tutar:{obj.tutar} Tutarında internet primi yüklendi',
         )
         bakiye_hareketi.save()
 
@@ -460,7 +460,7 @@ def Passmutabakat(request):
         obj.aktivasyon_durumu = 'Aktif'
         obj.odeme_durumu = 'OdemeYapildi'
         gizli = obj.GizliAciklama
-        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Passaport primi yüklendi \n Ödeme Yapıldı!!!"
+        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Tutar:{obj.tutar} Tutarında Passaport primi yüklendi \n Ödeme Yapıldı!!!"
         obj.save()
 
         sonrakikiBakiye = bayi_listesi.Bayi_Bakiyesi
@@ -473,7 +473,7 @@ def Passmutabakat(request):
             sonraki_bakiye=sonrakikiBakiye,
             onceki_Borc=oncekiBorc,
             sonraki_Borc=sonrakiBorc,
-            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Passaport primi yüklendi',
+            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Tutar:{obj.tutar} Tutarında Passaport primi yüklendi',
         )
         bakiye_hareketi.save()
 
