@@ -19,6 +19,7 @@ ISLEMDE = 'İşlemde'
 EKSIK_EVRAK = 'Eksik Evrak'
 AKTIF = 'Aktif'
 HATALI = 'Hatalı'
+MUTABAKAT = 'Mutabakat Bekliyor'
 
 AKTIVASYON_DURUMU_CHOICES = [
     (BEKLEMEDE, 'Beklemede'),
@@ -26,6 +27,7 @@ AKTIVASYON_DURUMU_CHOICES = [
     (EKSIK_EVRAK, 'Eksik Evrak'),
     (AKTIF, 'Aktif'),
     (HATALI, 'Hatalı'),
+    (MUTABAKAT, 'Mutabakat Bekliyor'),
 ]
 
 
@@ -95,8 +97,8 @@ class Evrak(models.Model):
     numara = models.CharField(max_length=100)
     irtibat = models.CharField(max_length=100)
     gececegi_operator = models.CharField(max_length=100)
-    tarifeTurk = models.ForeignKey(TurkTarife, related_name='evrak_turk', blank=True,null=True,on_delete=models.CASCADE)
-    tarifeYabanci = models.ForeignKey(YabanciTarife, related_name='evrak_yabanci',  blank=True,null=True,on_delete=models.CASCADE)
+    tarifeTurk = models.ForeignKey(TurkTarife, related_name='evrak_turk', blank=True,null=True,on_delete=models.SET_NULL)
+    tarifeYabanci = models.ForeignKey(YabanciTarife, related_name='evrak_yabanci',  blank=True,null=True,on_delete=models.SET_NULL)
     aks = models.CharField(max_length=255)
     simimei = models.CharField(max_length=255,blank=True,null=True)
     adres = models.CharField(max_length=255)
@@ -148,8 +150,8 @@ class KontorluYeniHat(models.Model):
     irtibat = models.CharField(max_length=100)
     simimei = models.CharField(max_length=255,blank=True,null=True)
     operatoru = models.CharField(max_length=100)
-    tarifeTurk = models.ForeignKey(YeniTurkTarife, related_name='yeni_kontorlu_evrak_turk', blank=True,null=True,on_delete=models.CASCADE)
-    tarifeYabanci = models.ForeignKey(YeniYabanciTarife, related_name='yeni_kontorlu_evrak_yabanci', blank=True,null=True,on_delete=models.CASCADE)
+    tarifeTurk = models.ForeignKey(YeniTurkTarife, related_name='yeni_kontorlu_evrak_turk', blank=True,null=True,on_delete=models.SET_NULL)
+    tarifeYabanci = models.ForeignKey(YeniYabanciTarife, related_name='yeni_kontorlu_evrak_yabanci', blank=True,null=True,on_delete=models.SET_NULL)
     aks = models.CharField(max_length=255)
     adres = models.CharField(max_length=255)
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
@@ -199,8 +201,8 @@ class FaturaliYeniHat(models.Model):
     tc = models.CharField(max_length=100)
     irtibat = models.CharField(max_length=100)
     operatoru = models.CharField(max_length=100)
-    tarifeTurk = models.ForeignKey(YeniFaturaliTurkTarife, related_name='yeni_faturali_evrak_turk', blank=True,null=True,on_delete=models.CASCADE)
-    tarifeYabanci = models.ForeignKey(YeniFaturaliYabanciTarife, related_name='yeni_faturali_evrak_yabanci', blank=True,null=True,on_delete=models.CASCADE)
+    tarifeTurk = models.ForeignKey(YeniFaturaliTurkTarife, related_name='yeni_faturali_evrak_turk', blank=True,null=True,on_delete=models.SET_NULL)
+    tarifeYabanci = models.ForeignKey(YeniFaturaliYabanciTarife, related_name='yeni_faturali_evrak_yabanci', blank=True,null=True,on_delete=models.SET_NULL)
     aks = models.CharField(max_length=255)
     simimei = models.CharField(max_length=255,blank=True,null=True)
     adres = models.CharField(max_length=255)
@@ -252,8 +254,8 @@ class Sebekeici(models.Model):
     numara = models.CharField(max_length=100)
     irtibat = models.CharField(max_length=100)
     operatoru = models.CharField(max_length=100)
-    tarifeTurk = models.ForeignKey(SebekeiciTurkTarife, related_name='sebeke_ici_turk', blank=True,null=True,on_delete=models.CASCADE)
-    tarifeYabanci = models.ForeignKey(SebekeiciYabanciTarife, related_name='sebeke_ici_yabanci', blank=True,null=True,on_delete=models.CASCADE)
+    tarifeTurk = models.ForeignKey(SebekeiciTurkTarife, related_name='sebeke_ici_turk', blank=True,null=True,on_delete=models.SET_NULL)
+    tarifeYabanci = models.ForeignKey(SebekeiciYabanciTarife, related_name='sebeke_ici_yabanci', blank=True,null=True,on_delete=models.SET_NULL)
     aks = models.CharField(max_length=255)
     adres = models.CharField(max_length=255)
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
@@ -286,7 +288,7 @@ class Operatorleri(models.Model):
         verbose_name_plural = '83. ADSL Operatorleri '
 class OperatorTarifeleri(models.Model):
     ad = models.CharField(max_length=255)
-    operatoru = models.ForeignKey(Operatorleri, related_name='OperatorTarifeleri', blank=True,null=True,on_delete=models.CASCADE)
+    operatoru = models.ForeignKey(Operatorleri, related_name='OperatorTarifeleri', blank=True,null=True,on_delete=models.SET_NULL)
 
     def __str__(self):
         return self.ad
@@ -322,10 +324,10 @@ class internet(models.Model):
     soyisim = models.CharField(max_length=255)
     tc = models.CharField(max_length=100)
     irtibat = models.CharField(max_length=100)
-    sabithat = models.ForeignKey(Telefon,related_name='SabitHat', blank=True,null=True,on_delete=models.CASCADE)
-    modemolsunmu = models.ForeignKey(Modemlimi,related_name='ModemDurumu', blank=True,null=True,on_delete=models.CASCADE)
-    Operatorler = models.ForeignKey(Operatorleri, related_name='Operatorleri', blank=True,null=True,on_delete=models.CASCADE)
-    operatortarife = models.ForeignKey(OperatorTarifeleri, related_name='OperatorTarifeleri', blank=True,null=True,on_delete=models.CASCADE)
+    sabithat = models.ForeignKey(Telefon,related_name='SabitHat', blank=True,null=True,on_delete=models.SET_NULL)
+    modemolsunmu = models.ForeignKey(Modemlimi,related_name='ModemDurumu', blank=True,null=True,on_delete=models.SET_NULL)
+    Operatorler = models.ForeignKey(Operatorleri, related_name='Operatorleri', blank=True,null=True,on_delete=models.SET_NULL)
+    operatortarife = models.ForeignKey(OperatorTarifeleri, related_name='OperatorTarifeleri', blank=True,null=True,on_delete=models.SET_NULL)
     aks = models.CharField(max_length=255)
     adres = models.CharField(max_length=255)
     kimlik_on = models.ImageField(upload_to='evrak/', blank=True, null=True)
@@ -408,7 +410,7 @@ class FiyatKategorisi(models.Model):
         return self.kategori_adi
 
 class Urun(models.Model):
-    fiyat_kategorisi = models.ForeignKey(FiyatKategorisi, on_delete=models.CASCADE)
+    fiyat_kategorisi = models.ForeignKey(FiyatKategorisi, on_delete=models.SET_NULL)
     urun_adi = models.CharField(max_length=255)
     urun_fiyati = models.DecimalField(max_digits=10, decimal_places=2)
 
@@ -455,12 +457,12 @@ class SimCard(models.Model):
 
 class Bayi_Listesi(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    Fiyati = models.OneToOneField(FiyatKategorisi, on_delete=models.CASCADE, blank=True, null=True)
+    Fiyati = models.OneToOneField(FiyatKategorisi, on_delete=models.SET_NULL, blank=True, null=True)
     Bayi_Bakiyesi = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     Borc = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     Tutar = models.DecimalField(max_digits=10, decimal_places=2,default=0)
-    secili_banka = models.ForeignKey(Banka, on_delete=models.CASCADE,null=True,default=None)
-    aciklama = models.CharField(max_length=255,null=True,blank=True)
+    secili_banka = models.ForeignKey(Banka, on_delete=models.SET_NULL,null=True,default=None)
+    aciklama = models.CharField(max_length=255)
     islem_durumu = models.CharField(max_length=20, choices=(
         ('islem_sec', 'işlem Türünü Seç'),
         ('nakit_ekle', 'Nakit/Havele/EFT Bakiye Ekle'),
