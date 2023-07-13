@@ -410,7 +410,7 @@ class FiyatKategorisi(models.Model):
         return self.kategori_adi
 
 class Urun(models.Model):
-    fiyat_kategorisi = models.ForeignKey(FiyatKategorisi, on_delete=models.SET_NULL)
+    fiyat_kategorisi = models.ForeignKey(FiyatKategorisi, on_delete=models.SET_NULL, null=True)
     urun_adi = models.CharField(max_length=255)
     urun_fiyati = models.DecimalField(max_digits=10, decimal_places=2)
 
