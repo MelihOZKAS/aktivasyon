@@ -340,3 +340,143 @@ def mntmutabakat(request):
     return HttpResponse("Tüm MNT işlemleri Bakiyeleri yüklendi.")
 
 
+def faturalimutabakat(request):
+    aktivasyon = FaturaliYeniHat.objects.filter(aktivasyon_durumu='Mutabakat Bekliyor', odeme_durumu='OdemeYapilmadi')
+
+    for obj in aktivasyon:
+        user = obj.user
+        bayi_listesi = user.bayi_listesi
+
+        oncekiBakiye = bayi_listesi.Bayi_Bakiyesi
+        oncekiBorc = bayi_listesi.Borc
+
+        bayi_listesi.Bayi_Bakiyesi += obj.tutar
+        bayi_listesi.save()
+        obj.aktivasyon_durumu = 'Aktif'
+        obj.odeme_durumu = 'OdemeYapildi'
+        gizli = obj.GizliAciklama
+        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Faturali Hat primi yüklendi \n Ödeme Yapıldı!!!"
+        obj.save()
+
+        sonrakikiBakiye = bayi_listesi.Bayi_Bakiyesi
+        sonrakiBorc = bayi_listesi.Borc
+
+        bakiye_hareketi = BakiyeHareketleri.objects.create(
+            user=request.user,
+            islem_tutari=obj.tutar,
+            onceki_bakiye=oncekiBakiye,
+            sonraki_bakiye=sonrakikiBakiye,
+            onceki_Borc=oncekiBorc,
+            sonraki_Borc=sonrakiBorc,
+            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Faturali Hat primi yüklendi',
+        )
+        bakiye_hareketi.save()
+
+    return HttpResponse("Tüm Faturali Hat işlemleri Bakiyeleri yüklendi.")
+
+
+def sebekemutabakat(request):
+    aktivasyon = Sebekeici.objects.filter(aktivasyon_durumu='Mutabakat Bekliyor', odeme_durumu='OdemeYapilmadi')
+
+    for obj in aktivasyon:
+        user = obj.user
+        bayi_listesi = user.bayi_listesi
+
+        oncekiBakiye = bayi_listesi.Bayi_Bakiyesi
+        oncekiBorc = bayi_listesi.Borc
+
+        bayi_listesi.Bayi_Bakiyesi += obj.tutar
+        bayi_listesi.save()
+        obj.aktivasyon_durumu = 'Aktif'
+        obj.odeme_durumu = 'OdemeYapildi'
+        gizli = obj.GizliAciklama
+        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Şebekeiçi primi yüklendi \n Ödeme Yapıldı!!!"
+        obj.save()
+
+        sonrakikiBakiye = bayi_listesi.Bayi_Bakiyesi
+        sonrakiBorc = bayi_listesi.Borc
+
+        bakiye_hareketi = BakiyeHareketleri.objects.create(
+            user=request.user,
+            islem_tutari=obj.tutar,
+            onceki_bakiye=oncekiBakiye,
+            sonraki_bakiye=sonrakikiBakiye,
+            onceki_Borc=oncekiBorc,
+            sonraki_Borc=sonrakiBorc,
+            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Şebekeiçi primi yüklendi',
+        )
+        bakiye_hareketi.save()
+
+    return HttpResponse("Tüm Şebekeiçi işlemleri Bakiyeleri yüklendi.")
+
+
+def internetmutabakat(request):
+    aktivasyon = internet.objects.filter(aktivasyon_durumu='Mutabakat Bekliyor', odeme_durumu='OdemeYapilmadi')
+
+    for obj in aktivasyon:
+        user = obj.user
+        bayi_listesi = user.bayi_listesi
+
+        oncekiBakiye = bayi_listesi.Bayi_Bakiyesi
+        oncekiBorc = bayi_listesi.Borc
+
+        bayi_listesi.Bayi_Bakiyesi += obj.tutar
+        bayi_listesi.save()
+        obj.aktivasyon_durumu = 'Aktif'
+        obj.odeme_durumu = 'OdemeYapildi'
+        gizli = obj.GizliAciklama
+        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında internet primi yüklendi \n Ödeme Yapıldı!!!"
+        obj.save()
+
+        sonrakikiBakiye = bayi_listesi.Bayi_Bakiyesi
+        sonrakiBorc = bayi_listesi.Borc
+
+        bakiye_hareketi = BakiyeHareketleri.objects.create(
+            user=request.user,
+            islem_tutari=obj.tutar,
+            onceki_bakiye=oncekiBakiye,
+            sonraki_bakiye=sonrakikiBakiye,
+            onceki_Borc=oncekiBorc,
+            sonraki_Borc=sonrakiBorc,
+            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında internet primi yüklendi',
+        )
+        bakiye_hareketi.save()
+
+    return HttpResponse("Tüm internet işlemleri Bakiyeleri yüklendi.")
+
+
+def Passmutabakat(request):
+    aktivasyon = EvrakPass.objects.filter(aktivasyon_durumu='Mutabakat Bekliyor', odeme_durumu='OdemeYapilmadi')
+
+    for obj in aktivasyon:
+        user = obj.user
+        bayi_listesi = user.bayi_listesi
+
+        oncekiBakiye = bayi_listesi.Bayi_Bakiyesi
+        oncekiBorc = bayi_listesi.Borc
+
+        bayi_listesi.Bayi_Bakiyesi += obj.tutar
+        bayi_listesi.save()
+        obj.aktivasyon_durumu = 'Aktif'
+        obj.odeme_durumu = 'OdemeYapildi'
+        gizli = obj.GizliAciklama
+        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Passaport primi yüklendi \n Ödeme Yapıldı!!!"
+        obj.save()
+
+        sonrakikiBakiye = bayi_listesi.Bayi_Bakiyesi
+        sonrakiBorc = bayi_listesi.Borc
+
+        bakiye_hareketi = BakiyeHareketleri.objects.create(
+            user=request.user,
+            islem_tutari=obj.tutar,
+            onceki_bakiye=oncekiBakiye,
+            sonraki_bakiye=sonrakikiBakiye,
+            onceki_Borc=oncekiBorc,
+            sonraki_Borc=sonrakiBorc,
+            aciklama=f'ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında Passaport primi yüklendi',
+        )
+        bakiye_hareketi.save()
+
+    return HttpResponse("Tüm Passaport işlemleri Bakiyeleri yüklendi.")
+
+

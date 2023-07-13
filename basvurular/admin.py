@@ -9,7 +9,7 @@ from django.utils.html import format_html
 
 class EvrakAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat',  'gececegi_operator', 'aks')
+        'id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat', 'tutar', 'gececegi_operator', 'aks')
     list_filter = ('gececegi_operator','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
@@ -31,7 +31,7 @@ class EvrakAdmin(admin.ModelAdmin):
 
 
 class YeniKontorluAdmin(admin.ModelAdmin):
-    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat', 'operatoru', 'aks')
+    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat','tutar', 'operatoru', 'aks')
     list_filter = ('operatoru','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
@@ -53,7 +53,7 @@ class YeniKontorluAdmin(admin.ModelAdmin):
 
 
 class YeniFaturaliAdmin(admin.ModelAdmin):
-    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat', 'operatoru', 'aks')
+    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat','tutar', 'operatoru', 'aks')
     list_filter = ('operatoru','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
@@ -75,7 +75,7 @@ class YeniFaturaliAdmin(admin.ModelAdmin):
 
 
 class SebekeiciAdmin(admin.ModelAdmin):
-    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat', 'operatoru', 'aks')
+    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'numara', 'irtibat','tutar', 'operatoru', 'aks')
     list_filter = ('operatoru','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
@@ -97,7 +97,7 @@ class SebekeiciAdmin(admin.ModelAdmin):
 
 
 class internetAdmin(admin.ModelAdmin):
-    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat', 'Operatorler', 'aks',)
+    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat','tutar', 'Operatorler', 'aks',)
     list_filter = ('Operatorler', 'aktivasyon_durumu', 'odeme_durumu', 'user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat',)
     list_display_links = ('id', 'resim', 'isim')
@@ -121,7 +121,7 @@ class internetAdmin(admin.ModelAdmin):
 
 class EvrakPassAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'resim', 'isim', 'soyisim', 'pasaportno', 'numara', 'operator', 'gececegi_operator', 'irtibat')
+        'id', 'resim', 'isim', 'soyisim', 'pasaportno', 'numara', 'operator','tutar', 'gececegi_operator', 'irtibat')
     list_filter = ('operator', 'gececegi_operator','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
