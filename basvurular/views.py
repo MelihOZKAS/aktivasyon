@@ -114,7 +114,7 @@ from django.shortcuts import render
 from .models import BakiyeHareketleri
 @login_required(login_url = 'home')
 def bakiye_hareketleri(request):
-    hareket_list = BakiyeHareketleri.objects.filter(user=request.user).order_by('-tarih')
+    hareket_list = BakiyeHareketleri.objects.filter(user=request.user, islem_tutari__gt=0).order_by('-tarih')
     paginator = Paginator(hareket_list, 25) # Her sayfada 200 öğe göster
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
