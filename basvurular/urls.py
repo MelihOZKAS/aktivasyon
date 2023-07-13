@@ -15,9 +15,9 @@ urlpatterns = [
     path("kontor-yukle/", views.kontor, name="kontor-yukle"),
     path("alt-yapi-sorgula/", views.altYapi, name="alt-yapi-sorgula"),
     path('get-tariffs', views.get_tariffs, name='get-tariffs'),
-    path('takip', views.evrak_list, name='takip'),
-    path('bakiyetakip', views.bakiye_hareketleri, name='bakiyetakip'),
-    path('banka', views.bankalar, name='banka'),
-    path('mntm', views.mntmutabakat, name='mntm'),
+    path('takip/', views.evrak_list, name='takip'),
+    path('bakiyetakip/', views.bakiye_hareketleri, name='bakiyetakip'),
+    path('banka/', views.bankalar, name='banka'),
+    path('mntm/', views.mntmutabakat, name='mntm'),
 
 ]
