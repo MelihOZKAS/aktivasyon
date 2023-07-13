@@ -1,6 +1,6 @@
 from django.shortcuts import render,redirect,HttpResponse
 from .form import GecisNormal,GecisPass,KontorluYeniform,FaturaliYeniform,Sebekeiciform,internetform
-from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon,Duyuru,Urun,Bayi_Listesi,BakiyeHareketleri
+from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon,Duyuru,Urun,Bayi_Listesi,BakiyeHareketleri,Banka
 from django.contrib.auth.models import auth
 from django.contrib.auth.decorators import login_required
 import environ
@@ -279,6 +279,17 @@ def evrak_list(request):
     }
 
     return render(request, 'system/takip.html', context)
+
+
+
+@login_required(login_url = 'home')
+def bankalar(request):
+    bankalar = Banka.objects.filter(Aktifmi=True)
+    context = {
+        'bankalar': bankalar,
+    }
+    return render(request, 'system/bankalar.html', context)
+
 
 
 @login_required(login_url = 'home')

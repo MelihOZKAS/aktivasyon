@@ -17,5 +17,6 @@ urlpatterns = [
     path('get-tariffs', views.get_tariffs, name='get-tariffs'),
     path('takip', views.evrak_list, name='takip'),
     path('bakiyetakip', views.bakiye_hareketleri, name='bakiyetakip'),
+    path('banka', views.bankalar, name='banka'),
 
 ]
