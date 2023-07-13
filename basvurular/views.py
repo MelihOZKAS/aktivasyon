@@ -319,6 +319,8 @@ def mntmutabakat(request):
         bayi_listesi.save()
         obj.aktivasyon_durumu = 'Aktif'
         obj.odeme_durumu = 'OdemeYapildi'
+        gizli = obj.GizliAciklama
+        obj.GizliAciklama = f"{gizli} \n {obj.id} {obj.isim} {obj.soyisim} {obj.tc} {obj.numara} {obj.tutar} Tutarında MNT primi yüklendi"
         obj.save()
 
         sonrakikiBakiye = bayi_listesi.Bayi_Bakiyesi
