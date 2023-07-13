@@ -317,6 +317,7 @@ def mntmutabakat(request):
 
         bayi_listesi.Bayi_Bakiyesi += obj.tutar
         bayi_listesi.save()
+        obj.aktivasyon_durumu = 'Aktif'
         obj.odeme_durumu = 'OdemeYapildi'
         obj.save()
 
@@ -330,7 +331,7 @@ def mntmutabakat(request):
             sonraki_bakiye=sonrakikiBakiye,
             onceki_Borc=oncekiBorc,
             sonraki_Borc=sonrakiBorc,
-            aciklama=f'{obj.id} {obj.isim} {obj.soyisim} {obj.TC} {obj.numara} {obj.tutar} Tutarında MNT primi yüklendi',
+            aciklama=f'{obj.id} {obj.isim} {obj.soyisim} {obj.tc} {obj.numara} {obj.tutar} Tutarında MNT primi yüklendi',
         )
         bakiye_hareketi.save()
 
