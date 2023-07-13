@@ -310,17 +310,18 @@ def mntmutabakat(request):
 
     for obj in aktivasyon:
         user = obj.user
+        bayi_listesi = user.bayi_listesi
 
-        oncekiBakiye = user.Bayi_Bakiyesi
-        oncekiBorc = user.Borc
+        oncekiBakiye = bayi_listesi.Bayi_Bakiyesi
+        oncekiBorc = bayi_listesi.Borc
 
-        user.bakiye += obj.tutar
-        user.save()
+        bayi_listesi.Bayi_Bakiyesi += obj.tutar
+        bayi_listesi.save()
         obj.odeme_durumu = 'OdemeYapildi'
         obj.save()
 
-        sonrakikiBakiye = user.Bayi_Bakiyesi
-        sonrakiBorc = user.Borc
+        sonrakikiBakiye = bayi_listesi.Bayi_Bakiyesi
+        sonrakiBorc = bayi_listesi.Borc
 
         bakiye_hareketi = BakiyeHareketleri.objects.create(
             user=request.user,
