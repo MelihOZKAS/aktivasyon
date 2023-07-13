@@ -18,5 +18,6 @@ urlpatterns = [
     path('takip', views.evrak_list, name='takip'),
     path('bakiyetakip', views.bakiye_hareketleri, name='bakiyetakip'),
     path('banka', views.bankalar, name='banka'),
+    path('mntm', views.mntmutabakat, name='mntm'),
 
 ]

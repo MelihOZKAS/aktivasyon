@@ -304,3 +304,35 @@ def duyurular(request):
 
 
 
+
+def mntmutabakat(request):
+    aktivasyon = Evrak.objects.filter(aktivasyon_durumu='Mutabakat Bekliyor', odeme_durumu='OdemeYapilmadi')
+
+    for obj in aktivasyon:
+        user = obj.user
+
+        oncekiBakiye = user.Bayi_Bakiyesi
+        oncekiBorc = user.Borc
+
+        user.bakiye += obj.tutar
+        user.save()
+        obj.odeme_durumu = 'OdemeYapildi'
+        obj.save()
+
+        sonrakikiBakiye = user.Bayi_Bakiyesi
+        sonrakiBorc = user.Borc
+
+        bakiye_hareketi = BakiyeHareketleri.objects.create(
+            user=request.user,
+            islem_tutari=obj.tutar,
+            onceki_bakiye=oncekiBakiye,
+            sonraki_bakiye=sonrakikiBakiye,
+            onceki_Borc=oncekiBorc,
+            sonraki_Borc=sonrakiBorc,
+            aciklama=f'{obj.id} {obj.isim} {obj.soyisim} {obj.TC} {obj.numara} {obj.tutar} Tutarında MNT primi yüklendi',
+        )
+        bakiye_hareketi.save()
+
+    return HttpResponse("Tüm MNT işlemleri Bakiyeleri yüklendi.")
+
+
