@@ -22,7 +22,7 @@ services:
     env_file:
       - aktivasyon/docker.env
     volumes:
-      - static-data-fadil:/srv/public
+      - static-data:/srv/public
       - .:/srv/app_fadil
     expose:
       - 8000
