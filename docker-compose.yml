@@ -40,5 +40,5 @@ networks:
     driver: bridge
 
 volumes:
-  postgresql-data-fadil:
+  postgresql-data:
   static-data-fadil:
