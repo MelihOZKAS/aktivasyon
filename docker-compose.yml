@@ -1,6 +1,6 @@
 version: "3.8"
 services:
-  postgres:
+  postgresfadil:
     container_name: postgresfadil
     hostname: postgresfadil
     image: postgres:latest
@@ -27,7 +27,7 @@ services:
     expose:
       - 8002
     depends_on:
-      - postgres-fadil
+      - postgresfadil
     command: gunicorn aktivasyon.wsgi:application --bind 0.0.0.0:8002
     networks:
       - main_fadil
