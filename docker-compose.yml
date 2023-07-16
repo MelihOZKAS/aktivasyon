@@ -1,18 +1,18 @@
 version: "3.8"
 services:
   postgres:
-    container_name: postgres
-    hostname: postgres
+    container_name: postgres-fadil
+    hostname: postgres-fadil
     image: postgres:latest
     env_file:
       - aktivasyon/docker.env
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
-      - "postgresql-data:/var/lib/postgresql/data"
+      - "postgresql-data-fadil:/var/lib/postgresql/data"
     networks:
       - main_fadil
-    command: -p 5432
+    command: -p 5434
   app:
     container_name: app_fadil
     hostname: app_fadil
@@ -22,13 +22,13 @@ services:
     env_file:
       - aktivasyon/docker.env
     volumes:
-      - static-data:/srv/public
+      - static-data-fadil:/srv/public
       - .:/srv/app_fadil
     expose:
-      - 8000
+      - 8002
     depends_on:
-      - postgres
-    command: gunicorn aktivasyon.wsgi:application --bind 0.0.0.0:8000
+      - postgres-fadil
+    command: gunicorn aktivasyon.wsgi:application --bind 0.0.0.0:8002
     networks:
       - main_fadil
       - bridge_network
@@ -40,5 +40,5 @@ networks:
     driver: bridge
 
 volumes:
-  postgresql-data:
-  static-data:
+  postgresql-data-fadil:
+  static-data-fadil:
