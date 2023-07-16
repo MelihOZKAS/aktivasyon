@@ -1,8 +1,8 @@
 version: "3.8"
 services:
   postgres:
-    container_name: postgres-fadil
-    hostname: postgres-fadil
+    container_name: postgresfadil
+    hostname: postgresfadil
     image: postgres:latest
     env_file:
       - aktivasyon/docker.env
