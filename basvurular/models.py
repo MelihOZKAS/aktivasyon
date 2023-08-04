@@ -521,7 +521,7 @@ class Bayi_Listesi(models.Model):
             sonraki_bakiye=sonraki_bakiye,
             onceki_Borc=onceki_Borc,
             sonraki_Borc=sonraki_Borc,
-            aciklama=f'Admin Tarafından: {self.secili_banka}',
+            aciklama=f'Admin Tarafından: {self.secili_banka} - {self.aciklama} ',
         )
         bakiye_hareketi.save()
         super(Bayi_Listesi, self).save(*args, **kwargs)
