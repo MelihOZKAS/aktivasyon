@@ -121,8 +121,8 @@ class internetAdmin(admin.ModelAdmin):
 
 class EvrakPassAdmin(admin.ModelAdmin):
     list_display = (
-        'id', 'resim', 'isim', 'soyisim', 'pasaportno', 'numara', 'operator','tutar', 'gececegi_operator', 'irtibat')
-    list_filter = ('operator', 'gececegi_operator','odeme_durumu','aktivasyon_durumu','user__username',)
+        'id', 'resim', 'isim', 'soyisim', 'pasaportno', 'numara', 'operator','tutar',  'irtibat')
+    list_filter = ('operator', 'odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
