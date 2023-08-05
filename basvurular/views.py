@@ -250,7 +250,37 @@ def evrakpass(request):
     if request.method == 'POST':
         form = GecisPass(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
+
+            operator = request.POST.get('operator')
+            balance = Bayi_Listesi.objects.get(user=request.user)
+            oncekiBakiye = balance.Bayi_Bakiyesi
+            oncekiBorc = balance.Borc
+            product = Urun.objects.get(fiyat_kategorisi=balance.Fiyati, urun_adi=operator)
+            price = product.urun_fiyati
+            if balance.Bayi_Bakiyesi >= price:
+                form.save()
+
+                imei = request.POST.get('simimei')
+                sim_card = SimCard.objects.get(imei=imei)
+                sim_card.status = 'used'
+                sim_card.save()
+
+                balance.Bayi_Bakiyesi -= price
+                balance.save()
+
+                sonrakikiBakiye = balance.Bayi_Bakiyesi
+                sonrakiBorc = balance.Borc
+
+                bakiye_hareketi = BakiyeHareketleri.objects.create(
+                    user=request.user,
+                    islem_tutari=price,
+                    onceki_bakiye=oncekiBakiye,
+                    sonraki_bakiye=sonrakikiBakiye,
+                    onceki_Borc=oncekiBorc,
+                    sonraki_Borc=sonrakiBorc,
+                    aciklama=f'{price} Tutarında Yeni Kontörlü Hat ücreti Düşüldü',
+                )
+                bakiye_hareketi.save()
             joined_message = "EvrakPass Başvurusuna Yeni Bayi Başvurusu Geldi Hadi Hemen işlemlere Başla Çooook Para Lazım (: "
             url = f"https://api.telegram.org/bot{env('Telegram_Token')}/sendMessage?chat_id={env('Telegram_Chat_id')}&text={joined_message}"
             r = requests.get(url)

@@ -356,7 +356,7 @@ class EvrakPass(models.Model):
     pasaportno = models.CharField(max_length=100)
     numara = models.CharField(max_length=100)
     operator = models.CharField(max_length=100)
-    gececegi_operator = models.CharField(max_length=100)
+    #gececegi_operator = models.CharField(max_length=100)
     irtibat = models.CharField(max_length=100)
     adres = models.TextField()
     pass1 = models.ImageField(upload_to=generate_filename, blank=True)
@@ -534,5 +534,11 @@ class Bayi_Listesi(models.Model):
     class Meta:
         verbose_name = "Bayi Listesi"
         verbose_name_plural = "Bayi Listesi"
+
+
+
+
+
+
 
 
