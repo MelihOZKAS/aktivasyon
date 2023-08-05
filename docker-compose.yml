@@ -13,7 +13,7 @@ services:
     networks:
       - main_fadil
     command: -p 5434
-  app:
+  app_fadil:
     container_name: app_fadil
     hostname: app_fadil
     build:
