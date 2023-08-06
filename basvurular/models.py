@@ -356,7 +356,7 @@ class EvrakPass(models.Model):
     pasaportno = models.CharField(max_length=100)
     #numara = models.CharField(max_length=100)
     operator = models.CharField(max_length=100)
-    #gececegi_operator = models.CharField(max_length=100)
+    gececegi_operator = models.CharField(max_length=100,null=True,blank=True)
     simimei = models.CharField(max_length=255, blank=True, null=True)
     irtibat = models.CharField(max_length=100)
     adres = models.TextField()
