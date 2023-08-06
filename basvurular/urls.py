@@ -23,5 +23,4 @@ urlpatterns = [
     path('sebekem/', views.sebekemutabakat, name='sebekem'),
     path('internetm/', views.internet, name='internetm'),
     path('passm/', views.Passmutabakat, name='internetm'),
-
 ]
