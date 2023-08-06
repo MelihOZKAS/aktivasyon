@@ -369,6 +369,7 @@ class EvrakPass(models.Model):
     GizliAciklama = models.TextField(blank=True,null=True)
     tutar = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True, default=Decimal('0.00'))
     tarih = models.DateTimeField(auto_now_add=True)
+    GizliAciklamaOylesine = models.TextField(blank=True,null=True)
 
     def __str__(self):
         return self.isim + ' ' + self.soyisim
