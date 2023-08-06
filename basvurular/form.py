@@ -60,4 +60,4 @@ class internetform(forms.ModelForm):
 class GecisPass(forms.ModelForm):
     class Meta:
         model = EvrakPassYeni
-        fields = ['isim', 'soyisim', 'pasaportno',  'operator', 'simimei','irtibat', 'adres','pass1', 'pass2', 'ikametgah']
+        fields = ['user','isim', 'soyisim', 'pasaportno',  'operator', 'simimei','irtibat', 'adres','pass1', 'pass2', 'ikametgah']
