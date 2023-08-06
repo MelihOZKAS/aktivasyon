@@ -357,7 +357,7 @@ class EvrakPass(models.Model):
     #numara = models.CharField(max_length=100)
     operator = models.CharField(max_length=100)
     #gececegi_operator = models.CharField(max_length=100)
-    #simimei = models.CharField(max_length=255, blank=True, null=True)
+    simimei = models.CharField(max_length=255, blank=True, null=True)
     irtibat = models.CharField(max_length=100)
     adres = models.TextField()
     pass1 = models.ImageField(upload_to=generate_filename, blank=True)
