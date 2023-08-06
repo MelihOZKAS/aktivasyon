@@ -27,10 +27,15 @@
                 <label for="tc" class="form-label">Pasaport No</label>
                 <input type="text" class="form-control" id="pasaportno" name="pasaportno" required>
             </div>
-
-
-
-
+            <div class="mb-3">
+                <label for="simimei" class="form-label">IMEI</label>
+                <select class="form-select" id="simimei" name="simimei" required>
+                    <option value="">Lütfen Sim Kar imei Seçiniz.</option>
+                    {% for sim_card in sim_cards %}
+                        <option value="{{ sim_card.imei }}">{{ sim_card.operator }} - {{ sim_card.imei }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="mb-3">
                 <label for="operatörü" class="form-label">Operatörü</label>
                 <select class="form-select" id="operator" name="operator" required>

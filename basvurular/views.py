@@ -289,8 +289,9 @@ def evrakpass(request):
             print(form.errors)  # Hataları konsola yazdır
     else:
         form = GecisPass()
+        sim_cards = SimCard.objects.filter(bayi=request.user, status="pending")
 
-    return render(request,"system/evrak-gir-pass.html", {'form': form})
+    return render(request,"system/evrak-gir-pass.html",  {'form': form, 'sim_cards': sim_cards})
 
 @login_required(login_url = 'home')
 def evrak_list(request):
