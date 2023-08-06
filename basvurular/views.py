@@ -1,6 +1,6 @@
 from django.shortcuts import render,redirect,HttpResponse
 from .form import GecisNormal,GecisPass,KontorluYeniform,FaturaliYeniform,Sebekeiciform,internetform
-from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon,Duyuru,Urun,Bayi_Listesi,BakiyeHareketleri,Banka
+from .models import Evrak,EvrakPass,EvrakPassYeni,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon,Duyuru,Urun,Bayi_Listesi,BakiyeHareketleri,Banka
 from django.contrib.auth.models import auth
 from django.contrib.auth.decorators import login_required
 import environ
@@ -477,7 +477,7 @@ def internetmutabakat(request):
 
 
 def Passmutabakat(request):
-    aktivasyon = EvrakPass.objects.filter(aktivasyon_durumu='Mutabakat Bekliyor', odeme_durumu='OdemeYapilmadi')
+    aktivasyon = EvrakPassYeni.objects.filter(aktivasyon_durumu='Mutabakat Bekliyor', odeme_durumu='OdemeYapilmadi')
 
     for obj in aktivasyon:
         user = obj.user

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Evrak, EvrakPass, TurkTarife, YabanciTarife, YeniTurkTarife, YeniYabanciTarife, KontorluYeniHat, \
+from .models import Evrak, EvrakPass,EvrakPassYeni, TurkTarife, YabanciTarife, YeniTurkTarife, YeniYabanciTarife, KontorluYeniHat, \
     FaturaliYeniHat, YeniFaturaliYabanciTarife, YeniFaturaliTurkTarife, Sebekeici, SebekeiciTurkTarife, \
     SebekeiciYabanciTarife, Duyuru, OperatorTarifeleri, Operatorleri, internet, Modemlimi, Telefon, Bayi_Listesi, Banka, \
     BakiyeHareketleri, SimCard, FiyatKategorisi, Urun
@@ -141,6 +141,30 @@ class EvrakPassAdmin(admin.ModelAdmin):
     resim.short_description = 'Durum'
 
 
+
+
+class EvrakPassYeniAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'resim', 'isim', 'soyisim', 'pasaportno',  'operator','tutar',  'irtibat')
+    list_filter = ('operator', 'odeme_durumu','aktivasyon_durumu','user__username',)
+    search_fields = ('isim', 'soyisim', 'irtibat')
+    list_display_links = ('id', 'resim', 'isim',)
+    readonly_fields = ('user',)
+
+    def resim(self, obj):
+        if obj.aktivasyon_durumu == 'Beklemede':
+            return format_html('<img src="/static/panel/img/Durumlar/new.png" width="32" height="32" />')
+        elif obj.aktivasyon_durumu == 'Aktif':
+            return format_html('<img src="/static/panel/img/Durumlar/basarili.png"width="32" height="32" />')
+        elif obj.aktivasyon_durumu == 'Hatalı':
+            return format_html('<img src="/static/panel/img/Durumlar/false.png"width="32" height="32" />')
+        elif obj.aktivasyon_durumu == 'İşlemde':
+            return format_html('<img src="/static/panel/img/Durumlar/islemde.png"width="32" height="32" />')
+        elif obj.aktivasyon_durumu == 'Eksik Evrak':
+            return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
+
+    resim.short_description = 'Durum'
+
 class TurkTarifeAdmin(admin.ModelAdmin):
     list_display = ('id', 'ad')
 
@@ -201,6 +225,7 @@ class ADSLOperatorAdmin(admin.ModelAdmin):
 
 admin.site.register(Evrak, EvrakAdmin)
 admin.site.register(EvrakPass, EvrakPassAdmin)
+admin.site.register(EvrakPassYeni, EvrakPassYeniAdmin)
 admin.site.register(KontorluYeniHat, YeniKontorluAdmin)
 admin.site.register(FaturaliYeniHat, YeniFaturaliAdmin)
 admin.site.register(Sebekeici, SebekeiciAdmin)

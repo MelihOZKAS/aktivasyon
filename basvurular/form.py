@@ -1,5 +1,5 @@
 from django import forms
-from .models import Evrak,EvrakPass,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon
+from .models import Evrak,EvrakPass,EvrakPassYeni,TurkTarife,YabanciTarife,KontorluYeniHat,YeniTurkTarife,YeniYabanciTarife,FaturaliYeniHat,YeniFaturaliTurkTarife,YeniFaturaliYabanciTarife,Sebekeici,SebekeiciYabanciTarife,SebekeiciTurkTarife,internet,OperatorTarifeleri,Operatorleri,Modemlimi,Telefon
 
 
 class GecisNormal(forms.ModelForm):
@@ -59,5 +59,5 @@ class internetform(forms.ModelForm):
 
 class GecisPass(forms.ModelForm):
     class Meta:
-        model = EvrakPass
-        fields = ['isim', 'soyisim', 'pasaportno',  'operator', 'irtibat', 'adres','pass1', 'pass2', 'ikametgah']
+        model = EvrakPassYeni
+        fields = ['isim', 'soyisim', 'pasaportno',  'operator', 'simimei','irtibat', 'adres','pass1', 'pass2', 'ikametgah']

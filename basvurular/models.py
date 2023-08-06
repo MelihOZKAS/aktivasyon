@@ -377,6 +377,31 @@ class EvrakPass(models.Model):
 
 
 
+class EvrakPassYeni(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    isim = models.CharField(max_length=100)
+    soyisim = models.CharField(max_length=100)
+    pasaportno = models.CharField(max_length=100)
+    operator = models.CharField(max_length=100)
+    simimei = models.CharField(max_length=255, blank=True, null=True)
+    irtibat = models.CharField(max_length=100)
+    adres = models.TextField()
+    pass1 = models.ImageField(upload_to=generate_filename, blank=True)
+    pass2 = models.ImageField(upload_to=generate_filename, blank=True)
+    ikametgah = models.FileField(upload_to=generate_filename, blank=True)
+    aktivasyon_durumu = models.CharField(max_length=20,choices=AKTIVASYON_DURUMU_CHOICES,default=BEKLEMEDE,blank=True,null=True)
+    odeme_durumu = models.CharField(max_length=20,choices=Odeme_DURUMU_CHOICES,default=OdemeYapilmadi,blank=True,null=True)
+    BayiAciklama = models.CharField(max_length=255,blank=True,null=True)
+    GizliAciklama = models.TextField(blank=True,null=True)
+    tutar = models.DecimalField(max_digits=10, decimal_places=2,blank=True, null=True, default=Decimal('0.00'))
+    tarih = models.DateTimeField(auto_now_add=True)
+    #GizliAciklamaOylesine = models.TextField(blank=True,null=True)
+
+    def __str__(self):
+        return self.isim + ' ' + self.soyisim
+
+    class Meta:
+        verbose_name_plural = '500. Passaportlu işlemler Başvuru Kayıtları'
 
 
 
