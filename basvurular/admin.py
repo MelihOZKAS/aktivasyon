@@ -100,7 +100,6 @@ class internetAdmin(admin.ModelAdmin):
     list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat','tutar', 'Operatorler', 'aks',)
     list_filter = ('Operatorler', 'aktivasyon_durumu', 'odeme_durumu', 'user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat',)
-    list_display_links = ('id', 'resim', 'isim')
     list_display_links = ('id', 'resim', 'isim',)
     readonly_fields = ('user',)
 
