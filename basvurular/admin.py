@@ -259,6 +259,7 @@ class AdminBanka(admin.ModelAdmin):
 class Bayi_Bakiyeleri(admin.ModelAdmin):
     list_display = ('user', 'Bayi_Bakiyesi', 'Borc')
     readonly_fields = ('Bayi_Bakiyesi', 'Borc')
+    search_fields = ('user__username',)
 
 
 admin.site.register(Banka, AdminBanka)

@@ -295,11 +295,11 @@ def evrakpass(request):
 
 @login_required(login_url = 'home')
 def evrak_list(request):
-    evraklar = Evrak.objects.all()[:150]
-    kontorluyenihatlar = KontorluYeniHat.objects.all()[:150]
-    faturaliyenihatlar = FaturaliYeniHat.objects.all()[:150]
-    sebekeiciler = Sebekeici.objects.all()[:150]
-    internetler = internet.objects.all()[:150]
+    evraklar = Evrak.objects.filter(user=request.user)[:150]
+    kontorluyenihatlar = KontorluYeniHat.objects.filter(user=request.user)[:150]
+    faturaliyenihatlar = FaturaliYeniHat.objects.filter(user=request.user)[:150]
+    sebekeiciler = Sebekeici.objects.filter(user=request.user)[:150]
+    internetler = internet.objects.filter(user=request.user)[:150]
 
     context = {
         'evraklar': evraklar,
