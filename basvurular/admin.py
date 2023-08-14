@@ -256,16 +256,10 @@ class AdminBanka(admin.ModelAdmin):
 
 
 @admin.register(Bayi_Listesi)
-class Bayi_BakiyeleriAdmin(admin.ModelAdmin):
-    list_display = ('user_username', 'Bayi_Bakiyesi', 'Borc')
+class Bayi_Bakiyeleri(admin.ModelAdmin):
+    list_display = ('user', 'user__first_name', 'Bayi_Bakiyesi', 'Borc')
     readonly_fields = ('Bayi_Bakiyesi', 'Borc')
-    search_fields = ('user__username',)
-
-    def user_username(self, obj):
-        return obj.user.username
-
-    user_username.short_description = 'User Username'
-
+    search_fields = ('user__first_name',)
 
 
 admin.site.register(Banka, AdminBanka)
