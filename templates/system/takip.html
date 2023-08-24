@@ -45,6 +45,7 @@
                 <th scope="col">Bayi Açıklama</th>
                 <th scope="col">Aktivasyon Durumu</th>
                 <th scope="col">Ödeme Durumu</th>
+                <th scope="col">Tarih</th>
             </tr>
             </thead>
             <tbody>
@@ -57,6 +58,7 @@
                     <td>{{ evrak.BayiAciklama }}</td>
                     <td>{{ evrak.get_aktivasyon_durumu_display }}</td>
                     <td>{{ evrak.get_odeme_durumu_display }}</td>
+                    <td>{{ evrak.tarih }}</td>
                 </tr>
             {% endfor %}
             </tbody>
