@@ -467,12 +467,12 @@ class SimCard(models.Model):
     status = models.CharField(max_length=20, choices=(
         ('used', 'Kullanıldı'),
         ('pending', 'Beklemede'),
-        ('error', 'Hatalı'),
+        ('error', 'Arızalı'),
     ), default='pending')
     dist_status = models.CharField(max_length=20, choices=(
         ('calculated', 'Hesaplandı'),
         ('pending', 'Beklemede'),
-        ('error', 'Hatalı'),
+        ('error', 'Arızalı'),
     ), default='pending')
 
     def __str__(self):
