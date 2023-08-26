@@ -53,7 +53,7 @@ class YeniKontorluAdmin(admin.ModelAdmin):
 
 
 class YeniFaturaliAdmin(admin.ModelAdmin):
-    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat','tutar', 'operatoru', 'tarif')
+    list_display = ('id', 'resim', 'isim', 'soyisim', 'tc', 'irtibat','tutar', 'operatoru', 'tarih')
     list_filter = ('operatoru','odeme_durumu','aktivasyon_durumu','user__username',)
     search_fields = ('isim', 'soyisim', 'tc', 'numara', 'irtibat')
     list_display_links = ('id', 'resim', 'isim',)
