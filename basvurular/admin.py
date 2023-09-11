@@ -262,7 +262,7 @@ class Bayi_Bakiyeleri(admin.ModelAdmin):
     search_fields = ('user__first_name',)
 
     def user_first_name(self, obj):
-        return obj.user.first_name + obj.user.last_name
+        return f"{obj.user.first_name} {obj.user.last_name}"
 
     user_first_name.short_description = 'User First Name'
 
