@@ -569,3 +569,4 @@ class Bayi_Listesi(models.Model):
 
 
 
+

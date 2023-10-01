@@ -56,6 +56,7 @@ class YeniKontorluAdmin(admin.ModelAdmin):
         elif obj.aktivasyon_durumu == 'Eksik Evrak':
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
 
+    actions = ['mutabakat_bekliyor']
     def mutabakat_bekliyor(self, request, queryset):
         queryset.update(odeme_durumu='OdemeYapildi')
 
@@ -83,6 +84,7 @@ class YeniFaturaliAdmin(admin.ModelAdmin):
         elif obj.aktivasyon_durumu == 'Eksik Evrak':
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
 
+    actions = ['mutabakat_bekliyor']
     def mutabakat_bekliyor(self, request, queryset):
         queryset.update(aktivasyon_durumu='Mutabakat Bekliyor')
 
@@ -110,6 +112,7 @@ class SebekeiciAdmin(admin.ModelAdmin):
         elif obj.aktivasyon_durumu == 'Eksik Evrak':
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
 
+    actions = ['mutabakat_bekliyor']
     def mutabakat_bekliyor(self, request, queryset):
         queryset.update(aktivasyon_durumu='Mutabakat Bekliyor')
 
@@ -137,6 +140,7 @@ class internetAdmin(admin.ModelAdmin):
         elif obj.aktivasyon_durumu == 'Eksik Evrak':
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
 
+    actions = ['mutabakat_bekliyor']
     def mutabakat_bekliyor(self, request, queryset):
         queryset.update(aktivasyon_durumu='Mutabakat Bekliyor')
 
@@ -314,6 +318,7 @@ class SimCardAdmin(admin.ModelAdmin):
         return f'{obj.bayi.username} - {obj.bayi.first_name} - {obj.bayi.last_name}'
     bayi_name.short_description = 'Bayi'
 
+    actions = ['mutabakat_bekliyor']
     def mutabakat_bekliyor(self, request, queryset):
         queryset.update(dist_status='calculated')
 
