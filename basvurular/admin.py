@@ -308,7 +308,7 @@ class BakiyeHareketleriAdmin(admin.ModelAdmin):
 
 class SimCardAdmin(admin.ModelAdmin):
     list_display = ('bayi_name', 'operator', 'imei', 'status', 'dist_status')
-    list_filter = ('bayi_name','operator','status','dist_status',)
+    list_filter = ('bayi','operator','status','dist_status',)
 
     def bayi_name(self, obj):
         return f'{obj.bayi.username} - {obj.bayi.first_name} - {obj.bayi.last_name}'
