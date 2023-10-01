@@ -27,6 +27,13 @@ class EvrakAdmin(admin.ModelAdmin):
         elif obj.aktivasyon_durumu == 'Eksik Evrak':
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
 
+    actions = ['mutabakat_bekliyor']
+
+    def mutabakat_bekliyor(self, request, queryset):
+        queryset.update(aktivasyon_durumu='Mutabakat Bekliyor')
+
+    mutabakat_bekliyor.short_description = 'Seçilenleri "Mutabakat Bekliyor" yap'
+
     resim.short_description = 'Durum'
 
 
