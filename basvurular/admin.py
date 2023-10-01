@@ -56,6 +56,11 @@ class YeniKontorluAdmin(admin.ModelAdmin):
         elif obj.aktivasyon_durumu == 'Eksik Evrak':
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
 
+    def mutabakat_bekliyor(self, request, queryset):
+        queryset.update(odeme_durumu='OdemeYapildi')
+
+    mutabakat_bekliyor.short_description = 'Seçilenleri "OdemeYapildi" yap'
+
     resim.short_description = 'Durum'
 
 
@@ -77,6 +82,11 @@ class YeniFaturaliAdmin(admin.ModelAdmin):
             return format_html('<img src="/static/panel/img/Durumlar/islemde.png"width="32" height="32" />')
         elif obj.aktivasyon_durumu == 'Eksik Evrak':
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
+
+    def mutabakat_bekliyor(self, request, queryset):
+        queryset.update(aktivasyon_durumu='Mutabakat Bekliyor')
+
+    mutabakat_bekliyor.short_description = 'Seçilenleri "Mutabakat Bekliyor" yap'
 
     resim.short_description = 'Durum'
 
@@ -100,6 +110,11 @@ class SebekeiciAdmin(admin.ModelAdmin):
         elif obj.aktivasyon_durumu == 'Eksik Evrak':
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
 
+    def mutabakat_bekliyor(self, request, queryset):
+        queryset.update(aktivasyon_durumu='Mutabakat Bekliyor')
+
+    mutabakat_bekliyor.short_description = 'Seçilenleri "Mutabakat Bekliyor" yap'
+
     resim.short_description = 'Durum'
 
 
@@ -121,6 +136,11 @@ class internetAdmin(admin.ModelAdmin):
             return format_html('<img src="/static/panel/img/Durumlar/islemde.png"width="32" height="32" />')
         elif obj.aktivasyon_durumu == 'Eksik Evrak':
             return format_html('<img src="/static/panel/img/Durumlar/eksik.png"width="32" height="32" />')
+
+    def mutabakat_bekliyor(self, request, queryset):
+        queryset.update(aktivasyon_durumu='Mutabakat Bekliyor')
+
+    mutabakat_bekliyor.short_description = 'Seçilenleri "Mutabakat Bekliyor" yap'
 
     resim.short_description = 'Durum'
 
@@ -266,7 +286,7 @@ class AdminBanka(admin.ModelAdmin):
 class Bayi_Bakiyeleri(admin.ModelAdmin):
     list_display = ('user', 'user_first_name', 'Bayi_Bakiyesi', 'Borc')
     readonly_fields = ('Bayi_Bakiyesi', 'Borc')
-    search_fields = ('user__first_name',)
+    search_fields = ('user__first_name','user__last_name',)
 
     def user_first_name(self, obj):
         return f"{obj.user.first_name} {obj.user.last_name}"
@@ -287,8 +307,18 @@ class BakiyeHareketleriAdmin(admin.ModelAdmin):
 
 
 class SimCardAdmin(admin.ModelAdmin):
-    list_display = ('bayi', 'operator', 'imei', 'status', 'dist_status')
-    list_filter = ('bayi','operator','status','dist_status',)
+    list_display = ('bayi_name', 'operator', 'imei', 'status', 'dist_status')
+    list_filter = ('bayi_name','operator','status','dist_status',)
+
+    def bayi_name(self, obj):
+        return f'{obj.bayi.username} - {obj.bayi.first_name} - {obj.bayi.last_name}'
+    bayi_name.short_description = 'Bayi'
+
+    def mutabakat_bekliyor(self, request, queryset):
+        queryset.update(dist_status='calculated')
+
+    mutabakat_bekliyor.short_description = 'Seçilenleri "Hesaplandı" yap'
+
 
 
 admin.site.register(SimCard, SimCardAdmin)
