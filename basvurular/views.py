@@ -456,7 +456,7 @@ def internetmutabakat(request):
         obj.aktivasyon_durumu = 'Aktif'
         obj.odeme_durumu = 'OdemeYapildi'
         gizli = obj.GizliAciklama
-        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Numara: {obj.numara} Tutar:{obj.tutar} Tutarında internet primi yüklendi \n Ödeme Yapıldı!!!"
+        obj.GizliAciklama = f"{gizli} \n ID: {obj.id} Isım: {obj.isim} {obj.soyisim} TC: {obj.tc} Tutar:{obj.tutar} Tutarında internet primi yüklendi \n Ödeme Yapıldı!!!"
         obj.save()
 
         sonrakikiBakiye = bayi_listesi.Bayi_Bakiyesi
