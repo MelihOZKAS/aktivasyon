@@ -21,6 +21,6 @@ urlpatterns = [
     path('mntm/', views.mntmutabakat, name='mntm'),
     path('faturalim/', views.faturalimutabakat, name='faturalim'),
     path('sebekem/', views.sebekemutabakat, name='sebekem'),
-    path('internetm/', views.internet, name='internetm'),
+    path('internetm/', views.internetmutabakat, name='internetm'),
     path('passm/', views.Passmutabakat, name='internetm'),
 ]
