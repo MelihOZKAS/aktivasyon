@@ -393,7 +393,7 @@ def faturalimutabakat(request):
         sonrakiBorc = bayi_listesi.Borc
 
         bakiye_hareketi = BakiyeHareketleri.objects.create(
-            user=request.user,
+            user=obj.user,
             islem_tutari=obj.tutar,
             onceki_bakiye=oncekiBakiye,
             sonraki_bakiye=sonrakikiBakiye,
@@ -428,7 +428,7 @@ def sebekemutabakat(request):
         sonrakiBorc = bayi_listesi.Borc
 
         bakiye_hareketi = BakiyeHareketleri.objects.create(
-            user=request.user,
+            user=obj.user,
             islem_tutari=obj.tutar,
             onceki_bakiye=oncekiBakiye,
             sonraki_bakiye=sonrakikiBakiye,
@@ -463,7 +463,7 @@ def internetmutabakat(request):
         sonrakiBorc = bayi_listesi.Borc
 
         bakiye_hareketi = BakiyeHareketleri.objects.create(
-            user=request.user,
+            user=obj.user,
             islem_tutari=obj.tutar,
             onceki_bakiye=oncekiBakiye,
             sonraki_bakiye=sonrakikiBakiye,
@@ -498,7 +498,7 @@ def Passmutabakat(request):
         sonrakiBorc = bayi_listesi.Borc
 
         bakiye_hareketi = BakiyeHareketleri.objects.create(
-            user=request.user,
+            user=obj.user,
             islem_tutari=obj.tutar,
             onceki_bakiye=oncekiBakiye,
             sonraki_bakiye=sonrakikiBakiye,
