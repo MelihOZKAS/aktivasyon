@@ -45,7 +45,7 @@
     <div class="mb-4 flex flex-wrap items-baseline justify-between gap-3">
       <h2 class="baslik text-lg font-semibold">Hareketler</h2>
       <form method="get" class="w-full sm:w-auto">
-        <select name="tip" class="girdi text-sm sm:max-w-[14rem]" onchange="this.form.submit()">
+        <select name="tip" class="girdi sm:max-w-[14rem]" onchange="this.form.submit()">
           <option value="">Tüm hareketler</option>
           {% for deger, etiket in hareket_tipleri %}
           <option value="{{ deger }}" {% if secili_tip == deger %}selected{% endif %}>{{ etiket }}</option>

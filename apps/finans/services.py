@@ -18,6 +18,17 @@ logger = logging.getLogger(__name__)
 SIFIR = Decimal("0.00")
 
 
+def _cuzdani_getir(kullanici_id):
+    """Kullanıcının kilitli cüzdanını verir; yoksa açar.
+
+    Elle oluşturulmuş bir kullanıcının cüzdanı olmayabilir. Bu yüzden para
+    işlenirken çökmek yerine sıfır bakiyeli cüzdan açılır: işlem tamamlanır,
+    bakiye eksiye/borca düşer ve yönetim durumu görür.
+    """
+    Cuzdan.objects.get_or_create(bayi_id=kullanici_id)
+    return Cuzdan.objects.select_for_update().get(bayi_id=kullanici_id)
+
+
 def _hareket_yaz(
     *,
     cuzdan,
@@ -106,7 +117,11 @@ def uygun_kurallari_bul(basvuru, durum):
     secilen = {}
     for kural in adaylar:
         mevcut = secilen.get(kural.yon)
-        if mevcut is None or (kural.ozgulluk, kural.oncelik) > (mevcut.ozgulluk, mevcut.oncelik):
+        # Aynı özgüllük ve öncelikte en son eklenen kural kazanır: sonuç
+        # rastgele değil, öngörülebilir olsun.
+        if mevcut is None or (kural.ozgulluk, kural.oncelik, kural.pk) > (
+            mevcut.ozgulluk, mevcut.oncelik, mevcut.pk
+        ):
             secilen[kural.yon] = kural
     return secilen
 
@@ -118,7 +133,7 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
     Bakiye yetmezse kalan tutar borca yazılır; borç için üst sınır yoktur.
     """
     with transaction.atomic():
-        cuzdan = Cuzdan.objects.select_for_update().get(bayi_id=basvuru.bayi_id)
+        cuzdan = _cuzdani_getir(basvuru.bayi_id)
         basvuru_kilitli = type(basvuru).objects.select_for_update().get(pk=basvuru.pk)
 
         if basvuru_kilitli.para_islendi:
@@ -198,7 +213,7 @@ def tedarikci_bedelini_isle(basvuru, *, olusturan=None):
         return basvuru
 
     with transaction.atomic():
-        cuzdan = Cuzdan.objects.select_for_update().get(bayi_id=basvuru.tedarikci_id)
+        cuzdan = _cuzdani_getir(basvuru.tedarikci_id)
         basvuru_kilitli = type(basvuru).objects.select_for_update().get(pk=basvuru.pk)
 
         if basvuru_kilitli.tedarikci_islendi:

@@ -13,10 +13,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.basvurular.forms import BasvuruFormu
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
 from apps.basvurular.validators import SATIR_ICI_GOSTERILEBILIR
+from apps.bayi.yetki import bayi_gerekli
 from apps.katalog.models import BasvuruKategorisi, Kampanya, Tarife
 
 
 @login_required
+@bayi_gerekli
 def kategori_sec(request):
     """Hangi başvuru tipinin girileceğini seçtiren ekran."""
     return render(
@@ -27,6 +29,7 @@ def kategori_sec(request):
 
 
 @login_required
+@bayi_gerekli
 def yeni(request, kategori):
     """Seçilen kategoriye göre kurulan başvuru formu."""
     kategori = get_object_or_404(
@@ -89,6 +92,7 @@ def kampanya_secenekleri(request):
 
 
 @login_required
+@bayi_gerekli
 def liste(request):
     """Bayinin kendi başvuruları; durum ve arama ile filtrelenir."""
     basvurular = (
@@ -131,11 +135,12 @@ def liste(request):
 
 @login_required
 def detay(request, referans):
+    # Başvuruyu getiren bayi ve işlemi üstlenen tedarikçi görebilir.
     basvuru = get_object_or_404(
         Basvuru.objects.select_related("kategori", "operator", "tarife", "kampanya", "durum")
-        .prefetch_related("belgeler", "durum_gecmisi__yeni_durum", "kategori__alanlar"),
+        .prefetch_related("belgeler", "durum_gecmisi__yeni_durum", "kategori__alanlar")
+        .filter(Q(bayi=request.user) | Q(tedarikci=request.user)),
         referans_no=referans,
-        bayi=request.user,
     )
 
     etiketler = {alan.kod: alan.etiket for alan in basvuru.kategori.alanlar.all()}
@@ -164,7 +169,8 @@ def belge(request, referans, alan_kodu):
         alan_kodu=alan_kodu,
     )
 
-    if not request.user.is_staff and kayit.basvuru.bayi_id != request.user.id:
+    ilgili = {kayit.basvuru.bayi_id, kayit.basvuru.tedarikci_id}
+    if not request.user.is_staff and request.user.id not in ilgili:
         raise Http404
 
     if not kayit.dosya:

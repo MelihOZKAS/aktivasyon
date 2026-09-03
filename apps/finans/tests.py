@@ -406,3 +406,85 @@ class TedarikciTestleri(TestCase):
         self.assertTrue(profil.bayi_mi)
         self.assertTrue(profil.tedarikci_mi)
         self.assertEqual(profil.rol_adi, "Bayi ve Tedarikçi")
+
+
+class KenarDurumTestleri(TestCase):
+    """Para motorunun kırılgan olabileceği noktalar."""
+
+    def setUp(self):
+        self.beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="MNT")
+
+    def _basvuru(self, bayi, tedarikci=None):
+        return Basvuru.objects.create(
+            bayi=bayi, kategori=self.kategori, operator=self.operator,
+            tedarikci=tedarikci, isim="Ayşe", soyisim="Demir",
+            kimlik_no="1", irtibat="5551112233", durum=self.beklemede,
+        )
+
+    def test_cuzdani_olmayan_bayide_cokmez(self):
+        """Elle açılmış bir kullanıcının cüzdanı olmayabilir."""
+        cuzdansiz = User.objects.create_user("cuzdansiz", password="parola123")
+        self.assertFalse(Cuzdan.objects.filter(bayi=cuzdansiz).exists())
+
+        UcretKurali.objects.create(
+            ad="Hakediş", yon=KuralYonu.HAKEDIS, tutar=TL("95.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
+        basvuru = self._basvuru(cuzdansiz)
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        cuzdan = Cuzdan.objects.get(bayi=cuzdansiz)
+        self.assertEqual(cuzdan.bakiye, TL("95.00"))
+
+    def test_ayni_kapsamdaki_kuralda_kazanan_belirli(self):
+        """İki kural aynı kapsamda ve önceliktebayse sonuç rastgele olmamalı."""
+        eski = UcretKurali.objects.create(
+            ad="Eski", yon=KuralYonu.HAKEDIS, tutar=TL("95.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
+        yeni = UcretKurali.objects.create(
+            ad="Yeni", yon=KuralYonu.HAKEDIS, tutar=TL("120.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
+        self.assertGreater(yeni.pk, eski.pk)
+
+        bayi = User.objects.create_user("bayi", password="parola123")
+        Cuzdan.objects.create(bayi=bayi)
+        basvuru = self._basvuru(bayi)
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        # Son eklenen kazanır: sonuç öngörülebilir olmalı.
+        basvuru.refresh_from_db()
+        self.assertEqual(basvuru.hakedis, TL("120.00"))
+
+    def test_ayni_kullanici_hem_bayi_hem_tedarikci(self):
+        """Tek cüzdanda iki hareket: hakediş girer, tedarikçi bedeli çıkar."""
+        ikili = User.objects.create_user("ikili", password="parola123")
+        cuzdan = Cuzdan.objects.create(bayi=ikili, bakiye=TL("1000.00"))
+
+        UcretKurali.objects.create(
+            ad="Hakediş", yon=KuralYonu.HAKEDIS, tutar=TL("100.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
+        UcretKurali.objects.create(
+            ad="Tedarikçi bedeli", yon=KuralYonu.TEDARIKCI_GELIRI, tutar=TL("130.00"),
+            kategori=self.kategori, tedarikci=ikili, tetikleyici_durum=self.aktif,
+        )
+
+        basvuru = self._basvuru(ikili, tedarikci=ikili)
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        cuzdan.refresh_from_db()
+        basvuru.refresh_from_db()
+        self.assertEqual(cuzdan.bakiye, TL("970.00"))
+        self.assertEqual(basvuru.kar, TL("30.00"))

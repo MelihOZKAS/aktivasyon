@@ -464,3 +464,109 @@ class TarifeSayfasiTestleri(TestCase):
 
         Operator.objects.create(ad="Netgsm", sira=99)
         self.assertNotContains(self.client.get(self.url), "Netgsm")
+
+
+class RolErisimTestleri(TestCase):
+    """Bayi ve tedarikçi ekranları birbirine karışmamalı."""
+
+    def setUp(self):
+        from apps.bayi.models import BayiProfili
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+        from apps.katalog.models import BasvuruKategorisi, Operator
+
+        self.beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.kategori = BasvuruKategorisi.objects.create(ad="MNT", tarife_zorunlu=False)
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori.operatorler.add(self.operator)
+
+        self.bayi = User.objects.create_user("saf_bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+        BayiProfili.objects.create(
+            kullanici=self.bayi, unvan="Bayi A", bayi_mi=True, tedarikci_mi=False
+        )
+
+        self.tedarikci = User.objects.create_user("saf_tedarikci", password="parola12345")
+        Cuzdan.objects.create(bayi=self.tedarikci, bakiye=TL("5000.00"))
+        BayiProfili.objects.create(
+            kullanici=self.tedarikci, unvan="Tedarik X",
+            bayi_mi=False, tedarikci_mi=True,
+        )
+
+        self.ikili = User.objects.create_user("ikili", password="parola12345")
+        Cuzdan.objects.create(bayi=self.ikili)
+        BayiProfili.objects.create(
+            kullanici=self.ikili, unvan="İkili", bayi_mi=True, tedarikci_mi=True
+        )
+
+        self.basvuru = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            tedarikci=self.tedarikci, isim="Ayşe", soyisim="Demir",
+            kimlik_no="1", irtibat="5551112233", durum=self.beklemede,
+        )
+
+    def test_sadece_tedarikci_kendi_paneline_duser(self):
+        yanit = self.client.post(
+            reverse("bayi:giris"),
+            {"username": "saf_tedarikci", "password": "parola12345"},
+        )
+        self.assertRedirects(yanit, reverse("bayi:tedarikci-panel"))
+
+    def test_bayi_kendi_paneline_duser(self):
+        yanit = self.client.post(
+            reverse("bayi:giris"), {"username": "saf_bayi", "password": "parola12345"}
+        )
+        self.assertRedirects(yanit, reverse("bayi:panel"))
+
+    def test_tedarikci_bayi_ekranlarina_giremez(self):
+        self.client.force_login(self.tedarikci)
+        for ad in ["bayi:panel", "bayi:hakedisler", "basvurular:kategori-sec",
+                   "basvurular:liste"]:
+            yanit = self.client.get(reverse(ad))
+            self.assertEqual(yanit.status_code, 302, ad)
+            self.assertIn(reverse("bayi:tedarikci-panel"), yanit["Location"], ad)
+
+    def test_bayi_tedarikci_paneline_giremez(self):
+        self.client.force_login(self.bayi)
+        yanit = self.client.get(reverse("bayi:tedarikci-panel"))
+        self.assertEqual(yanit.status_code, 302)
+        self.assertIn(reverse("bayi:panel"), yanit["Location"])
+
+    def test_ikili_rol_her_ikisini_de_gorur(self):
+        self.client.force_login(self.ikili)
+        self.assertEqual(self.client.get(reverse("bayi:panel")).status_code, 200)
+        self.assertEqual(
+            self.client.get(reverse("bayi:tedarikci-panel")).status_code, 200
+        )
+
+    def test_tedarikci_ustlendigi_islemi_gorur(self):
+        self.client.force_login(self.tedarikci)
+        yanit = self.client.get(reverse("bayi:tedarikci-panel"))
+        self.assertContains(yanit, self.basvuru.referans_no)
+
+    def test_tedarikci_ustlendigi_basvurunun_detayini_gorur(self):
+        self.client.force_login(self.tedarikci)
+        yanit = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        )
+        self.assertEqual(yanit.status_code, 200)
+
+    def test_tedarikci_baskasinin_islemini_goremez(self):
+        from apps.basvurular.models import Basvuru
+
+        digeri = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            isim="Gizli", soyisim="Kayıt", kimlik_no="9",
+            irtibat="5559998877", durum=self.beklemede,
+        )
+        self.client.force_login(self.tedarikci)
+        yanit = self.client.get(reverse("basvurular:detay", args=[digeri.referans_no]))
+        self.assertEqual(yanit.status_code, 404)
+
+    def test_profilsiz_kullanici_bayi_sayilir(self):
+        """Eski kayıtlar rol kontrolüyle kilitlenmemeli."""
+        eski = User.objects.create_user("profilsiz", password="parola12345")
+        Cuzdan.objects.create(bayi=eski)
+        self.client.force_login(eski)
+        self.assertEqual(self.client.get(reverse("bayi:panel")).status_code, 200)

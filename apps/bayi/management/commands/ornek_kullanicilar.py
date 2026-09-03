@@ -20,9 +20,11 @@ YONETICILER = [
 ]
 
 # (kullanıcı, ünvan, şehir, bakiye, borç)
+# (kullanıcı, ünvan, şehir, bakiye, borç, bayi mi, tedarikçi mi)
 BAYILER = [
-    ("bayi.kaya", "Kaya İletişim", "İstanbul", Decimal("8450.00"), Decimal("0.00")),
-    ("bayi.demir", "Demir Telekom", "Ankara", Decimal("0.00"), Decimal("340.00")),
+    ("bayi.kaya", "Kaya İletişim", "İstanbul", Decimal("8450.00"), Decimal("0.00"), True, False),
+    ("bayi.demir", "Demir Telekom", "Ankara", Decimal("0.00"), Decimal("340.00"), True, False),
+    ("tedarikci.ege", "Ege Tedarik", "İzmir", Decimal("5000.00"), Decimal("0.00"), False, True),
 ]
 
 
@@ -63,8 +65,8 @@ class Command(BaseCommand):
                 f"{'oluşturuldu' if olusturuldu else 'parolası tazelendi'}"
             )
 
-        self.stdout.write(self.style.MIGRATE_HEADING("\nBayiler"))
-        for kullanici_adi, unvan, sehir, bakiye, borc in BAYILER:
+        self.stdout.write(self.style.MIGRATE_HEADING("\nBayiler ve tedarikçiler"))
+        for kullanici_adi, unvan, sehir, bakiye, borc, bayi_mi, tedarikci_mi in BAYILER:
             kullanici, olusturuldu = User.objects.get_or_create(
                 username=kullanici_adi, defaults={"first_name": unvan}
             )
@@ -74,15 +76,24 @@ class Command(BaseCommand):
 
             BayiProfili.objects.update_or_create(
                 kullanici=kullanici,
-                defaults={"unvan": unvan, "sehir": sehir, "yetkili_adi": unvan},
+                defaults={
+                    "unvan": unvan,
+                    "sehir": sehir,
+                    "yetkili_adi": unvan,
+                    "bayi_mi": bayi_mi,
+                    "tedarikci_mi": tedarikci_mi,
+                },
             )
             cuzdan, cuzdan_yeni = Cuzdan.objects.get_or_create(
                 bayi=kullanici,
                 defaults={"grup": grup, "bakiye": bakiye, "borc": borc},
             )
+            rol = "bayi" if bayi_mi and not tedarikci_mi else (
+                "tedarikçi" if tedarikci_mi and not bayi_mi else "bayi+tedarikçi"
+            )
             borc_notu = f"borç {cuzdan.borc} ₺" if cuzdan.borc else "borcu yok"
             self.stdout.write(
-                f"  {kullanici_adi:14} {PAROLA:14} {unvan:16} "
+                f"  {kullanici_adi:16} {PAROLA:14} {unvan:16} {rol:14} "
                 f"bakiye {cuzdan.bakiye:>9} ₺  {borc_notu}"
             )
 

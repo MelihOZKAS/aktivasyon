@@ -270,7 +270,8 @@
 
   input[type="file"].girdi {
     padding: 0.45rem 0.5rem;
-    font-size: 0.9375rem;
+    /* 16px altı girdiler iOS'ta odaklanınca sayfayı yakınlaştırır. */
+    font-size: 1rem;
     color: var(--color-soluk);
   }
 

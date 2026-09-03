@@ -16,6 +16,7 @@ from django.views.decorators.http import require_POST
 from apps.basvurular.models import Basvuru, BasvuruDurumu
 from apps.bayi.forms import BayiBasvuruFormu
 from apps.bayi.models import Duyuru
+from apps.bayi.yetki import bayi_gerekli, baslangic_sayfasi, tedarikci_gerekli
 from apps.bildirim.telegram import bayi_basvurusu_bildir
 from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
 from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
@@ -78,7 +79,8 @@ OZELLIKLER = [
 def anasayfa(request):
     """Kamuya açık tanıtım sayfası."""
     if request.user.is_authenticated:
-        return redirect("bayi:panel")
+        # Girişteki yönlendirmeyle aynı mantık.
+        return redirect(baslangic_sayfasi(request.user))
 
     kategoriler = (
         BasvuruKategorisi.objects.filter(aktif=True)
@@ -111,10 +113,8 @@ class GirisView(LoginView):
         hedef = self.get_redirect_url()
         if hedef:
             return hedef
-        # Yönetici girişte doğrudan yönetim paneline düşsün.
-        if self.request.user.is_staff:
-            return reverse("admin:index")
-        return reverse("bayi:panel")
+        # Yönetici yönetim paneline, sadece-tedarikçi kendi paneline düşer.
+        return reverse(baslangic_sayfasi(self.request.user))
 
 
 def yonetim_girisi(request):
@@ -208,6 +208,7 @@ def _durum_dagilimi(kullanici):
 
 
 @login_required
+@bayi_gerekli
 def panel(request):
     cuzdan = getattr(request.user, "cuzdan", None)
 
@@ -347,6 +348,7 @@ def bayi_basvurusu(request):
 
 
 @login_required
+@bayi_gerekli
 def hakedisler(request):
     """Bayinin hangi işten ne kazanacağını açıkça gösteren sayfa.
 
@@ -439,3 +441,54 @@ def hakedisler(request):
         satirlar.append({"kategori": kategori, "kalemler": kalemler})
 
     return render(request, "bayi/hakedisler.html", {"satirlar": satirlar})
+
+
+@login_required
+@tedarikci_gerekli
+def tedarikci_panel(request):
+    """Tedarikçinin üstlendiği işlemler ve hesap durumu."""
+    cuzdan = getattr(request.user, "cuzdan", None)
+
+    basvurular = (
+        Basvuru.objects.filter(tedarikci=request.user)
+        .select_related("kategori", "operator", "tarife", "durum", "bayi")
+        .order_by("-olusturma_tarihi")
+    )
+
+    secili_durum = request.GET.get("durum") or ""
+    if secili_durum:
+        basvurular = basvurular.filter(durum__slug=secili_durum)
+
+    arama = (request.GET.get("q") or "").strip()
+    if arama:
+        basvurular = basvurular.filter(
+            Q(referans_no__icontains=arama)
+            | Q(isim__icontains=arama)
+            | Q(soyisim__icontains=arama)
+            | Q(numara__icontains=arama)
+        )
+
+    ayin_basi = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    aylik_gider = (
+        Basvuru.objects.filter(
+            tedarikci=request.user,
+            tedarikci_islendi=True,
+            olusturma_tarihi__gte=ayin_basi,
+        ).aggregate(toplam=Sum("tedarikci_geliri"))["toplam"]
+        or 0
+    )
+
+    sayfalayici = Paginator(basvurular, 25)
+
+    return render(
+        request,
+        "bayi/tedarikci_panel.html",
+        {
+            "sayfa": sayfalayici.get_page(request.GET.get("sayfa")),
+            "toplam": sayfalayici.count,
+            "aylik_gider": aylik_gider,
+            "durumlar": BasvuruDurumu.objects.filter(aktif=True).order_by("sira"),
+            "secili_durum": secili_durum,
+            "arama": arama,
+        },
+    )

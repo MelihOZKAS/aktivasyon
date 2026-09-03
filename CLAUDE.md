@@ -66,6 +66,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **Roller birbirini dışlamaz.** Bir firma hem bayi hem tedarikçi olabilir
   (`BayiProfili.bayi_mi` / `tedarikci_mi`). Bayi başvuru getirir ve hakediş
   alır; tedarikçi işlemi satın alır, bedeli hesabından düşer.
+- **Rol ekranları karışmaz.** Bayi görünümleri `@bayi_gerekli`, tedarikçi
+  görünümleri `@tedarikci_gerekli` ile korunur (`apps/bayi/yetki.py`).
+  Yeni bir ekran eklerken hangi role ait olduğunu belirt; profili olmayan
+  eski kullanıcılar bayi sayılır. Giriş sonrası yönlendirme tek yerde:
+  `baslangic_sayfasi()`.
+- **Cüzdan yoksa açılır, çökmez.** Elle oluşturulmuş kullanıcının cüzdanı
+  olmayabilir; para işlenirken `_cuzdani_getir` sıfır bakiyeli cüzdan açar.
+- **Aynı kapsamda iki ücret kuralı varsa son eklenen kazanır.** Sonuç
+  rastgele olmamalı; sıralama `(özgüllük, öncelik, pk)` üçlüsüne dayanır.
 - **Kâr = tedarikçi geliri + bayiden tahsilat − bayiye hakediş.**
   `Basvuru.kar` bunu hesaplar. Tedarikçi fiyatı tedarikçiden tedarikçiye
   değişir; `UcretKurali.tedarikci` kapsamıyla tanımlanır. Tedarikçi işlem

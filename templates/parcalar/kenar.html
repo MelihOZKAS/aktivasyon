@@ -31,6 +31,7 @@
     </div>
 
     <nav class="flex-1 space-y-1 px-3">
+      {% url 'bayi:tedarikci-panel' as u_tedarikci %}
       {% url 'bayi:panel' as u_panel %}
       {% url 'basvurular:kategori-sec' as u_yeni %}
       {% url 'basvurular:liste' as u_liste %}
@@ -38,6 +39,16 @@
       {% url 'bayi:hakedisler' as u_hakedisler %}
       {% url 'bayi:cuzdan' as u_cuzdan %}
 
+      {% if tedarikci_mi %}
+      <a href="{{ u_tedarikci }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path == u_tedarikci %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h18M3 9l2-5h14l2 5M5 9v11h14V9M9 13h6"/></svg>
+        Üstlendiklerim
+      </a>
+      {% endif %}
+
+      {% if bayi_mi %}
       <a href="{{ u_panel }}"
          class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
                 {% if request.path == u_panel %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
@@ -72,6 +83,8 @@
         <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M8 7h6.5a2.5 2.5 0 010 5H9a2.5 2.5 0 000 5h7"/></svg>
         Hakedişler
       </a>
+
+      {% endif %}
 
       <a href="{{ u_cuzdan }}"
          class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
