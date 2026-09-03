@@ -119,10 +119,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   özniteliği güvenlik değildir.
 - **Belgeler yalnızca izin kontrollü görünümden sunulur.** Doğrudan
   `dosya.url` kullanma; `belge.get_absolute_url()` kullan.
-- **Kimlik görüntüleri süresiz saklanmaz.** Başvuru sonuçlandıktan
-  `BELGE_SAKLAMA_GUNU` gün sonra `belgeleri_temizle` komutu siler; başvuru
-  kaydı ve para geçmişi kalır. Yeni bir dosya alanı eklerken bu temizliğin
-  kapsamına girdiğinden emin ol.
+- **Kimlik görüntüleri işi bitince hemen silinir.** Bekleme ya da cron yok:
+  `BasvuruDurumu.belgeleri_sil` işaretli bir duruma geçildiğinde
+  `apps/basvurular/services.belgeleri_sil` çalışır. Aktif ve İptal siler;
+  Hatalı ve Eksik Evrak silmez, çünkü o başvurular düzeltilip yeniden
+  denenebilir. Başvuru kaydı ve para geçmişi her hâlükârda kalır.
+- **Görüntüler diskte tutulur, veritabanında değil.** Veritabanı yalnızca
+  dosya yolunu saklar.
 - **Admin'de HTML üretirken `format_html_join` kullan.** `"".join(...)` düz
   `str` döndürür ve dıştaki `format_html` onu kaçışlayıp etiketleri metin
   olarak basar.

@@ -99,24 +99,19 @@ veriyi belleğe alır. Diskte akış (streaming) mümkün, yedekleme ayrı yapı
 Asıl mesele "nerede durduğu" değil "ne kadar durduğu": kişisel veri işi
 bittikten sonra süresiz saklanmamalı. Bunun için saklama süresi vardır.
 
-### Saklama süresi
+### Belgeler ne zaman silinir?
 
-Başvuru sonuçlandıktan (aktif ya da olumsuz) `BELGE_SAKLAMA_GUNU` gün sonra
-kimlik görüntüleri silinir. Başvuru kaydı, para geçmişi ve hakediş bilgisi
-yerinde kalır — yalnızca görüntüler gider.
+Kimlik ve pasaport görüntüleri, başvurunun **işi bittiği anda** silinir:
+bakiye yüklendiğinde (Aktif) ya da iptal edilip para geri alındığında.
+Bekleme süresi ve cron yoktur.
 
-```bash
-python manage.py belgeleri_temizle --dene   # ne silineceğini yazar, silmez
-python manage.py belgeleri_temizle          # siler
-```
+Hangi durumun sileceğini siz seçersiniz: **Başvuru Durumları** ekranındaki
+"Belgeleri Sil" kutusu. Varsayılan olarak *Aktif* ve *İptal* siler; *Hatalı*
+ve *Eksik Evrak* silmez, çünkü o başvurular düzeltilip yeniden denenebilir.
 
-Sunucuda günlük cron:
-
-```
-0 4 * * * docker exec app_fadil python manage.py belgeleri_temizle
-```
-
-`BELGE_SAKLAMA_GUNU=0` verilirse otomatik silme kapanır (önerilmez).
+Silinen şey yalnızca görüntülerdir. Başvuru kaydı, durum geçmişi, para
+hareketleri ve hakediş bilgisi yerinde kalır; bayi detayında "işi tamamlandı,
+görüntüler silindi" notu görünür.
 
 Dosyalar diskte durur (`media/`), S3 gibi bir nesne deposu kullanılmaz.
 Sunucuda `/home/aktivasyon/media/` altındadır ve bind mount olduğu için

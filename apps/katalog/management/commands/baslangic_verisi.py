@@ -11,14 +11,15 @@ from apps.basvurular.models import BasvuruDurumu
 from apps.katalog.models import AlanTipi, BasvuruKategorisi, KategoriAlani, MusteriTipi, Operator
 
 DURUMLAR = [
-    # (ad, slug, renk, ikon, baslangic, hakedis, olumsuz, bayi_duzenler, sira, sinyal, bildirim)
-    ("Beklemede", "beklemede", "#64748b", "schedule", True, False, False, False, 10, 1, False),
-    ("İşlemde", "islemde", "#3b82f6", "sync", False, False, False, False, 20, 3, False),
-    ("Eksik Evrak", "eksik-evrak", "#f59e0b", "warning", False, False, False, True, 30, 2, True),
-    ("Mutabakat Bekliyor", "mutabakat", "#8b5cf6", "handshake", False, False, False, False, 40, 4, False),
-    ("Aktif", "aktif", "#16a34a", "check_circle", False, True, False, False, 50, 5, True),
-    ("Hatalı", "hatali", "#dc2626", "cancel", False, False, True, False, 60, 1, True),
-    ("İptal", "iptal", "#78716c", "block", False, False, True, False, 70, 1, True),
+    # (ad, slug, renk, ikon, baslangic, hakedis, olumsuz, bayi_duzenler,
+    #  sira, sinyal, bildirim, belge_sil)
+    ("Beklemede", "beklemede", "#64748b", "schedule", True, False, False, False, 10, 1, False, False),
+    ("İşlemde", "islemde", "#3b82f6", "sync", False, False, False, False, 20, 3, False, False),
+    ("Eksik Evrak", "eksik-evrak", "#f59e0b", "warning", False, False, False, True, 30, 2, True, False),
+    ("Mutabakat Bekliyor", "mutabakat", "#8b5cf6", "handshake", False, False, False, False, 40, 4, False, False),
+    ("Aktif", "aktif", "#16a34a", "check_circle", False, True, False, False, 50, 5, True, True),
+    ("Hatalı", "hatali", "#dc2626", "cancel", False, False, True, False, 60, 1, True, False),
+    ("İptal", "iptal", "#78716c", "block", False, False, True, False, 70, 1, True, True),
 ]
 
 OPERATORLER = [
@@ -154,7 +155,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for (
             ad, slug, renk, ikon, baslangic, hakedis, olumsuz, duzenle, sira,
-            sinyal, bildirim,
+            sinyal, bildirim, belge_sil,
         ) in DURUMLAR:
             _, olusturuldu = BasvuruDurumu.objects.get_or_create(
                 slug=slug,
@@ -169,6 +170,7 @@ class Command(BaseCommand):
                     "sira": sira,
                     "sinyal_seviyesi": sinyal,
                     "bildirim_gonder": bildirim,
+                    "belgeleri_sil": belge_sil,
                 },
             )
             if olusturuldu:

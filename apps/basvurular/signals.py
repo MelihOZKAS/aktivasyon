@@ -6,6 +6,9 @@ Böylece para hareketi başarısız olursa durum değişikliği de geri alınır
 
 Başvuru olumsuz sonuçlandığında kullanılan SIM kartlar bayinin stoğuna
 geri döner: kart fiziksel olarak elinde durduğu için çöpe çıkmamalı.
+
+`belgeleri_sil` işaretli bir duruma geçildiğinde kimlik görüntüleri hemen
+silinir; işi biten bir başvuruda kişisel veriyi tutmak için sebep yoktur.
 """
 
 import logging
@@ -36,6 +39,7 @@ def onceki_durumu_hatirla(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Basvuru)
 def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
+    from apps.basvurular.services import belgeleri_sil
     from apps.bayi.services import basvurunun_simlerini_serbest_birak
     from apps.bildirim.telegram import basvuru_bildir
     from apps.finans.services import (
@@ -83,6 +87,11 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
         # Operatörden iptal gelince kart fiziksel olarak bayide kalıyor;
         # sistemde de yeniden kullanılabilir olmalı.
         basvurunun_simlerini_serbest_birak(instance)
+
+    # İşi biten başvurunun kimlik görüntüleri saklanmaz; para işlendikten
+    # ya da geri alındıktan hemen sonra silinir.
+    if durum.belgeleri_sil and not instance.belgeler_silindi:
+        belgeleri_sil(instance)
 
     if durum.hakedis_tetikler and not instance.para_islendi:
         guncel = basvuru_parasini_isle(instance)

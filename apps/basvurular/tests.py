@@ -437,8 +437,8 @@ class BelgeYuklemeGuvenligiTestleri(TestCase):
 
 
 @override_settings(MEDIA_ROOT=GECICI_MEDYA)
-class BelgeSaklamaTestleri(TestCase):
-    """Kimlik görüntüleri kişisel veridir; işi bitince süresiz saklanmaz."""
+class BelgeSilmeTestleri(TestCase):
+    """İşi biten başvurunun kimlik görüntüleri hemen silinir."""
 
     @classmethod
     def tearDownClass(cls):
@@ -446,108 +446,109 @@ class BelgeSaklamaTestleri(TestCase):
         super().tearDownClass()
 
     def setUp(self):
-        from apps.basvurular.models import BasvuruBelgesi
         from apps.finans.models import Cuzdan
 
         self.beklemede = BasvuruDurumu.objects.create(
             ad="Beklemede", slug="beklemede", baslangic_durumu=True
         )
         self.aktif = BasvuruDurumu.objects.create(
-            ad="Aktif", slug="aktif", hakedis_tetikler=True
+            ad="Aktif", slug="aktif", hakedis_tetikler=True, belgeleri_sil=True
         )
+        self.iptal = BasvuruDurumu.objects.create(
+            ad="İptal", slug="iptal", olumsuz_sonuc=True, belgeleri_sil=True
+        )
+        self.hatali = BasvuruDurumu.objects.create(
+            ad="Hatalı", slug="hatali", olumsuz_sonuc=True, belgeleri_sil=False
+        )
+        self.eksik = BasvuruDurumu.objects.create(
+            ad="Eksik Evrak", slug="eksik", bayi_duzenleyebilir=True
+        )
+
         self.bayi = User.objects.create_user("bayi", password="parola12345")
         Cuzdan.objects.create(bayi=self.bayi)
         self.operator = Operator.objects.create(ad="Vodafone")
         self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
 
-        self.basvuru = Basvuru.objects.create(
+    def _basvuru_ve_belge(self):
+        basvuru = Basvuru.objects.create(
             bayi=self.bayi, kategori=self.kategori, operator=self.operator,
             isim="Ayşe", soyisim="Demir", kimlik_no="1",
             irtibat="5551112233", durum=self.beklemede,
         )
-        self.belge = BasvuruBelgesi.objects.create(
-            basvuru=self.basvuru, alan_kodu="kimlik_on",
+        belge = BasvuruBelgesi.objects.create(
+            basvuru=basvuru, alan_kodu="kimlik_on",
             etiket="Kimlik Ön", dosya=kucuk_png(),
         )
-        self.dosya_yolu = self.belge.dosya.path
+        return basvuru, belge, belge.dosya.path
 
-    def _temizle(self, **secenekler):
-        from django.core.management import call_command
-        from io import StringIO
-
-        cikti = StringIO()
-        call_command("belgeleri_temizle", stdout=cikti, **secenekler)
-        return cikti.getvalue()
-
-    def test_sonuclanmamis_basvurunun_belgesi_silinmez(self):
-        self._temizle(gun=1)
-        self.assertTrue(BasvuruBelgesi.objects.filter(pk=self.belge.pk).exists())
-
-    def test_sonuclanma_tarihi_otomatik_damgalanir(self):
-        self.assertIsNone(self.basvuru.sonuclanma_tarihi)
-        self.basvuru.durum = self.aktif
-        self.basvuru.save()
-
-        self.basvuru.refresh_from_db()
-        self.assertIsNotNone(self.basvuru.sonuclanma_tarihi)
-
-    def test_suresi_dolan_belge_silinir_kayit_kalir(self):
+    def test_aktif_olunca_belgeler_hemen_silinir(self):
         import os
-        from datetime import timedelta
-        from django.utils import timezone
 
-        self.basvuru.durum = self.aktif
-        self.basvuru.save()
-        Basvuru.objects.filter(pk=self.basvuru.pk).update(
-            sonuclanma_tarihi=timezone.now() - timedelta(days=200)
-        )
+        basvuru, belge, yol = self._basvuru_ve_belge()
+        self.assertTrue(os.path.exists(yol))
 
-        self._temizle(gun=90)
+        basvuru.durum = self.aktif
+        basvuru.save()
 
-        self.basvuru.refresh_from_db()
-        self.assertTrue(self.basvuru.belgeler_silindi)
-        self.assertFalse(BasvuruBelgesi.objects.filter(pk=self.belge.pk).exists())
-        self.assertFalse(os.path.exists(self.dosya_yolu))
-        # Başvuru ve para geçmişi yerinde kalmalı.
-        self.assertTrue(Basvuru.objects.filter(pk=self.basvuru.pk).exists())
+        basvuru.refresh_from_db()
+        self.assertTrue(basvuru.belgeler_silindi)
+        self.assertFalse(BasvuruBelgesi.objects.filter(pk=belge.pk).exists())
+        self.assertFalse(os.path.exists(yol))
+        # Başvuru kaydı ve para geçmişi durmalı.
+        self.assertTrue(Basvuru.objects.filter(pk=basvuru.pk).exists())
 
-    def test_deneme_modu_hicbir_sey_silmez(self):
-        from datetime import timedelta
-        from django.utils import timezone
+    def test_iptal_olunca_da_silinir(self):
+        import os
 
-        self.basvuru.durum = self.aktif
-        self.basvuru.save()
-        Basvuru.objects.filter(pk=self.basvuru.pk).update(
-            sonuclanma_tarihi=timezone.now() - timedelta(days=200)
-        )
+        basvuru, belge, yol = self._basvuru_ve_belge()
+        basvuru.durum = self.iptal
+        basvuru.save()
 
-        cikti = self._temizle(gun=90, dene=True)
+        basvuru.refresh_from_db()
+        self.assertTrue(basvuru.belgeler_silindi)
+        self.assertFalse(os.path.exists(yol))
 
-        self.assertIn("silinecek", cikti)
-        self.assertTrue(BasvuruBelgesi.objects.filter(pk=self.belge.pk).exists())
+    def test_hatali_durumunda_silinmez(self):
+        """Düzeltilip yeniden denenebilecek durumlarda belge durmalı."""
+        import os
 
-    def test_saklama_kapaliyken_silme_yapilmaz(self):
-        from datetime import timedelta
-        from django.utils import timezone
+        basvuru, belge, yol = self._basvuru_ve_belge()
+        basvuru.durum = self.hatali
+        basvuru.save()
 
-        self.basvuru.durum = self.aktif
-        self.basvuru.save()
-        Basvuru.objects.filter(pk=self.basvuru.pk).update(
-            sonuclanma_tarihi=timezone.now() - timedelta(days=999)
-        )
+        basvuru.refresh_from_db()
+        self.assertFalse(basvuru.belgeler_silindi)
+        self.assertTrue(BasvuruBelgesi.objects.filter(pk=belge.pk).exists())
+        self.assertTrue(os.path.exists(yol))
 
-        with override_settings(BELGE_SAKLAMA_GUNU=0):
-            cikti = self._temizle()
+    def test_eksik_evrakta_silinmez(self):
+        basvuru, belge, _ = self._basvuru_ve_belge()
+        basvuru.durum = self.eksik
+        basvuru.save()
 
-        self.assertIn("kapalı", cikti)
-        self.assertTrue(BasvuruBelgesi.objects.filter(pk=self.belge.pk).exists())
+        self.assertTrue(BasvuruBelgesi.objects.filter(pk=belge.pk).exists())
+
+    def test_ara_durumlarda_silinmez(self):
+        basvuru, belge, _ = self._basvuru_ve_belge()
+        self.assertTrue(BasvuruBelgesi.objects.filter(pk=belge.pk).exists())
+
+    def test_silme_iki_kez_calismaz(self):
+        basvuru, _, _ = self._basvuru_ve_belge()
+        basvuru.durum = self.aktif
+        basvuru.save()
+        basvuru.durum = self.iptal
+        basvuru.save()
+
+        basvuru.refresh_from_db()
+        self.assertTrue(basvuru.belgeler_silindi)
 
     def test_silinen_belge_detayda_aciklaniyor(self):
-        Basvuru.objects.filter(pk=self.basvuru.pk).update(belgeler_silindi=True)
-        self.basvuru.belgeler.all().delete()
+        basvuru, _, _ = self._basvuru_ve_belge()
+        basvuru.durum = self.aktif
+        basvuru.save()
 
         self.client.force_login(self.bayi)
         yanit = self.client.get(
-            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+            reverse("basvurular:detay", args=[basvuru.referans_no])
         )
-        self.assertContains(yanit, "saklama süresi dolduğunda")
+        self.assertContains(yanit, "Bu başvurunun işi tamamlandı")

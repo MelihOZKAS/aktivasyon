@@ -73,6 +73,7 @@ class BasvuruDurumuAdmin(ModelAdmin):
         "olumsuz_sonuc",
         "bayi_duzenleyebilir",
         "bildirim_gonder",
+        "belgeleri_sil",
         "sinyal_seviyesi",
         "sira",
         "aktif",
@@ -91,6 +92,7 @@ class BasvuruDurumuAdmin(ModelAdmin):
                     "olumsuz_sonuc",
                     "bayi_duzenleyebilir",
                     "bildirim_gonder",
+                    "belgeleri_sil",
                 ),
                 "description": (
                     "“Para Hareketini Tetikler” işaretli duruma geçildiğinde ücret "
@@ -211,9 +213,9 @@ class BasvuruAdmin(ModelAdmin):
                 "classes": ("collapse",),
                 "fields": ("olusturma_tarihi", "guncelleme_tarihi", "belgeler_silindi"),
                 "description": (
-                    "Kimlik görüntüleri kişisel veridir; başvuru sonuçlandıktan "
-                    "BELGE_SAKLAMA_GUNU gün sonra <code>belgeleri_temizle</code> "
-                    "komutuyla silinir. Başvuru kaydı ve para geçmişi kalır."
+                    "Kimlik görüntüleri kişisel veridir; “Belgeleri Sil” işaretli "
+                    "bir duruma geçildiğinde hemen silinir. Başvuru kaydı ve "
+                    "para geçmişi kalır."
                 ),
             },
         ),

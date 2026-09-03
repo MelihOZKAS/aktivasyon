@@ -73,6 +73,15 @@ class BasvuruDurumu(ZamanDamgali):
         default=False,
         help_text="Bu duruma geçildiğinde operasyon grubuna mesaj atılır.",
     )
+    belgeleri_sil = models.BooleanField(
+        "Belgeleri Sil",
+        default=False,
+        help_text=(
+            "Bu duruma geçildiğinde kimlik ve pasaport görüntüleri hemen silinir. "
+            "İşi biten başvurularda açın; sonradan düzeltme ihtimali olan "
+            "durumlarda (Hatalı, Eksik Evrak) kapalı bırakın."
+        ),
+    )
     sinyal_seviyesi = models.PositiveSmallIntegerField(
         "Sinyal Seviyesi",
         default=1,
@@ -217,7 +226,7 @@ class Basvuru(ZamanDamgali):
         "Belgeler Silindi",
         default=False,
         editable=False,
-        help_text="Saklama süresi dolduğu için kimlik görüntüleri silindi.",
+        help_text="İşi bittiği için kimlik görüntüleri silindi.",
     )
 
     class Meta:
