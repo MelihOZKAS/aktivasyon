@@ -92,9 +92,13 @@ kontrolüyle olur: yalnızca başvuruyu giren bayi ve yetkili personel görebili
 ### Görseller yüklenirken küçültülür
 
 Telefon kameraları 4000×3000 çekiyor; kimlikteki yazıyı okumak için bu
-gereksiz. Yüklenen görseller uzun kenarı `GORSEL_MAKS_KENAR` (varsayılan
-2000px) olacak şekilde küçültülüp WebP'ye çevrilir. Ölçülen tasarruf **%90**:
-8,9 MB'lık iki fotoğraf 945 KB'a iniyor. Bayinin mobil verisi de kazanıyor.
+gereksiz. Kimlik kartı kadrajın çoğunu kapladığından uzun kenar
+`GORSEL_MAKS_KENAR` (varsayılan **1000px**) olduğunda bile karttaki yazı
+~18px kalıyor ve rahat okunuyor. Görseller küçültülüp WebP'ye çevrilir.
+Tasarruf **%95'in üzerinde**; bayinin mobil verisi de kazanıyor.
+
+Kimlik yazıları okunmuyor diye şikâyet gelirse `GORSEL_MAKS_KENAR=1400` ya da
+`GORSEL_WEBP_KALITE=90` yapmak yeterli.
 
 EXIF verisi temizlenir — telefon fotoğrafları konum bilgisi taşır ve bunun
 kimlik görüntüsünde işi yoktur. Silmeden önce EXIF'teki döndürme uygulanır,

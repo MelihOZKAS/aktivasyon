@@ -608,7 +608,7 @@ class GorselKucultmeTestleri(TestCase):
         sonuc.seek(0)
         with Image.open(sonuc) as g:
             self.assertEqual(g.format, "WEBP")
-            self.assertLessEqual(max(g.size), 2000)
+            self.assertLessEqual(max(g.size), 1000)
 
     def test_pdf_dokunulmadan_gecer(self):
         from apps.basvurular.gorsel import gorseli_kucult

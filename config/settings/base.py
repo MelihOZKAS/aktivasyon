@@ -108,10 +108,12 @@ LOGOUT_REDIRECT_URL = "bayi:anasayfa"
 LOGIN_REDIRECT_URL = "bayi:panel"
 
 
-# Yüklenen görseller küçültülüp WebP'ye çevrilir: telefon fotoğrafı
-# 4000px geliyor, kimlikteki yazıyı okumak için 2000px fazlasıyla yeter.
-GORSEL_MAKS_KENAR = env.int("GORSEL_MAKS_KENAR", default=2000)
-GORSEL_WEBP_KALITE = env.int("GORSEL_WEBP_KALITE", default=82)
+# Yüklenen görseller küçültülüp WebP'ye çevrilir. Kimlik kartı kadrajın
+# çoğunu kapladığı için 1000px yeter: kart üzerindeki yazı ~18px kalıyor,
+# rahat okunuyor. Düşük çözünürlükte küçük yazı net kalsın diye kalite
+# biraz yüksek tutuldu.
+GORSEL_MAKS_KENAR = env.int("GORSEL_MAKS_KENAR", default=1000)
+GORSEL_WEBP_KALITE = env.int("GORSEL_WEBP_KALITE", default=85)
 
 # Yüklenen evrak boyutu sınırı (10 MB)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024

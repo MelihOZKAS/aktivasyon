@@ -1,8 +1,9 @@
 """Yüklenen görselleri küçültüp WebP'ye çevirir.
 
 Telefon kameraları 4000×3000 çekiyor; kimlikteki yazıyı okumak için bu
-gereksiz. Uzun kenarı sınırlayıp WebP'ye çevirince dosya yaklaşık onda
-birine iniyor — hem disk hem de bayinin mobil verisi kazanıyor.
+gereksiz. Kimlik kartı kadrajın çoğunu kapladığından uzun kenar 1000px'e
+indiğinde bile karttaki yazı ~18px kalıyor ve rahat okunuyor. Dosya yaklaşık
+kırkta birine iniyor — hem disk hem de bayinin mobil verisi kazanıyor.
 
 EXIF verisi de temizlenir: telefon fotoğrafları konum bilgisi taşır ve
 bunun kimlik görüntüsünde işi yoktur. Silmeden önce EXIF'teki döndürme
@@ -40,8 +41,8 @@ def gorseli_kucult(dosya):
         # PDF ve diğerleri olduğu gibi kalır.
         return dosya
 
-    maks = _ayar("GORSEL_MAKS_KENAR", 2000)
-    kalite = _ayar("GORSEL_WEBP_KALITE", 82)
+    maks = _ayar("GORSEL_MAKS_KENAR", 1000)
+    kalite = _ayar("GORSEL_WEBP_KALITE", 85)
 
     try:
         dosya.seek(0)
