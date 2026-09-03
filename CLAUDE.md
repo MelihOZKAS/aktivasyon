@@ -49,8 +49,19 @@ admin'den giriliyor; Turkcell sarısı gibi açık renkler beyazda okunmaz.
   `makemigrations --check --dry-run` ile doğrula.
 - **Para yalnızca `apps/finans/services.py` üzerinden hareket eder.** Model
   `save()` içinde bakiye değiştirme.
-- **Borç limiti ve kullanılabilir tutar bayiye gösterilmez.** Yeni bir ekran
-  eklerken bu değerleri şablona taşıma; `apps/bayi/tests.py` bunu kontrol eder.
+- **Borç için üst sınır yoktur.** Bakiye yetmezse kalan tutar borca yazılır.
+  Bayiyi tamamen durdurmak gerekirse cüzdandaki `islem_yapabilir` kapatılır.
+  Bayi panelinde "borç limiti" ya da "kullanılabilir tutar" gösterilmez;
+  `apps/bayi/tests.py` bunu kontrol eder.
+- **Formda sabit alan listesi yoktur.** Hangi alanların sorulacağına
+  `KategoriAlani` kayıtları karar verir — İsim, TC No gibi çekirdek alanlar
+  dahil. `cekirdek_alan` doluysa değer başvurunun kendi kolonuna yazılır
+  (aranabilir olur), boşsa `ek_bilgiler` JSON'una girer. Forma yeni bir sabit
+  alan ekleme; kategori tanımından geçir.
+- **SIM kartlar bayiye zimmetlidir.** Bayi yalnızca kendisine atanmış ve
+  "Bayiye Atandı" durumundaki kartlarla başvuru girebilir. Başvuru olumsuz
+  sonuçlanınca kart otomatik olarak stoğa döner; kart fiziksel olarak bayide
+  durduğu için çöp edilmemeli.
 - Şablon değişikliğinden sonra CSS'i derle:
   `./.tools/tailwindcss -i static/src/app.css -o static/app.css --minify`
 - Testler: `.venv/bin/python manage.py test`

@@ -201,6 +201,23 @@ class Kampanya(ZamanDamgali):
         return True
 
 
+class CekirdekAlan(models.TextChoices):
+    """Başvuruda gerçek kolonu olan alanlar.
+
+    Bu alanlar aranabilir ve indekslidir; değerleri JSON'a değil kendi
+    kolonlarına yazılır. Hangi kategoride görüneceğine, ne yazacağına ve
+    zorunlu olup olmadığına yine admin karar verir.
+    """
+
+    ISIM = "isim", "İsim"
+    SOYISIM = "soyisim", "Soyisim"
+    KIMLIK_TIPI = "kimlik_tipi", "Kimlik Tipi"
+    KIMLIK_NO = "kimlik_no", "Kimlik / Pasaport No"
+    IRTIBAT = "irtibat", "İletişim Numarası"
+    NUMARA = "numara", "İşlem Yapılacak Numara"
+    ADRES = "adres", "Adres"
+
+
 class AlanTipi(models.TextChoices):
     METIN = "metin", "Metin"
     UZUN_METIN = "uzun_metin", "Uzun Metin"
@@ -213,6 +230,7 @@ class AlanTipi(models.TextChoices):
     ONAY = "onay", "Evet / Hayır"
     DOSYA = "dosya", "Dosya"
     RESIM = "resim", "Resim"
+    SIM_KART = "sim_kart", "SIM Kart (bayinin stoğundan)"
 
 
 class KategoriAlani(ZamanDamgali):
@@ -233,6 +251,16 @@ class KategoriAlani(ZamanDamgali):
         "Alan Kodu",
         max_length=60,
         help_text="Veride saklanacak anahtar. Örn: sim_imei, modem_istegi",
+    )
+    cekirdek_alan = models.CharField(
+        "Çekirdek Alan",
+        max_length=20,
+        choices=CekirdekAlan.choices,
+        blank=True,
+        help_text=(
+            "Doldurulursa değer başvurunun kendi kolonuna yazılır ve aranabilir "
+            "olur. Boş bırakılırsa alan bu kategoriye özel ek bilgi olarak saklanır."
+        ),
     )
     etiket = models.CharField("Etiket", max_length=150)
     tip = models.CharField("Alan Tipi", max_length=20, choices=AlanTipi.choices, default=AlanTipi.METIN)
@@ -278,11 +306,27 @@ class KategoriAlani(ZamanDamgali):
         constraints = [
             models.UniqueConstraint(
                 fields=["kategori", "kod"], name="kategori_alan_kodu_benzersiz"
-            )
+            ),
+            # Aynı çekirdek alan bir kategoride iki kez sorulmasın.
+            models.UniqueConstraint(
+                fields=["kategori", "cekirdek_alan"],
+                condition=models.Q(cekirdek_alan__gt=""),
+                name="kategori_cekirdek_alan_benzersiz",
+            ),
         ]
 
     def __str__(self):
         return f"{self.kategori.ad} · {self.etiket}"
+
+    def clean(self):
+        if self.cekirdek_alan and self.dosya_mi:
+            raise ValidationError(
+                {"tip": "Çekirdek alanlar dosya tipinde olamaz."}
+            )
+
+    @property
+    def cekirdek_mi(self):
+        return bool(self.cekirdek_alan)
 
     @property
     def secenek_listesi(self):

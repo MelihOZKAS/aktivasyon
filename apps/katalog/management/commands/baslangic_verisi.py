@@ -27,7 +27,26 @@ OPERATORLER = [
     ("Türk Telekom", "#00a0e3"),
 ]
 
-# (ad, ikon, musteri_tipi, tarife_zorunlu, sira, ek alanlar)
+# Her kategoriye açılan ortak müşteri alanları. Bunlar sabit değil: admin
+# yönetim panelinden çıkarabilir, sırasını ve etiketini değiştirebilir.
+# (kod, etiket, tip, zorunlu, grup, seçenekler, çekirdek alan)
+ORTAK_ALANLAR = [
+    ("kimlik_tipi", "Kimlik Tipi", AlanTipi.SECIM, True, "Müşteri", "", "kimlik_tipi"),
+    ("kimlik_no", "TC / Pasaport No", AlanTipi.METIN, True, "Müşteri", "", "kimlik_no"),
+    ("isim", "İsim", AlanTipi.METIN, True, "Müşteri", "", "isim"),
+    ("soyisim", "Soy İsim", AlanTipi.METIN, True, "Müşteri", "", "soyisim"),
+    ("dogum_tarihi", "Doğum Tarihi", AlanTipi.TARIH, False, "Müşteri", "", ""),
+    ("irtibat", "İletişim No", AlanTipi.TELEFON, True, "Müşteri", "", "irtibat"),
+    ("sehir", "Şehir", AlanTipi.METIN, False, "Adres", "", ""),
+    ("ilce", "İlçe", AlanTipi.METIN, False, "Adres", "", ""),
+    ("adres", "Adres", AlanTipi.UZUN_METIN, False, "Adres", "", "adres"),
+]
+
+TASINACAK_NUMARA = (
+    "numara", "Taşınacak No", AlanTipi.TELEFON, True, "Müşteri", "", "numara",
+)
+
+# (ad, ikon, musteri_tipi, tarife_zorunlu, sira, kategoriye özel ek alanlar)
 KATEGORILER = [
     (
         "MNT / Numara Taşıma",
@@ -37,7 +56,7 @@ KATEGORILER = [
         10,
         [
             ("gececegi_operator", "Geçeceği Operatör", AlanTipi.METIN, True, "", ""),
-            ("sim_imei", "SIM / IMEI", AlanTipi.METIN, False, "", ""),
+            ("sim_imei", "SIM / IMEI", AlanTipi.SIM_KART, False, "", ""),
             ("aks", "AKS Kodu", AlanTipi.METIN, True, "", ""),
             ("kimlik_on", "Kimlik Ön Yüz", AlanTipi.RESIM, True, "Belgeler", ""),
             ("kimlik_arka", "Kimlik Arka Yüz", AlanTipi.RESIM, True, "Belgeler", ""),
@@ -51,7 +70,7 @@ KATEGORILER = [
         True,
         20,
         [
-            ("sim_imei", "SIM / IMEI", AlanTipi.METIN, True, "", ""),
+            ("sim_imei", "SIM / IMEI", AlanTipi.SIM_KART, True, "", ""),
             ("aks", "AKS Kodu", AlanTipi.METIN, True, "", ""),
             ("kimlik_on", "Kimlik Ön Yüz", AlanTipi.RESIM, True, "Belgeler", ""),
             ("kimlik_arka", "Kimlik Arka Yüz", AlanTipi.RESIM, True, "Belgeler", ""),
@@ -64,7 +83,7 @@ KATEGORILER = [
         True,
         30,
         [
-            ("sim_imei", "SIM / IMEI", AlanTipi.METIN, False, "", ""),
+            ("sim_imei", "SIM / IMEI", AlanTipi.SIM_KART, False, "", ""),
             ("aks", "AKS Kodu", AlanTipi.METIN, True, "", ""),
             ("kimlik_on", "Kimlik Ön Yüz", AlanTipi.RESIM, True, "Belgeler", ""),
             ("kimlik_arka", "Kimlik Arka Yüz", AlanTipi.RESIM, True, "Belgeler", ""),
@@ -119,7 +138,7 @@ KATEGORILER = [
         False,
         70,
         [
-            ("sim_imei", "SIM / IMEI", AlanTipi.METIN, False, "", ""),
+            ("sim_imei", "SIM / IMEI", AlanTipi.SIM_KART, False, "", ""),
             ("pasaport_on", "Pasaport Ön Sayfa", AlanTipi.RESIM, True, "Belgeler", ""),
             ("pasaport_arka", "Pasaport İkinci Sayfa", AlanTipi.RESIM, True, "Belgeler", ""),
             ("ikametgah", "İkametgah", AlanTipi.DOSYA, False, "Belgeler", ""),
@@ -174,9 +193,22 @@ class Command(BaseCommand):
                 kategori.operatorler.set(operatorler)
                 self.stdout.write(f"  kategori: {ad}")
 
-            for alan_sira, (kod, etiket, tip, zorunlu, grup, secenekler) in enumerate(
-                alanlar, start=1
-            ):
+            # Numara taşıma / şebeke içi işlemlerde taşınacak numara sorulur.
+            ortak = list(ORTAK_ALANLAR)
+            if "Taşıma" in ad or "Şebeke" in ad:
+                ortak.insert(5, TASINACAK_NUMARA)
+
+            tum_alanlar = [
+                (kod, etiket, tip, zorunlu, grup, secenekler, cekirdek)
+                for kod, etiket, tip, zorunlu, grup, secenekler, cekirdek in ortak
+            ] + [
+                (kod, etiket, tip, zorunlu, grup or "Başvuru detayları", secenekler, "")
+                for kod, etiket, tip, zorunlu, grup, secenekler in alanlar
+            ]
+
+            for alan_sira, (
+                kod, etiket, tip, zorunlu, grup, secenekler, cekirdek
+            ) in enumerate(tum_alanlar, start=1):
                 KategoriAlani.objects.get_or_create(
                     kategori=kategori,
                     kod=kod,
@@ -186,6 +218,7 @@ class Command(BaseCommand):
                         "zorunlu": zorunlu,
                         "grup": grup,
                         "secenekler": secenekler,
+                        "cekirdek_alan": cekirdek,
                         "sira": alan_sira * 10,
                     },
                 )

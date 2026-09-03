@@ -59,6 +59,16 @@ class DinamikFormTestleri(TestCase):
             kategori=self.kategori, operator=self.operator, ad="Red 20 GB"
         )
 
+        for sira, (kod, etiket, cekirdek, zorunlu) in enumerate([
+            ("isim", "İsim", "isim", True),
+            ("soyisim", "Soy İsim", "soyisim", True),
+            ("kimlik_no", "TC No", "kimlik_no", True),
+            ("irtibat", "İletişim No", "irtibat", True),
+        ], start=1):
+            KategoriAlani.objects.create(
+                kategori=self.kategori, kod=kod, etiket=etiket,
+                cekirdek_alan=cekirdek, tip=AlanTipi.METIN, zorunlu=zorunlu, sira=sira,
+            )
         KategoriAlani.objects.create(
             kategori=self.kategori, kod="aks", etiket="AKS Kodu",
             tip=AlanTipi.METIN, zorunlu=True, sira=10,
@@ -83,17 +93,14 @@ class DinamikFormTestleri(TestCase):
             "tarife": self.tarife.pk,
             "kampanya": "",
             "musteri_tipi": "turk",
-            "kimlik_tipi": "tc",
-            "kimlik_no": "12345678901",
-            "isim": "Ayşe",
-            "soyisim": "Demir",
-            "irtibat": "5551112233",
-            "numara": "",
-            "adres": "Örnek Mah. No:1",
             "bayi_aciklamasi": "",
-            "ek__aks": "AKS-1234",
-            "ek__sim_imei": "8990011223344",
-            "ek__kimlik_on": kucuk_png(),
+            "alan__isim": "Ayşe",
+            "alan__soyisim": "Demir",
+            "alan__kimlik_no": "12345678901",
+            "alan__irtibat": "5551112233",
+            "alan__aks": "AKS-1234",
+            "alan__sim_imei": "8990011223344",
+            "alan__kimlik_on": kucuk_png(),
         }
         veri.update(degisiklikler)
         return veri
@@ -102,9 +109,11 @@ class DinamikFormTestleri(TestCase):
         yanit = self.client.get(self._url())
         self.assertEqual(yanit.status_code, 200)
         form = yanit.context["form"]
-        self.assertIn("ek__aks", form.fields)
-        self.assertIn("ek__sim_imei", form.fields)
-        self.assertIn("ek__kimlik_on", form.fields)
+        self.assertIn("alan__aks", form.fields)
+        self.assertIn("alan__sim_imei", form.fields)
+        self.assertIn("alan__kimlik_on", form.fields)
+        # Çekirdek alanlar da tanımdan geliyor, kodda sabit değil.
+        self.assertIn("alan__isim", form.fields)
 
     def test_basvuru_gonderilir_ve_ek_bilgiler_kaydedilir(self):
         yanit = self.client.post(self._url(), self._gonderi())
@@ -115,13 +124,17 @@ class DinamikFormTestleri(TestCase):
         self.assertEqual(basvuru.durum, self.beklemede)
         self.assertEqual(basvuru.ek_bilgiler["aks"], "AKS-1234")
         self.assertEqual(basvuru.ek_bilgiler["sim_imei"], "8990011223344")
+        # Çekirdek alanlar JSON'a değil kendi kolonlarına yazılır.
+        self.assertEqual(basvuru.isim, "Ayşe")
+        self.assertEqual(basvuru.kimlik_no, "12345678901")
+        self.assertNotIn("isim", basvuru.ek_bilgiler)
         self.assertEqual(basvuru.belgeler.count(), 1)
         self.assertEqual(basvuru.belgeler.first().alan_kodu, "kimlik_on")
 
     def test_zorunlu_dinamik_alan_bos_birakilamaz(self):
-        yanit = self.client.post(self._url(), self._gonderi(**{"ek__aks": ""}))
+        yanit = self.client.post(self._url(), self._gonderi(**{"alan__aks": ""}))
         self.assertEqual(yanit.status_code, 200)
-        self.assertIn("ek__aks", yanit.context["form"].errors)
+        self.assertIn("alan__aks", yanit.context["form"].errors)
         self.assertEqual(Basvuru.objects.count(), 0)
 
     def test_kategoriye_ait_olmayan_operator_reddedilir(self):
@@ -142,8 +155,8 @@ class DinamikFormTestleri(TestCase):
 
     def test_dogrulama_deseni_uygulanir(self):
         KategoriAlani.objects.filter(kod="aks").update(dogrulama_deseni=r"^AKS-\d{4}$")
-        yanit = self.client.post(self._url(), self._gonderi(**{"ek__aks": "yanlis"}))
-        self.assertIn("ek__aks", yanit.context["form"].errors)
+        yanit = self.client.post(self._url(), self._gonderi(**{"alan__aks": "yanlis"}))
+        self.assertIn("alan__aks", yanit.context["form"].errors)
 
     def test_basvuru_girisinde_para_islenmez(self):
         UcretKurali.objects.create(
@@ -352,10 +365,8 @@ class BelgeYuklemeGuvenligiTestleri(TestCase):
     def _gonderi(self, dosya):
         return {
             "operator": self.operator.pk, "tarife": "", "kampanya": "",
-            "musteri_tipi": "turk", "kimlik_tipi": "tc", "kimlik_no": "12345678901",
-            "isim": "Ayşe", "soyisim": "Demir", "irtibat": "5551112233",
-            "numara": "", "adres": "", "bayi_aciklamasi": "",
-            "ek__ikametgah": dosya,
+            "musteri_tipi": "turk", "bayi_aciklamasi": "",
+            "alan__ikametgah": dosya,
         }
 
     def _url(self):
@@ -367,7 +378,7 @@ class BelgeYuklemeGuvenligiTestleri(TestCase):
         )
         yanit = self.client.post(self._url(), self._gonderi(kotucul))
         self.assertEqual(yanit.status_code, 200)
-        self.assertIn("ek__ikametgah", yanit.context["form"].errors)
+        self.assertIn("alan__ikametgah", yanit.context["form"].errors)
         self.assertEqual(Basvuru.objects.count(), 0)
 
     def test_svg_dosyasi_reddedilir(self):
@@ -377,7 +388,7 @@ class BelgeYuklemeGuvenligiTestleri(TestCase):
             content_type="image/svg+xml",
         )
         yanit = self.client.post(self._url(), self._gonderi(svg))
-        self.assertIn("ek__ikametgah", yanit.context["form"].errors)
+        self.assertIn("alan__ikametgah", yanit.context["form"].errors)
 
     def test_uzantisi_degistirilmis_dosya_reddedilir(self):
         """İçerik HTML ama adı .png: uzantı denetimi tek başına yetmez."""
@@ -385,7 +396,7 @@ class BelgeYuklemeGuvenligiTestleri(TestCase):
             "evrak.png", b"<script>alert(1)</script>", content_type="image/png"
         )
         yanit = self.client.post(self._url(), self._gonderi(sahte))
-        self.assertIn("ek__ikametgah", yanit.context["form"].errors)
+        self.assertIn("alan__ikametgah", yanit.context["form"].errors)
         self.assertIn("uyuşmuyor", str(yanit.context["form"].errors))
 
     def test_gecerli_pdf_kabul_edilir(self):
@@ -416,7 +427,7 @@ class BelgeYuklemeGuvenligiTestleri(TestCase):
         veri = self._gonderi(
             SimpleUploadedFile("ikametgah.pdf", b"%PDF-1.4\n%%EOF\n", content_type="application/pdf")
         )
-        veri["ek__kimlik_on"] = kucuk_png()
+        veri["alan__kimlik_on"] = kucuk_png()
         self.client.post(self._url(), veri)
 
         belge = Basvuru.objects.get().belgeler.get(alan_kodu="kimlik_on")

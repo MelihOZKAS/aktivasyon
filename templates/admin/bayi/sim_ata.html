@@ -1,0 +1,46 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-xl border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <p class="mb-4 text-sm text-base-500">
+      Seçilen {{ kartlar|length }} SIM kart bu bayiye zimmetlenecek ve durumları
+      “Bayiye Atandı” olacak. Kullanılmış kartlar atlanır.
+    </p>
+
+    <ul class="mb-6 max-h-64 space-y-1 overflow-y-auto text-sm">
+      {% for kart in kartlar %}
+      <li class="flex items-center justify-between border-b border-base-100 py-1.5
+                 dark:border-base-800">
+        <span class="font-mono">{{ kart.imei }}</span>
+        <span class="text-base-400">
+          {{ kart.operator.ad|default:"—" }} · {{ kart.get_durum_display }}
+          {% if kart.bayi %}· şu an {{ kart.bayi.get_username }}{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+      {% for kart in kartlar %}
+      <input type="hidden" name="{{ action_checkbox_name }}" value="{{ kart.pk }}">
+      {% endfor %}
+      <input type="hidden" name="action" value="bayiye_ata">
+
+      {{ form.as_div }}
+
+      <div class="flex gap-3 pt-2">
+        <button type="submit" name="uygula" value="1"
+                class="rounded-md bg-primary-600 px-4 py-2 font-medium text-white">
+          Zimmetle
+        </button>
+        <a href="{% url 'admin:bayi_simkart_changelist' %}"
+           class="rounded-md border border-base-200 px-4 py-2 font-medium dark:border-base-700">
+          Vazgeç
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

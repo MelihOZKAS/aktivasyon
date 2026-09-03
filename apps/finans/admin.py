@@ -49,35 +49,23 @@ class CuzdanAdmin(ModelAdmin):
         "grup",
         "bakiye_gosterimi",
         "borc_gosterimi",
-        "limit_gosterimi",
-        "kullanilabilir_gosterimi",
         "islem_yapabilir",
         "bakiye_yukle_baglantisi",
     )
-    list_filter = ("grup", "islem_yapabilir", "borc_izni")
+    list_filter = ("grup", "islem_yapabilir")
     search_fields = ("bayi__username", "bayi__first_name", "bayi__last_name")
     autocomplete_fields = ("bayi", "grup")
-    readonly_fields = ("bakiye", "borc", "kullanilabilir_gosterimi")
+    readonly_fields = ("bakiye", "borc")
     fieldsets = (
         ("Bayi", {"fields": ("bayi", "grup", "islem_yapabilir")}),
         (
             "Durum",
             {
-                "fields": ("bakiye", "borc", "kullanilabilir_gosterimi"),
+                "fields": ("bakiye", "borc"),
                 "description": (
-                    "Bakiye ve borç elle değiştirilemez. Değişiklik için "
-                    "“Cüzdan Hareketleri” üzerinden işlem yapın."
-                ),
-            },
-        ),
-        (
-            "Borçlanma",
-            {
-                "fields": ("borc_izni", "borc_limiti"),
-                "description": (
-                    "“Borçlanabilir” kapalıyken bayi bakiyesinden fazlasını harcayamaz. "
-                    "Açtığınızda girdiğiniz tutar bayinin üst sınırı olur. "
-                    "Bu bilgiler bayi panelinde <b>gösterilmez</b>."
+                    "Bakiye ve borç elle değiştirilemez; “Bakiye Yükle” ile işlem yapın. "
+                    "Borç için üst sınır yoktur: bakiye yetmediğinde kalan tutar borca "
+                    "yazılır. Bayiyi tamamen durdurmak için “İşlem Yapabilir”i kapatın."
                 ),
             },
         ),
@@ -97,15 +85,6 @@ class CuzdanAdmin(ModelAdmin):
             return format_html('<span style="color:#94a3b8">yok</span>')
         return format_html('<b style="color:#dc2626">{} ₺</b>', obj.borc)
 
-    @display(description="Borç Limiti")
-    def limit_gosterimi(self, obj):
-        if not obj.borc_izni:
-            return format_html('<span style="color:#94a3b8">borçlanamaz</span>')
-        return format_html("<b>{} ₺</b>", obj.borc_limiti)
-
-    @display(description="Kullanılabilir")
-    def kullanilabilir_gosterimi(self, obj):
-        return format_html("<b>{} ₺</b>", obj.kullanilabilir_tutar)
 
     def get_urls(self):
         return [

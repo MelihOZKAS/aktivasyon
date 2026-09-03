@@ -21,28 +21,16 @@ BAYI_SAYFALARI = ["bayi:panel", "bayi:cuzdan"]
 class BorcGizliligiTestleri(TestCase):
     def setUp(self):
         self.bayi = User.objects.create_user("bayi", password="parola12345")
-        self.cuzdan = Cuzdan.objects.create(
-            bayi=self.bayi,
-            bakiye=TL("8660.00"),
-            borc_izni=True,
-            borc_limiti=TL("2500.00"),
-        )
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=TL("8660.00"))
         self.client.force_login(self.bayi)
 
     def _sayfalar(self):
         return {ad: self.client.get(reverse(ad)).content.decode() for ad in BAYI_SAYFALARI}
 
-    def test_borc_limiti_hicbir_sayfada_gorunmez(self):
+    def test_borc_limiti_kavrami_kalmadi(self):
         for ad, icerik in self._sayfalar().items():
             self.assertNotIn("Borç limiti", icerik, ad)
-            self.assertNotIn("2.500", icerik, ad)
-            self.assertNotIn("2500", icerik, ad)
-
-    def test_kullanilabilir_tutar_gosterilmez(self):
-        """Bakiyeden farkı limiti ele verdiği için bu değer de gizlidir."""
-        for ad, icerik in self._sayfalar().items():
             self.assertNotIn("Kullanılabilir", icerik, ad)
-            self.assertNotIn("11.160", icerik, ad)
 
     def test_borc_yokken_borc_yazisi_gorunmez(self):
         for ad, icerik in self._sayfalar().items():
@@ -60,13 +48,6 @@ class BorcGizliligiTestleri(TestCase):
         for ad, icerik in self._sayfalar().items():
             self.assertIn("8.660,00", icerik, ad)
 
-    def test_borc_izni_kapali_bayide_de_limit_sizmaz(self):
-        self.cuzdan.borc_izni = False
-        self.cuzdan.save()
-
-        for ad, icerik in self._sayfalar().items():
-            self.assertNotIn("Borç limiti", icerik, ad)
-            self.assertNotIn("Borç", icerik, ad)
 
 
 class GirisVeYetkiTestleri(TestCase):
@@ -141,13 +122,11 @@ class GirisVeYetkiTestleri(TestCase):
         cuzdan = Cuzdan.objects.get(bayi=self.bayi)
         self.client.post(
             f"/yonetim/finans/cuzdan/{cuzdan.pk}/change/",
-            {"bayi": self.bayi.pk, "bakiye": "999999", "borc": "0",
-             "borc_izni": "on", "borc_limiti": "999999"},
+            {"bayi": self.bayi.pk, "bakiye": "999999", "borc": "0"},
             follow=True,
         )
         cuzdan.refresh_from_db()
         self.assertEqual(cuzdan.bakiye, TL("0.00"))
-        self.assertFalse(cuzdan.borc_izni)
 
     def test_disa_yonlendirme_engellenir(self):
         """`next` dışarıdan gelir; başka bir siteye yönlendirilemez."""
@@ -175,3 +154,174 @@ class GirisVeYetkiTestleri(TestCase):
             "/yonetim/finans/ucretkurali/",
         ]:
             self.assertEqual(self.client.get(yol).status_code, 200, yol)
+
+
+class SimKartTestleri(TestCase):
+    """Bayi yalnızca kendisine zimmetli SIM kartlarla işlem yapabilir."""
+
+    def setUp(self):
+        from apps.bayi.models import SimKart, SimKartDurumu
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.katalog.models import AlanTipi, BasvuruKategorisi, KategoriAlani, Operator
+
+        BasvuruDurumu.objects.create(ad="Beklemede", slug="beklemede", baslangic_durumu=True)
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        self.digeri = User.objects.create_user("digeri", password="parola12345")
+        for k in (self.bayi, self.digeri):
+            Cuzdan.objects.create(bayi=k)
+
+        self.operator = Operator.objects.create(ad="Vodafone")
+        self.kategori = BasvuruKategorisi.objects.create(
+            ad="Kontörlü Yeni Hat", tarife_zorunlu=False
+        )
+        self.kategori.operatorler.add(self.operator)
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="sim", etiket="SIM Kart",
+            tip=AlanTipi.SIM_KART, zorunlu=True, sira=10,
+        )
+
+        self.benim = SimKart.objects.create(
+            imei="8990011223344551", operator=self.operator,
+            bayi=self.bayi, durum=SimKartDurumu.ATANDI,
+        )
+        self.baskasinin = SimKart.objects.create(
+            imei="8990011223344552", operator=self.operator,
+            bayi=self.digeri, durum=SimKartDurumu.ATANDI,
+        )
+        self.sahipsiz = SimKart.objects.create(
+            imei="8990011223344553", operator=self.operator,
+            durum=SimKartDurumu.BEKLEMEDE,
+        )
+        self.client.force_login(self.bayi)
+
+    def _url(self):
+        return reverse("basvurular:yeni", args=[self.kategori.slug])
+
+    def _gonderi(self, imei):
+        return {
+            "operator": self.operator.pk, "tarife": "", "kampanya": "",
+            "musteri_tipi": "turk", "bayi_aciklamasi": "", "alan__sim": imei,
+        }
+
+    def test_kendi_simiyle_basvuru_girebilir(self):
+        from apps.basvurular.models import Basvuru
+        from apps.bayi.models import SimKartDurumu
+
+        yanit = self.client.post(self._url(), self._gonderi(self.benim.imei))
+        self.assertEqual(yanit.status_code, 302)
+
+        basvuru = Basvuru.objects.get()
+        self.benim.refresh_from_db()
+        self.assertEqual(self.benim.durum, SimKartDurumu.KULLANILDI)
+        self.assertEqual(self.benim.basvuru, basvuru)
+
+    def test_baskasinin_simiyle_giremez(self):
+        from apps.basvurular.models import Basvuru
+
+        yanit = self.client.post(self._url(), self._gonderi(self.baskasinin.imei))
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn("alan__sim", yanit.context["form"].errors)
+        self.assertEqual(Basvuru.objects.count(), 0)
+
+    def test_sahipsiz_simle_giremez(self):
+        yanit = self.client.post(self._url(), self._gonderi(self.sahipsiz.imei))
+        self.assertIn("alan__sim", yanit.context["form"].errors)
+
+    def test_kayitli_olmayan_imei_reddedilir(self):
+        yanit = self.client.post(self._url(), self._gonderi("0000000000000000"))
+        self.assertIn("alan__sim", yanit.context["form"].errors)
+
+    def test_kullanilmis_sim_tekrar_kullanilamaz(self):
+        self.client.post(self._url(), self._gonderi(self.benim.imei))
+        yanit = self.client.post(self._url(), self._gonderi(self.benim.imei))
+        self.assertIn("alan__sim", yanit.context["form"].errors)
+
+    def test_bayiye_atama_durumu_gunceller(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self.sahipsiz.bayi = self.bayi
+        self.sahipsiz.save()
+        self.assertEqual(self.sahipsiz.durum, SimKartDurumu.ATANDI)
+
+    def test_bayiden_geri_alinca_beklemeye_doner(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self.benim.bayi = None
+        self.benim.save()
+        self.assertEqual(self.benim.durum, SimKartDurumu.BEKLEMEDE)
+
+    def test_yonetici_toplu_zimmetleyebilir(self):
+        from apps.bayi.models import SimKart, SimKartDurumu
+
+        yonetici = User.objects.create_superuser("yon", "y@x.com", "parola12345")
+        self.client.force_login(yonetici)
+
+        self.client.post(
+            "/yonetim/bayi/simkart/",
+            {
+                "action": "bayiye_ata",
+                "_selected_action": [self.sahipsiz.pk],
+                "uygula": "1",
+                "bayi": self.bayi.pk,
+            },
+            follow=True,
+        )
+        self.sahipsiz.refresh_from_db()
+        self.assertEqual(self.sahipsiz.bayi, self.bayi)
+        self.assertEqual(self.sahipsiz.durum, SimKartDurumu.ATANDI)
+
+    def test_kullanilmis_sim_baska_bayiye_devredilmez(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self.client.post(self._url(), self._gonderi(self.benim.imei))
+
+        yonetici = User.objects.create_superuser("yon2", "y2@x.com", "parola12345")
+        self.client.force_login(yonetici)
+        self.client.post(
+            "/yonetim/bayi/simkart/",
+            {
+                "action": "bayiye_ata",
+                "_selected_action": [self.benim.pk],
+                "uygula": "1",
+                "bayi": self.digeri.pk,
+            },
+            follow=True,
+        )
+        self.benim.refresh_from_db()
+        self.assertEqual(self.benim.bayi, self.bayi)
+        self.assertEqual(self.benim.durum, SimKartDurumu.KULLANILDI)
+
+    def test_basvuru_iptal_olunca_sim_stoga_doner(self):
+        """Operatörden iptal gelirse kart çöp olmamalı, yeniden kullanılabilmeli."""
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+        from apps.bayi.models import SimKartDurumu
+
+        self.client.post(self._url(), self._gonderi(self.benim.imei))
+        self.benim.refresh_from_db()
+        self.assertEqual(self.benim.durum, SimKartDurumu.KULLANILDI)
+
+        iptal = BasvuruDurumu.objects.create(
+            ad="İptal", slug="iptal", olumsuz_sonuc=True, sira=70
+        )
+        basvuru = Basvuru.objects.get()
+        basvuru.durum = iptal
+        basvuru.save()
+
+        self.benim.refresh_from_db()
+        self.assertEqual(self.benim.durum, SimKartDurumu.ATANDI)
+        self.assertEqual(self.benim.bayi, self.bayi)
+
+    def test_stoga_donen_sim_yeniden_kullanilabilir(self):
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+
+        self.client.post(self._url(), self._gonderi(self.benim.imei))
+        iptal = BasvuruDurumu.objects.create(
+            ad="İptal", slug="iptal", olumsuz_sonuc=True, sira=70
+        )
+        ilk = Basvuru.objects.get()
+        ilk.durum = iptal
+        ilk.save()
+
+        yanit = self.client.post(self._url(), self._gonderi(self.benim.imei))
+        self.assertEqual(yanit.status_code, 302)
+        self.assertEqual(Basvuru.objects.count(), 2)

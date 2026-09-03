@@ -34,14 +34,30 @@ class BayiProfili(ZamanDamgali):
 
 
 class SimKartDurumu(models.TextChoices):
-    STOKTA = "stokta", "Stokta"
+    """SIM kartın yaşam döngüsü.
+
+    Beklemede → Bayiye Atandı → Kullanıldı. Bayiden geri alınan kart
+    tekrar Beklemede'ye döner. Arızalı her aşamadan işaretlenebilir.
+    """
+
+    BEKLEMEDE = "beklemede", "Beklemede"
+    ATANDI = "atandi", "Bayiye Atandı"
     KULLANILDI = "kullanildi", "Kullanıldı"
     ARIZALI = "arizali", "Arızalı"
-    IADE = "iade", "İade"
+
+
+class SimKartYoneticisi(models.Manager):
+    def bayinin_stogu(self, bayi):
+        """Bayinin şu an işlem yapabileceği SIM kartlar."""
+        return self.filter(bayi=bayi, durum=SimKartDurumu.ATANDI)
 
 
 class SimKart(ZamanDamgali):
-    """Bayilere zimmetlenen SIM kart / IMEI stoğu."""
+    """Bayilere zimmetlenen SIM kart / IMEI stoğu.
+
+    Bir bayi yalnızca kendisine atanmış ve stokta görünen SIM kartlarla
+    başvuru girebilir. Atama ve geri alma yönetim panelinden yapılır.
+    """
 
     bayi = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -61,7 +77,10 @@ class SimKart(ZamanDamgali):
     )
     imei = models.CharField("SIM / IMEI", max_length=40, unique=True)
     durum = models.CharField(
-        "Durum", max_length=20, choices=SimKartDurumu.choices, default=SimKartDurumu.STOKTA
+        "Durum",
+        max_length=20,
+        choices=SimKartDurumu.choices,
+        default=SimKartDurumu.BEKLEMEDE,
     )
     basvuru = models.ForeignKey(
         "basvurular.Basvuru",
@@ -72,6 +91,27 @@ class SimKart(ZamanDamgali):
         on_delete=models.SET_NULL,
     )
     aciklama = models.CharField("Açıklama", max_length=255, blank=True)
+
+    objects = SimKartYoneticisi()
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.durum == SimKartDurumu.ATANDI and not self.bayi_id:
+            raise ValidationError(
+                {"bayi": "“Bayiye Atandı” durumu için bir bayi seçilmelidir."}
+            )
+        if self.durum == SimKartDurumu.BEKLEMEDE and self.bayi_id:
+            raise ValidationError(
+                {"durum": "Bayisi olan kart “Beklemede” olamaz; “Bayiye Atandı” seçin."}
+            )
+
+    def save(self, *args, **kwargs):
+        # Zimmet ile durum her zaman tutarlı kalsın: elle düzenlemede de,
+        # toplu işlemde de aynı kural geçerli.
+        if self.durum in {SimKartDurumu.BEKLEMEDE, SimKartDurumu.ATANDI}:
+            self.durum = SimKartDurumu.ATANDI if self.bayi_id else SimKartDurumu.BEKLEMEDE
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "SIM Kart"

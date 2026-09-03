@@ -13,7 +13,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.basvurular.forms import BasvuruFormu
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
 from apps.basvurular.validators import SATIR_ICI_GOSTERILEBILIR
-from apps.finans.services import YetersizBakiye
 from apps.katalog.models import BasvuruKategorisi, Kampanya, Tarife
 
 
@@ -43,20 +42,15 @@ def yeni(request, kategori):
         return redirect("bayi:panel")
 
     if request.method == "POST":
-        form = BasvuruFormu(request.POST, request.FILES, kategori=kategori)
+        form = BasvuruFormu(request.POST, request.FILES, kategori=kategori, bayi=request.user)
         if form.is_valid():
-            try:
-                basvuru = form.kaydet(request.user)
-            except YetersizBakiye as hata:
-                messages.error(request, str(hata))
-            else:
-                messages.success(
-                    request,
-                    f"Başvuru alındı. Takip numaran: {basvuru.referans_no}",
-                )
-                return redirect("basvurular:detay", referans=basvuru.referans_no)
+            basvuru = form.kaydet(request.user)
+            messages.success(
+                request, f"Başvuru alındı. Takip numaran: {basvuru.referans_no}"
+            )
+            return redirect("basvurular:detay", referans=basvuru.referans_no)
     else:
-        form = BasvuruFormu(kategori=kategori)
+        form = BasvuruFormu(kategori=kategori, bayi=request.user)
 
     return render(request, "basvurular/yeni.html", {"form": form, "kategori": kategori})
 

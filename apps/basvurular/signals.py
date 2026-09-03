@@ -1,9 +1,11 @@
-"""Durum değişimini para motoruna bağlayan sinyaller.
+"""Durum değişimini para motoruna ve SIM stoğuna bağlayan sinyaller.
 
 Para işlemi, durum değişikliğiyle **aynı transaction içinde** yapılır.
-Böylece bakiye yetmediğinde YetersizBakiye yükselir ve durum değişikliği
-de dahil olmak üzere her şey geri alınır; "Aktif göründü ama para
-işlenmedi" durumu oluşamaz.
+Böylece para hareketi başarısız olursa durum değişikliği de geri alınır;
+"Aktif göründü ama para işlenmedi" durumu oluşamaz.
+
+Başvuru olumsuz sonuçlandığında kullanılan SIM kartlar bayinin stoğuna
+geri döner: kart fiziksel olarak elinde durduğu için çöpe çıkmamalı.
 """
 
 import logging
@@ -33,6 +35,7 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     if not created and onceki_durum_id == instance.durum_id:
         return
 
+    from apps.bayi.services import basvurunun_simlerini_serbest_birak
     from apps.finans.services import basvuru_parasini_geri_al, basvuru_parasini_isle
 
     DurumGecmisi.objects.create(
@@ -43,6 +46,12 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     )
 
     durum = instance.durum
+
+    if durum.olumsuz_sonuc:
+        # Operatörden iptal gelince kart fiziksel olarak bayide kalıyor;
+        # sistemde de yeniden kullanılabilir olmalı.
+        basvurunun_simlerini_serbest_birak(instance)
+
     if durum.hakedis_tetikler and not instance.para_islendi:
         guncel = basvuru_parasini_isle(instance)
     elif durum.olumsuz_sonuc and instance.para_islendi:

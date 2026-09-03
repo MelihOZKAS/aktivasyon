@@ -142,12 +142,18 @@ class Basvuru(ZamanDamgali):
         "Müşteri Tipi", max_length=10, choices=MusteriTipi.choices, default=MusteriTipi.TURK
     )
     kimlik_tipi = models.CharField(
-        "Kimlik Tipi", max_length=10, choices=KimlikTipi.choices, default=KimlikTipi.TC
+        "Kimlik Tipi",
+        max_length=10,
+        choices=KimlikTipi.choices,
+        default=KimlikTipi.TC,
+        blank=True,
     )
-    kimlik_no = models.CharField("Kimlik / Pasaport No", max_length=50)
-    isim = models.CharField("İsim", max_length=100)
-    soyisim = models.CharField("Soyisim", max_length=100)
-    irtibat = models.CharField("İrtibat Numarası", max_length=20)
+    # Bu alanlar aranabilir olsun diye gerçek kolon; hangisinin sorulacağına
+    # kategori karar verdiği için hepsi boş bırakılabilir.
+    kimlik_no = models.CharField("Kimlik / Pasaport No", max_length=50, blank=True)
+    isim = models.CharField("İsim", max_length=100, blank=True)
+    soyisim = models.CharField("Soyisim", max_length=100, blank=True)
+    irtibat = models.CharField("İrtibat Numarası", max_length=20, blank=True)
     numara = models.CharField(
         "İşlem Yapılacak Numara",
         max_length=20,
@@ -196,7 +202,7 @@ class Basvuru(ZamanDamgali):
 
     @property
     def ad_soyad(self):
-        return f"{self.isim} {self.soyisim}".strip()
+        return f"{self.isim} {self.soyisim}".strip() or self.referans_no
 
     @property
     def net_tutar(self):

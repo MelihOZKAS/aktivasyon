@@ -12,7 +12,7 @@ from django.test import TestCase
 
 from apps.basvurular.models import Basvuru, BasvuruDurumu
 from apps.finans.models import Cuzdan, CuzdanHareketi, HareketTipi, KuralYonu, UcretKurali
-from apps.finans.services import YetersizBakiye, basvuru_parasini_isle
+from apps.finans.services import basvuru_parasini_isle
 from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
 
 TL = Decimal
@@ -128,10 +128,8 @@ class ParaMotoruTestleri(TestCase):
         basvuru.refresh_from_db()
         self.assertEqual(basvuru.hakedis, TL("300.00"))
 
-    def test_bakiye_yetmezse_borc_limitinden_karsilanir(self):
+    def test_bakiye_yetmezse_kalan_borca_yazilir(self):
         self.cuzdan.bakiye = TL("10.00")
-        self.cuzdan.borc_izni = True
-        self.cuzdan.borc_limiti = TL("500.00")
         self.cuzdan.save()
 
         self._kural(KuralYonu.TAHSILAT, "100.00", kategori=self.kategori)
@@ -145,19 +143,20 @@ class ParaMotoruTestleri(TestCase):
         self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
         self.assertEqual(self.cuzdan.borc, TL("90.00"))
 
-    def test_borc_limiti_asilirsa_hata_verir(self):
-        self.cuzdan.bakiye = TL("10.00")
-        self.cuzdan.borc_izni = True
-        self.cuzdan.borc_limiti = TL("50.00")
+    def test_bakiyesi_sifir_olan_bayide_tumu_borca_yazilir(self):
+        """Borç için üst sınır yok; işlem her hâlükârda tamamlanır."""
+        self.cuzdan.bakiye = TL("0.00")
         self.cuzdan.save()
 
         self._kural(KuralYonu.TAHSILAT, "500.00", kategori=self.kategori)
 
         basvuru = self._basvuru_olustur()
         basvuru.durum = self.aktif
+        basvuru.save()
 
-        with self.assertRaises(YetersizBakiye):
-            basvuru.save()
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+        self.assertEqual(self.cuzdan.borc, TL("500.00"))
 
     def test_iptal_edilince_para_geri_alinir(self):
         self._kural(KuralYonu.TAHSILAT, "25.00", kategori=self.kategori)
@@ -179,54 +178,6 @@ class ParaMotoruTestleri(TestCase):
         self.assertFalse(basvuru.para_islendi)
         self.assertEqual(basvuru.hakedis, TL("0.00"))
 
-    def test_borc_izni_kapaliyken_limit_yok_sayilir(self):
-        """Tutar girilmiş olsa bile izin kapalıysa bayi borçlanamaz."""
-        self.cuzdan.bakiye = TL("0.00")
-        self.cuzdan.borc_izni = False
-        self.cuzdan.borc_limiti = TL("5000.00")
-        self.cuzdan.save()
-
-        self.assertEqual(self.cuzdan.gecerli_borc_limiti, TL("0.00"))
-        self.assertFalse(self.cuzdan.karsilar_mi(TL("1.00")))
-
-    def test_borc_izni_acikken_limit_girilen_tutar_kadardir(self):
-        self.cuzdan.bakiye = TL("0.00")
-        self.cuzdan.borc_izni = True
-        self.cuzdan.borc_limiti = TL("2000.00")
-        self.cuzdan.save()
-
-        self.assertEqual(self.cuzdan.gecerli_borc_limiti, TL("2000.00"))
-        self.assertTrue(self.cuzdan.karsilar_mi(TL("2000.00")))
-        self.assertFalse(self.cuzdan.karsilar_mi(TL("2000.01")))
-
-    def test_yeni_cuzdan_varsayilan_olarak_borclanamaz(self):
-        yeni_bayi = User.objects.create_user("bayi3", password="parola123")
-        cuzdan = Cuzdan.objects.create(bayi=yeni_bayi)
-
-        self.assertFalse(cuzdan.borc_izni)
-        self.assertEqual(cuzdan.gecerli_borc_limiti, TL("0.00"))
-        self.assertFalse(cuzdan.karsilar_mi(TL("1.00")))
-
-    def test_yetersiz_bakiye_mesaji_limiti_sizdirmaz(self):
-        """Bayiye gösterilen mesaj borç limitini ele vermemeli."""
-        self.cuzdan.bakiye = TL("0.00")
-        self.cuzdan.borc_izni = True
-        self.cuzdan.borc_limiti = TL("50.00")
-        self.cuzdan.save()
-
-        self._kural(KuralYonu.TAHSILAT, "500.00", kategori=self.kategori)
-        basvuru = self._basvuru_olustur()
-        basvuru.durum = self.aktif
-
-        with self.assertRaises(YetersizBakiye) as yakalanan:
-            basvuru.save()
-
-        mesaj = str(yakalanan.exception)
-        self.assertNotIn("50", mesaj)
-        self.assertNotIn("Kullanılabilir", mesaj)
-        self.assertIn("Bakiye bu işlem için yeterli değil", mesaj)
-        # Ayrıntı yalnızca kayıt/yönetim tarafı için ayrı alanda durur.
-        self.assertIn("Kullanılabilir", yakalanan.exception.detay)
 
     def test_durum_gecmisi_kaydedilir(self):
         basvuru = self._basvuru_olustur()

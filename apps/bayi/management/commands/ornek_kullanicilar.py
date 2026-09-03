@@ -19,11 +19,10 @@ YONETICILER = [
     ("yonetici", "yonetici@aktivasyon.local", "Operasyon", "Yöneticisi"),
 ]
 
-# (kullanıcı, ünvan, şehir, bakiye, borç izni, borç limiti)
+# (kullanıcı, ünvan, şehir, bakiye, borç)
 BAYILER = [
-    ("bayi.kaya", "Kaya İletişim", "İstanbul", Decimal("8450.00"), True, Decimal("2500.00")),
-    ("bayi.demir", "Demir Telekom", "Ankara", Decimal("1200.00"), False, Decimal("0.00")),
-    ("bayi.yildiz", "Yıldız GSM", "İzmir", Decimal("0.00"), True, Decimal("1000.00")),
+    ("bayi.kaya", "Kaya İletişim", "İstanbul", Decimal("8450.00"), Decimal("0.00")),
+    ("bayi.demir", "Demir Telekom", "Ankara", Decimal("0.00"), Decimal("340.00")),
 ]
 
 
@@ -65,7 +64,7 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(self.style.MIGRATE_HEADING("\nBayiler"))
-        for kullanici_adi, unvan, sehir, bakiye, borc_izni, limit in BAYILER:
+        for kullanici_adi, unvan, sehir, bakiye, borc in BAYILER:
             kullanici, olusturuldu = User.objects.get_or_create(
                 username=kullanici_adi, defaults={"first_name": unvan}
             )
@@ -79,17 +78,12 @@ class Command(BaseCommand):
             )
             cuzdan, cuzdan_yeni = Cuzdan.objects.get_or_create(
                 bayi=kullanici,
-                defaults={
-                    "grup": grup,
-                    "bakiye": bakiye,
-                    "borc_izni": borc_izni,
-                    "borc_limiti": limit,
-                },
+                defaults={"grup": grup, "bakiye": bakiye, "borc": borc},
             )
-            durum = "borçlanabilir" if cuzdan.borc_izni else "borçlanamaz"
+            borc_notu = f"borç {cuzdan.borc} ₺" if cuzdan.borc else "borcu yok"
             self.stdout.write(
                 f"  {kullanici_adi:14} {PAROLA:14} {unvan:16} "
-                f"bakiye {cuzdan.bakiye:>9} ₺  {durum}"
+                f"bakiye {cuzdan.bakiye:>9} ₺  {borc_notu}"
             )
 
         self.stdout.write(

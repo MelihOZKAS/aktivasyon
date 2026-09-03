@@ -168,6 +168,9 @@ db-dev.sqlite3
 db.sqlite3
 staticfiles/
 
+# Deneme hesap parolaları sürüm geçmişine girmesin
+kullanicilar.md
+
 # Yüklenen evraklar çalışma zamanı verisidir; sunucuda volume olarak durur
 media/*
 !media/.gitkeep

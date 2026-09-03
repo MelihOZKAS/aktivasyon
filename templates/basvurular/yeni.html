@@ -65,61 +65,15 @@
       </div>
     </section>
 
-    {# Müşteri bilgileri: her başvuruda ortak olan çekirdek alanlar #}
+    {# Müşteri tipi kategori tarafından sabitlenmemişse sorulur #}
+    {% if form.musteri_tipi.field.widget.input_type != 'hidden' %}
     <section class="yuzey rounded-kart p-5 sm:p-6">
-      <h2 class="baslik font-semibold">Müşteri bilgileri</h2>
-
-      <div class="mt-4 grid gap-4 sm:grid-cols-2">
-        {% if form.musteri_tipi.field.widget.input_type != 'hidden' %}
-        <div>
-          <label for="{{ form.musteri_tipi.id_for_label }}" class="alan-etiketi mb-1.5 block">Müşteri tipi</label>
-          {{ form.musteri_tipi }}
-        </div>
-        {% else %}{{ form.musteri_tipi }}{% endif %}
-
-        <div>
-          <label for="{{ form.kimlik_tipi.id_for_label }}" class="alan-etiketi mb-1.5 block">Kimlik tipi</label>
-          {{ form.kimlik_tipi }}
-        </div>
-
-        <div>
-          <label for="{{ form.kimlik_no.id_for_label }}" class="alan-etiketi mb-1.5 block">Kimlik / pasaport no</label>
-          {{ form.kimlik_no }}
-          {% for hata in form.kimlik_no.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
-        </div>
-
-        <div>
-          <label for="{{ form.irtibat.id_for_label }}" class="alan-etiketi mb-1.5 block">İrtibat numarası</label>
-          {{ form.irtibat }}
-          {% for hata in form.irtibat.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
-        </div>
-
-        <div>
-          <label for="{{ form.isim.id_for_label }}" class="alan-etiketi mb-1.5 block">İsim</label>
-          {{ form.isim }}
-          {% for hata in form.isim.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
-        </div>
-
-        <div>
-          <label for="{{ form.soyisim.id_for_label }}" class="alan-etiketi mb-1.5 block">Soyisim</label>
-          {{ form.soyisim }}
-          {% for hata in form.soyisim.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
-        </div>
-
-        <div class="sm:col-span-2">
-          <label for="{{ form.numara.id_for_label }}" class="alan-etiketi mb-1.5 block">
-            İşlem yapılacak numara
-            <span class="font-normal text-soluk">— taşıma ve şebeke içi işlemlerde</span>
-          </label>
-          {{ form.numara }}
-        </div>
-
-        <div class="sm:col-span-2">
-          <label for="{{ form.adres.id_for_label }}" class="alan-etiketi mb-1.5 block">Adres</label>
-          {{ form.adres }}
-        </div>
+      <h2 class="baslik font-semibold">Müşteri tipi</h2>
+      <div class="mt-4 sm:max-w-xs">
+        {{ form.musteri_tipi }}
       </div>
     </section>
+    {% else %}{{ form.musteri_tipi }}{% endif %}
 
     {# Kategoriye özel alanlar: KategoriAlani tanımlarından üretilir #}
     {% for grup, alanlar in form.gruplu_alanlar %}
@@ -179,6 +133,15 @@
         {{ form.bayi_aciklamasi }}
       </div>
     </section>
+
+    {# Bayinin stoğundaki SIM'ler: yazarken önerilir, sunucuda ayrıca doğrulanır #}
+    {% for kod, kartlar in form.sim_secenekleri.items %}
+    <datalist id="sim-{{ kod }}">
+      {% for kart in kartlar %}
+      <option value="{{ kart.imei }}">{{ kart.operator.ad|default:"" }}</option>
+      {% endfor %}
+    </datalist>
+    {% endfor %}
 
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
       <a href="{% url 'bayi:panel' %}" class="dugme dugme-sessiz sm:w-auto">Vazgeç</a>

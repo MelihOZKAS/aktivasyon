@@ -67,6 +67,10 @@ class Banka(ZamanDamgali):
 class Cuzdan(ZamanDamgali):
     """Bayinin bakiye ve borç durumu.
 
+    Borç için üst sınır yoktur: bakiye yetmediğinde kalan tutar borca yazılır.
+    Kimin ne kadar borçlanacağı yönetim tarafında izlenir; işlem girişini
+    tamamen durdurmak gerekirse `islem_yapabilir` kapatılır.
+
     Bu modelin kendi `save()` metodu para hareketi yapmaz. Bakiye yalnızca
     `apps.finans.services` içindeki atomik fonksiyonlar üzerinden değişir.
     """
@@ -87,19 +91,6 @@ class Cuzdan(ZamanDamgali):
     )
     bakiye = models.DecimalField("Bakiye", max_digits=12, decimal_places=2, default=SIFIR)
     borc = models.DecimalField("Borç", max_digits=12, decimal_places=2, default=SIFIR)
-    borc_izni = models.BooleanField(
-        "Borçlanabilir",
-        default=False,
-        help_text="Açılmadıkça bayi bakiyesinden fazlasını harcayamaz.",
-    )
-    borc_limiti = models.DecimalField(
-        "Borç Limiti",
-        max_digits=12,
-        decimal_places=2,
-        default=SIFIR,
-        validators=[MinValueValidator(SIFIR)],
-        help_text="Yalnızca “Borçlanabilir” açıkken geçerlidir. Bayiye gösterilmez.",
-    )
     islem_yapabilir = models.BooleanField(
         "İşlem Yapabilir",
         default=True,
@@ -114,26 +105,6 @@ class Cuzdan(ZamanDamgali):
     def __str__(self):
         return f"{self.bayi.get_username()} · {self.bakiye} ₺"
 
-    @property
-    def gecerli_borc_limiti(self):
-        """Borçlanma izni kapalıysa limit yoktur; açıksa girilen tutar kadardır.
-
-        Bayiye hiçbir ekranda gösterilmez, yalnızca yönetim tarafında görünür.
-        """
-        return self.borc_limiti if self.borc_izni else SIFIR
-
-    @property
-    def kullanilabilir_tutar(self):
-        """Bayinin harcayabileceği toplam tutar: bakiye + kalan borç limiti.
-
-        Yalnızca sunucu tarafı kontrolü ve yönetim ekranları içindir; bayi
-        panelinde gösterilmez, çünkü bakiyeden farkı borç limitini ele verir.
-        """
-        return self.bakiye + (self.gecerli_borc_limiti - self.borc)
-
-    def karsilar_mi(self, tutar):
-        """Verilen tutar bakiye ve borç limiti toplamıyla karşılanabiliyor mu?"""
-        return self.kullanilabilir_tutar >= tutar
 
 
 class HareketTipi(models.TextChoices):

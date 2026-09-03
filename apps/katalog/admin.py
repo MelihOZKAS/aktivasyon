@@ -1,6 +1,9 @@
-from django.contrib import admin
+from django import forms
+from django.contrib import admin, messages
+from django.shortcuts import render
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
+from unfold.decorators import display
 
 from apps.katalog.models import (
     BasvuruKategorisi,
@@ -14,7 +17,7 @@ from apps.katalog.models import (
 class KategoriAlaniInline(TabularInline):
     model = KategoriAlani
     extra = 0
-    fields = ("sira", "kod", "etiket", "tip", "grup", "zorunlu", "aktif")
+    fields = ("sira", "etiket", "kod", "tip", "cekirdek_alan", "grup", "zorunlu", "max_uzunluk", "aktif")
     ordering = ("sira",)
     show_change_link = True
 
@@ -100,15 +103,37 @@ class KampanyaAdmin(ModelAdmin):
         return obj.su_an_gecerli
 
 
+class AlanKopyalaFormu(forms.Form):
+    """Bir kategorinin alanlarını başka kategoriye taşımak için."""
+
+    hedef = forms.ModelChoiceField(
+        label="Hangi kategoriye kopyalansın?",
+        queryset=BasvuruKategorisi.objects.filter(aktif=True),
+    )
+
+
 @admin.register(KategoriAlani)
 class KategoriAlaniAdmin(ModelAdmin):
-    list_display = ("etiket", "kategori", "kod", "tip", "grup", "zorunlu", "sira", "aktif")
+    list_display = (
+        "etiket", "kategori", "tip_gosterimi", "kod", "grup", "zorunlu", "sira", "aktif"
+    )
     list_editable = ("sira", "aktif")
-    list_filter = ("aktif", "kategori", "tip", "zorunlu")
+    list_filter = ("aktif", "kategori", "tip", "zorunlu", "cekirdek_alan")
     search_fields = ("etiket", "kod", "kategori__ad")
     autocomplete_fields = ("kategori", "kosul_alani")
+    actions = ("alanlari_kopyala",)
     fieldsets = (
-        ("Tanım", {"fields": ("kategori", "kod", "etiket", "tip", "grup")}),
+        (
+            "Tanım",
+            {
+                "fields": ("kategori", "etiket", "kod", "tip", "cekirdek_alan", "grup"),
+                "description": (
+                    "“Çekirdek Alan” doldurulursa değer başvurunun kendi kolonuna "
+                    "yazılır ve aranabilir olur (isim, TC no, telefon gibi). "
+                    "Boş bırakılırsa alan bu kategoriye özel ek bilgi olarak saklanır."
+                ),
+            },
+        ),
         ("Davranış", {"fields": ("zorunlu", "yardim_metni", "placeholder", "secenekler")}),
         (
             "Doğrulama",
@@ -123,3 +148,76 @@ class KategoriAlaniAdmin(ModelAdmin):
         ),
         ("Görünüm", {"fields": ("sira", "aktif")}),
     )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("kategori")
+
+    @display(description="Tip")
+    def tip_gosterimi(self, obj):
+        if obj.cekirdek_alan:
+            return format_html(
+                '{} <span style="color:#0F8A4D;font-size:.72rem">· aranabilir</span>',
+                obj.get_tip_display(),
+            )
+        return obj.get_tip_display()
+
+    @admin.action(description="Seçili alanları başka kategoriye kopyala")
+    def alanlari_kopyala(self, request, secilenler):
+        """Aynı form yapısını yeniden kurmak yerine kopyalayıp düzenlemek için."""
+        if "uygula" in request.POST:
+            form = AlanKopyalaFormu(request.POST)
+            if form.is_valid():
+                hedef = form.cleaned_data["hedef"]
+                eklenen = atlanan = 0
+                for alan in secilenler:
+                    if alan.kategori_id == hedef.pk:
+                        atlanan += 1
+                        continue
+                    _, olusturuldu = KategoriAlani.objects.get_or_create(
+                        kategori=hedef,
+                        kod=alan.kod,
+                        defaults={
+                            "etiket": alan.etiket,
+                            "tip": alan.tip,
+                            # Çekirdek alan bir kategoride tek kez bulunabilir.
+                            "cekirdek_alan": alan.cekirdek_alan
+                            if not KategoriAlani.objects.filter(
+                                kategori=hedef, cekirdek_alan=alan.cekirdek_alan
+                            ).exclude(cekirdek_alan="").exists()
+                            else "",
+                            "grup": alan.grup,
+                            "zorunlu": alan.zorunlu,
+                            "yardim_metni": alan.yardim_metni,
+                            "placeholder": alan.placeholder,
+                            "secenekler": alan.secenekler,
+                            "dogrulama_deseni": alan.dogrulama_deseni,
+                            "min_uzunluk": alan.min_uzunluk,
+                            "max_uzunluk": alan.max_uzunluk,
+                            "sira": alan.sira,
+                        },
+                    )
+                    eklenen += olusturuldu
+                    atlanan += not olusturuldu
+
+                self.message_user(
+                    request,
+                    f"{hedef.ad}: {eklenen} alan eklendi"
+                    + (f", {atlanan} alan zaten vardı." if atlanan else "."),
+                    messages.SUCCESS,
+                )
+                return None
+        else:
+            form = AlanKopyalaFormu()
+
+        return render(
+            request,
+            "admin/katalog/alan_kopyala.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "Alanları kopyala",
+                "form": form,
+                "alanlar": secilenler,
+                "opts": self.model._meta,
+                "action_checkbox_name": admin.helpers.ACTION_CHECKBOX_NAME,
+            },
+        )

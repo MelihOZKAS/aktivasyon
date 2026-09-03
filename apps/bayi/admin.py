@@ -1,4 +1,5 @@
-from django.contrib import admin
+from django import forms
+from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as TemelGrupAdmin
 from django.contrib.auth.admin import UserAdmin as TemelKullaniciAdmin
 from django.contrib.auth.models import Group, User
@@ -6,8 +7,11 @@ from django.utils.html import format_html
 from unfold.admin import ModelAdmin, StackedInline
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
-from apps.bayi.models import BayiProfili, Duyuru, SimKart
+from django.shortcuts import render
+
+from apps.bayi.models import BayiProfili, Duyuru, SimKart, SimKartDurumu
 from apps.finans.models import Cuzdan
+from apps.katalog.models import Operator
 
 
 class BayiProfiliInline(StackedInline):
@@ -27,7 +31,7 @@ class CuzdanInline(StackedInline):
     model = Cuzdan
     can_delete = False
     extra = 0
-    fields = (("grup", "islem_yapabilir"), ("bakiye", "borc"), ("borc_izni", "borc_limiti"))
+    fields = (("grup", "islem_yapabilir"), ("bakiye", "borc"))
     readonly_fields = ("bakiye", "borc")
 
 
@@ -81,6 +85,15 @@ class BayiProfiliAdmin(ModelAdmin):
     list_filter = ("sehir",)
 
 
+class SimAtamaFormu(forms.Form):
+    """SIM kartları bir bayiye zimmetlemek için."""
+
+    bayi = forms.ModelChoiceField(
+        label="Hangi bayiye zimmetlensin?",
+        queryset=User.objects.filter(is_active=True).order_by("username"),
+    )
+
+
 @admin.register(SimKart)
 class SimKartAdmin(ModelAdmin):
     list_display = ("imei", "bayi", "operator", "durum_rozeti", "basvuru", "olusturma_tarihi")
@@ -88,6 +101,7 @@ class SimKartAdmin(ModelAdmin):
     search_fields = ("imei", "bayi__username", "basvuru__referans_no")
     autocomplete_fields = ("bayi", "operator", "basvuru")
     date_hierarchy = "olusturma_tarihi"
+    actions = ("bayiye_ata", "bayiden_geri_al", "arizali_isaretle")
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("bayi", "operator", "basvuru")
@@ -95,10 +109,10 @@ class SimKartAdmin(ModelAdmin):
     @admin.display(description="Durum")
     def durum_rozeti(self, obj):
         renkler = {
-            "stokta": "#3b82f6",
-            "kullanildi": "#16a34a",
-            "arizali": "#dc2626",
-            "iade": "#78716c",
+            "beklemede": "#6F7B8F",
+            "atandi": "#0E5E5B",
+            "kullanildi": "#0F8A4D",
+            "arizali": "#D42046",
         }
         return format_html(
             '<span style="background:{};color:#fff;padding:.15rem .6rem;'
@@ -106,6 +120,62 @@ class SimKartAdmin(ModelAdmin):
             renkler.get(obj.durum, "#64748b"),
             obj.get_durum_display(),
         )
+
+    # -- toplu işlemler ---------------------------------------------------
+
+    @admin.action(description="Seçili SIM kartları bir bayiye zimmetle")
+    def bayiye_ata(self, request, secilenler):
+        if "uygula" in request.POST:
+            form = SimAtamaFormu(request.POST)
+            if form.is_valid():
+                bayi = form.cleaned_data["bayi"]
+                # Kullanılmış kartlar başka bayiye devredilmez.
+                atanabilir = secilenler.exclude(durum=SimKartDurumu.KULLANILDI)
+                adet = atanabilir.update(bayi=bayi, durum=SimKartDurumu.ATANDI)
+                atlanan = secilenler.count() - adet
+                self.message_user(
+                    request,
+                    f"{adet} SIM kart {bayi.get_username()} bayisine zimmetlendi"
+                    + (f", {atlanan} tanesi kullanılmış olduğu için atlandı." if atlanan else "."),
+                    messages.SUCCESS,
+                )
+                return None
+        else:
+            form = SimAtamaFormu()
+
+        return render(
+            request,
+            "admin/bayi/sim_ata.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "SIM kart zimmetle",
+                "form": form,
+                "kartlar": secilenler,
+                "opts": self.model._meta,
+                "action_checkbox_name": admin.helpers.ACTION_CHECKBOX_NAME,
+            },
+        )
+
+    @admin.action(description="Seçili SIM kartları bayiden geri al (Beklemede'ye döner)")
+    def bayiden_geri_al(self, request, secilenler):
+        """Kartın bayiyle bağını koparır ve Beklemede'ye döndürür.
+
+        Kullanılmış kartlara dokunulmaz: onlar bir başvuruya bağlı.
+        """
+        geri_alinabilir = secilenler.exclude(durum=SimKartDurumu.KULLANILDI)
+        adet = geri_alinabilir.update(bayi=None, durum=SimKartDurumu.BEKLEMEDE)
+        atlanan = secilenler.count() - adet
+        self.message_user(
+            request,
+            f"{adet} SIM kart geri alındı"
+            + (f", {atlanan} tanesi kullanılmış olduğu için atlandı." if atlanan else "."),
+            messages.SUCCESS if adet else messages.WARNING,
+        )
+
+    @admin.action(description="Seçili SIM kartları arızalı işaretle")
+    def arizali_isaretle(self, request, secilenler):
+        adet = secilenler.update(durum=SimKartDurumu.ARIZALI)
+        self.message_user(request, f"{adet} SIM kart arızalı işaretlendi.", messages.SUCCESS)
 
 
 @admin.register(Duyuru)

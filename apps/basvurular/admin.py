@@ -1,4 +1,4 @@
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
@@ -9,7 +9,6 @@ from apps.basvurular.models import (
     BasvuruDurumu,
     DurumGecmisi,
 )
-from apps.finans.services import YetersizBakiye
 
 
 class BasvuruBelgesiInline(TabularInline):
@@ -229,14 +228,6 @@ class BasvuruAdmin(ModelAdmin):
             for kod, deger in obj.ek_bilgiler.items()
         )
         return format_html("<table>{}</table>", satirlar)
-
-    def save_model(self, request, obj, form, change):
-        """Bakiye yetersizse durum değişikliğini reddedip anlaşılır mesaj göster."""
-        try:
-            super().save_model(request, obj, form, change)
-        except YetersizBakiye as hata:
-            messages.error(request, f"Durum değiştirilemedi: {hata}")
-            raise
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)

@@ -18,18 +18,6 @@ logger = logging.getLogger(__name__)
 SIFIR = Decimal("0.00")
 
 
-class YetersizBakiye(Exception):
-    """Bayinin bakiyesi ve borç limiti işlemi karşılamıyor.
-
-    `str()` karşılığı bayiye gösterilebilir ve limit bilgisi içermez.
-    Ayrıntı `detay` alanındadır; yalnızca kayıt ve yönetim tarafı içindir.
-    """
-
-    def __init__(self, mesaj, detay=""):
-        super().__init__(mesaj)
-        self.detay = detay
-
-
 def _hareket_yaz(
     *,
     cuzdan,
@@ -123,7 +111,7 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
     """Başvuru para tetikleyen bir duruma geçtiğinde çağrılır.
 
     Önce tahsilat (bayiden kesinti), sonra hakediş (bayiye ödeme) işlenir.
-    Bakiye yetmezse borç limiti devreye girer; o da yetmezse YetersizBakiye.
+    Bakiye yetmezse kalan tutar borca yazılır; borç için üst sınır yoktur.
     """
     with transaction.atomic():
         cuzdan = Cuzdan.objects.select_for_update().get(bayi_id=basvuru.bayi_id)
@@ -142,16 +130,9 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
 
         if tahsilat_kurali and tahsilat_kurali.tutar > SIFIR:
             tutar = tahsilat_kurali.tutar
-            if not cuzdan.karsilar_mi(tutar):
-                raise YetersizBakiye(
-                    "Bakiye bu işlem için yeterli değil. Bakiye yükledikten sonra "
-                    "tekrar deneyin.",
-                    detay=(
-                        f"{cuzdan.bayi.get_username()} için {tutar} ₺ tahsilat "
-                        f"yapılamadı. Kullanılabilir: {cuzdan.kullanilabilir_tutar} ₺"
-                    ),
-                )
-            # Bakiye yetiyorsa bakiyeden, yetmiyorsa kalanı borca yaz.
+            # Borç için üst sınır yok: bakiye yetiyorsa bakiyeden, yetmiyorsa
+            # kalanı borca yazılır. Bayiyi tamamen durdurmak gerekirse
+            # cüzdandaki `islem_yapabilir` kapatılır.
             bakiyeden = min(tutar, max(cuzdan.bakiye, SIFIR))
             borctan = tutar - bakiyeden
 
