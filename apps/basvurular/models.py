@@ -79,7 +79,7 @@ class BasvuruDurumu(ZamanDamgali):
 
     class Meta:
         verbose_name = "Başvuru Durumu"
-        verbose_name_plural = "2. Başvuru Durumları"
+        verbose_name_plural = "Başvuru Durumları"
         ordering = ["sira", "ad"]
 
     def __str__(self):
@@ -181,7 +181,7 @@ class Basvuru(ZamanDamgali):
 
     class Meta:
         verbose_name = "Başvuru"
-        verbose_name_plural = "1. Başvurular"
+        verbose_name_plural = "Başvurular"
         ordering = ["-olusturma_tarihi"]
         indexes = [
             models.Index(fields=["bayi", "-olusturma_tarihi"]),

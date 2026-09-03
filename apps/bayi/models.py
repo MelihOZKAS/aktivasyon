@@ -26,7 +26,7 @@ class BayiProfili(ZamanDamgali):
 
     class Meta:
         verbose_name = "Bayi Profili"
-        verbose_name_plural = "1. Bayi Profilleri"
+        verbose_name_plural = "Bayi Profilleri"
         ordering = ["kullanici__username"]
 
     def __str__(self):
@@ -75,7 +75,7 @@ class SimKart(ZamanDamgali):
 
     class Meta:
         verbose_name = "SIM Kart"
-        verbose_name_plural = "2. SIM Kart Stoğu"
+        verbose_name_plural = "SIM Kart Stoğu"
         ordering = ["-olusturma_tarihi"]
         indexes = [
             models.Index(fields=["bayi", "durum"]),
@@ -99,7 +99,7 @@ class Duyuru(ZamanDamgali):
 
     class Meta:
         verbose_name = "Duyuru"
-        verbose_name_plural = "3. Duyurular"
+        verbose_name_plural = "Duyurular"
         ordering = ["-onemli", "-olusturma_tarihi"]
 
     def __str__(self):

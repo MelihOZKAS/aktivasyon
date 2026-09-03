@@ -92,7 +92,7 @@ class BasvuruKategorisi(ZamanDamgali):
 
     class Meta:
         verbose_name = "Başvuru Kategorisi"
-        verbose_name_plural = "1. Başvuru Kategorileri"
+        verbose_name_plural = "Başvuru Kategorileri"
         ordering = ["sira", "ad"]
 
     def __str__(self):
@@ -141,7 +141,7 @@ class Tarife(ZamanDamgali):
 
     class Meta:
         verbose_name = "Tarife"
-        verbose_name_plural = "2. Tarifeler"
+        verbose_name_plural = "Tarifeler"
         ordering = ["kategori", "operator", "sira", "ad"]
         constraints = [
             models.UniqueConstraint(
@@ -172,7 +172,7 @@ class Kampanya(ZamanDamgali):
 
     class Meta:
         verbose_name = "Kampanya"
-        verbose_name_plural = "3. Kampanyalar"
+        verbose_name_plural = "Kampanyalar"
         ordering = ["tarife", "sira", "ad"]
 
     def __str__(self):
@@ -273,7 +273,7 @@ class KategoriAlani(ZamanDamgali):
 
     class Meta:
         verbose_name = "Kategori Alanı"
-        verbose_name_plural = "4. Kategori Form Alanları"
+        verbose_name_plural = "Kategori Form Alanları"
         ordering = ["kategori", "sira", "id"]
         constraints = [
             models.UniqueConstraint(

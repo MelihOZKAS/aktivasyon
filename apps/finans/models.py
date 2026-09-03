@@ -39,7 +39,7 @@ class BayiGrubu(ZamanDamgali):
 
     class Meta:
         verbose_name = "Bayi Grubu"
-        verbose_name_plural = "1. Bayi Grupları"
+        verbose_name_plural = "Bayi Grupları"
         ordering = ["ad"]
 
     def __str__(self):
@@ -65,7 +65,7 @@ class Banka(ZamanDamgali):
 
     class Meta:
         verbose_name = "Banka Hesabı"
-        verbose_name_plural = "5. Banka Hesapları"
+        verbose_name_plural = "Banka Hesapları"
         ordering = ["banka_adi"]
 
     def __str__(self):
@@ -112,7 +112,7 @@ class Cuzdan(ZamanDamgali):
 
     class Meta:
         verbose_name = "Cüzdan"
-        verbose_name_plural = "2. Cüzdanlar"
+        verbose_name_plural = "Cüzdanlar"
         ordering = ["bayi__username"]
 
     def __str__(self):
@@ -222,7 +222,7 @@ class CuzdanHareketi(models.Model):
 
     class Meta:
         verbose_name = "Cüzdan Hareketi"
-        verbose_name_plural = "3. Cüzdan Hareketleri"
+        verbose_name_plural = "Cüzdan Hareketleri"
         ordering = ["-tarih", "-id"]
         indexes = [
             models.Index(fields=["cuzdan", "-tarih"]),
@@ -325,7 +325,7 @@ class UcretKurali(ZamanDamgali):
 
     class Meta:
         verbose_name = "Ücret Kuralı"
-        verbose_name_plural = "4. Ücret ve Hakediş Kuralları"
+        verbose_name_plural = "Ücret ve Hakediş Kuralları"
         ordering = ["-oncelik", "ad"]
 
     def __str__(self):
