@@ -44,3 +44,15 @@ admin'den giriliyor; Turkcell sarısı gibi açık renkler beyazda okunmaz.
 - Şablon değişikliğinden sonra CSS'i derle:
   `./.tools/tailwindcss -i static/src/app.css -o static/app.css --minify`
 - Testler: `.venv/bin/python manage.py test`
+
+## Güvenlik
+
+- **Yüklenen dosyaları asla doğrulamadan kabul etme.** Belgeleri personel açar;
+  tarayıcıda çalışabilen bir dosya (HTML, SVG) yüklenirse personelin oturumunda
+  betik çalışır. `apps/basvurular/validators.py` uzantı + imza denetimi yapar;
+  yeni bir dosya alanı eklerken bu doğrulayıcıyı bağla. HTML'deki `accept`
+  özniteliği güvenlik değildir.
+- **Belgeler yalnızca izin kontrollü görünümden sunulur.** Doğrudan
+  `dosya.url` kullanma; `belge.get_absolute_url()` kullan.
+- **`next` gibi dışarıdan gelen yönlendirme hedeflerini doğrula.**
+  `url_has_allowed_host_and_scheme` olmadan `redirect()` çağırma.

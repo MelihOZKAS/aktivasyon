@@ -97,6 +97,19 @@ yedeklemeye ayrıca dahil edilmelidir.
 **Nginx'e `/media/` için location tanımlamayın**; tanımlarsanız izin kontrolü
 devre dışı kalır.
 
+Yüklenen dosyalar iki katmanda denetlenir:
+
+1. **Yükleme anında** (`apps/basvurular/validators.py`): uzantı allowlist'i
+   (png, jpg, jpeg, webp, gif, pdf), boyut sınırı ve dosyanın gerçek imzası.
+   Uzantısı `.png` yapılmış bir HTML dosyası içerik denetiminde takılır.
+   Formdaki `accept` özniteliği yalnızca tarayıcı ipucudur, güvenlik sağlamaz.
+2. **Servis anında**: yalnızca bilinen güvenli resim türleri gömülü gösterilir;
+   PDF dahil diğer her şey indirilir. Yanıta `Content-Security-Policy: sandbox`
+   eklenir.
+
+Bu katmanlar birlikte, bayinin yüklediği bir dosyanın belgeyi açan personelin
+oturumunda betik çalıştırmasını engeller.
+
 ### Tema
 
 Tek tema vardır: beyaz. Arayüz kağıt, mürekkep ve griden ibarettir; ekrandaki

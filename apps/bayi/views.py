@@ -9,6 +9,7 @@ from django.db.models import Count, Q, Sum
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from urllib.parse import quote
 from django.views.decorators.http import require_POST
 
@@ -121,7 +122,13 @@ def yonetim_girisi(request):
     olmayan bayi, sonsuz yönlendirme döngüsüne düşmesin diye kendi paneline
     açık bir mesajla gönderilir.
     """
-    hedef = request.GET.get("next") or reverse("admin:index")
+    # `next` dışarıdan geliyor; doğrulanmazsa kullanıcı başka bir siteye
+    # yönlendirilebilir (kimlik avı). Yalnızca kendi sunucumuza izin ver.
+    hedef = request.GET.get("next") or ""
+    if not url_has_allowed_host_and_scheme(
+        hedef, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        hedef = reverse("admin:index")
 
     if request.user.is_authenticated:
         if request.user.is_staff:

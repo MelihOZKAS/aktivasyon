@@ -320,3 +320,106 @@ class BelgeErisimTestleri(TestCase):
         with override_settings(DEBUG=False):
             with self.assertRaises(Resolver404):
                 resolve("/media/basvuru/2026/09/kimlik.png")
+
+
+@override_settings(MEDIA_ROOT=GECICI_MEDYA)
+class BelgeYuklemeGuvenligiTestleri(TestCase):
+    """Bayi yüklediği belgeyi personel açar; tarayıcıda çalışan dosya yüklenemez."""
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(GECICI_MEDYA, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        from apps.finans.models import Cuzdan
+
+        BasvuruDurumu.objects.create(ad="Beklemede", slug="beklemede", baslangic_durumu=True)
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+
+        self.operator = Operator.objects.create(ad="Vodafone")
+        self.kategori = BasvuruKategorisi.objects.create(
+            ad="Faturalı Yeni Hat", tarife_zorunlu=False
+        )
+        self.kategori.operatorler.add(self.operator)
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="ikametgah", etiket="İkametgah",
+            tip=AlanTipi.DOSYA, zorunlu=True, sira=10,
+        )
+        self.client.force_login(self.bayi)
+
+    def _gonderi(self, dosya):
+        return {
+            "operator": self.operator.pk, "tarife": "", "kampanya": "",
+            "musteri_tipi": "turk", "kimlik_tipi": "tc", "kimlik_no": "12345678901",
+            "isim": "Ayşe", "soyisim": "Demir", "irtibat": "5551112233",
+            "numara": "", "adres": "", "bayi_aciklamasi": "",
+            "ek__ikametgah": dosya,
+        }
+
+    def _url(self):
+        return reverse("basvurular:yeni", args=[self.kategori.slug])
+
+    def test_html_dosyasi_reddedilir(self):
+        kotucul = SimpleUploadedFile(
+            "evrak.html", b"<script>alert(document.cookie)</script>", content_type="text/html"
+        )
+        yanit = self.client.post(self._url(), self._gonderi(kotucul))
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn("ek__ikametgah", yanit.context["form"].errors)
+        self.assertEqual(Basvuru.objects.count(), 0)
+
+    def test_svg_dosyasi_reddedilir(self):
+        svg = SimpleUploadedFile(
+            "evrak.svg",
+            b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+            content_type="image/svg+xml",
+        )
+        yanit = self.client.post(self._url(), self._gonderi(svg))
+        self.assertIn("ek__ikametgah", yanit.context["form"].errors)
+
+    def test_uzantisi_degistirilmis_dosya_reddedilir(self):
+        """İçerik HTML ama adı .png: uzantı denetimi tek başına yetmez."""
+        sahte = SimpleUploadedFile(
+            "evrak.png", b"<script>alert(1)</script>", content_type="image/png"
+        )
+        yanit = self.client.post(self._url(), self._gonderi(sahte))
+        self.assertIn("ek__ikametgah", yanit.context["form"].errors)
+        self.assertIn("uyuşmuyor", str(yanit.context["form"].errors))
+
+    def test_gecerli_pdf_kabul_edilir(self):
+        pdf = SimpleUploadedFile(
+            "ikametgah.pdf", b"%PDF-1.4\n%%EOF\n", content_type="application/pdf"
+        )
+        yanit = self.client.post(self._url(), self._gonderi(pdf))
+        self.assertEqual(yanit.status_code, 302)
+        self.assertEqual(Basvuru.objects.count(), 1)
+
+    def test_pdf_gomulu_gosterilmez_indirilir(self):
+        pdf = SimpleUploadedFile(
+            "ikametgah.pdf", b"%PDF-1.4\n%%EOF\n", content_type="application/pdf"
+        )
+        self.client.post(self._url(), self._gonderi(pdf))
+        belge = Basvuru.objects.get().belgeler.get()
+
+        yanit = self.client.get(belge.get_absolute_url())
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn("attachment", yanit["Content-Disposition"])
+        self.assertIn("sandbox", yanit["Content-Security-Policy"])
+
+    def test_resim_gomulu_gosterilebilir(self):
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="kimlik_on", etiket="Kimlik Ön",
+            tip=AlanTipi.RESIM, zorunlu=False, sira=20,
+        )
+        veri = self._gonderi(
+            SimpleUploadedFile("ikametgah.pdf", b"%PDF-1.4\n%%EOF\n", content_type="application/pdf")
+        )
+        veri["ek__kimlik_on"] = kucuk_png()
+        self.client.post(self._url(), veri)
+
+        belge = Basvuru.objects.get().belgeler.get(alan_kodu="kimlik_on")
+        yanit = self.client.get(belge.get_absolute_url())
+        self.assertNotIn("attachment", yanit.get("Content-Disposition", ""))
+        self.assertEqual(yanit["Content-Type"], "image/png")

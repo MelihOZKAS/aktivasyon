@@ -149,6 +149,24 @@ class GirisVeYetkiTestleri(TestCase):
         self.assertEqual(cuzdan.bakiye, TL("0.00"))
         self.assertFalse(cuzdan.borc_izni)
 
+    def test_disa_yonlendirme_engellenir(self):
+        """`next` dışarıdan gelir; başka bir siteye yönlendirilemez."""
+        self.client.force_login(self.yonetici)
+
+        for kotucul in [
+            "https://kotu-site.example/calinti",
+            "//kotu-site.example/calinti",
+            "http://kotu-site.example",
+            "javascript:alert(1)",
+        ]:
+            yanit = self.client.get("/yonetim/login/", {"next": kotucul})
+            self.assertEqual(yanit["Location"], reverse("admin:index"), kotucul)
+
+    def test_kendi_sunucumuzdaki_hedef_korunur(self):
+        self.client.force_login(self.yonetici)
+        yanit = self.client.get("/yonetim/login/", {"next": "/yonetim/katalog/tarife/"})
+        self.assertEqual(yanit["Location"], "/yonetim/katalog/tarife/")
+
     def test_yonetici_yonetim_paneline_erisir(self):
         self.client.force_login(self.yonetici)
         for yol in [

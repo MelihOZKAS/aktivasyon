@@ -1,5 +1,6 @@
 """Bayi tarafındaki başvuru akışı: yeni başvuru, liste, detay."""
 
+import mimetypes
 from pathlib import Path
 
 from django.contrib import messages
@@ -11,6 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.basvurular.forms import BasvuruFormu
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
+from apps.basvurular.validators import SATIR_ICI_GOSTERILEBILIR
 from apps.finans.services import YetersizBakiye
 from apps.katalog.models import BasvuruKategorisi, Kampanya, Tarife
 
@@ -179,8 +181,21 @@ def belge(request, referans, alan_kodu):
     except FileNotFoundError as hata:
         raise Http404("Belge dosyası bulunamadı.") from hata
 
-    yanit = FileResponse(akis, filename=Path(kayit.dosya.name).name)
+    # Yükleme anında doğrulama yapılıyor; burada ikinci katman savunma var.
+    # Bilinen güvenli resim türleri dışındaki her şey gömülü gösterilmez,
+    # indirilir: aksi hâlde belgeyi açan personelin oturumunda betik çalışabilir.
+    tip, _ = mimetypes.guess_type(kayit.dosya.name)
+    gomulu_gosterilebilir = tip in SATIR_ICI_GOSTERILEBILIR
+
+    yanit = FileResponse(
+        akis,
+        filename=Path(kayit.dosya.name).name,
+        as_attachment=not gomulu_gosterilebilir,
+        content_type=tip if gomulu_gosterilebilir else "application/octet-stream",
+    )
     # Tarayıcı ve ara sunucular kişisel veriyi paylaşımlı önbelleğe almasın.
     yanit["Cache-Control"] = "private, max-age=300"
     yanit["X-Content-Type-Options"] = "nosniff"
+    # Dosya bir şekilde gömülü açılsa bile betik çalıştıramasın.
+    yanit["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src 'self'"
     return yanit

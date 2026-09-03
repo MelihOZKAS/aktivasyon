@@ -10,6 +10,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
+from apps.basvurular.validators import belge_dogrula
 from apps.katalog.models import AlanTipi, Kampanya, KategoriAlani, MusteriTipi, Tarife
 
 GIRDI_SINIFI = "girdi"
@@ -134,6 +135,10 @@ class BasvuruFormu(forms.ModelForm):
                     argumanlar["min_length"] = tanim.min_uzunluk
                 if tanim.max_uzunluk:
                     argumanlar["max_length"] = tanim.max_uzunluk
+
+            if tanim.dosya_mi:
+                # Uzantı ve içerik denetimi; RESIM alanlarında Pillow'a ek güvence.
+                argumanlar["validators"] = [belge_dogrula]
 
             self.fields[f"ek__{tanim.kod}"] = alan_sinifi(**argumanlar)
 
