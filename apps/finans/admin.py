@@ -23,7 +23,7 @@ SIFIR = Decimal("0.00")
 
 @admin.register(BayiGrubu)
 class BayiGrubuAdmin(ModelAdmin):
-    list_display = ("ad", "varsayilan_borc_limiti", "bayi_sayisi", "aktif")
+    list_display = ("ad", "bayi_sayisi", "aktif")
     search_fields = ("ad",)
     list_filter = ("aktif",)
 
@@ -54,7 +54,7 @@ class CuzdanAdmin(ModelAdmin):
         "islem_yapabilir",
         "bakiye_yukle_baglantisi",
     )
-    list_filter = ("grup", "islem_yapabilir")
+    list_filter = ("grup", "islem_yapabilir", "borc_izni")
     search_fields = ("bayi__username", "bayi__first_name", "bayi__last_name")
     autocomplete_fields = ("bayi", "grup")
     readonly_fields = ("bakiye", "borc", "kullanilabilir_gosterimi")
@@ -71,10 +71,14 @@ class CuzdanAdmin(ModelAdmin):
             },
         ),
         (
-            "Limit",
+            "Borçlanma",
             {
-                "fields": ("borc_limiti",),
-                "description": "Boş bırakılırsa bayi grubunun varsayılan limiti geçerli olur.",
+                "fields": ("borc_izni", "borc_limiti"),
+                "description": (
+                    "“Borçlanabilir” kapalıyken bayi bakiyesinden fazlasını harcayamaz. "
+                    "Açtığınızda girdiğiniz tutar bayinin üst sınırı olur. "
+                    "Bu bilgiler bayi panelinde <b>gösterilmez</b>."
+                ),
             },
         ),
     )
@@ -95,12 +99,9 @@ class CuzdanAdmin(ModelAdmin):
 
     @display(description="Borç Limiti")
     def limit_gosterimi(self, obj):
-        kaynak = "bayiye özel" if obj.borc_limiti is not None else "grup varsayılanı"
-        return format_html(
-            '{} ₺ <span style="color:#94a3b8;font-size:.75rem">({})</span>',
-            obj.gecerli_borc_limiti,
-            kaynak,
-        )
+        if not obj.borc_izni:
+            return format_html('<span style="color:#94a3b8">borçlanamaz</span>')
+        return format_html("<b>{} ₺</b>", obj.borc_limiti)
 
     @display(description="Kullanılabilir")
     def kullanilabilir_gosterimi(self, obj):

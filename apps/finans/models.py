@@ -23,18 +23,10 @@ SIFIR = Decimal("0.00")
 
 
 class BayiGrubu(ZamanDamgali):
-    """Fiyat kademesi. Ücret kuralları ve borç limiti grup bazında tanımlanır."""
+    """Fiyat kademesi. Ücret kuralları grup bazında tanımlanabilir."""
 
     ad = models.CharField("Grup Adı", max_length=100, unique=True)
     aciklama = models.TextField("Açıklama", blank=True)
-    varsayilan_borc_limiti = models.DecimalField(
-        "Varsayılan Borç Limiti",
-        max_digits=12,
-        decimal_places=2,
-        default=SIFIR,
-        validators=[MinValueValidator(SIFIR)],
-        help_text="Bu gruptaki bayiler bakiyesi bittiğinde bu tutara kadar borçlanabilir.",
-    )
     aktif = models.BooleanField("Aktif", default=True)
 
     class Meta:
@@ -95,14 +87,18 @@ class Cuzdan(ZamanDamgali):
     )
     bakiye = models.DecimalField("Bakiye", max_digits=12, decimal_places=2, default=SIFIR)
     borc = models.DecimalField("Borç", max_digits=12, decimal_places=2, default=SIFIR)
+    borc_izni = models.BooleanField(
+        "Borçlanabilir",
+        default=False,
+        help_text="Açılmadıkça bayi bakiyesinden fazlasını harcayamaz.",
+    )
     borc_limiti = models.DecimalField(
         "Borç Limiti",
         max_digits=12,
         decimal_places=2,
-        null=True,
-        blank=True,
+        default=SIFIR,
         validators=[MinValueValidator(SIFIR)],
-        help_text="Boş bırakılırsa bayi grubunun varsayılan limiti geçerli olur.",
+        help_text="Yalnızca “Borçlanabilir” açıkken geçerlidir. Bayiye gösterilmez.",
     )
     islem_yapabilir = models.BooleanField(
         "İşlem Yapabilir",
@@ -120,16 +116,19 @@ class Cuzdan(ZamanDamgali):
 
     @property
     def gecerli_borc_limiti(self):
-        """Bayiye özel limit tanımlıysa o, değilse grubun varsayılanı."""
-        if self.borc_limiti is not None:
-            return self.borc_limiti
-        if self.grup:
-            return self.grup.varsayilan_borc_limiti
-        return SIFIR
+        """Borçlanma izni kapalıysa limit yoktur; açıksa girilen tutar kadardır.
+
+        Bayiye hiçbir ekranda gösterilmez, yalnızca yönetim tarafında görünür.
+        """
+        return self.borc_limiti if self.borc_izni else SIFIR
 
     @property
     def kullanilabilir_tutar(self):
-        """Bayinin şu an harcayabileceği toplam tutar: bakiye + kalan borç limiti."""
+        """Bayinin harcayabileceği toplam tutar: bakiye + kalan borç limiti.
+
+        Yalnızca sunucu tarafı kontrolü ve yönetim ekranları içindir; bayi
+        panelinde gösterilmez, çünkü bakiyeden farkı borç limitini ele verir.
+        """
         return self.bakiye + (self.gecerli_borc_limiti - self.borc)
 
     def karsilar_mi(self, tutar):

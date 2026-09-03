@@ -12,9 +12,9 @@
   <section>
     <div class="flex flex-wrap items-start gap-x-16 gap-y-7">
       <div>
-        <p class="text-sm text-soluk">Kullanılabilir tutar</p>
+        <p class="text-sm text-soluk">Bakiye</p>
         <p class="rakam mt-1.5 text-[3.25rem] font-bold leading-[0.95] sm:text-[4rem]">
-          {{ kullanilabilir_tutar|para }}<span class="ml-1 text-3xl text-silik">₺</span>
+          {{ cuzdan.bakiye|para }}<span class="ml-1 text-3xl text-silik">₺</span>
         </p>
       </div>
       <div>
@@ -25,23 +25,15 @@
       </div>
     </div>
 
+    {% if cuzdan.borc %}
     <dl class="mt-7 flex flex-wrap items-center gap-x-9 gap-y-3 border-t border-cizgi
                pt-4 text-sm">
       <div class="flex items-baseline gap-2">
-        <dt class="text-soluk">Bakiye</dt>
-        <dd class="rakam font-semibold">{{ cuzdan.bakiye|para }} ₺</dd>
-      </div>
-      <div class="flex items-baseline gap-2">
         <dt class="text-soluk">Borç</dt>
-        <dd class="rakam font-semibold {% if cuzdan.borc %}text-uyari{% endif %}">
-          {{ cuzdan.borc|para }} ₺
-        </dd>
-      </div>
-      <div class="flex items-baseline gap-2">
-        <dt class="text-soluk">Borç limiti</dt>
-        <dd class="rakam font-semibold">{{ cuzdan.gecerli_borc_limiti|para }} ₺</dd>
+        <dd class="rakam font-semibold text-uyari">{{ cuzdan.borc|para }} ₺</dd>
       </div>
     </dl>
+    {% endif %}
   </section>
 
   {% if duyurular %}

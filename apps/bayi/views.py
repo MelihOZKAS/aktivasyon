@@ -192,6 +192,11 @@ def cuzdan_gorunumu(request):
             .order_by("-tarih", "-id")
         )
 
+    # Filtrede yalnızca bu bayide gerçekten geçen tipler listelensin; boş dönecek
+    # seçenekler hem gereksiz hem de bayinin görmediği durumları ima eder.
+    gecen_tipler = set(hareketler.values_list("tip", flat=True).distinct())
+    hareket_tipleri = [(d, e) for d, e in HareketTipi.choices if d in gecen_tipler]
+
     tip = request.GET.get("tip") or ""
     if tip:
         hareketler = hareketler.filter(tip=tip)
@@ -204,7 +209,7 @@ def cuzdan_gorunumu(request):
         {
             "sayfa": sayfalayici.get_page(request.GET.get("sayfa")),
             "bankalar": Banka.objects.filter(aktif=True, bayiye_gorunur=True),
-            "hareket_tipleri": HareketTipi.choices,
+            "hareket_tipleri": hareket_tipleri,
             "secili_tip": tip,
         },
     )

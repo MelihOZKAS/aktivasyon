@@ -49,8 +49,8 @@
 
     {% if cuzdan %}
     <div class="sim m-3 rounded-kart border border-cizgi bg-yuzey p-4">
-      <p class="text-xs font-semibold text-soluk">Kullanılabilir tutar</p>
-      <p class="rakam mt-1 text-2xl font-bold">{{ kullanilabilir_tutar|para }} ₺</p>
+      <p class="text-xs font-semibold text-soluk">Bakiye</p>
+      <p class="rakam mt-1 text-2xl font-bold">{{ cuzdan.bakiye|para }} ₺</p>
       {% if cuzdan.borc %}
         <p class="mt-1.5 text-xs text-soluk">
           Borç <span class="rakam text-uyari">{{ cuzdan.borc|para }} ₺</span>

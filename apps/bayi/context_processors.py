@@ -1,4 +1,9 @@
-"""Şablonlara bayi bağlamını (cüzdan, bekleyen başvuru sayısı) taşır."""
+"""Şablonlara bayi bağlamını taşır.
+
+Borç limiti ve kullanılabilir tutar bilinçli olarak dışarıda bırakılmıştır:
+bakiyeden farkları limiti ele verir. Bu değerler yalnızca sunucu tarafı
+kontrolünde ve yönetim ekranlarında kullanılır.
+"""
 
 from apps.finans.models import Cuzdan
 
@@ -8,8 +13,4 @@ def bayi_baglami(request):
     if not kullanici or not kullanici.is_authenticated:
         return {}
 
-    cuzdan = Cuzdan.objects.filter(bayi=kullanici).select_related("grup").first()
-    return {
-        "cuzdan": cuzdan,
-        "kullanilabilir_tutar": cuzdan.kullanilabilir_tutar if cuzdan else None,
-    }
+    return {"cuzdan": Cuzdan.objects.filter(bayi=kullanici).select_related("grup").first()}

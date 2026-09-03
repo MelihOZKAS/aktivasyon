@@ -1,11 +1,13 @@
 """Dinamik form ve başvuru akışı testleri."""
 
 import io
+import shutil
+import tempfile
 from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.basvurular.models import Basvuru, BasvuruDurumu
@@ -28,7 +30,17 @@ def kucuk_png():
     return SimpleUploadedFile("kimlik.png", tampon.getvalue(), content_type="image/png")
 
 
+# Testlerdeki yüklemeler projenin media/ klasörünü kirletmesin.
+GECICI_MEDYA = tempfile.mkdtemp(prefix="aktivasyon-test-")
+
+
+@override_settings(MEDIA_ROOT=GECICI_MEDYA)
 class DinamikFormTestleri(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(GECICI_MEDYA, ignore_errors=True)
+        super().tearDownClass()
+
     def setUp(self):
         self.beklemede = BasvuruDurumu.objects.create(
             ad="Beklemede", slug="beklemede", baslangic_durumu=True, sira=10

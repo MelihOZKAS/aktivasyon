@@ -19,7 +19,15 @@ SIFIR = Decimal("0.00")
 
 
 class YetersizBakiye(Exception):
-    """Bayinin bakiyesi ve borç limiti işlemi karşılamıyor."""
+    """Bayinin bakiyesi ve borç limiti işlemi karşılamıyor.
+
+    `str()` karşılığı bayiye gösterilebilir ve limit bilgisi içermez.
+    Ayrıntı `detay` alanındadır; yalnızca kayıt ve yönetim tarafı içindir.
+    """
+
+    def __init__(self, mesaj, detay=""):
+        super().__init__(mesaj)
+        self.detay = detay
 
 
 def _hareket_yaz(
@@ -136,8 +144,12 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
             tutar = tahsilat_kurali.tutar
             if not cuzdan.karsilar_mi(tutar):
                 raise YetersizBakiye(
-                    f"{cuzdan.bayi.get_username()} için {tutar} ₺ tahsilat yapılamadı. "
-                    f"Kullanılabilir tutar: {cuzdan.kullanilabilir_tutar} ₺"
+                    "Bakiye bu işlem için yeterli değil. Bakiye yükledikten sonra "
+                    "tekrar deneyin.",
+                    detay=(
+                        f"{cuzdan.bayi.get_username()} için {tutar} ₺ tahsilat "
+                        f"yapılamadı. Kullanılabilir: {cuzdan.kullanilabilir_tutar} ₺"
+                    ),
                 )
             # Bakiye yetiyorsa bakiyeden, yetmiyorsa kalanı borca yaz.
             bakiyeden = min(tutar, max(cuzdan.bakiye, SIFIR))

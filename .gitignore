@@ -167,6 +167,10 @@ venv/
 db-dev.sqlite3
 db.sqlite3
 staticfiles/
+
+# Yüklenen evraklar çalışma zamanı verisidir; sunucuda volume olarak durur
+media/*
+!media/.gitkeep
 .tools/
 .env
 

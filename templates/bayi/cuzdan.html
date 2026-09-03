@@ -8,32 +8,26 @@
 <div class="mx-auto max-w-4xl space-y-9">
 
   <section>
-    <p class="text-sm text-soluk">Kullanılabilir tutar</p>
-    <p class="rakam mt-1 text-5xl font-bold leading-none">
-      {{ kullanilabilir_tutar|para }} <span class="text-3xl text-silik">₺</span>
+    <p class="text-sm text-soluk">Bakiye</p>
+    <p class="rakam mt-1.5 text-[3.25rem] font-bold leading-[0.95] sm:text-[4rem]">
+      {{ cuzdan.bakiye|para }}<span class="ml-1 text-3xl text-silik">₺</span>
     </p>
-    <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-3 border-t border-cizgi pt-4 text-sm">
-      <div class="flex items-baseline gap-2">
-        <dt class="text-soluk">Bakiye</dt>
-        <dd class="rakam font-semibold">{{ cuzdan.bakiye|para }} ₺</dd>
-      </div>
+    {% if cuzdan.borc %}
+    <dl class="mt-6 flex flex-wrap gap-x-8 gap-y-3 border-t border-cizgi pt-4 text-sm">
       <div class="flex items-baseline gap-2">
         <dt class="text-soluk">Borç</dt>
-        <dd class="rakam font-semibold {% if cuzdan.borc %}text-uyari{% endif %}">{{ cuzdan.borc|para }} ₺</dd>
-      </div>
-      <div class="flex items-baseline gap-2">
-        <dt class="text-soluk">Borç limiti</dt>
-        <dd class="rakam font-semibold">{{ cuzdan.gecerli_borc_limiti|para }} ₺</dd>
+        <dd class="rakam font-semibold text-uyari">{{ cuzdan.borc|para }} ₺</dd>
       </div>
     </dl>
+    {% endif %}
   </section>
 
   {% if bankalar %}
   <section>
     <h2 class="baslik mb-1 text-lg font-semibold">Bakiye yükle</h2>
     <p class="mb-4 text-sm text-soluk">
-      Aşağıdaki hesaplardan birine havale yap, dekontu temsilcine ilet. Borcun varsa
-      yüklenen tutar önce borçtan düşülür.
+      Aşağıdaki hesaplardan birine havale yap, dekontu temsilcine ilet.{% if cuzdan.borc %}
+      Yüklenen tutar önce borcundan düşülür.{% endif %}
     </p>
     <div class="grid gap-3 sm:grid-cols-2">
       {% for banka in bankalar %}

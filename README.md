@@ -23,11 +23,24 @@ Para **yalnızca** `apps/finans/services.py` içindeki atomik fonksiyonlar üzer
 1. Başvuru girilir → hiçbir para hareketi olmaz
 2. Durum, `hakedis_tetikler` işaretli bir duruma geçer (varsayılan: "Aktif")
 3. Uyan `UcretKurali` kayıtları bulunur — en dar kapsamlı olan kazanır
-4. Tahsilat bakiyeden düşer; bakiye yetmezse kalanı borç limitine yazılır
+4. Tahsilat bakiyeden düşer; bayinin borçlanma izni varsa kalanı borç limitine yazılır
 5. Hakediş cüzdana eklenir
 6. Durum `olumsuz_sonuc` bir duruma dönerse hareketler ters kayıtla iptal edilir
 
 Her hareketin `idempotency_anahtari` alanı benzersizdir: aynı olay iki kez işlenemez.
+
+### Borçlanma
+
+Varsayılan olarak hiçbir bayi borçlanamaz. Yönetim panelinden bayinin cüzdanında
+**Borçlanabilir** açılır ve bir tutar girilir; bayinin üst sınırı o tutardır.
+İzin kapalıyken girilmiş tutar dikkate alınmaz.
+
+Borç limiti ve kullanılabilir tutar **bayiye hiçbir ekranda gösterilmez**.
+Kullanılabilir tutar da gizlidir, çünkü bakiyeden farkı limiti ele verir.
+Bayi yalnızca bakiyesini görür; "Borç" satırı da yalnızca gerçekten borcu varsa
+görünür. Yetersiz bakiye hatası bayiye limit bilgisi sızdırmaz (`YetersizBakiye`
+mesajı geneldir, ayrıntı `detay` alanındadır). Bu kural
+`apps/bayi/tests.py` içinde testlerle sabitlenmiştir.
 
 ## Geliştirme
 
