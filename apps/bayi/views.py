@@ -1,0 +1,210 @@
+"""Bayi paneli: giriş, gösterge paneli ve cüzdan."""
+
+from django.contrib.auth import logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
+from django.core.paginator import Paginator
+from django.db.models import Count, Q, Sum
+from django.shortcuts import redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_POST
+
+from apps.basvurular.models import Basvuru
+from apps.bayi.models import Duyuru
+from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
+from apps.katalog.models import BasvuruKategorisi
+
+# Bir başvurunun yolculuğu: giriş ekranında ve ana sayfada aynı anlatı.
+ASAMALAR = [
+    {"ad": "Başvuru alındı", "seviye": 1, "renk": "#64748b", "not": "Bayi formu doldurdu", "tutar": ""},
+    {"ad": "İşleme alındı", "seviye": 3, "renk": "#3b82f6", "not": "Operasyon evrakı kontrol ediyor", "tutar": ""},
+    {"ad": "Hat aktif", "seviye": 5, "renk": "#15A34A", "not": "Hakediş cüzdana işlendi", "tutar": "+175,00 ₺"},
+]
+
+ADIMLAR = [
+    {
+        "baslik": "Bayi başvuruyu girer",
+        "metin": "Kategoriyi seçer, form kendini o kategoriye göre kurar. Kimlik "
+                 "fotoğrafını telefonun kamerasıyla doğrudan çeker.",
+        "seviye": 1,
+        "renk": "#64748b",
+    },
+    {
+        "baslik": "Operasyon işler",
+        "metin": "Başvuru kuyruğa düşer. Evrak eksikse bayi anında görür, "
+                 "tamamlar. Her durum değişimi kayda geçer.",
+        "seviye": 3,
+        "renk": "#3b82f6",
+    },
+    {
+        "baslik": "Para kendiliğinden işler",
+        "metin": "Hat aktifleşince ücret kuralları çalışır: hat ücreti kesilir, "
+                 "hakediş cüzdana yatar. Elle bakiye girilmez.",
+        "seviye": 5,
+        "renk": "#0FD9C0",
+    },
+]
+
+OZELLIKLER = [
+    {
+        "baslik": "Esnek başvuru tipleri",
+        "metin": "Kategori, tarife ve kampanya birer kayıt. Yeni bir hat tipi "
+                 "eklemek için yazılım güncellemesi beklemezsin.",
+    },
+    {
+        "baslik": "Kural tabanlı hakediş",
+        "metin": "Hangi kategoride, hangi operatörde, hangi bayi grubuna ne "
+                 "ödeneceğini kural olarak tanımlarsın. Gerisi otomatik.",
+    },
+    {
+        "baslik": "Bakiye ve borç limiti",
+        "metin": "Her bayinin bakiyesi, borcu ve limiti ayrı. Limit grup "
+                 "bazında varsayılan gelir, bayi bazında değiştirilebilir.",
+    },
+    {
+        "baslik": "Değişmez defter",
+        "metin": "Her para hareketi tekil anahtarla kaydedilir. Aynı işlem "
+                 "iki kez işlenemez, her kuruşun kaynağı bellidir.",
+    },
+]
+
+
+def anasayfa(request):
+    """Kamuya açık tanıtım sayfası."""
+    if request.user.is_authenticated:
+        return redirect("bayi:panel")
+
+    kategoriler = (
+        BasvuruKategorisi.objects.filter(aktif=True)
+        .annotate(alan_sayisi=Count("alanlar", filter=Q(alanlar__aktif=True)))
+        .order_by("sira", "ad")[:8]
+    )
+
+    return render(
+        request,
+        "bayi/anasayfa.html",
+        {
+            "kategoriler": kategoriler,
+            "asamalar": ASAMALAR,
+            "adimlar": ADIMLAR,
+            "ozellikler": OZELLIKLER,
+        },
+    )
+
+
+class GirisView(LoginView):
+    template_name = "bayi/giris.html"
+    redirect_authenticated_user = True
+
+    def get_context_data(self, **kwargs):
+        return {**super().get_context_data(**kwargs), "asamalar": ASAMALAR}
+
+
+@require_POST
+def cikis(request):
+    logout(request)
+    return redirect("bayi:giris")
+
+
+def _kategori_hakedisleri(kullanici):
+    """Her kategori için bu bayinin kazanabileceği hakediş aralığını çıkarır.
+
+    Operatöre göre tutar değişiyorsa tek bir sayı göstermek yanıltıcı olur;
+    o yüzden en düşük ve en yüksek birlikte döner.
+    """
+    from apps.finans.models import KuralYonu, UcretKurali
+
+    cuzdan = getattr(kullanici, "cuzdan", None)
+    grup_id = cuzdan.grup_id if cuzdan else None
+
+    kurallar = (
+        UcretKurali.objects.filter(
+            aktif=True,
+            yon=KuralYonu.HAKEDIS,
+            kategori__isnull=False,
+            tarife__isnull=True,
+            kampanya__isnull=True,
+        )
+        .filter(Q(bayi__isnull=True) | Q(bayi=kullanici))
+        .filter(Q(bayi_grubu__isnull=True) | Q(bayi_grubu_id=grup_id))
+    )
+
+    # Kategori + operatör kırılımında en spesifik kuralı seç, sonra aralığı bul.
+    en_iyi = {}
+    for kural in kurallar:
+        anahtar = (kural.kategori_id, kural.operator_id)
+        mevcut = en_iyi.get(anahtar)
+        if mevcut is None or (kural.ozgulluk, kural.oncelik) > (mevcut.ozgulluk, mevcut.oncelik):
+            en_iyi[anahtar] = kural
+
+    araliklar = {}
+    for (kategori_id, _), kural in en_iyi.items():
+        alt, ust = araliklar.get(kategori_id, (kural.tutar, kural.tutar))
+        araliklar[kategori_id] = (min(alt, kural.tutar), max(ust, kural.tutar))
+    return araliklar
+
+
+@login_required
+def panel(request):
+    cuzdan = getattr(request.user, "cuzdan", None)
+
+    ayin_basi = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    aylik_hakedis = 0
+    if cuzdan:
+        aylik_hakedis = (
+            CuzdanHareketi.objects.filter(
+                cuzdan=cuzdan, tip=HareketTipi.HAKEDIS, tarih__gte=ayin_basi
+            ).aggregate(toplam=Sum("tutar"))["toplam"]
+            or 0
+        )
+
+    araliklar = _kategori_hakedisleri(request.user)
+    kategoriler = list(BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad"))
+    for kategori in kategoriler:
+        aralik = araliklar.get(kategori.pk)
+        kategori.hakedis_alt, kategori.hakedis_ust = aralik if aralik else (None, None)
+
+    return render(
+        request,
+        "bayi/panel.html",
+        {
+            "kategoriler": kategoriler,
+            "son_basvurular": (
+                Basvuru.objects.filter(bayi=request.user)
+                .select_related("kategori", "operator", "durum")
+                .order_by("-olusturma_tarihi")[:6]
+            ),
+            "duyurular": Duyuru.objects.filter(aktif=True)[:3],
+            "aylik_hakedis": aylik_hakedis,
+        },
+    )
+
+
+@login_required
+def cuzdan_gorunumu(request):
+    cuzdan = getattr(request.user, "cuzdan", None)
+
+    hareketler = CuzdanHareketi.objects.none()
+    if cuzdan:
+        hareketler = (
+            CuzdanHareketi.objects.filter(cuzdan=cuzdan)
+            .select_related("basvuru", "banka")
+            .order_by("-tarih", "-id")
+        )
+
+    tip = request.GET.get("tip") or ""
+    if tip:
+        hareketler = hareketler.filter(tip=tip)
+
+    sayfalayici = Paginator(hareketler, 30)
+
+    return render(
+        request,
+        "bayi/cuzdan.html",
+        {
+            "sayfa": sayfalayici.get_page(request.GET.get("sayfa")),
+            "bankalar": Banka.objects.filter(aktif=True, bayiye_gorunur=True),
+            "hareket_tipleri": HareketTipi.choices,
+            "secili_tip": tip,
+        },
+    )

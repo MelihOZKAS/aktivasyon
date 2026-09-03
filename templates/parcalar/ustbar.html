@@ -1,0 +1,38 @@
+{% load panel %}
+<header class="sticky top-0 z-20 flex items-center gap-3 border-b border-kagit-200
+               bg-kagit-50/85 px-5 py-3 backdrop-blur
+               dark:border-murekkep-800 dark:bg-murekkep-950/85 lg:px-9">
+
+  <button type="button" data-menu-ac aria-label="Menüyü aç"
+          class="dugme dugme-sessiz px-2.5 py-2 lg:hidden">
+    <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
+
+  <div class="flex-1">
+    <h1 class="baslik text-base font-semibold">{% block sayfa_basligi %}{% endblock %}</h1>
+  </div>
+
+  {% if cuzdan %}
+  <a href="{% url 'bayi:cuzdan' %}"
+     class="hidden items-center gap-2 rounded-full border border-kagit-200 px-3 py-1.5
+            text-sm dark:border-murekkep-700 sm:flex">
+    <span class="h-1.5 w-1.5 rounded-full bg-sinyal-500"></span>
+    <span class="rakam font-semibold">{{ kullanilabilir_tutar|para }} ₺</span>
+  </a>
+  {% endif %}
+
+  <button type="button" data-tema-degistir aria-label="Temayı değiştir"
+          class="dugme dugme-sessiz px-2.5 py-2">
+    <svg viewBox="0 0 24 24" class="h-4.5 w-4.5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/>
+    </svg>
+    <svg viewBox="0 0 24 24" class="hidden h-4.5 w-4.5 dark:block" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/>
+    </svg>
+  </button>
+
+  <form method="post" action="{% url 'bayi:cikis' %}">
+    {% csrf_token %}
+    <button type="submit" class="dugme dugme-sessiz text-sm">Çıkış</button>
+  </form>
+</header>

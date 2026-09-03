@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}Panel · Aktivasyon{% endblock %}
+{% block sayfa_basligi %}Panel{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-5xl space-y-10">
+
+  {% comment %} Kahraman: bayinin gün içinde en çok baktığı tek sayı.
+  Kart yok, gradient yok — doğrudan zeminde, altında ince bir defter satırı. {% endcomment %}
+  <section>
+    <p class="text-sm text-kagit-500 dark:text-kagit-400">Kullanılabilir tutar</p>
+    <p class="rakam mt-1 text-5xl font-bold leading-none sm:text-6xl">
+      {{ kullanilabilir_tutar|para }} <span class="text-3xl text-kagit-400 sm:text-4xl">₺</span>
+    </p>
+
+    <dl class="mt-5 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-kagit-200
+               pt-4 text-sm dark:border-murekkep-800">
+      <div class="flex items-baseline gap-2">
+        <dt class="text-kagit-500 dark:text-kagit-400">Bakiye</dt>
+        <dd class="rakam font-semibold">{{ cuzdan.bakiye|para }} ₺</dd>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <dt class="text-kagit-500 dark:text-kagit-400">Borç</dt>
+        <dd class="rakam font-semibold {% if cuzdan.borc %}text-uyari{% endif %}">
+          {{ cuzdan.borc|para }} ₺
+        </dd>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <dt class="text-kagit-500 dark:text-kagit-400">Borç limiti</dt>
+        <dd class="rakam font-semibold">{{ cuzdan.gecerli_borc_limiti|para }} ₺</dd>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <dt class="text-kagit-500 dark:text-kagit-400">Bu ay hakediş</dt>
+        <dd class="rakam font-semibold text-olumlu">{{ aylik_hakedis|para }} ₺</dd>
+      </div>
+    </dl>
+  </section>
+
+  {% if duyurular %}
+  <section class="space-y-3">
+    {% for duyuru in duyurular %}
+    <article class="yuzey sim-sol rounded-kart p-5
+                    {% if duyuru.onemli %}border-uyari/40{% endif %}">
+      <h3 class="baslik font-semibold">{{ duyuru.baslik }}</h3>
+      <p class="mt-1.5 text-sm leading-relaxed text-kagit-600 dark:text-kagit-300">
+        {{ duyuru.icerik|linebreaksbr }}
+      </p>
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <section>
+    <h2 class="baslik mb-4 text-lg font-semibold">Yeni başvuru</h2>
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {% for kategori in kategoriler %}
+      <a href="{% url 'basvurular:yeni' %}?kategori={{ kategori.pk }}"
+         class="yuzey sim group flex items-center gap-4 rounded-kart p-4 transition-colors
+                hover:border-sinyal-500 hover:bg-sinyal-500/5">
+        <span class="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-kagit-100
+                     text-murekkep-700 transition-colors group-hover:bg-sinyal-500/15
+                     group-hover:text-sinyal-600 dark:bg-murekkep-800 dark:text-kagit-300">
+          <span class="ikon text-[22px]">{{ kategori.ikon }}</span>
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="baslik block truncate font-semibold">{{ kategori.ad }}</span>
+          {% if kategori.hakedis_alt %}
+          <span class="mt-0.5 block text-sm text-kagit-500 dark:text-kagit-400">
+            <span class="rakam font-semibold text-olumlu">{{ kategori.hakedis_alt|para }}{% if kategori.hakedis_ust != kategori.hakedis_alt %}–{{ kategori.hakedis_ust|para }}{% endif %} ₺</span>
+            hakediş
+          </span>
+          {% endif %}
+        </span>
+      </a>
+      {% empty %}
+      <p class="text-sm text-kagit-500">Henüz başvuru kategorisi tanımlanmamış.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <div class="mb-4 flex items-baseline justify-between">
+      <h2 class="baslik text-lg font-semibold">Son başvurular</h2>
+      <a href="{% url 'basvurular:liste' %}" class="text-sm font-medium text-sinyal-600 hover:underline">
+        Tümünü gör
+      </a>
+    </div>
+
+    {% if son_basvurular %}
+    <div class="yuzey overflow-hidden rounded-kart">
+      {% for basvuru in son_basvurular %}
+      <a href="{% url 'basvurular:detay' basvuru.pk %}"
+         class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-kagit-100
+                dark:hover:bg-murekkep-850
+                {% if not forloop.last %}border-b border-kagit-200 dark:border-murekkep-800{% endif %}">
+        {% sinyal basvuru.durum %}
+        <div class="min-w-0 flex-1">
+          <p class="truncate font-medium">{{ basvuru.ad_soyad }}</p>
+          <p class="mt-0.5 truncate text-sm text-kagit-500 dark:text-kagit-400">
+            {{ basvuru.kategori.ad }}{% if basvuru.operator %} · {{ basvuru.operator.ad }}{% endif %}
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="rakam text-sm font-semibold" style="color: {{ basvuru.durum.renk }}">
+            {{ basvuru.durum.ad }}
+          </p>
+          <p class="mt-0.5 text-xs text-kagit-500">{{ basvuru.olusturma_tarihi|date:"j M, H:i" }}</p>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="yuzey sim rounded-kart px-6 py-12 text-center">
+      <p class="baslik font-semibold">Henüz başvurun yok</p>
+      <p class="mx-auto mt-1.5 max-w-xs text-sm text-kagit-500 dark:text-kagit-400">
+        Yukarıdan bir kategori seç, ilk başvurunu birkaç dakikada gir.
+      </p>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% load panel %}
+{% if sayfa.object_list %}
+<div class="yuzey overflow-hidden rounded-kart">
+  {% for basvuru in sayfa %}
+  <a href="{% url 'basvurular:detay' basvuru.pk %}"
+     class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-kagit-100
+            dark:hover:bg-murekkep-850
+            {% if not forloop.last %}border-b border-kagit-200 dark:border-murekkep-800{% endif %}">
+    {% sinyal basvuru.durum %}
+
+    <div class="min-w-0 flex-1">
+      <p class="truncate font-medium">{{ basvuru.ad_soyad }}</p>
+      <p class="mt-0.5 truncate text-sm text-kagit-500 dark:text-kagit-400">
+        <span class="rakam">{{ basvuru.referans_no }}</span>
+        · {{ basvuru.kategori.ad }}{% if basvuru.tarife %} · {{ basvuru.tarife.ad }}{% endif %}
+      </p>
+    </div>
+
+    {% if basvuru.operator %}
+    <span class="hidden shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold sm:inline"
+          style="background: {{ basvuru.operator.renk }}1f; color: {{ basvuru.operator.renk }}">
+      {{ basvuru.operator.ad }}
+    </span>
+    {% endif %}
+
+    <div class="shrink-0 text-right">
+      <p class="text-sm font-semibold" style="color: {{ basvuru.durum.renk }}">
+        {{ basvuru.durum.ad }}
+      </p>
+      <p class="mt-0.5 text-xs text-kagit-500">{{ basvuru.olusturma_tarihi|date:"j M Y" }}</p>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+{% if sayfa.has_other_pages %}
+<div class="mt-5 flex items-center justify-between text-sm">
+  {% if sayfa.has_previous %}
+  <a class="dugme dugme-sessiz" hx-get="?sayfa={{ sayfa.previous_page_number }}&durum={{ secili_durum }}&q={{ arama }}"
+     hx-target="#liste-govdesi" hx-push-url="true" href="#">Önceki</a>
+  {% else %}<span></span>{% endif %}
+
+  <span class="text-kagit-500">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
+
+  {% if sayfa.has_next %}
+  <a class="dugme dugme-sessiz" hx-get="?sayfa={{ sayfa.next_page_number }}&durum={{ secili_durum }}&q={{ arama }}"
+     hx-target="#liste-govdesi" hx-push-url="true" href="#">Sonraki</a>
+  {% else %}<span></span>{% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="yuzey sim rounded-kart px-6 py-14 text-center">
+  <p class="baslik font-semibold">
+    {% if arama or secili_durum %}Bu filtreye uyan başvuru yok{% else %}Henüz başvurun yok{% endif %}
+  </p>
+  <p class="mx-auto mt-1.5 max-w-xs text-sm text-kagit-500 dark:text-kagit-400">
+    {% if arama or secili_durum %}
+      Aramayı değiştir ya da filtreyi kaldır.
+    {% else %}
+      İlk başvurunu girdiğinde burada listelenecek.
+    {% endif %}
+  </p>
+</div>
+{% endif %}

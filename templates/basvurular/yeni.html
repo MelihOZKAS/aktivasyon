@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ kategori.ad }} · Yeni başvuru{% endblock %}
+{% block sayfa_basligi %}{{ kategori.ad }}{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-2xl">
+
+  <div class="mb-7 flex items-start justify-between gap-4">
+    <div>
+      <h2 class="baslik text-2xl font-bold">{{ kategori.ad }}</h2>
+      {% if kategori.aciklama %}
+      <p class="mt-1 text-sm text-kagit-500 dark:text-kagit-400">{{ kategori.aciklama }}</p>
+      {% endif %}
+    </div>
+    <a href="{% url 'basvurular:yeni' %}" class="dugme dugme-sessiz shrink-0 text-sm">
+      Kategori değiştir
+    </a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="space-y-8"
+        action="{% url 'basvurular:yeni' %}">
+    {% csrf_token %}
+    <input type="hidden" name="kategori" value="{{ kategori.pk }}">
+
+    {% if form.non_field_errors %}
+    <div class="rounded-lg border border-olumsuz/40 bg-olumsuz/5 px-4 py-3 text-sm text-olumsuz">
+      {{ form.non_field_errors }}
+    </div>
+    {% endif %}
+
+    {# Hat bilgileri: operatör seçilince tarife, tarife seçilince kampanya HTMX ile gelir #}
+    <section class="yuzey rounded-kart p-5 sm:p-6">
+      <h2 class="baslik font-semibold">Hat bilgileri</h2>
+
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label for="{{ form.operator.id_for_label }}" class="alan-etiketi mb-1.5 block">
+            Operatör
+          </label>
+          <select name="operator" id="{{ form.operator.id_for_label }}" class="girdi" required
+                  hx-get="{% url 'basvurular:tarife-secenekleri' %}"
+                  hx-target="#tarife-kutusu"
+                  hx-include="[name='kategori']"
+                  hx-trigger="change">
+            <option value="">Seçiniz</option>
+            {% for secenek in form.fields.operator.queryset %}
+            <option value="{{ secenek.pk }}"
+                    {% if form.operator.value|stringformat:'s' == secenek.pk|stringformat:'s' %}selected{% endif %}>
+              {{ secenek.ad }}
+            </option>
+            {% endfor %}
+          </select>
+          {% for hata in form.operator.errors %}
+          <p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>
+          {% endfor %}
+        </div>
+
+        <div id="tarife-kutusu">
+          {% include "basvurular/parca_tarife.html" with tarifeler=form.fields.tarife.queryset secili=form.tarife.value %}
+        </div>
+
+        <div id="kampanya-kutusu" class="sm:col-span-2">
+          {% include "basvurular/parca_kampanya.html" with kampanyalar=form.fields.kampanya.queryset secili=form.kampanya.value %}
+        </div>
+      </div>
+    </section>
+
+    {# Müşteri bilgileri: her başvuruda ortak olan çekirdek alanlar #}
+    <section class="yuzey rounded-kart p-5 sm:p-6">
+      <h2 class="baslik font-semibold">Müşteri bilgileri</h2>
+
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        {% if form.musteri_tipi.field.widget.input_type != 'hidden' %}
+        <div>
+          <label for="{{ form.musteri_tipi.id_for_label }}" class="alan-etiketi mb-1.5 block">Müşteri tipi</label>
+          {{ form.musteri_tipi }}
+        </div>
+        {% else %}{{ form.musteri_tipi }}{% endif %}
+
+        <div>
+          <label for="{{ form.kimlik_tipi.id_for_label }}" class="alan-etiketi mb-1.5 block">Kimlik tipi</label>
+          {{ form.kimlik_tipi }}
+        </div>
+
+        <div>
+          <label for="{{ form.kimlik_no.id_for_label }}" class="alan-etiketi mb-1.5 block">Kimlik / pasaport no</label>
+          {{ form.kimlik_no }}
+          {% for hata in form.kimlik_no.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
+        </div>
+
+        <div>
+          <label for="{{ form.irtibat.id_for_label }}" class="alan-etiketi mb-1.5 block">İrtibat numarası</label>
+          {{ form.irtibat }}
+          {% for hata in form.irtibat.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
+        </div>
+
+        <div>
+          <label for="{{ form.isim.id_for_label }}" class="alan-etiketi mb-1.5 block">İsim</label>
+          {{ form.isim }}
+          {% for hata in form.isim.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
+        </div>
+
+        <div>
+          <label for="{{ form.soyisim.id_for_label }}" class="alan-etiketi mb-1.5 block">Soyisim</label>
+          {{ form.soyisim }}
+          {% for hata in form.soyisim.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
+        </div>
+
+        <div class="sm:col-span-2">
+          <label for="{{ form.numara.id_for_label }}" class="alan-etiketi mb-1.5 block">
+            İşlem yapılacak numara
+            <span class="font-normal text-kagit-500">— taşıma ve şebeke içi işlemlerde</span>
+          </label>
+          {{ form.numara }}
+        </div>
+
+        <div class="sm:col-span-2">
+          <label for="{{ form.adres.id_for_label }}" class="alan-etiketi mb-1.5 block">Adres</label>
+          {{ form.adres }}
+        </div>
+      </div>
+    </section>
+
+    {# Kategoriye özel alanlar: KategoriAlani tanımlarından üretilir #}
+    {% for grup, alanlar in form.gruplu_alanlar %}
+    <section class="yuzey rounded-kart p-5 sm:p-6">
+      <h2 class="baslik font-semibold">{{ grup|default:"Başvuru detayları" }}</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        {% for alan in alanlar %}
+        <div {% if alan.field.widget.input_type == 'checkbox' %}class="sm:col-span-2 flex items-center gap-3"{% endif %}>
+          {% if alan.field.widget.input_type == 'checkbox' %}
+            {{ alan }}
+            <label for="{{ alan.id_for_label }}" class="alan-etiketi">{{ alan.label }}</label>
+          {% else %}
+            <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5 block">
+              {{ alan.label }}{% if not alan.field.required %}
+              <span class="font-normal text-kagit-500">— zorunlu değil</span>{% endif %}
+            </label>
+            {{ alan }}
+          {% endif %}
+          {% if alan.help_text %}
+          <p class="mt-1 text-xs text-kagit-500">{{ alan.help_text }}</p>
+          {% endif %}
+          {% for hata in alan.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+
+    {# Belgeler: mobilde doğrudan kamerayla çekilebilir #}
+    {% if form.belge_alanlari %}
+    <section class="yuzey rounded-kart p-5 sm:p-6">
+      <h2 class="baslik font-semibold">Belgeler</h2>
+      <p class="mt-1 text-sm text-kagit-500 dark:text-kagit-400">
+        Telefondan giriyorsan belgeyi doğrudan kamerayla çekebilirsin.
+      </p>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        {% for tanim, alan in form.belge_alanlari %}
+        <div>
+          <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5 block">
+            {{ alan.label }}{% if not alan.field.required %}
+            <span class="font-normal text-kagit-500">— zorunlu değil</span>{% endif %}
+          </label>
+          {{ alan }}
+          {% for hata in alan.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="yuzey rounded-kart p-5 sm:p-6">
+      <h2 class="baslik font-semibold">Not</h2>
+      <div class="mt-4">
+        <label for="{{ form.bayi_aciklamasi.id_for_label }}" class="alan-etiketi mb-1.5 block">
+          Operasyona iletmek istediğin bir şey var mı?
+        </label>
+        {{ form.bayi_aciklamasi }}
+      </div>
+    </section>
+
+    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <a href="{% url 'bayi:panel' %}" class="dugme dugme-sessiz sm:w-auto">Vazgeç</a>
+      <button type="submit" class="dugme dugme-birincil sm:w-auto">Başvuruyu gönder</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

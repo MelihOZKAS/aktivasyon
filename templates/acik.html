@@ -1,0 +1,37 @@
+{% load static %}<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block baslik %}Aktivasyon{% endblock %}</title>
+  <meta name="description" content="{% block aciklama %}Telekom bayileri için başvuru, evrak, bakiye ve hakediş yönetim sistemi.{% endblock %}">
+
+  <script>
+    (function () {
+      try {
+        var secim = localStorage.getItem("tema");
+        var koyu = secim ? secim === "koyu"
+                         : matchMedia("(prefers-color-scheme: dark)").matches;
+        if (koyu) document.documentElement.classList.add("dark");
+      } catch (e) {}
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'app.css' %}">
+</head>
+<body class="min-h-dvh">
+{% block govde %}{% endblock %}
+
+<script>
+  document.addEventListener("click", function (olay) {
+    if (!olay.target.closest("[data-tema-degistir]")) return;
+    var koyuydu = document.documentElement.classList.toggle("dark");
+    try { localStorage.setItem("tema", koyuydu ? "koyu" : "acik"); } catch (e) {}
+  });
+</script>
+</body>
+</html>

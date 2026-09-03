@@ -1,274 +1,71 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="tr">
-
+{% load static panel %}<!doctype html>
+<html lang="tr" class="{{ tema_sinifi }}">
 <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <meta name="description" content="Responsive Admin &amp; Dashboard Template based on Bootstrap 5">
-    <meta name="author" content="AdminKit">
-    <meta name="keywords"
-          content="adminkit, bootstrap, bootstrap 5, admin, dashboard, template, responsive, css, sass, html, theme, front-end, ui kit, web">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block baslik %}Aktivasyon{% endblock %}</title>
 
-    <link rel="preconnect" href="https://fonts.gstatic.com">
-    <link rel="shortcut icon" href="{% static 'panel/img/icons/icon-48x48.png' %}"/>
+  <script>
+    // Tema tercihini boyamadan önce uygula ki ekran titremesin.
+    (function () {
+      try {
+        var secim = localStorage.getItem("tema");
+        var koyu = secim ? secim === "koyu"
+                         : matchMedia("(prefers-color-scheme: dark)").matches;
+        if (koyu) document.documentElement.classList.add("dark");
+      } catch (e) {}
+    })();
+  </script>
 
-    <link rel="canonical" href="https://demo-basic.adminkit.io/"/>
-
-    <title>Başvuru sistemi</title>
-
-    <link href="{% static 'panel/css/app.css' %}" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'app.css' %}">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.4/htmx.min.js" defer></script>
 </head>
 
+<body class="min-h-dvh">
+<div class="lg:grid lg:grid-cols-[16rem_1fr] min-h-dvh">
 
-<body>
+  {% include "parcalar/kenar.html" %}
 
-<div class="wrapper">
-    <!-- Sol Nav -->
-    {% include 'parcali/solnav.html' %}
+  <div class="flex min-h-dvh flex-col">
+    {% include "parcalar/ustbar.html" %}
 
-    <!-- Main Genel  -->
-    <div class="main">
+    <main class="flex-1 px-5 py-7 lg:px-9 lg:py-9">
+      {% if messages %}
+        <div class="mb-6 space-y-2">
+          {% for mesaj in messages %}
+            <div class="yuzey sim rounded-kart px-4 py-3 text-sm
+                        {% if 'error' in mesaj.tags %}border-olumsuz/40 text-olumsuz
+                        {% elif 'success' in mesaj.tags %}border-olumlu/40 text-olumlu{% endif %}">
+              {{ mesaj }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
 
-        <!-- üst nav Başlanbgıc  -->
-        {% include 'parcali/ustnav.html' %}
-
-
-        {% block content %}
-
-
-
-
-        {% endblock content %}
-    </div>
+      {% block icerik %}{% endblock %}
+    </main>
+  </div>
 </div>
 
-<script src="{% static 'panel/js/app.js' %}"></script>
+<script>
+  document.addEventListener("click", function (olay) {
+    var dugme = olay.target.closest("[data-tema-degistir]");
+    if (!dugme) return;
+    var koyuydu = document.documentElement.classList.toggle("dark");
+    try { localStorage.setItem("tema", koyuydu ? "koyu" : "acik"); } catch (e) {}
+  });
 
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        var ctx = document.getElementById("chartjs-dashboard-line").getContext("2d");
-        var gradient = ctx.createLinearGradient(0, 0, 0, 225);
-        gradient.addColorStop(0, "rgba(215, 227, 244, 1)");
-        gradient.addColorStop(1, "rgba(215, 227, 244, 0)");
-        // Line chart
-        new Chart(document.getElementById("chartjs-dashboard-line"), {
-            type: "line",
-            data: {
-                labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-                datasets: [{
-                    label: "Sales ($)",
-                    fill: true,
-                    backgroundColor: gradient,
-                    borderColor: window.theme.primary,
-                    data: [
-                        2115,
-                        1562,
-                        1584,
-                        1892,
-                        1587,
-                        1923,
-                        2566,
-                        2448,
-                        2805,
-                        3438,
-                        2917,
-                        3327
-                    ]
-                }]
-            },
-            options: {
-                maintainAspectRatio: false,
-                legend: {
-                    display: false
-                },
-                tooltips: {
-                    intersect: false
-                },
-                hover: {
-                    intersect: true
-                },
-                plugins: {
-                    filler: {
-                        propagate: false
-                    }
-                },
-                scales: {
-                    xAxes: [{
-                        reverse: true,
-                        gridLines: {
-                            color: "rgba(0,0,0,0.0)"
-                        }
-                    }],
-                    yAxes: [{
-                        ticks: {
-                            stepSize: 1000
-                        },
-                        display: true,
-                        borderDash: [3, 3],
-                        gridLines: {
-                            color: "rgba(0,0,0,0.0)"
-                        }
-                    }]
-                }
-            }
-        });
-    });
+  document.addEventListener("click", function (olay) {
+    var dugme = olay.target.closest("[data-menu-ac]");
+    if (dugme) {
+      document.getElementById("kenar-menu").classList.toggle("hidden");
+    }
+  });
 </script>
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        // Pie chart
-        new Chart(document.getElementById("chartjs-dashboard-pie"), {
-            type: "pie",
-            data: {
-                labels: ["Chrome", "Firefox", "IE"],
-                datasets: [{
-                    data: [4306, 3801, 1689],
-                    backgroundColor: [
-                        window.theme.primary,
-                        window.theme.warning,
-                        window.theme.danger
-                    ],
-                    borderWidth: 5
-                }]
-            },
-            options: {
-                responsive: !window.MSInputMethodContext,
-                maintainAspectRatio: false,
-                legend: {
-                    display: false
-                },
-                cutoutPercentage: 75
-            }
-        });
-    });
-</script>
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        // Bar chart
-        new Chart(document.getElementById("chartjs-dashboard-bar"), {
-            type: "bar",
-            data: {
-                labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-                datasets: [{
-                    label: "This year",
-                    backgroundColor: window.theme.primary,
-                    borderColor: window.theme.primary,
-                    hoverBackgroundColor: window.theme.primary,
-                    hoverBorderColor: window.theme.primary,
-                    data: [54, 67, 41, 55, 62, 45, 55, 73, 60, 76, 48, 79],
-                    barPercentage: .75,
-                    categoryPercentage: .5
-                }]
-            },
-            options: {
-                maintainAspectRatio: false,
-                legend: {
-                    display: false
-                },
-                scales: {
-                    yAxes: [{
-                        gridLines: {
-                            display: false
-                        },
-                        stacked: false,
-                        ticks: {
-                            stepSize: 20
-                        }
-                    }],
-                    xAxes: [{
-                        stacked: false,
-                        gridLines: {
-                            color: "transparent"
-                        }
-                    }]
-                }
-            }
-        });
-    });
-</script>
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        var markers = [{
-            coords: [31.230391, 121.473701],
-            name: "Shanghai"
-        },
-            {
-                coords: [28.704060, 77.102493],
-                name: "Delhi"
-            },
-            {
-                coords: [6.524379, 3.379206],
-                name: "Lagos"
-            },
-            {
-                coords: [35.689487, 139.691711],
-                name: "Tokyo"
-            },
-            {
-                coords: [23.129110, 113.264381],
-                name: "Guangzhou"
-            },
-            {
-                coords: [40.7127837, -74.0059413],
-                name: "New York"
-            },
-            {
-                coords: [34.052235, -118.243683],
-                name: "Los Angeles"
-            },
-            {
-                coords: [41.878113, -87.629799],
-                name: "Chicago"
-            },
-            {
-                coords: [51.507351, -0.127758],
-                name: "London"
-            },
-            {
-                coords: [40.416775, -3.703790],
-                name: "Madrid "
-            }
-        ];
-        var map = new jsVectorMap({
-            map: "world",
-            selector: "#world_map",
-            zoomButtons: true,
-            markers: markers,
-            markerStyle: {
-                initial: {
-                    r: 9,
-                    strokeWidth: 7,
-                    stokeOpacity: .4,
-                    fill: window.theme.primary
-                },
-                hover: {
-                    fill: window.theme.primary,
-                    stroke: window.theme.primary
-                }
-            },
-            zoomOnScroll: false
-        });
-        window.addEventListener("resize", () => {
-            map.updateSize();
-        });
-    });
-</script>
-<script>
-    document.addEventListener("DOMContentLoaded", function () {
-        var date = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
-        var defaultDate = date.getUTCFullYear() + "-" + (date.getUTCMonth() + 1) + "-" + date.getUTCDate();
-        document.getElementById("datetimepicker-dashboard").flatpickr({
-            inline: true,
-            prevArrow: "<span title=\"Previous month\">&laquo;</span>",
-            nextArrow: "<span title=\"Next month\">&raquo;</span>",
-            defaultDate: defaultDate
-        });
-    });
-</script>
+{% block betik %}{% endblock %}
 </body>
-
-
 </html>

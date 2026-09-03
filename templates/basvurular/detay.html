@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}{{ basvuru.referans_no }} · Aktivasyon{% endblock %}
+{% block sayfa_basligi %}Başvuru {{ basvuru.referans_no }}{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl space-y-6">
+
+  <div class="yuzey sim rounded-kart p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h2 class="baslik text-2xl font-bold">{{ basvuru.ad_soyad }}</h2>
+        <p class="mt-1 text-sm text-kagit-500 dark:text-kagit-400">
+          <span class="rakam">{{ basvuru.referans_no }}</span> · {{ basvuru.kategori.ad }}
+        </p>
+      </div>
+      <div class="flex items-center gap-3">
+        {% sinyal basvuru.durum %}
+        <span class="rounded-full px-3 py-1 text-sm font-semibold"
+              style="background: {{ basvuru.durum.renk }}1f; color: {{ basvuru.durum.renk }}">
+          {{ basvuru.durum.ad }}
+        </span>
+      </div>
+    </div>
+
+    {% if basvuru.para_islendi %}
+    <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-t border-kagit-200 pt-4 text-sm
+               dark:border-murekkep-800">
+      <div class="flex items-baseline gap-2">
+        <dt class="text-kagit-500 dark:text-kagit-400">Kesilen ücret</dt>
+        <dd class="rakam font-semibold text-olumsuz">{{ basvuru.tahsil_edilen|para }} ₺</dd>
+      </div>
+      <div class="flex items-baseline gap-2">
+        <dt class="text-kagit-500 dark:text-kagit-400">Hakedişin</dt>
+        <dd class="rakam font-semibold text-olumlu">{{ basvuru.hakedis|para }} ₺</dd>
+      </div>
+    </dl>
+    {% endif %}
+  </div>
+
+  <div class="yuzey rounded-kart p-6">
+    <h3 class="baslik font-semibold">Başvuru bilgileri</h3>
+    <dl class="mt-4 grid gap-x-8 gap-y-3.5 text-sm sm:grid-cols-2">
+      {% if basvuru.operator %}
+      <div><dt class="text-kagit-500 dark:text-kagit-400">Operatör</dt>
+           <dd class="mt-0.5 font-medium">{{ basvuru.operator.ad }}</dd></div>
+      {% endif %}
+      {% if basvuru.tarife %}
+      <div><dt class="text-kagit-500 dark:text-kagit-400">Tarife</dt>
+           <dd class="mt-0.5 font-medium">{{ basvuru.tarife.ad }}</dd></div>
+      {% endif %}
+      {% if basvuru.kampanya %}
+      <div><dt class="text-kagit-500 dark:text-kagit-400">Kampanya</dt>
+           <dd class="mt-0.5 font-medium">{{ basvuru.kampanya.ad }}</dd></div>
+      {% endif %}
+      <div><dt class="text-kagit-500 dark:text-kagit-400">{{ basvuru.get_kimlik_tipi_display }} no</dt>
+           <dd class="rakam mt-0.5 font-medium">{{ basvuru.kimlik_no }}</dd></div>
+      <div><dt class="text-kagit-500 dark:text-kagit-400">İrtibat</dt>
+           <dd class="rakam mt-0.5 font-medium">{{ basvuru.irtibat }}</dd></div>
+      {% if basvuru.numara %}
+      <div><dt class="text-kagit-500 dark:text-kagit-400">İşlem numarası</dt>
+           <dd class="rakam mt-0.5 font-medium">{{ basvuru.numara }}</dd></div>
+      {% endif %}
+      {% for etiket, deger in ek_satirlar %}
+      <div><dt class="text-kagit-500 dark:text-kagit-400">{{ etiket }}</dt>
+           <dd class="mt-0.5 font-medium">{{ deger }}</dd></div>
+      {% endfor %}
+      {% if basvuru.adres %}
+      <div class="sm:col-span-2"><dt class="text-kagit-500 dark:text-kagit-400">Adres</dt>
+           <dd class="mt-0.5 font-medium">{{ basvuru.adres }}</dd></div>
+      {% endif %}
+    </dl>
+  </div>
+
+  {% if basvuru.belgeler.all %}
+  <div class="yuzey rounded-kart p-6">
+    <h3 class="baslik font-semibold">Belgeler</h3>
+    <div class="mt-4 grid gap-3 sm:grid-cols-3">
+      {% for belge in basvuru.belgeler.all %}
+      <a href="{{ belge.dosya.url }}" target="_blank" rel="noopener"
+         class="block overflow-hidden rounded-lg border border-kagit-200 dark:border-murekkep-800">
+        <div class="aspect-4/3 bg-kagit-100 dark:bg-murekkep-850">
+          <img src="{{ belge.dosya.url }}" alt="{{ belge.etiket }}"
+               class="h-full w-full object-cover" loading="lazy"
+               onerror="this.style.display='none'">
+        </div>
+        <p class="px-3 py-2 text-xs font-medium">{{ belge.etiket|default:belge.alan_kodu }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="yuzey rounded-kart p-6">
+    <h3 class="baslik font-semibold">Durum geçmişi</h3>
+    <ol class="mt-4 space-y-4">
+      {% for kayit in basvuru.durum_gecmisi.all %}
+      <li class="flex gap-3.5">
+        <span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+              style="background: {{ kayit.yeni_durum.renk }}"></span>
+        <div class="min-w-0">
+          <p class="text-sm font-medium">{{ kayit.yeni_durum.ad }}</p>
+          <p class="mt-0.5 text-xs text-kagit-500">
+            {{ kayit.tarih|date:"j F Y, H:i" }}{% if kayit.aciklama %} — {{ kayit.aciklama }}{% endif %}
+          </p>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+  </div>
+
+  <a href="{% url 'basvurular:liste' %}" class="dugme dugme-sessiz">Listeye dön</a>
+</div>
+{% endblock %}

@@ -1,0 +1,4 @@
+<span class="sinyal {% if kirik %}kirik{% endif %}" style="color: {{ renk }}"
+      role="img" aria-label="Durum: {{ ad }}">
+  {% for cubuk in cubuklar %}<i {% if not kirik and cubuk <= seviye %}class="dolu"{% endif %}></i>{% endfor %}
+</span>

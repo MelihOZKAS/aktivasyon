@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block baslik %}Başvurularım · Aktivasyon{% endblock %}
+{% block sayfa_basligi %}Başvurularım{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-5xl">
+
+  <div class="mb-6 flex flex-wrap items-baseline justify-between gap-3">
+    <h2 class="baslik text-2xl font-bold">
+      Başvurularım
+      <span class="rakam ml-1 text-lg font-medium text-kagit-500">{{ toplam }}</span>
+    </h2>
+    <a href="{% url 'basvurular:yeni' %}" class="dugme dugme-birincil text-sm">Yeni başvuru</a>
+  </div>
+
+  <form class="mb-5 flex flex-wrap gap-3"
+        hx-get="{% url 'basvurular:liste' %}"
+        hx-target="#liste-govdesi"
+        hx-trigger="submit, change from:select, keyup changed delay:400ms from:input[name='q']"
+        hx-push-url="true">
+    <input type="search" name="q" value="{{ arama }}" class="girdi max-w-xs"
+           placeholder="Ad, referans, numara ya da kimlik no">
+    <select name="durum" class="girdi max-w-[12rem]">
+      <option value="">Tüm durumlar</option>
+      {% for durum in durumlar %}
+      <option value="{{ durum.slug }}" {% if secili_durum == durum.slug %}selected{% endif %}>
+        {{ durum.ad }}
+      </option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <div id="liste-govdesi">
+    {% include "basvurular/parca_liste.html" %}
+  </div>
+</div>
+{% endblock %}
