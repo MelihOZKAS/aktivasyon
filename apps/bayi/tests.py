@@ -325,3 +325,69 @@ class SimKartTestleri(TestCase):
         yanit = self.client.post(self._url(), self._gonderi(self.benim.imei))
         self.assertEqual(yanit.status_code, 302)
         self.assertEqual(Basvuru.objects.count(), 2)
+
+
+class BayiBasvuruFormuTestleri(TestCase):
+    """Kamuya açık bayi başvuru formu."""
+
+    def setUp(self):
+        from apps.bayi.models import BayiBasvurusu
+
+        self.model = BayiBasvurusu
+        self.url = reverse("bayi:bayi-basvurusu")
+
+    def _veri(self, **degisiklik):
+        veri = {"isim": "Melih", "soyisim": "Kaya", "irtibat": "5321234567", "website": ""}
+        veri.update(degisiklik)
+        return veri
+
+    def test_giris_yapmadan_erisilebilir(self):
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+    def test_basvuru_kaydedilir(self):
+        yanit = self.client.post(self.url, self._veri())
+        self.assertEqual(yanit.status_code, 200)
+        self.assertContains(yanit, "Başvurunuz alındı")
+
+        basvuru = self.model.objects.get()
+        self.assertEqual(basvuru.ad_soyad, "Melih Kaya")
+        self.assertEqual(basvuru.irtibat, "5321234567")
+        self.assertEqual(basvuru.durum, "yeni")
+
+    def test_basindaki_sifir_temizlenir(self):
+        self.client.post(self.url, self._veri(irtibat="0532 123 45 67"))
+        self.assertEqual(self.model.objects.get().irtibat, "5321234567")
+
+    def test_gecersiz_telefon_reddedilir(self):
+        for kotu in ["123", "02121234567", "abcdefghij"]:
+            yanit = self.client.post(self.url, self._veri(irtibat=kotu))
+            self.assertContains(yanit, "10 hane girin")
+        self.assertEqual(self.model.objects.count(), 0)
+
+    def test_zorunlu_alanlar_bos_birakilamaz(self):
+        yanit = self.client.post(self.url, self._veri(isim="", soyisim=""))
+        self.assertEqual(self.model.objects.count(), 0)
+        self.assertContains(yanit, "Bu alan zorunludur")
+
+    def test_bot_tuzagi_kaydi_engeller(self):
+        """Tuzak alan doluysa kayıt açılmaz ama bot bunu anlamaz."""
+        yanit = self.client.post(self.url, self._veri(website="http://spam.example"))
+        self.assertContains(yanit, "Başvurunuz alındı")
+        self.assertEqual(self.model.objects.count(), 0)
+
+    def test_yeni_basvuruda_telegram_bildirimi_gider(self):
+        from unittest.mock import patch
+        from apps.bildirim import telegram
+
+        with self.settings(
+            TELEGRAM_BOT_TOKEN="x:y", TELEGRAM_SOHBET_ID="@g", TELEGRAM_ARKA_PLAN=False
+        ):
+            with patch.object(telegram, "_gonder") as sahte:
+                with self.captureOnCommitCallbacks(execute=True):
+                    self.client.post(self.url, self._veri())
+        sahte.assert_called_once()
+        self.assertIn("Yeni bayi başvurusu", sahte.call_args[0][0])
+
+    def test_bayi_giris_ekraninda_baglanti_var(self):
+        yanit = self.client.get(reverse("bayi:giris"))
+        self.assertContains(yanit, self.url)

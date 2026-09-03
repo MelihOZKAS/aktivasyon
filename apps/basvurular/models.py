@@ -68,6 +68,11 @@ class BasvuruDurumu(ZamanDamgali):
         default=False,
         help_text="Eksik evrak gibi durumlarda bayinin başvuruyu güncellemesine izin verir.",
     )
+    bildirim_gonder = models.BooleanField(
+        "Telegram Bildirimi Gönder",
+        default=False,
+        help_text="Bu duruma geçildiğinde operasyon grubuna mesaj atılır.",
+    )
     sinyal_seviyesi = models.PositiveSmallIntegerField(
         "Sinyal Seviyesi",
         default=1,

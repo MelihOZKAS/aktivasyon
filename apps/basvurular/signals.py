@@ -36,6 +36,7 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
         return
 
     from apps.bayi.services import basvurunun_simlerini_serbest_birak
+    from apps.bildirim.telegram import basvuru_bildir
     from apps.finans.services import basvuru_parasini_geri_al, basvuru_parasini_isle
 
     DurumGecmisi.objects.create(
@@ -46,6 +47,11 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     )
 
     durum = instance.durum
+
+    # Bildirim işin önüne geçmez: transaction tamamlandıktan sonra,
+    # arka planda gönderilir ve hatası akışı bozmaz.
+    if created or durum.bildirim_gonder:
+        basvuru_bildir(instance, yeni=created)
 
     if durum.olumsuz_sonuc:
         # Operatörden iptal gelince kart fiziksel olarak bayide kalıyor;

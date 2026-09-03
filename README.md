@@ -150,6 +150,35 @@ Model değiştirdikten sonra:
 .venv/bin/python manage.py makemigrations --check --dry-run   # "No changes detected" görmeli
 ```
 
+## Telegram bildirimleri
+
+Operasyon grubuna yeni başvuru ve durum değişikliği bildirimi gider.
+Yapılandırmak için `.env` dosyasına ekleyin:
+
+```
+TELEGRAM_BOT_TOKEN=BotFather'dan aldığınız anahtar
+TELEGRAM_SOHBET_ID=@grup_kullanici_adi
+```
+
+Sınamak için: `python manage.py telegram_dene`
+
+Hangi durumların bildirim göndereceğini yönetim panelinden **Başvuru
+Durumları** ekranındaki "Telegram Bildirimi Gönder" kutusuyla siz seçersiniz.
+Yeni başvurular ve yeni bayi başvuruları her zaman bildirilir.
+
+Bildirim hiçbir zaman işin önüne geçmez: mesaj transaction tamamlandıktan
+sonra ayrı bir iş parçacığında gönderilir ve hatası yutulur. Telegram
+erişilemez olsa bile başvuru kaydedilmiş kalır. (Eski sistemde `requests.get`
+doğrudan view içindeydi; Telegram çöktüğünde başvuru kaydedilmiş olmasına
+rağmen bayi hata sayfası görüyordu.)
+
+## Bayi başvurusu
+
+`/bayi-basvurusu/` kamuya açıktır: isim, soy isim ve telefon alınır.
+Talepler yönetim panelinde **Bayi Başvuruları** altında listelenir; hesabı
+oradan siz açarsınız. Formda görünmez bir tuzak alan vardır, botların
+doldurduğu kayıtlar sessizce atılır.
+
 ## Sunucu
 
 Bu proje kendi container ve volume'larında tamamen izoledir. Aşağıdaki komutlar

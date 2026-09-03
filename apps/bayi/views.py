@@ -14,7 +14,9 @@ from urllib.parse import quote
 from django.views.decorators.http import require_POST
 
 from apps.basvurular.models import Basvuru, BasvuruDurumu
+from apps.bayi.forms import BayiBasvuruFormu
 from apps.bayi.models import Duyuru
+from apps.bildirim.telegram import bayi_basvurusu_bildir
 from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
 from apps.katalog.models import BasvuruKategorisi
 
@@ -280,3 +282,19 @@ def cuzdan_gorunumu(request):
             "secili_tip": tip,
         },
     )
+
+
+def bayi_basvurusu(request):
+    """Bayi olmak isteyenlerin iletişim bilgisi bıraktığı kamuya açık form."""
+    if request.method == "POST":
+        form = BayiBasvuruFormu(request.POST)
+        if form.is_valid():
+            if not form.bot_doldurdu:
+                basvuru = form.save()
+                bayi_basvurusu_bildir(basvuru)
+            # Bot da olsa insan da olsa aynı ekranı görür; ayrım ele verilmez.
+            return render(request, "bayi/basvuru_alindi.html")
+    else:
+        form = BayiBasvuruFormu()
+
+    return render(request, "bayi/bayi_basvurusu.html", {"form": form})

@@ -144,3 +144,49 @@ class Duyuru(ZamanDamgali):
 
     def __str__(self):
         return self.baslik
+
+
+class BayiBasvuruDurumu(models.TextChoices):
+    YENI = "yeni", "Yeni"
+    GORUSULDU = "gorusuldu", "Görüşüldü"
+    ONAYLANDI = "onaylandi", "Onaylandı"
+    REDDEDILDI = "reddedildi", "Reddedildi"
+
+
+class BayiBasvurusu(ZamanDamgali):
+    """Bayi olmak isteyenlerin bıraktığı iletişim talebi.
+
+    Kamuya açık sayfadan doldurulur; hesap açma işini yönetim yapar.
+    """
+
+    isim = models.CharField("İsim", max_length=100)
+    soyisim = models.CharField("Soyisim", max_length=100)
+    irtibat = models.CharField("İrtibat Numarası", max_length=20)
+    durum = models.CharField(
+        "Durum",
+        max_length=20,
+        choices=BayiBasvuruDurumu.choices,
+        default=BayiBasvuruDurumu.YENI,
+    )
+    notlar = models.TextField("Notlar", blank=True, help_text="Başvurana gösterilmez.")
+    olusturulan_kullanici = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Açılan Hesap",
+        related_name="kaynak_basvurusu",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+
+    class Meta:
+        verbose_name = "Bayi Başvurusu"
+        verbose_name_plural = "Bayi Başvuruları"
+        ordering = ["-olusturma_tarihi"]
+        indexes = [models.Index(fields=["durum", "-olusturma_tarihi"])]
+
+    def __str__(self):
+        return f"{self.isim} {self.soyisim}".strip()
+
+    @property
+    def ad_soyad(self):
+        return f"{self.isim} {self.soyisim}".strip()

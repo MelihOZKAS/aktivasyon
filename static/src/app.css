@@ -342,7 +342,13 @@
     -webkit-overflow-scrolling: touch;
   }
 
+  /* İkon fontu yüklenene kadar ligatür metni ("sim_card" gibi) görünmesin;
+     alan kaplasın ama boş kalsın, sayfa zıplamasın. */
   .ikon {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    overflow: hidden;
     font-family: "Material Symbols Outlined";
     font-weight: normal;
     font-style: normal;

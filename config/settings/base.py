@@ -110,6 +110,13 @@ LOGIN_REDIRECT_URL = "bayi:panel"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
+# Telegram bildirimleri. Anahtarlar tanımlı değilse bildirim sessizce atlanır,
+# uygulama etkilenmez.
+TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
+TELEGRAM_SOHBET_ID = env("TELEGRAM_SOHBET_ID", default="")
+# Gönderimi eşzamanlı yapmak için False: hata ayıklarken sonucu hemen görürsünüz.
+TELEGRAM_ARKA_PLAN = env.bool("TELEGRAM_ARKA_PLAN", default=True)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -234,6 +241,11 @@ UNFOLD = {
                 "title": "Bayi",
                 "separator": True,
                 "items": [
+                    {
+                        "title": "Bayi Başvuruları",
+                        "icon": "how_to_reg",
+                        "link": "/yonetim/bayi/bayibasvurusu/",
+                    },
                     {
                         "title": "Bayi Profilleri",
                         "icon": "storefront",

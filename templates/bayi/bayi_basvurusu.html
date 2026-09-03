@@ -1,0 +1,91 @@
+{% extends "acik.html" %}
+
+{% block baslik %}Bayi başvurusu · Aktivasyon{% endblock %}
+{% block aciklama %}Aktivasyon bayi ağına katılmak için iletişim bilgilerinizi bırakın.{% endblock %}
+
+{% block govde %}
+<div class="grid min-h-dvh lg:grid-cols-[1fr_1.05fr]">
+
+  <div class="hidden flex-col justify-between border-r border-cizgi bg-zemin p-14 lg:flex">
+    <a href="{% url 'bayi:anasayfa' %}" class="flex min-h-11 items-center gap-2.5">
+      <span class="sim sim-cizgisiz grid h-9 w-9 place-items-center bg-vurgu text-white">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 20v-6M7 20v-3M17 20v-9M4 6.5C6.5 4 9.1 3 12 3s5.5 1 8 3.5"/>
+        </svg>
+      </span>
+      <span class="baslik text-lg font-bold">Aktivasyon</span>
+    </a>
+
+    <div class="max-w-md">
+      <h2 class="baslik text-[2.5rem] font-bold leading-[1.1]">
+        Bayi ağımıza katılın.
+      </h2>
+      <p class="mt-5 leading-relaxed text-murekkep-yumusak">
+        İletişim bilgilerinizi bırakın, temsilcimiz sizi arasın. Hesabınız
+        açıldıktan sonra başvurularınızı bu panelden girer, hakedişlerinizi
+        anlık takip edersiniz.
+      </p>
+    </div>
+
+    <p class="text-xs text-silik">Aktivasyon · Bayi başvuru ve hakediş sistemi</p>
+  </div>
+
+  <div class="flex items-center justify-center bg-yuzey px-6 py-14">
+    <div class="w-full max-w-sm">
+      <a href="{% url 'bayi:anasayfa' %}" class="mb-9 inline-flex min-h-11 items-center gap-2.5 lg:hidden">
+        <span class="sim sim-cizgisiz grid h-10 w-10 place-items-center bg-vurgu text-white">
+          <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M12 20v-6M7 20v-3M17 20v-9M4 6.5C6.5 4 9.1 3 12 3s5.5 1 8 3.5"/>
+          </svg>
+        </span>
+        <span class="baslik text-lg font-bold">Aktivasyon</span>
+      </a>
+
+      <h1 class="baslik text-3xl font-bold">Bayi başvurusu</h1>
+      <p class="mt-2 text-soluk">
+        Adınızı ve telefonunuzu bırakın, sizi arayalım.
+      </p>
+
+      <form method="post" class="mt-8 space-y-5" novalidate>
+        {% csrf_token %}
+
+        <div>
+          <label for="{{ form.isim.id_for_label }}" class="alan-etiketi mb-1.5">İsim</label>
+          {{ form.isim }}
+          {% for hata in form.isim.errors %}
+          <p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>
+          {% endfor %}
+        </div>
+
+        <div>
+          <label for="{{ form.soyisim.id_for_label }}" class="alan-etiketi mb-1.5">Soy isim</label>
+          {{ form.soyisim }}
+          {% for hata in form.soyisim.errors %}
+          <p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>
+          {% endfor %}
+        </div>
+
+        <div>
+          <label for="{{ form.irtibat.id_for_label }}" class="alan-etiketi mb-1.5">
+            İrtibat numarası
+          </label>
+          {{ form.irtibat }}
+          {% for hata in form.irtibat.errors %}
+          <p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>
+          {% endfor %}
+        </div>
+
+        {# Botlar için tuzak alan; ekran okuyucudan ve gözden gizli. #}
+        <div class="hidden" aria-hidden="true">{{ form.website }}</div>
+
+        <button type="submit" class="dugme dugme-birincil w-full">Başvuruyu gönder</button>
+      </form>
+
+      <div class="mt-8 border-t border-cizgi pt-6">
+        <p class="mb-3 text-sm text-soluk">Hesabınız zaten var mı?</p>
+        <a href="{% url 'bayi:giris' %}" class="dugme dugme-sessiz w-full">Giriş yap</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

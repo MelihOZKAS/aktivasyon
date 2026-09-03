@@ -69,6 +69,7 @@ class BasvuruDurumuAdmin(ModelAdmin):
         "hakedis_tetikler",
         "olumsuz_sonuc",
         "bayi_duzenleyebilir",
+        "bildirim_gonder",
         "sinyal_seviyesi",
         "sira",
         "aktif",
@@ -86,6 +87,7 @@ class BasvuruDurumuAdmin(ModelAdmin):
                     "hakedis_tetikler",
                     "olumsuz_sonuc",
                     "bayi_duzenleyebilir",
+                    "bildirim_gonder",
                 ),
                 "description": (
                     "“Para Hareketini Tetikler” işaretli duruma geçildiğinde ücret "

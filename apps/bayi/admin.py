@@ -9,7 +9,14 @@ from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationFo
 
 from django.shortcuts import render
 
-from apps.bayi.models import BayiProfili, Duyuru, SimKart, SimKartDurumu
+from apps.bayi.models import (
+    BayiBasvuruDurumu,
+    BayiBasvurusu,
+    BayiProfili,
+    Duyuru,
+    SimKart,
+    SimKartDurumu,
+)
 from apps.finans.models import Cuzdan
 from apps.katalog.models import Operator
 
@@ -185,3 +192,67 @@ class DuyuruAdmin(ModelAdmin):
     list_filter = ("aktif", "onemli")
     search_fields = ("baslik", "icerik")
     date_hierarchy = "olusturma_tarihi"
+
+
+@admin.register(BayiBasvurusu)
+class BayiBasvurusuAdmin(ModelAdmin):
+    """Bayi olmak isteyenlerin bıraktığı talepler."""
+
+    list_display = (
+        "ad_soyad", "irtibat_baglantisi", "durum_rozeti",
+        "olusturulan_kullanici", "olusturma_tarihi",
+    )
+    list_filter = ("durum", "olusturma_tarihi")
+    search_fields = ("isim", "soyisim", "irtibat")
+    date_hierarchy = "olusturma_tarihi"
+    readonly_fields = ("isim", "soyisim", "irtibat", "olusturma_tarihi")
+    autocomplete_fields = ("olusturulan_kullanici",)
+    actions = ("gorusuldu_isaretle", "reddet")
+    fieldsets = (
+        (
+            "Başvuran",
+            {
+                "fields": ("isim", "soyisim", "irtibat", "olusturma_tarihi"),
+                "description": "Bu bilgiler başvuran tarafından girildi, değiştirilemez.",
+            },
+        ),
+        ("Değerlendirme", {"fields": ("durum", "notlar", "olusturulan_kullanici")}),
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("olusturulan_kullanici")
+
+    @admin.display(description="Ad Soyad", ordering="isim")
+    def ad_soyad(self, obj):
+        return obj.ad_soyad
+
+    @admin.display(description="Telefon")
+    def irtibat_baglantisi(self, obj):
+        return format_html(
+            '<a href="tel:{}" style="font-weight:600">{}</a>', obj.irtibat, obj.irtibat
+        )
+
+    @admin.display(description="Durum")
+    def durum_rozeti(self, obj):
+        renkler = {
+            "yeni": "#0E5E5B",
+            "gorusuldu": "#B45309",
+            "onaylandi": "#0F8A4D",
+            "reddedildi": "#D42046",
+        }
+        return format_html(
+            '<span style="background:{};color:#fff;padding:.15rem .6rem;'
+            'border-radius:999px;font-size:.75rem;font-weight:600">{}</span>',
+            renkler.get(obj.durum, "#6F7B8F"),
+            obj.get_durum_display(),
+        )
+
+    @admin.action(description="Görüşüldü olarak işaretle")
+    def gorusuldu_isaretle(self, request, secilenler):
+        adet = secilenler.update(durum=BayiBasvuruDurumu.GORUSULDU)
+        self.message_user(request, f"{adet} başvuru görüşüldü işaretlendi.", messages.SUCCESS)
+
+    @admin.action(description="Reddet")
+    def reddet(self, request, secilenler):
+        adet = secilenler.update(durum=BayiBasvuruDurumu.REDDEDILDI)
+        self.message_user(request, f"{adet} başvuru reddedildi.", messages.SUCCESS)

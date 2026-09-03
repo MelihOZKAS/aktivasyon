@@ -8,7 +8,7 @@
   <header class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5 sm:px-6 sm:py-6">
     <a href="{% url 'bayi:anasayfa' %}" class="flex min-h-11 items-center gap-2.5">
       <span class="sim sim-cizgisiz grid h-9 w-9 place-items-center bg-vurgu text-white">
-        <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2">
           <path d="M12 20v-6M7 20v-3M17 20v-9M4 6.5C6.5 4 9.1 3 12 3s5.5 1 8 3.5"/>
         </svg>
       </span>
@@ -34,8 +34,8 @@
       </p>
 
       <div class="mt-9 flex flex-wrap gap-3">
-        <a href="{% url 'bayi:giris' %}" class="dugme dugme-birincil">Bayi girişi</a>
-        <a href="#nasil" class="dugme dugme-sessiz">Nasıl işliyor</a>
+        <a href="{% url 'bayi:bayi-basvurusu' %}" class="dugme dugme-birincil">Bayi başvurusu yap</a>
+        <a href="{% url 'bayi:giris' %}" class="dugme dugme-sessiz">Bayi girişi</a>
       </div>
     </div>
 
@@ -126,8 +126,8 @@
   <footer class="border-t border-cizgi py-10">
     <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 text-sm sm:px-6">
       <p class="text-soluk">Aktivasyon · Bayi başvuru ve hakediş sistemi</p>
-      <a href="{% url 'bayi:giris' %}"
-         class="flex min-h-11 items-center font-medium text-vurgu hover:underline">Bayi girişi</a>
+      <a href="{% url 'bayi:bayi-basvurusu' %}"
+         class="flex min-h-11 items-center font-medium text-vurgu hover:underline">Bayi başvurusu</a>
     </div>
   </footer>
 </div>
