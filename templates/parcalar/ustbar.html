@@ -7,7 +7,15 @@
     <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
   </button>
 
-  <div class="flex-1"></div>
+  {# Kimin hesabıyla çalışıldığı her ekranda görünsün. #}
+  <div class="min-w-0 flex-1">
+    {% if user.bayi_profili.unvan %}
+    <p class="truncate font-medium leading-tight">{{ user.bayi_profili.unvan }}</p>
+    <p class="truncate text-xs text-soluk">{{ user.get_username }}</p>
+    {% else %}
+    <p class="truncate font-medium">{{ user.get_full_name|default:user.get_username }}</p>
+    {% endif %}
+  </div>
 
 
   <form method="post" action="{% url 'bayi:cikis' %}">

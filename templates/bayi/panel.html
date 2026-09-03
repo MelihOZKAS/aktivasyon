@@ -36,6 +36,26 @@
     {% endif %}
   </section>
 
+  {% if durum_dagilimi %}
+  {# İşlerin nerede takıldığı tek bakışta. Her sütun o duruma filtreli listeye gider. #}
+  <section class="border-t border-cizgi pt-6">
+    <div class="flex flex-wrap gap-x-10 gap-y-5">
+      {% for satir in durum_dagilimi %}
+      <a href="{% url 'basvurular:liste' %}?durum={{ satir.durum.slug }}"
+         class="group flex min-h-11 items-center gap-3">
+        {% sinyal satir.durum %}
+        <span>
+          <span class="rakam block text-xl font-bold leading-none">{{ satir.adet }}</span>
+          <span class="mt-1 block text-xs text-soluk group-hover:text-murekkep">
+            {{ satir.durum.ad }}
+          </span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   {% if duyurular %}
   <section class="space-y-3">
     {% for duyuru in duyurular %}
@@ -51,7 +71,7 @@
   {% endif %}
 
   <section>
-    <h2 class="baslik mb-4 text-lg font-semibold">Yeni başvuru</h2>
+    <h2 class="baslik mb-4 text-xl font-bold">Yeni başvuru</h2>
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {% for kategori in kategoriler %}
       <a href="{% url 'basvurular:yeni' kategori.slug %}"
@@ -64,12 +84,18 @@
         </span>
         <span class="min-w-0 flex-1">
           <span class="baslik block truncate font-semibold">{{ kategori.ad }}</span>
-          {% if kategori.hakedis_alt %}
-          <span class="mt-0.5 block text-sm text-soluk">
+          <span class="mt-1 flex items-center gap-2.5 text-sm">
+            {% if kategori.hakedis_alt %}
             <span class="rakam font-semibold text-olumlu">{{ kategori.hakedis_alt|para }}{% if kategori.hakedis_ust != kategori.hakedis_alt %}–{{ kategori.hakedis_ust|para }}{% endif %} ₺</span>
-            hakediş
+            <span class="text-soluk">hakediş</span>
+            {% endif %}
+            <span class="ml-auto flex shrink-0 items-center gap-1"
+                  title="{% for o in kategori.gecerli %}{{ o.ad }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+              {% for operator in kategori.gecerli %}
+              <span class="h-2 w-2 rounded-full" style="background: {{ operator.renk }}"></span>
+              {% endfor %}
+            </span>
           </span>
-          {% endif %}
         </span>
       </a>
       {% empty %}
@@ -80,7 +106,7 @@
 
   <section>
     <div class="mb-4 flex items-baseline justify-between">
-      <h2 class="baslik text-lg font-semibold">Son başvurular</h2>
+      <h2 class="baslik text-xl font-bold">Son başvurular</h2>
       <a href="{% url 'basvurular:liste' %}"
          class="-mr-2 flex min-h-11 items-center px-2 text-sm font-medium text-vurgu hover:underline">
         Tümünü gör
@@ -96,7 +122,10 @@
         {% sinyal basvuru.durum %}
         <div class="min-w-0 flex-1">
           <p class="truncate font-medium">{{ basvuru.ad_soyad }}</p>
-          <p class="mt-0.5 truncate text-sm text-soluk">{{ basvuru.kategori.ad }}</p>
+          <p class="mt-0.5 flex items-baseline gap-2.5 truncate text-sm text-soluk">
+            <span class="referans">{{ basvuru.referans_no }}</span>
+            <span class="truncate">{{ basvuru.kategori.ad }}</span>
+          </p>
         </div>
         {% if basvuru.operator %}
         <span class="rozet hidden shrink-0 sm:inline-flex"

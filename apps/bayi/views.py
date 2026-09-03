@@ -13,7 +13,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from urllib.parse import quote
 from django.views.decorators.http import require_POST
 
-from apps.basvurular.models import Basvuru
+from apps.basvurular.models import Basvuru, BasvuruDurumu
 from apps.bayi.models import Duyuru
 from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
 from apps.katalog.models import BasvuruKategorisi
@@ -183,6 +183,28 @@ def _kategori_hakedisleri(kullanici):
     return araliklar
 
 
+def _durum_dagilimi(kullanici):
+    """Bayinin başvurularının durumlara göre dağılımı.
+
+    Panelde sinyal çubuklarıyla gösterilir; her satır o duruma filtrelenmiş
+    listeye götürür. Amaç tek bakışta "kaç iş nerede takılı" sorusunu
+    cevaplamak.
+    """
+    sayilar = dict(
+        Basvuru.objects.filter(bayi=kullanici)
+        .values_list("durum_id")
+        .annotate(adet=Count("id"))
+        .values_list("durum_id", "adet")
+    )
+    if not sayilar:
+        return []
+
+    return [
+        {"durum": durum, "adet": sayilar[durum.pk]}
+        for durum in BasvuruDurumu.objects.filter(pk__in=sayilar, aktif=True).order_by("sira")
+    ]
+
+
 @login_required
 def panel(request):
     cuzdan = getattr(request.user, "cuzdan", None)
@@ -198,10 +220,15 @@ def panel(request):
         )
 
     araliklar = _kategori_hakedisleri(request.user)
-    kategoriler = list(BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad"))
+    kategoriler = list(
+        BasvuruKategorisi.objects.filter(aktif=True)
+        .prefetch_related("operatorler")
+        .order_by("sira", "ad")
+    )
     for kategori in kategoriler:
         aralik = araliklar.get(kategori.pk)
         kategori.hakedis_alt, kategori.hakedis_ust = aralik if aralik else (None, None)
+        kategori.gecerli = kategori.gecerli_operatorler()
 
     return render(
         request,
@@ -215,6 +242,7 @@ def panel(request):
             ),
             "duyurular": Duyuru.objects.filter(aktif=True)[:3],
             "aylik_hakedis": aylik_hakedis,
+            "durum_dagilimi": _durum_dagilimi(request.user),
         },
     )
 

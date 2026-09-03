@@ -29,6 +29,16 @@ Tek tema vardır: beyaz. Koyu tema bilinçli olarak yok.
 göstergesi olarak sinyal çubuğu (`.sinyal`). Her yere aynı border-radius
 uygulanmaz; yüzeyler gölgeyle değil kenarlıkla ayrılır.
 
+`clip-path` elemanı kenarlığıyla birlikte kestiği için pahlı köşede çizgi
+kaybolur. `.sim`/`.sim-sol` bu çizgiyi `::after` üzerinde yeniden çizer; rengi
+`--sim-kenar` değişkeninden gelir. Kenarlık rengini değiştiren bir hover
+yazarken bu değişkeni de güncelle (`.kart-secim`e bak). Dolu zeminlerde
+(marka işareti gibi) `.sim-cizgisiz` ekle.
+
+Sinyal çubuğu dekor değil: panelde durum dağılımını da o anlatır ve her sütun
+o duruma filtrelenmiş listeye gider. Yeni bir "durum" görselleştirmesi
+gerekirse yeni bir dil icat etme, bu motifi kullan.
+
 **5. Marka renkleri `okunur_renk` filtresinden geçer.** Operatör renkleri
 admin'den giriliyor; Turkcell sarısı gibi açık renkler beyazda okunmaz.
 

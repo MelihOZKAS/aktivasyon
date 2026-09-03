@@ -98,13 +98,75 @@
 }
 
 @layer components {
-  /* SIM kart silüeti: tek köşe pahlı. Bu projenin imza formu. */
+  /* SIM kart silüeti: tek köşe pahlı. Bu projenin imza formu.
+
+     clip-path elemanı kenarlığıyla birlikte kestiği için pahlı köşede çizgi
+     kaybolur; kart yarım kalmış görünür. Çapraz çizgiyi ::after üzerinde
+     yeniden çiziyoruz. Rengi --sim-kenar değişkeninden gelir, böylece hover
+     gibi durumlarda kenarlıkla birlikte değişebilir. */
+  .sim,
+  .sim-sol {
+    --pah: 1.1rem;
+    --sim-kenar: var(--color-cizgi);
+    position: relative;
+  }
+
   .sim {
-    clip-path: polygon(0 0, calc(100% - 1.1rem) 0, 100% 1.1rem, 100% 100%, 0 100%);
+    clip-path: polygon(0 0, calc(100% - var(--pah)) 0, 100% var(--pah), 100% 100%, 0 100%);
   }
 
   .sim-sol {
-    clip-path: polygon(1.1rem 0, 100% 0, 100% 100%, 0 100%, 0 1.1rem);
+    clip-path: polygon(var(--pah) 0, 100% 0, 100% 100%, 0 100%, 0 var(--pah));
+  }
+
+  .sim::after,
+  .sim-sol::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    background-size: var(--pah) var(--pah);
+  }
+
+  .sim::after {
+    background-image: linear-gradient(
+      to top right,
+      transparent calc(50% - 0.5px),
+      var(--sim-kenar) calc(50% - 0.5px),
+      var(--sim-kenar) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    );
+    background-position: top right;
+  }
+
+  .sim-sol::after {
+    background-image: linear-gradient(
+      to top left,
+      transparent calc(50% - 0.5px),
+      var(--sim-kenar) calc(50% - 0.5px),
+      var(--sim-kenar) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px)
+    );
+    background-position: top left;
+  }
+
+  /* Marka işareti gibi dolu zeminlerde çapraz çizgi istenmez. */
+  .sim-cizgisiz::after,
+  .sim-sol.sim-cizgisiz::after {
+    content: none;
+  }
+
+  /* Seçilebilir kart: kenarlık, çapraz çizgi ve zemin birlikte değişir. */
+  .kart-secim {
+    transition: border-color 0.12s, background-color 0.12s;
+  }
+
+  .kart-secim:hover,
+  .kart-secim:focus-visible {
+    --sim-kenar: var(--color-vurgu);
+    border-color: var(--color-vurgu);
+    background: var(--color-vurgu-acik);
   }
 
   /* Yüzeyler uçmaz: ayrımı kenarlık yapar, gölge yapmaz. */
@@ -140,6 +202,20 @@
   /* Olumsuz sonuçta çubuklar dolmaz: kopmuş sinyal. */
   .sinyal.kirik i { opacity: 0.2; }
   .sinyal.kirik i:nth-child(1) { opacity: 1; }
+
+  /* Referans numarası bayinin dosyaya tutunduğu yer: telefonda okunacak,
+     kâğıda yazılacak. Harf aralığı açık, zemini hafif tonlu. */
+  .referans {
+    font-family: var(--font-baslik);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+    color: var(--color-murekkep-yumusak);
+    background: var(--color-zemin-koyu);
+    border-radius: 0.3rem;
+    padding: 0.05rem 0.4rem;
+    white-space: nowrap;
+  }
 
   .alan-etiketi {
     display: block;
