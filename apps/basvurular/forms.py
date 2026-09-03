@@ -15,6 +15,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu, KimlikTipi
+from apps.basvurular.gorsel import gorseli_kucult
 from apps.basvurular.validators import belge_dogrula
 from apps.katalog.models import AlanTipi, Kampanya, MusteriTipi, Tarife
 
@@ -302,7 +303,7 @@ class BasvuruFormu(forms.Form):
                 BasvuruBelgesi.objects.update_or_create(
                     basvuru=basvuru,
                     alan_kodu=tanim.kod,
-                    defaults={"dosya": dosya, "etiket": tanim.etiket},
+                    defaults={"dosya": gorseli_kucult(dosya), "etiket": tanim.etiket},
                 )
 
         self._simleri_zimmetle(basvuru)

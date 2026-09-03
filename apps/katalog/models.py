@@ -8,7 +8,7 @@ gerekmez; admin panelinden kategori açıp alanlarını tanımlamak yeterlidir.
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
-from apps.katalog.utils import turkce_slug
+from apps.katalog.utils import kucult, turkce_slug
 
 
 class MusteriTipi(models.TextChoices):
@@ -164,6 +164,10 @@ class Tarife(ZamanDamgali):
     def __str__(self):
         return f"{self.operator.ad} · {self.ad}"
 
+    def save(self, *args, **kwargs):
+        self.gorsel = kucult(self.gorsel)
+        super().save(*args, **kwargs)
+
 
 class Kampanya(ZamanDamgali):
     """Tarifenin altındaki alt kampanya. Tarih aralığı dolunca kendiliğinden düşer."""
@@ -193,6 +197,10 @@ class Kampanya(ZamanDamgali):
 
     def __str__(self):
         return f"{self.tarife.ad} · {self.ad}"
+
+    def save(self, *args, **kwargs):
+        self.gorsel = kucult(self.gorsel)
+        super().save(*args, **kwargs)
 
     def clean(self):
         if (

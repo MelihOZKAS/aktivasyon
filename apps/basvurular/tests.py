@@ -576,3 +576,86 @@ class BelgeSilmeTestleri(TestCase):
 
         self.assertTrue(os.path.exists(yol))
         self.assertTrue(BasvuruBelgesi.objects.filter(pk=belge.pk).exists())
+
+
+class GorselKucultmeTestleri(TestCase):
+    """Telefon fotoğrafları küçültülüp WebP'ye çevrilir."""
+
+    def _foto(self, ad="kimlik.jpg", boyut=(3000, 2000), bicim="JPEG"):
+        from PIL import Image
+
+        tampon = io.BytesIO()
+        gorsel = Image.new("RGB", boyut, (240, 238, 232))
+        # Düz renk çok iyi sıkışır; gerçekçi olması için desen ekle.
+        for x in range(0, boyut[0], 11):
+            for y in range(0, boyut[1], 97):
+                gorsel.putpixel((x, y), (x % 255, y % 255, 90))
+        gorsel.save(tampon, bicim, quality=95)
+        icerik = tampon.getvalue()
+        tur = "image/jpeg" if bicim == "JPEG" else f"image/{bicim.lower()}"
+        return SimpleUploadedFile(ad, icerik, content_type=tur), len(icerik)
+
+    def test_buyuk_foto_kucultulur_ve_webp_olur(self):
+        from apps.basvurular.gorsel import gorseli_kucult
+        from PIL import Image
+
+        dosya, asil_boyut = self._foto()
+        sonuc = gorseli_kucult(dosya)
+
+        self.assertTrue(sonuc.name.endswith(".webp"))
+        self.assertLess(sonuc.size, asil_boyut)
+
+        sonuc.seek(0)
+        with Image.open(sonuc) as g:
+            self.assertEqual(g.format, "WEBP")
+            self.assertLessEqual(max(g.size), 2000)
+
+    def test_pdf_dokunulmadan_gecer(self):
+        from apps.basvurular.gorsel import gorseli_kucult
+
+        pdf = SimpleUploadedFile(
+            "ikametgah.pdf", b"%PDF-1.4\n%%EOF\n", content_type="application/pdf"
+        )
+        sonuc = gorseli_kucult(pdf)
+        self.assertIs(sonuc, pdf)
+        self.assertTrue(sonuc.name.endswith(".pdf"))
+
+    def test_kucuk_gorsel_buyutulmez(self):
+        from apps.basvurular.gorsel import gorseli_kucult
+        from PIL import Image
+
+        dosya, _ = self._foto(boyut=(400, 300))
+        sonuc = gorseli_kucult(dosya)
+
+        sonuc.seek(0)
+        with Image.open(sonuc) as g:
+            self.assertEqual(g.size, (400, 300))
+
+    def test_bozuk_dosyada_ozgun_dosya_korunur(self):
+        """Dönüşüm başarısız olsa da bayinin yüklemesi kaybolmamalı."""
+        from apps.basvurular.gorsel import gorseli_kucult
+
+        bozuk = SimpleUploadedFile("kimlik.png", b"bu bir resim degil", content_type="image/png")
+        sonuc = gorseli_kucult(bozuk)
+        self.assertIs(sonuc, bozuk)
+
+    def test_exif_donme_uygulanip_veri_temizlenir(self):
+        """Telefon fotoğrafı yan yatmamalı, konum bilgisi de taşınmamalı."""
+        from apps.basvurular.gorsel import gorseli_kucult
+        from PIL import Image
+
+        tampon = io.BytesIO()
+        gorsel = Image.new("RGB", (600, 300), (200, 100, 100))
+        exif = Image.Exif()
+        exif[274] = 6  # 90 derece döndür
+        gorsel.save(tampon, "JPEG", exif=exif)
+        dosya = SimpleUploadedFile(
+            "kimlik.jpg", tampon.getvalue(), content_type="image/jpeg"
+        )
+
+        sonuc = gorseli_kucult(dosya)
+        sonuc.seek(0)
+        with Image.open(sonuc) as g:
+            # Döndürme uygulandığı için en ve boy yer değiştirmiş olmalı.
+            self.assertEqual(g.size, (300, 600))
+            self.assertFalse(g.getexif())

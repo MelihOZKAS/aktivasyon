@@ -89,6 +89,20 @@ Kimlik ve pasaport görüntüleri kişisel veridir; **MEDIA_URL üzerinden doğr
 sunulmaz**. Erişim `/basvuru/<REFERANS>/belge/<alan>/` üzerinden ve izin
 kontrolüyle olur: yalnızca başvuruyu giren bayi ve yetkili personel görebilir.
 
+### Görseller yüklenirken küçültülür
+
+Telefon kameraları 4000×3000 çekiyor; kimlikteki yazıyı okumak için bu
+gereksiz. Yüklenen görseller uzun kenarı `GORSEL_MAKS_KENAR` (varsayılan
+2000px) olacak şekilde küçültülüp WebP'ye çevrilir. Ölçülen tasarruf **%90**:
+8,9 MB'lık iki fotoğraf 945 KB'a iniyor. Bayinin mobil verisi de kazanıyor.
+
+EXIF verisi temizlenir — telefon fotoğrafları konum bilgisi taşır ve bunun
+kimlik görüntüsünde işi yoktur. Silmeden önce EXIF'teki döndürme uygulanır,
+yoksa fotoğraf yan yatar.
+
+PDF ve dönüştürülemeyen dosyalar olduğu gibi kalır. Dönüşüm başarısız olursa
+yükleme iptal edilmez; özgün dosya kullanılır ve hata günlüğe düşer.
+
 ### Neden veritabanında değil, diskte?
 
 Kimlik görüntüleri diskte (`media/`) tutulur, veritabanına konmaz. Bir kimlik

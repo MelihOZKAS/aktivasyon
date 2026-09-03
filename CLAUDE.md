@@ -124,6 +124,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `apps/basvurular/services.belgeleri_sil` çalışır. Aktif ve İptal siler;
   Hatalı ve Eksik Evrak silmez, çünkü o başvurular düzeltilip yeniden
   denenebilir. Başvuru kaydı ve para geçmişi her hâlükârda kalır.
+- **Yüklenen görseller küçültülüp WebP'ye çevrilir** (`apps/basvurular/gorsel.py`).
+  Yeni bir görsel alanı eklerken `gorseli_kucult`'tan geçir. EXIF döndürmesi
+  uygulanıp veri temizlenir; konum bilgisi kimlik görüntüsünde tutulmaz.
 - **Görüntüler diskte tutulur, veritabanında değil.** Veritabanı yalnızca
   dosya yolunu saklar. base64 ile satır içinde saklamak %33 şişme, dev
   `pg_dump` yedekleri ve her görüntülemede tüm veriyi belleğe alma demektir.

@@ -28,3 +28,21 @@ def turkce_slug(metin):
     'mnt-numara-tasima'
     """
     return slugify(str(metin).translate(TURKCE_HARFLER))
+
+
+def kucult(alan):
+    """Yeni yüklenen görseli küçültüp WebP'ye çevirir.
+
+    Yalnızca bu kaydetmede yüklenmiş dosyalarda çalışır; daha önce
+    kaydedilmiş bir görsel her kaydetmede yeniden işlenmez.
+    """
+    from apps.basvurular.gorsel import gorseli_kucult
+
+    if not alan:
+        return alan
+    # Zaten diske yazılmış dosyanın _file'ı yoktur; yalnızca taze yüklemeler
+    # InMemoryUploadedFile / TemporaryUploadedFile taşır.
+    dosya = getattr(alan, "file", None)
+    if dosya is None or not hasattr(dosya, "content_type"):
+        return alan
+    return gorseli_kucult(dosya)
