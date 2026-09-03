@@ -8,22 +8,21 @@
 <div class="mx-auto max-w-4xl space-y-9">
 
   <section>
-    <p class="text-sm text-kagit-500 dark:text-kagit-400">Kullanılabilir tutar</p>
+    <p class="text-sm text-soluk">Kullanılabilir tutar</p>
     <p class="rakam mt-1 text-5xl font-bold leading-none">
-      {{ kullanilabilir_tutar|para }} <span class="text-3xl text-kagit-400">₺</span>
+      {{ kullanilabilir_tutar|para }} <span class="text-3xl text-silik">₺</span>
     </p>
-    <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-3 border-t border-kagit-200 pt-4 text-sm
-               dark:border-murekkep-800">
+    <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-3 border-t border-cizgi pt-4 text-sm">
       <div class="flex items-baseline gap-2">
-        <dt class="text-kagit-500 dark:text-kagit-400">Bakiye</dt>
+        <dt class="text-soluk">Bakiye</dt>
         <dd class="rakam font-semibold">{{ cuzdan.bakiye|para }} ₺</dd>
       </div>
       <div class="flex items-baseline gap-2">
-        <dt class="text-kagit-500 dark:text-kagit-400">Borç</dt>
+        <dt class="text-soluk">Borç</dt>
         <dd class="rakam font-semibold {% if cuzdan.borc %}text-uyari{% endif %}">{{ cuzdan.borc|para }} ₺</dd>
       </div>
       <div class="flex items-baseline gap-2">
-        <dt class="text-kagit-500 dark:text-kagit-400">Borç limiti</dt>
+        <dt class="text-soluk">Borç limiti</dt>
         <dd class="rakam font-semibold">{{ cuzdan.gecerli_borc_limiti|para }} ₺</dd>
       </div>
     </dl>
@@ -32,7 +31,7 @@
   {% if bankalar %}
   <section>
     <h2 class="baslik mb-1 text-lg font-semibold">Bakiye yükle</h2>
-    <p class="mb-4 text-sm text-kagit-500 dark:text-kagit-400">
+    <p class="mb-4 text-sm text-soluk">
       Aşağıdaki hesaplardan birine havale yap, dekontu temsilcine ilet. Borcun varsa
       yüklenen tutar önce borçtan düşülür.
     </p>
@@ -40,7 +39,7 @@
       {% for banka in bankalar %}
       <div class="yuzey sim-sol rounded-kart p-5">
         <p class="baslik font-semibold">{{ banka.banka_adi }}</p>
-        <p class="mt-0.5 text-sm text-kagit-500 dark:text-kagit-400">{{ banka.hesap_sahibi }}</p>
+        <p class="mt-0.5 text-sm text-soluk">{{ banka.hesap_sahibi }}</p>
         <p class="rakam mt-3 text-sm font-semibold">{{ banka.iban }}</p>
       </div>
       {% endfor %}
@@ -65,10 +64,10 @@
     <div class="yuzey overflow-hidden rounded-kart">
       {% for hareket in sayfa %}
       <div class="flex items-center gap-4 px-5 py-4
-                  {% if not forloop.last %}border-b border-kagit-200 dark:border-murekkep-800{% endif %}">
+                  {% if not forloop.last %}border-b border-cizgi{% endif %}">
         <div class="min-w-0 flex-1">
           <p class="font-medium">{{ hareket.get_tip_display }}</p>
-          <p class="mt-0.5 truncate text-sm text-kagit-500 dark:text-kagit-400">
+          <p class="mt-0.5 truncate text-sm text-soluk">
             {{ hareket.aciklama|default:"—" }}
           </p>
         </div>
@@ -76,7 +75,7 @@
           <p class="rakam font-semibold {% if hareket.tutar >= 0 %}text-olumlu{% else %}text-olumsuz{% endif %}">
             {% if hareket.tutar >= 0 %}+{% endif %}{{ hareket.tutar|para }} ₺
           </p>
-          <p class="mt-0.5 text-xs text-kagit-500">{{ hareket.tarih|date:"j M Y, H:i" }}</p>
+          <p class="mt-0.5 text-xs text-soluk">{{ hareket.tarih|date:"j M Y, H:i" }}</p>
         </div>
       </div>
       {% endfor %}
@@ -87,7 +86,7 @@
       {% if sayfa.has_previous %}
       <a href="?sayfa={{ sayfa.previous_page_number }}&tip={{ secili_tip }}" class="dugme dugme-sessiz">Önceki</a>
       {% else %}<span></span>{% endif %}
-      <span class="text-kagit-500">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
+      <span class="text-soluk">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
       {% if sayfa.has_next %}
       <a href="?sayfa={{ sayfa.next_page_number }}&tip={{ secili_tip }}" class="dugme dugme-sessiz">Sonraki</a>
       {% else %}<span></span>{% endif %}
@@ -97,7 +96,7 @@
     {% else %}
     <div class="yuzey sim rounded-kart px-6 py-14 text-center">
       <p class="baslik font-semibold">Henüz hareket yok</p>
-      <p class="mx-auto mt-1.5 max-w-xs text-sm text-kagit-500 dark:text-kagit-400">
+      <p class="mx-auto mt-1.5 max-w-xs text-sm text-soluk">
         Başvurun aktifleştiğinde hakedişin burada görünecek.
       </p>
     </div>

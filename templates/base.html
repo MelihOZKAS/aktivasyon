@@ -1,25 +1,15 @@
 {% load static panel %}<!doctype html>
-<html lang="tr" class="{{ tema_sinifi }}">
+<html lang="tr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
   <title>{% block baslik %}Aktivasyon{% endblock %}</title>
 
-  <script>
-    // Tema tercihini boyamadan önce uygula ki ekran titremesin.
-    (function () {
-      try {
-        var secim = localStorage.getItem("tema");
-        var koyu = secim ? secim === "koyu"
-                         : matchMedia("(prefers-color-scheme: dark)").matches;
-        if (koyu) document.documentElement.classList.add("dark");
-      } catch (e) {}
-    })();
-  </script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=block" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'app.css' %}">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.4/htmx.min.js" defer></script>
@@ -33,7 +23,7 @@
   <div class="flex min-h-dvh flex-col">
     {% include "parcalar/ustbar.html" %}
 
-    <main class="flex-1 px-5 py-7 lg:px-9 lg:py-9">
+    <main class="flex-1 bg-yuzey px-5 py-7 lg:px-9 lg:py-10">
       {% if messages %}
         <div class="mb-6 space-y-2">
           {% for mesaj in messages %}
@@ -52,13 +42,6 @@
 </div>
 
 <script>
-  document.addEventListener("click", function (olay) {
-    var dugme = olay.target.closest("[data-tema-degistir]");
-    if (!dugme) return;
-    var koyuydu = document.documentElement.classList.toggle("dark");
-    try { localStorage.setItem("tema", koyuydu ? "koyu" : "acik"); } catch (e) {}
-  });
-
   document.addEventListener("click", function (olay) {
     var dugme = olay.target.closest("[data-menu-ac]");
     if (dugme) {

@@ -6,21 +6,21 @@
 {% block icerik %}
 <div class="mx-auto max-w-4xl">
   <h2 class="baslik text-2xl font-bold">Ne başvurusu gireceksin?</h2>
-  <p class="mt-1.5 text-sm text-kagit-500 dark:text-kagit-400">
+  <p class="mt-1.5 text-sm text-soluk">
     Kategoriyi seç, form kendini ona göre kursun.
   </p>
 
   <div class="mt-7 grid gap-3 sm:grid-cols-2">
     {% for kategori in kategoriler %}
     <a href="?kategori={{ kategori.pk }}"
-       class="yuzey sim rounded-kart p-5 transition-colors hover:border-sinyal-500 hover:bg-sinyal-500/5">
+       class="yuzey sim rounded-kart p-5 transition-colors hover:border-vurgu hover:bg-vurgu/5">
       <h3 class="baslik font-semibold">{{ kategori.ad }}</h3>
       {% if kategori.aciklama %}
-      <p class="mt-1 text-sm text-kagit-500 dark:text-kagit-400">{{ kategori.aciklama }}</p>
+      <p class="mt-1 text-sm text-soluk">{{ kategori.aciklama }}</p>
       {% endif %}
     </a>
     {% empty %}
-    <p class="text-sm text-kagit-500">Henüz kategori tanımlanmamış.</p>
+    <p class="text-sm text-soluk">Henüz kategori tanımlanmamış.</p>
     {% endfor %}
   </div>
 </div>

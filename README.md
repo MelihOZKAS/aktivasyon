@@ -43,6 +43,17 @@ cp .env.ornek .env            # SECRET_KEY'i değiştir
 
 Bayi paneli `/`, yönetim `/yonetim/`.
 
+### Tema
+
+Tek tema vardır: beyaz. Arayüz kağıt, mürekkep ve griden ibarettir; ekrandaki
+**her renk bir bilgi taşır** — operatör markası, başvuru durumu, para yönü.
+Bu yüzden yeni bir arayüz rengi eklemeden önce "bu renk hangi veriyi
+anlatıyor?" sorusunu sor.
+
+Marka renkleri admin'den girildiği için açık renkler (Turkcell sarısı gibi)
+beyaz üstünde okunmaz. `okunur_renk` şablon filtresi tonu koruyup parlaklığı
+güvenli aralığa çeker; rozetlerde ve sinyal çubuklarında hep bu filtre kullanılır.
+
 ### Tailwind
 
 Sunucuda Node yoktur; CSS burada derlenip `static/app.css` olarak commit edilir.

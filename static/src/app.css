@@ -3,77 +3,74 @@
 @source "../../templates";
 @source "../../apps";
 
-/* Tema değişimi sınıfla kontrol edilir; sistem tercihi JS tarafından uygulanır. */
-@custom-variant dark (&:where(.dark, .dark *));
-
+/* Beyaz tema. Arayüz kağıt, mürekkep ve griden ibarettir; ekrandaki her renk
+   bir bilgi taşır (operatör markası, başvuru durumu, para yönü). */
 @theme {
-  /* Zemin: telekom altyapısını çağrıştıran mürekkep lacivert.
-     Nötr kalır ki operatör marka renkleri veri olarak okunsun. */
-  --color-murekkep-950: #070C17;
-  --color-murekkep-900: #0D1526;
-  --color-murekkep-850: #111B31;
-  --color-murekkep-800: #16203A;
-  --color-murekkep-700: #1F2C4C;
-  --color-murekkep-600: #2E3F68;
-  --color-murekkep-500: #47598A;
+  --color-zemin: #F1F4F8;
+  --color-zemin-koyu: #E7ECF3;
+  --color-yuzey: #FFFFFF;
 
-  --color-kagit-50: #F7F9FC;
-  --color-kagit-100: #EDF1F7;
-  --color-kagit-200: #DCE3ED;
-  --color-kagit-300: #C2CDDD;
-  --color-kagit-400: #93A2B8;
-  --color-kagit-500: #64748B;
+  --color-cizgi: #E3E8F0;
+  --color-cizgi-koyu: #CBD4E1;
 
-  /* Vurgu: bağlantı/sinyal. Operatör renklerinin hiçbiriyle karışmaz. */
-  --color-sinyal-300: #6EF2DC;
-  --color-sinyal-400: #2FE6C8;
-  --color-sinyal-500: #0FD9C0;
-  --color-sinyal-600: #00B8A3;
-  --color-sinyal-700: #00907F;
+  --color-murekkep: #0D1320;
+  --color-murekkep-yumusak: #384357;
+  --color-soluk: #6F7B8F;
+  --color-silik: #9AA5B7;
 
-  --color-olumlu: #15A34A;
-  --color-olumsuz: #E11D48;
-  --color-uyari: #F59E0B;
+  --color-vurgu: #4A2FE7;
+  --color-vurgu-acik: #EEEBFE;
 
-  --font-baslik: "Archivo", "Helvetica Neue", sans-serif;
+  --color-olumlu: #0F8A4D;
+  --color-olumlu-acik: #E6F5ED;
+  --color-olumsuz: #D42046;
+  --color-olumsuz-acik: #FCEAEE;
+  --color-uyari: #B45309;
+  --color-uyari-acik: #FDF3E3;
+
+  --font-baslik: "Familjen Grotesk", "Helvetica Neue", sans-serif;
   --font-govde: "Manrope", system-ui, sans-serif;
 
-  --radius-kart: 0.875rem;
+  --radius-kart: 0.75rem;
 }
 
 @layer base {
+  /* Tarayıcının sayfayı zorla koyulaştırmasını engeller. */
+  :root {
+    color-scheme: light;
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
   }
 
   body {
     font-family: var(--font-govde);
-    background: var(--color-kagit-50);
-    color: var(--color-murekkep-900);
-    font-feature-settings: "ss01", "cv01";
-  }
-
-  .dark body {
-    background: var(--color-murekkep-950);
-    color: var(--color-kagit-100);
+    background: var(--color-zemin);
+    color: var(--color-murekkep);
+    -webkit-font-smoothing: antialiased;
   }
 
   h1, h2, h3, .baslik {
     font-family: var(--font-baslik);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.018em;
   }
 
-  /* Rakamlar hizalı aksın: bakiye ve tutar listelerinde kritik. */
+  /* Tutarlar alt alta hizalı aksın: bakiye ve liste ekranlarında kritik. */
   .rakam {
     font-family: var(--font-baslik);
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.025em;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-sinyal-500);
+    outline: 2px solid var(--color-vurgu);
     outline-offset: 2px;
     border-radius: 4px;
+  }
+
+  ::selection {
+    background: var(--color-vurgu-acik);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -85,18 +82,22 @@
 }
 
 @layer components {
-  /* SIM kart silüeti: tek köşe pahlı. Bu projenin imza formu —
-     her yere uygulanan tek tip border-radius yerine. */
+  /* SIM kart silüeti: tek köşe pahlı. Bu projenin imza formu. */
   .sim {
-    clip-path: polygon(0 0, calc(100% - 1.15rem) 0, 100% 1.15rem, 100% 100%, 0 100%);
+    clip-path: polygon(0 0, calc(100% - 1.1rem) 0, 100% 1.1rem, 100% 100%, 0 100%);
   }
 
   .sim-sol {
-    clip-path: polygon(1.15rem 0, 100% 0, 100% 100%, 0 100%, 0 1.15rem);
+    clip-path: polygon(1.1rem 0, 100% 0, 100% 100%, 0 100%, 0 1.1rem);
   }
 
-  /* Durum göstergesi: sinyal çubuğu. Sektörün kendi metaforu;
-     hem durumu hem sıradaki ilerlemeyi tek işarette taşır. */
+  /* Yüzeyler uçmaz: ayrımı kenarlık yapar, gölge yapmaz. */
+  .yuzey {
+    background: var(--color-yuzey);
+    border: 1px solid var(--color-cizgi);
+  }
+
+  /* Durum göstergesi: sinyal çubuğu. Hem durumu hem sıradaki ilerlemeyi taşır. */
   .sinyal {
     display: inline-flex;
     align-items: flex-end;
@@ -109,7 +110,7 @@
     width: 3px;
     border-radius: 1px;
     background: currentColor;
-    opacity: 0.22;
+    opacity: 0.2;
   }
 
   .sinyal i:nth-child(1) { height: 25%; }
@@ -120,137 +121,125 @@
 
   .sinyal i.dolu { opacity: 1; }
 
-  /* Olumsuz sonuçta çubuklar dolmaz, kırık sinyal gibi soluk kalır. */
-  .sinyal.kirik i { opacity: 0.22; }
+  /* Olumsuz sonuçta çubuklar dolmaz: kopmuş sinyal. */
+  .sinyal.kirik i { opacity: 0.2; }
   .sinyal.kirik i:nth-child(1) { opacity: 1; }
 
   .alan-etiketi {
+    display: block;
     font-size: 0.8125rem;
     font-weight: 600;
-    color: var(--color-murekkep-600);
+    color: var(--color-murekkep-yumusak);
   }
 
-  .dark .alan-etiketi {
-    color: var(--color-kagit-400);
-  }
-
+  /* Girdiler: tezgâhta parmakla basılacak kadar geniş. */
   .girdi {
     width: 100%;
-    border-radius: 0.625rem;
-    border: 1px solid var(--color-kagit-300);
-    background: #fff;
-    padding: 0.75rem 0.875rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-cizgi-koyu);
+    background: var(--color-yuzey);
+    padding: 0.7rem 0.875rem;
+    font-family: inherit;
     font-size: 1rem;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    color: var(--color-murekkep);
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+
+  .girdi::placeholder {
+    color: var(--color-silik);
   }
 
   .girdi:hover {
-    border-color: var(--color-kagit-400);
+    border-color: var(--color-soluk);
   }
 
+  /* Gölge yalnızca o an dokunduğun öğede: etkileşim işareti, dekor değil. */
   .girdi:focus {
     outline: none;
-    border-color: var(--color-sinyal-500);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-sinyal-500) 18%, transparent);
-  }
-
-  .dark .girdi {
-    border-color: var(--color-murekkep-700);
-    background: var(--color-murekkep-850);
-    color: var(--color-kagit-100);
-  }
-
-  .dark .girdi:hover {
-    border-color: var(--color-murekkep-600);
+    border-color: var(--color-vurgu);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-vurgu) 15%, transparent);
   }
 
   .girdi[aria-invalid="true"] {
     border-color: var(--color-olumsuz);
   }
 
-  /* Select'ler metin girdileriyle aynı yükseklik ve hizada dursun. */
   select.girdi {
     appearance: none;
     padding-right: 2.5rem;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2364748B' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M4 6.5 8 10.5l4-4'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236F7B8F' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M4 6.5 8 10.5l4-4'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.75rem center;
     background-size: 1rem;
   }
 
-  .dark select.girdi {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2393A2B8' stroke-width='1.75' stroke-linecap='round'%3E%3Cpath d='M4 6.5 8 10.5l4-4'/%3E%3C/svg%3E");
-  }
-
-  /* Dosya seçiciyi tezgâhta parmakla basılabilir hale getir. */
   input[type="file"].girdi {
-    padding: 0.5rem 0.625rem;
+    padding: 0.45rem 0.5rem;
     font-size: 0.9375rem;
+    color: var(--color-soluk);
   }
 
   input[type="file"].girdi::file-selector-button {
     margin-right: 0.75rem;
     border: 0;
-    border-radius: 0.4375rem;
-    background: var(--color-murekkep-900);
+    border-radius: 0.375rem;
+    background: var(--color-murekkep);
     color: #fff;
-    padding: 0.4rem 0.85rem;
+    padding: 0.45rem 0.85rem;
     font-family: inherit;
     font-weight: 600;
     font-size: 0.8125rem;
     cursor: pointer;
   }
 
-  .dark input[type="file"].girdi::file-selector-button {
-    background: var(--color-murekkep-700);
-  }
-
+  /* Birincil eylem mürekkep siyahı: operatör renkleriyle asla yarışmaz. */
   .dugme {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    border-radius: 0.625rem;
-    padding: 0.75rem 1.25rem;
+    border-radius: 0.5rem;
+    padding: 0.7rem 1.15rem;
+    font-family: inherit;
     font-weight: 600;
-    transition: background-color 0.15s, transform 0.06s;
-  }
-
-  .dugme:active {
-    transform: translateY(1px);
+    font-size: 0.9375rem;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background-color 0.12s, border-color 0.12s;
   }
 
   .dugme-birincil {
-    background: var(--color-sinyal-600);
-    color: #04241F;
+    background: var(--color-murekkep);
+    color: #fff;
+    border: 1px solid var(--color-murekkep);
   }
 
   .dugme-birincil:hover {
-    background: var(--color-sinyal-500);
+    background: #1B2436;
   }
 
   .dugme-sessiz {
-    border: 1px solid var(--color-kagit-300);
-    background: transparent;
+    background: var(--color-yuzey);
+    color: var(--color-murekkep);
+    border: 1px solid var(--color-cizgi-koyu);
   }
 
-  .dark .dugme-sessiz {
-    border-color: var(--color-murekkep-700);
+  .dugme-sessiz:hover {
+    background: var(--color-zemin);
+    border-color: var(--color-soluk);
   }
 
-  .yuzey {
-    background: #fff;
-    border: 1px solid var(--color-kagit-200);
+  /* Rozetler: yalnızca veri renklerini taşır (operatör, durum). */
+  .rozet {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
-  .dark .yuzey {
-    background: var(--color-murekkep-900);
-    border-color: var(--color-murekkep-800);
-  }
-}
-
-@layer components {
-  /* Kategori ikonları admin'den seçilir; Material Symbols adıyla gelir. */
   .ikon {
     font-family: "Material Symbols Outlined";
     font-weight: normal;

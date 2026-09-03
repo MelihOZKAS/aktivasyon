@@ -1,16 +1,15 @@
 {% load panel %}
 <aside id="kenar-menu"
-       class="hidden lg:block lg:sticky lg:top-0 lg:h-dvh
-              bg-murekkep-900 text-kagit-200 border-r border-murekkep-800">
+       class="hidden border-r border-cizgi bg-zemin lg:sticky lg:top-0 lg:block lg:h-dvh">
   <div class="flex h-full flex-col">
 
     <a href="{% url 'bayi:panel' %}" class="flex items-center gap-3 px-6 py-6">
-      <span class="sim grid h-9 w-9 place-items-center bg-sinyal-500 text-murekkep-950">
+      <span class="sim grid h-9 w-9 place-items-center bg-vurgu text-white">
         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2">
           <path d="M12 20v-6M7 20v-3M17 20v-9M4 6.5C6.5 4 9.1 3 12 3s5.5 1 8 3.5"/>
         </svg>
       </span>
-      <span class="baslik text-lg font-bold text-white">Aktivasyon</span>
+      <span class="baslik text-lg font-bold">Aktivasyon</span>
     </a>
 
     <nav class="flex-1 space-y-1 px-3">
@@ -21,39 +20,39 @@
 
       <a href="{{ u_panel }}"
          class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path == u_panel %}bg-murekkep-800 text-white{% else %}text-kagit-400 hover:bg-murekkep-850 hover:text-white{% endif %}">
+                {% if request.path == u_panel %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
         <svg viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-8 9 8M5 10v10h14V10"/></svg>
         Panel
       </a>
 
       <a href="{{ u_yeni }}"
          class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path == u_yeni %}bg-murekkep-800 text-white{% else %}text-kagit-400 hover:bg-murekkep-850 hover:text-white{% endif %}">
+                {% if request.path == u_yeni %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
         <svg viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         Yeni başvuru
       </a>
 
       <a href="{{ u_liste }}"
          class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path == u_liste %}bg-murekkep-800 text-white{% else %}text-kagit-400 hover:bg-murekkep-850 hover:text-white{% endif %}">
+                {% if request.path == u_liste %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
         <svg viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
         Başvurularım
       </a>
 
       <a href="{{ u_cuzdan }}"
          class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path == u_cuzdan %}bg-murekkep-800 text-white{% else %}text-kagit-400 hover:bg-murekkep-850 hover:text-white{% endif %}">
+                {% if request.path == u_cuzdan %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
         <svg viewBox="0 0 24 24" class="h-4.5 w-4.5" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h18v11H3zM3 8l2-4h14l2 4M16 13.5h2"/></svg>
         Cüzdan
       </a>
     </nav>
 
     {% if cuzdan %}
-    <div class="m-3 sim rounded-kart bg-murekkep-850 p-4">
-      <p class="text-xs font-semibold text-kagit-400">Kullanılabilir tutar</p>
-      <p class="rakam mt-1 text-2xl font-bold text-sinyal-400">{{ kullanilabilir_tutar|para }} ₺</p>
+    <div class="sim m-3 rounded-kart border border-cizgi bg-yuzey p-4">
+      <p class="text-xs font-semibold text-soluk">Kullanılabilir tutar</p>
+      <p class="rakam mt-1 text-2xl font-bold">{{ kullanilabilir_tutar|para }} ₺</p>
       {% if cuzdan.borc %}
-        <p class="mt-1.5 text-xs text-kagit-400">
+        <p class="mt-1.5 text-xs text-soluk">
           Borç <span class="rakam text-uyari">{{ cuzdan.borc|para }} ₺</span>
         </p>
       {% endif %}
@@ -61,7 +60,7 @@
     {% endif %}
 
     {% if user.is_staff %}
-    <a href="/yonetim/" class="mx-3 mb-3 rounded-lg px-3 py-2 text-xs font-medium text-kagit-500 hover:text-white">
+    <a href="/yonetim/" class="mx-3 mb-3 rounded-lg px-3 py-2 text-xs font-medium text-soluk hover:text-white">
       Yönetim paneli
     </a>
     {% endif %}

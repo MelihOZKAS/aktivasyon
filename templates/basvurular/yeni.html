@@ -10,7 +10,7 @@
     <div>
       <h2 class="baslik text-2xl font-bold">{{ kategori.ad }}</h2>
       {% if kategori.aciklama %}
-      <p class="mt-1 text-sm text-kagit-500 dark:text-kagit-400">{{ kategori.aciklama }}</p>
+      <p class="mt-1 text-sm text-soluk">{{ kategori.aciklama }}</p>
       {% endif %}
     </div>
     <a href="{% url 'basvurular:yeni' %}" class="dugme dugme-sessiz shrink-0 text-sm">
@@ -110,7 +110,7 @@
         <div class="sm:col-span-2">
           <label for="{{ form.numara.id_for_label }}" class="alan-etiketi mb-1.5 block">
             İşlem yapılacak numara
-            <span class="font-normal text-kagit-500">— taşıma ve şebeke içi işlemlerde</span>
+            <span class="font-normal text-soluk">— taşıma ve şebeke içi işlemlerde</span>
           </label>
           {{ form.numara }}
         </div>
@@ -135,12 +135,12 @@
           {% else %}
             <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5 block">
               {{ alan.label }}{% if not alan.field.required %}
-              <span class="font-normal text-kagit-500">— zorunlu değil</span>{% endif %}
+              <span class="font-normal text-soluk">— zorunlu değil</span>{% endif %}
             </label>
             {{ alan }}
           {% endif %}
           {% if alan.help_text %}
-          <p class="mt-1 text-xs text-kagit-500">{{ alan.help_text }}</p>
+          <p class="mt-1 text-xs text-soluk">{{ alan.help_text }}</p>
           {% endif %}
           {% for hata in alan.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
         </div>
@@ -153,7 +153,7 @@
     {% if form.belge_alanlari %}
     <section class="yuzey rounded-kart p-5 sm:p-6">
       <h2 class="baslik font-semibold">Belgeler</h2>
-      <p class="mt-1 text-sm text-kagit-500 dark:text-kagit-400">
+      <p class="mt-1 text-sm text-soluk">
         Telefondan giriyorsan belgeyi doğrudan kamerayla çekebilirsin.
       </p>
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -161,7 +161,7 @@
         <div>
           <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5 block">
             {{ alan.label }}{% if not alan.field.required %}
-            <span class="font-normal text-kagit-500">— zorunlu değil</span>{% endif %}
+            <span class="font-normal text-soluk">— zorunlu değil</span>{% endif %}
           </label>
           {{ alan }}
           {% for hata in alan.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
