@@ -18,7 +18,7 @@ from apps.bayi.forms import BayiBasvuruFormu
 from apps.bayi.models import Duyuru
 from apps.bildirim.telegram import bayi_basvurusu_bildir
 from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
-from apps.katalog.models import BasvuruKategorisi
+from apps.katalog.models import BasvuruKategorisi, Tarife
 
 # Bir başvurunun yolculuğu: giriş ekranında ve ana sayfada aynı anlatı.
 ASAMALAR = [
@@ -245,6 +245,51 @@ def panel(request):
             "duyurular": Duyuru.objects.filter(aktif=True)[:3],
             "aylik_hakedis": aylik_hakedis,
             "durum_dagilimi": _durum_dagilimi(request.user),
+        },
+    )
+
+
+@login_required
+def tarifeler(request):
+    """Bayinin göreceği tarife kataloğu.
+
+    Operatör başlıkları altında akordiyon olarak açılır; her tarifenin
+    altında yönetimin girdiği açıklama, görsel ve geçerli kampanyalar
+    görünür.
+    """
+    kategoriler = (
+        BasvuruKategorisi.objects.filter(aktif=True, tarifeler__aktif=True)
+        .distinct()
+        .order_by("sira", "ad")
+    )
+
+    secili_slug = request.GET.get("kategori") or ""
+    secili = None
+    if secili_slug:
+        secili = kategoriler.filter(slug=secili_slug).first()
+    if secili is None:
+        secili = kategoriler.first()
+
+    tarifeler_listesi = []
+    if secili:
+        tarifeler_listesi = (
+            Tarife.objects.filter(kategori=secili, aktif=True)
+            .select_related("operator")
+            .prefetch_related("kampanyalar")
+            .order_by("operator__sira", "operator__ad", "sira", "ad")
+        )
+        for tarife in tarifeler_listesi:
+            tarife.gecerli_kampanyalar = [
+                k for k in tarife.kampanyalar.all() if k.su_an_gecerli
+            ]
+
+    return render(
+        request,
+        "bayi/tarifeler.html",
+        {
+            "kategoriler": kategoriler,
+            "secili": secili,
+            "tarifeler": tarifeler_listesi,
         },
     )
 

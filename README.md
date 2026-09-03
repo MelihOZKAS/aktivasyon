@@ -172,6 +172,28 @@ erişilemez olsa bile başvuru kaydedilmiş kalır. (Eski sistemde `requests.get
 doğrudan view içindeydi; Telegram çöktüğünde başvuru kaydedilmiş olmasına
 rağmen bayi hata sayfası görüyordu.)
 
+## Tarifeler sayfası
+
+`/tarifeler/` bayinin gördüğü tarife kataloğudur: kategori sekmeleri, operatör
+başlıkları ve akordiyon olarak açılan tarife ayrıntıları. İçeriği yönetim
+panelinden **Tarifeler** ve **Kampanyalar** ekranlarındaki "Bayiye gösterilecek
+içerik" bölümünden girersiniz — açıklama ve görsel. Süresi geçmiş kampanyalar
+kendiliğinden görünmez olur.
+
+## Yönetim paneli dili
+
+django-unfold Türkçe çeviriyle gelmiyor. Eksik metinler `locale/tr/` altında
+karşılanır. Yeni bir İngilizce metin görürseniz `locale/tr/LC_MESSAGES/django.po`
+dosyasına ekleyip derleyin:
+
+```bash
+python manage.py compilemessages
+```
+
+Ekleme düğmesi de `templates/unfold/helpers/add_link.html` ile ezilmiştir:
+unfold'un ikon-only yuvarlak düğmesi ne işe yaradığını anlatmıyordu, artık
+"Yeni <model> ekle" yazıyor.
+
 ## Bayi başvurusu
 
 `/bayi-basvurusu/` kamuya açıktır: isim, soy isim ve telefon alınır.

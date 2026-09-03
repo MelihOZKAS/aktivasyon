@@ -1,0 +1,100 @@
+# Aktivasyon — Türkçe arayüz metinleri
+# django-unfold Türkçe çeviri ile gelmediği için eksik metinler burada karşılanır.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: tr\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "Type to search"
+msgstr "Aramak için yazın"
+
+msgid "Search apps and models"
+msgstr "Uygulama ve model ara"
+
+msgid "Filters"
+msgstr "Filtreler"
+
+msgid "Apply Filters"
+msgstr "Filtreleri uygula"
+
+msgid "Clear all filters"
+msgstr "Filtreleri temizle"
+
+msgid "All applications"
+msgstr "Tüm uygulamalar"
+
+msgid "More actions"
+msgstr "Diğer işlemler"
+
+msgid "Add row"
+msgstr "Satır ekle"
+
+msgid "Expand row"
+msgstr "Satırı genişlet"
+
+msgid "Go back"
+msgstr "Geri dön"
+
+msgid "No data"
+msgstr "Veri yok"
+
+msgid "No results found"
+msgstr "Sonuç bulunamadı"
+
+msgid "No results matching your query"
+msgstr "Aramanızla eşleşen sonuç yok"
+
+msgid "Recent searches"
+msgstr "Son aramalar"
+
+msgid "No recent searches"
+msgstr "Son arama yok"
+
+msgid "Loading more results..."
+msgstr "Daha fazla sonuç yükleniyor..."
+
+msgid "Next"
+msgstr "Sonraki"
+
+msgid "Previous"
+msgstr "Önceki"
+
+msgid "Close"
+msgstr "Kapat"
+
+msgid "Light"
+msgstr "Açık"
+
+msgid "Dark"
+msgstr "Koyu"
+
+msgid "General"
+msgstr "Genel"
+
+msgid "Hide counts"
+msgstr "Sayıları gizle"
+
+msgid "Show counts"
+msgstr "Sayıları göster"
+
+msgid "Click to download"
+msgstr "İndirmek için tıklayın"
+
+msgid "Record picture"
+msgstr "Kayıt görseli"
+
+msgid "No, take me back"
+msgstr "Hayır, geri dön"
+
+msgid "Log out"
+msgstr "Çıkış yap"
+
+msgid "Log in again"
+msgstr "Tekrar giriş yap"
+
+msgid "Change password"
+msgstr "Parola değiştir"
+
+msgid "After you've created a user, you’ll be able to edit more user options."
+msgstr "Kullanıcıyı oluşturduktan sonra diğer ayarlarını düzenleyebilirsiniz."

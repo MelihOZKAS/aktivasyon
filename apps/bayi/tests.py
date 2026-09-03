@@ -391,3 +391,68 @@ class BayiBasvuruFormuTestleri(TestCase):
     def test_bayi_giris_ekraninda_baglanti_var(self):
         yanit = self.client.get(reverse("bayi:giris"))
         self.assertContains(yanit, self.url)
+
+
+class TarifeSayfasiTestleri(TestCase):
+    """Bayinin göreceği tarife kataloğu."""
+
+    def setUp(self):
+        from apps.katalog.models import BasvuruKategorisi, Kampanya, Operator, Tarife
+
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+        self.operator = Operator.objects.create(ad="Turkcell", renk="#ffc900")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.tarife = Tarife.objects.create(
+            kategori=self.kategori, operator=self.operator,
+            ad="Platinum 30 GB", aciklama="Aylık 30 GB, sınırsız konuşma.",
+        )
+        self.kampanya = Kampanya.objects.create(
+            tarife=self.tarife, ad="İlk 3 ay yarı fiyat", aciklama="Yeni müşterilere."
+        )
+        self.url = reverse("bayi:tarifeler")
+        self.client.force_login(self.bayi)
+
+    def test_giris_gerekir(self):
+        self.client.logout()
+        yanit = self.client.get(self.url)
+        self.assertEqual(yanit.status_code, 302)
+        self.assertIn("/giris-yap/", yanit["Location"])
+
+    def test_tarife_ve_aciklama_gorunur(self):
+        yanit = self.client.get(self.url)
+        self.assertContains(yanit, "Platinum 30 GB")
+        self.assertContains(yanit, "Aylık 30 GB")
+        self.assertContains(yanit, "Turkcell")
+
+    def test_gecerli_kampanya_gorunur(self):
+        yanit = self.client.get(self.url)
+        self.assertContains(yanit, "İlk 3 ay yarı fiyat")
+
+    def test_suresi_gecmis_kampanya_gorunmez(self):
+        import datetime
+
+        self.kampanya.bitis_tarihi = datetime.date(2020, 1, 1)
+        self.kampanya.save()
+        self.assertNotContains(self.client.get(self.url), "İlk 3 ay yarı fiyat")
+
+    def test_pasif_tarife_gorunmez(self):
+        self.tarife.aktif = False
+        self.tarife.save()
+        self.assertNotContains(self.client.get(self.url), "Platinum 30 GB")
+
+    def test_operator_rengi_okunur_hale_getirilir(self):
+        """Turkcell sarısı beyaz zeminde okunmaz; filtreden geçmeli."""
+        yanit = self.client.get(self.url).content.decode()
+        self.assertIn("#997900", yanit)
+
+    def test_kategori_sekmesiyle_filtrelenir(self):
+        from apps.katalog.models import BasvuruKategorisi, Tarife
+
+        digeri = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        Tarife.objects.create(
+            kategori=digeri, operator=self.operator, ad="Gençlik Kontörlü"
+        )
+        yanit = self.client.get(self.url, {"kategori": digeri.slug})
+        self.assertContains(yanit, "Gençlik Kontörlü")
+        self.assertNotContains(yanit, "Platinum 30 GB")

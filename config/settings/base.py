@@ -83,6 +83,8 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LANGUAGE_CODE = "tr"
+# django-unfold Türkçe çeviri ile gelmiyor; eksik metinler burada karşılanır.
+LOCALE_PATHS = [BASE_DIR / "locale"]
 TIME_ZONE = "Europe/Istanbul"
 USE_I18N = True
 USE_TZ = True
@@ -139,19 +141,20 @@ UNFOLD = {
     "SITE_SYMBOL": "cell_tower",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": False,
+    # Ön yüzle aynı petrol tonu. Mor kullanılmıyor.
     "COLORS": {
         "primary": {
-            "50": "238 242 255",
-            "100": "224 231 255",
-            "200": "199 210 254",
-            "300": "165 180 252",
-            "400": "129 140 248",
-            "500": "99 102 241",
-            "600": "79 70 229",
-            "700": "67 56 202",
-            "800": "55 48 163",
-            "900": "49 46 129",
-            "950": "30 27 75",
+            "50": "236 247 246",
+            "100": "207 234 232",
+            "200": "165 214 211",
+            "300": "112 188 184",
+            "400": "62 154 150",
+            "500": "23 118 114",
+            "600": "14 94 91",
+            "700": "13 76 74",
+            "800": "13 61 60",
+            "900": "12 51 50",
+            "950": "4 29 29",
         },
     },
     "SIDEBAR": {

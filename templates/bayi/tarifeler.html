@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}Tarifeler · Aktivasyon{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-4xl">
+
+  <h2 class="baslik text-xl font-bold">Tarifeler</h2>
+  <p class="mt-1.5 text-sm text-soluk">
+    Müşteriye anlatırken buradan bakabilirsin. Başlığa dokun, ayrıntısı açılsın.
+  </p>
+
+  {% if kategoriler %}
+  {# Kategori sekmeleri: dar ekranda yana kayar #}
+  <div class="kaydir-x -mx-5 mt-6 px-5 sm:mx-0 sm:px-0">
+    <div class="flex gap-2 pb-1">
+      {% for kategori in kategoriler %}
+      <a href="?kategori={{ kategori.slug }}"
+         class="dugme shrink-0 text-sm
+                {% if kategori == secili %}dugme-birincil{% else %}dugme-sessiz{% endif %}">
+        {{ kategori.ad }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if tarifeler %}
+  <div class="yuzey mt-6 overflow-hidden rounded-kart">
+    {% for tarife in tarifeler %}
+    <details class="group border-cizgi {% if not forloop.last %}border-b{% endif %}"
+             {% if forloop.first %}open{% endif %}>
+      <summary class="flex min-h-14 cursor-pointer list-none items-center gap-3 px-5 py-3.5
+                      transition-colors hover:bg-zemin">
+        <span class="rozet shrink-0"
+              style="background: {{ tarife.operator.renk }}1f;
+                     color: {{ tarife.operator.renk|okunur_renk }}">
+          {{ tarife.operator.ad }}
+        </span>
+
+        <span class="min-w-0 flex-1">
+          <span class="baslik block truncate font-semibold">{{ tarife.ad }}</span>
+          {% if tarife.gecerli_kampanyalar %}
+          <span class="mt-0.5 block text-xs text-soluk">
+            {{ tarife.gecerli_kampanyalar|length }} kampanya
+          </span>
+          {% endif %}
+        </span>
+
+        <svg width="20" height="20" viewBox="0 0 24 24"
+             class="h-5 w-5 shrink-0 text-soluk transition-transform group-open:rotate-180"
+             fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </summary>
+
+      <div class="space-y-4 border-t border-cizgi bg-zemin px-5 py-5">
+        {% if tarife.aciklama %}
+        <p class="whitespace-pre-line leading-relaxed text-murekkep-yumusak">
+          {{ tarife.aciklama }}
+        </p>
+        {% endif %}
+
+        {% if tarife.gorsel %}
+        <a href="{{ tarife.gorsel.url }}" target="_blank" rel="noopener"
+           class="block overflow-hidden rounded-lg border border-cizgi bg-yuzey">
+          <img src="{{ tarife.gorsel.url }}" alt="{{ tarife.ad }} tarife görseli"
+               class="w-full" loading="lazy">
+        </a>
+        {% endif %}
+
+        {% if tarife.gecerli_kampanyalar %}
+        <div>
+          <h3 class="baslik mb-2 text-sm font-semibold">Kampanyalar</h3>
+          <div class="space-y-3">
+            {% for kampanya in tarife.gecerli_kampanyalar %}
+            <div class="yuzey sim-sol rounded-kart p-4">
+              <p class="font-medium">{{ kampanya.ad }}</p>
+              {% if kampanya.aciklama %}
+              <p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-murekkep-yumusak">
+                {{ kampanya.aciklama }}
+              </p>
+              {% endif %}
+              {% if kampanya.gorsel %}
+              <a href="{{ kampanya.gorsel.url }}" target="_blank" rel="noopener"
+                 class="mt-3 block overflow-hidden rounded-lg border border-cizgi">
+                <img src="{{ kampanya.gorsel.url }}" alt="{{ kampanya.ad }}"
+                     class="w-full" loading="lazy">
+              </a>
+              {% endif %}
+              {% if kampanya.bitis_tarihi %}
+              <p class="mt-2 text-xs text-soluk">
+                {{ kampanya.bitis_tarihi|date:"j F Y" }} tarihine kadar
+              </p>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {% if not tarife.aciklama and not tarife.gorsel and not tarife.gecerli_kampanyalar %}
+        <p class="text-sm text-soluk">Bu tarife için henüz ayrıntı girilmemiş.</p>
+        {% endif %}
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="yuzey sim mt-6 rounded-kart px-6 py-14 text-center">
+    <p class="baslik font-semibold">Henüz tarife yok</p>
+    <p class="mx-auto mt-1.5 max-w-xs text-sm text-soluk">
+      Tarifeler tanımlandığında burada listelenecek.
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

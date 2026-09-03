@@ -135,7 +135,18 @@ class Tarife(ZamanDamgali):
         choices=MusteriTipi.choices,
         default=MusteriTipi.HEPSI,
     )
-    aciklama = models.TextField("Açıklama", blank=True)
+    aciklama = models.TextField(
+        "Açıklama",
+        blank=True,
+        help_text="Bayi tarife sayfasında bu tarifenin altında görünür.",
+    )
+    gorsel = models.ImageField(
+        "Görsel",
+        upload_to="tarife/%Y/%m/",
+        blank=True,
+        null=True,
+        help_text="Operatörün tarife görseli. Bayi tarife sayfasında gösterilir.",
+    )
     sira = models.PositiveIntegerField("Sıra", default=0)
     aktif = models.BooleanField("Aktif", default=True)
 
@@ -164,7 +175,12 @@ class Kampanya(ZamanDamgali):
         on_delete=models.CASCADE,
     )
     ad = models.CharField("Kampanya Adı", max_length=200)
-    aciklama = models.TextField("Açıklama", blank=True)
+    aciklama = models.TextField(
+        "Açıklama", blank=True, help_text="Bayi tarife sayfasında görünür."
+    )
+    gorsel = models.ImageField(
+        "Görsel", upload_to="kampanya/%Y/%m/", blank=True, null=True
+    )
     baslangic_tarihi = models.DateField("Başlangıç Tarihi", null=True, blank=True)
     bitis_tarihi = models.DateField("Bitiş Tarihi", null=True, blank=True)
     sira = models.PositiveIntegerField("Sıra", default=0)
