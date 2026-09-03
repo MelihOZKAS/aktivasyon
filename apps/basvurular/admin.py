@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from django.contrib import admin
 from django.db.models import Sum
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 
@@ -153,6 +153,7 @@ class BasvuruAdmin(ModelAdmin):
         "tedarikci_geliri",
         "para_islendi",
         "tedarikci_islendi",
+        "belgeler_silindi",
         "kar_ozeti",
         "olusturma_tarihi",
         "guncelleme_tarihi",
@@ -206,7 +207,15 @@ class BasvuruAdmin(ModelAdmin):
         ),
         (
             "Kayıt",
-            {"classes": ("collapse",), "fields": ("olusturma_tarihi", "guncelleme_tarihi")},
+            {
+                "classes": ("collapse",),
+                "fields": ("olusturma_tarihi", "guncelleme_tarihi", "belgeler_silindi"),
+                "description": (
+                    "Kimlik görüntüleri kişisel veridir; başvuru sonuçlandıktan "
+                    "BELGE_SAKLAMA_GUNU gün sonra <code>belgeleri_temizle</code> "
+                    "komutuyla silinir. Başvuru kaydı ve para geçmişi kalır."
+                ),
+            },
         ),
     )
 
@@ -280,13 +289,13 @@ class BasvuruAdmin(ModelAdmin):
             ("Bayiden kesilen", obj.tahsil_edilen, "#0F8A4D"),
             ("Bayiye ödenen", -obj.hakedis, "#D42046"),
         ]
-        govde = "".join(
-            format_html(
-                "<tr><td style='padding:.2rem 1rem .2rem 0'>{}</td>"
-                "<td style='text-align:right;color:{};font-weight:600'>{} ₺</td></tr>",
-                etiket, renk, tutar,
-            )
-            for etiket, tutar, renk in satirlar
+        # format_html_join gerekli: "".join(...) düz str döndürür ve dıştaki
+        # format_html onu kaçışlayıp HTML'i metin olarak basar.
+        govde = format_html_join(
+            "",
+            "<tr><td style='padding:.2rem 1rem .2rem 0'>{}</td>"
+            "<td style='text-align:right;color:{};font-weight:600'>{} ₺</td></tr>",
+            ((etiket, renk, tutar) for etiket, tutar, renk in satirlar),
         )
         kar = obj.kar
         renk = "#0F8A4D" if kar > 0 else ("#D42046" if kar < 0 else "#6F7B8F")
@@ -306,15 +315,15 @@ class BasvuruAdmin(ModelAdmin):
         etiketler = {
             alan.kod: alan.etiket for alan in obj.kategori.alanlar.all()
         }
-        satirlar = "".join(
-            format_html(
-                "<tr><th style='text-align:left;padding:.35rem .75rem .35rem 0;"
-                "font-weight:600;white-space:nowrap'>{}</th>"
-                "<td style='padding:.35rem 0'>{}</td></tr>",
-                etiketler.get(kod, kod),
-                deger if deger not in (None, "") else "—",
-            )
-            for kod, deger in obj.ek_bilgiler.items()
+        satirlar = format_html_join(
+            "",
+            "<tr><th style='text-align:left;padding:.35rem .75rem .35rem 0;"
+            "font-weight:600;white-space:nowrap'>{}</th>"
+            "<td style='padding:.35rem 0'>{}</td></tr>",
+            (
+                (etiketler.get(kod, kod), deger if deger not in (None, "") else "—")
+                for kod, deger in obj.ek_bilgiler.items()
+            ),
         )
         return format_html("<table>{}</table>", satirlar)
 

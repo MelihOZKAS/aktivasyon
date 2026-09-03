@@ -108,6 +108,11 @@ LOGOUT_REDIRECT_URL = "bayi:anasayfa"
 LOGIN_REDIRECT_URL = "bayi:panel"
 
 
+# Kimlik ve pasaport görüntüleri kişisel veridir; işi bittikten sonra
+# süresiz saklanmaz. Başvuru sonuçlandıktan bu kadar gün sonra silinir.
+# 0 verilirse otomatik silme kapanır.
+BELGE_SAKLAMA_GUNU = env.int("BELGE_SAKLAMA_GUNU", default=90)
+
 # Yüklenen evrak boyutu sınırı (10 MB)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024

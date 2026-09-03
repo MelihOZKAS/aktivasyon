@@ -207,7 +207,18 @@ class Basvuru(ZamanDamgali):
     tedarikci_islendi = models.BooleanField(
         "Tedarikçi Bedeli İşlendi", default=False, editable=False
     )
-    sonuclanma_tarihi = models.DateTimeField("Sonuçlanma Tarihi", null=True, blank=True)
+    sonuclanma_tarihi = models.DateTimeField(
+        "Sonuçlanma Tarihi",
+        null=True,
+        blank=True,
+        help_text="Başvuru aktif ya da olumsuz bir duruma geçtiği an.",
+    )
+    belgeler_silindi = models.BooleanField(
+        "Belgeler Silindi",
+        default=False,
+        editable=False,
+        help_text="Saklama süresi dolduğu için kimlik görüntüleri silindi.",
+    )
 
     class Meta:
         verbose_name = "Başvuru"
@@ -233,6 +244,10 @@ class Basvuru(ZamanDamgali):
     def net_tutar(self):
         """Bayi açısından net etki: hakediş eksi tahsilat."""
         return self.hakedis - self.tahsil_edilen
+
+    @property
+    def sonuclandi_mi(self):
+        return bool(self.durum.hakedis_tetikler or self.durum.olumsuz_sonuc)
 
     @property
     def kar(self):

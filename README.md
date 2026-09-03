@@ -89,6 +89,35 @@ Kimlik ve pasaport görüntüleri kişisel veridir; **MEDIA_URL üzerinden doğr
 sunulmaz**. Erişim `/basvuru/<REFERANS>/belge/<alan>/` üzerinden ve izin
 kontrolüyle olur: yalnızca başvuruyu giren bayi ve yetkili personel görebilir.
 
+### Neden veritabanında değil, diskte?
+
+Kimlik görüntüleri diskte (`media/`) tutulur, veritabanına konmaz. Bir kimlik
+fotoğrafı birkaç MB; bunları satır içinde saklamak veritabanını şişirir,
+`pg_dump` yedeklerini gigabaytlara çıkarır ve her görüntüleme isteğinde tüm
+veriyi belleğe alır. Diskte akış (streaming) mümkün, yedekleme ayrı yapılabilir.
+
+Asıl mesele "nerede durduğu" değil "ne kadar durduğu": kişisel veri işi
+bittikten sonra süresiz saklanmamalı. Bunun için saklama süresi vardır.
+
+### Saklama süresi
+
+Başvuru sonuçlandıktan (aktif ya da olumsuz) `BELGE_SAKLAMA_GUNU` gün sonra
+kimlik görüntüleri silinir. Başvuru kaydı, para geçmişi ve hakediş bilgisi
+yerinde kalır — yalnızca görüntüler gider.
+
+```bash
+python manage.py belgeleri_temizle --dene   # ne silineceğini yazar, silmez
+python manage.py belgeleri_temizle          # siler
+```
+
+Sunucuda günlük cron:
+
+```
+0 4 * * * docker exec app_fadil python manage.py belgeleri_temizle
+```
+
+`BELGE_SAKLAMA_GUNU=0` verilirse otomatik silme kapanır (önerilmez).
+
 Dosyalar diskte durur (`media/`), S3 gibi bir nesne deposu kullanılmaz.
 Sunucuda `/home/aktivasyon/media/` altındadır ve bind mount olduğu için
 container yeniden kurulunca kaybolmaz — ama Docker volume olmadığı için

@@ -12,6 +12,7 @@ import logging
 
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from apps.basvurular.models import Basvuru, DurumGecmisi
 
@@ -70,6 +71,13 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     # arka planda gönderilir ve hatası akışı bozmaz.
     if created or durum.bildirim_gonder:
         basvuru_bildir(instance, yeni=created)
+
+    # Saklama süresi buradan işler: belgeler sonuçlanma tarihine göre silinir.
+    if instance.sonuclandi_mi and instance.sonuclanma_tarihi is None:
+        instance.sonuclanma_tarihi = timezone.now()
+        type(instance).objects.filter(pk=instance.pk).update(
+            sonuclanma_tarihi=instance.sonuclanma_tarihi
+        )
 
     if durum.olumsuz_sonuc:
         # Operatörden iptal gelince kart fiziksel olarak bayide kalıyor;
