@@ -11,5 +11,6 @@ urlpatterns = [
     path("cikis/", views.cikis, name="cikis"),
     path("panel/", views.panel, name="panel"),
     path("tarifeler/", views.tarifeler, name="tarifeler"),
+    path("hakedisler/", views.hakedisler, name="hakedisler"),
     path("cuzdan/", views.cuzdan_gorunumu, name="cuzdan"),
 ]

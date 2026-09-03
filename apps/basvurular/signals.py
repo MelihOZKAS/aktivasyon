@@ -20,24 +20,42 @@ logger = logging.getLogger(__name__)
 
 @receiver(pre_save, sender=Basvuru)
 def onceki_durumu_hatirla(sender, instance, **kwargs):
-    """Kaydetmeden önce veritabanındaki durumu instance üzerinde saklar."""
+    """Kaydetmeden önce durumu ve tedarikçiyi instance üzerinde saklar."""
     if not instance.pk:
         instance._onceki_durum_id = None
+        instance._onceki_tedarikci_id = None
         return
-    instance._onceki_durum_id = (
-        sender.objects.filter(pk=instance.pk).values_list("durum_id", flat=True).first()
+    onceki = (
+        sender.objects.filter(pk=instance.pk)
+        .values_list("durum_id", "tedarikci_id")
+        .first()
     )
+    instance._onceki_durum_id, instance._onceki_tedarikci_id = onceki or (None, None)
 
 
 @receiver(post_save, sender=Basvuru)
 def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
-    onceki_durum_id = getattr(instance, "_onceki_durum_id", None)
-    if not created and onceki_durum_id == instance.durum_id:
-        return
-
     from apps.bayi.services import basvurunun_simlerini_serbest_birak
     from apps.bildirim.telegram import basvuru_bildir
-    from apps.finans.services import basvuru_parasini_geri_al, basvuru_parasini_isle
+    from apps.finans.services import (
+        basvuru_parasini_geri_al,
+        basvuru_parasini_isle,
+        tedarikci_bedelini_isle,
+    )
+
+    onceki_durum_id = getattr(instance, "_onceki_durum_id", None)
+    onceki_tedarikci_id = getattr(instance, "_onceki_tedarikci_id", None)
+    durum_degisti = created or onceki_durum_id != instance.durum_id
+    tedarikci_atandi = not created and onceki_tedarikci_id != instance.tedarikci_id
+
+    # Tedarikçi işlem aktifleştikten sonra da atanabilir; o durumda yalnızca
+    # tedarikçi tarafını işleriz.
+    if not durum_degisti:
+        if tedarikci_atandi and instance.durum.hakedis_tetikler:
+            guncel = tedarikci_bedelini_isle(instance)
+            instance.tedarikci_geliri = guncel.tedarikci_geliri
+            instance.tedarikci_islendi = guncel.tedarikci_islendi
+        return
 
     DurumGecmisi.objects.create(
         basvuru=instance,
@@ -60,7 +78,8 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
 
     if durum.hakedis_tetikler and not instance.para_islendi:
         guncel = basvuru_parasini_isle(instance)
-    elif durum.olumsuz_sonuc and instance.para_islendi:
+        guncel = tedarikci_bedelini_isle(guncel)
+    elif durum.olumsuz_sonuc and (instance.para_islendi or instance.tedarikci_islendi):
         guncel = basvuru_parasini_geri_al(instance)
     else:
         return
@@ -68,4 +87,6 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     # Servis kilitli bir kopya üzerinde çalıştı; eldeki instance'ı senkronla.
     instance.tahsil_edilen = guncel.tahsil_edilen
     instance.hakedis = guncel.hakedis
+    instance.tedarikci_geliri = guncel.tedarikci_geliri
     instance.para_islendi = guncel.para_islendi
+    instance.tedarikci_islendi = guncel.tedarikci_islendi

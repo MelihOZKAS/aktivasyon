@@ -248,3 +248,161 @@ class BakiyeYuklemeTestleri(TestCase):
 
         with self.assertRaises(ValueError):
             bakiye_yukle(self.cuzdan, TL("0.00"))
+
+
+class TedarikciTestleri(TestCase):
+    """İşlemi tedarikçiye satıyoruz; aradaki fark kârımız."""
+
+    def setUp(self):
+        from apps.bayi.models import BayiProfili
+
+        self.beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.iptal = BasvuruDurumu.objects.create(
+            ad="İptal", slug="iptal", olumsuz_sonuc=True
+        )
+
+        self.bayi = User.objects.create_user("bayi", password="parola123")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=TL("1000.00"))
+        BayiProfili.objects.create(kullanici=self.bayi, unvan="Bayi A", bayi_mi=True)
+
+        self.tedarikci = User.objects.create_user("tedarikci", password="parola123")
+        self.tedarikci_cuzdan = Cuzdan.objects.create(
+            bayi=self.tedarikci, bakiye=TL("5000.00")
+        )
+        BayiProfili.objects.create(
+            kullanici=self.tedarikci, unvan="Tedarikçi X",
+            bayi_mi=False, tedarikci_mi=True,
+        )
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="MNT")
+
+    def _basvuru(self, tedarikci=None):
+        return Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            tedarikci=tedarikci, isim="Ayşe", soyisim="Demir",
+            kimlik_no="1", irtibat="5551112233", durum=self.beklemede,
+        )
+
+    def _kurallari_kur(self):
+        UcretKurali.objects.create(
+            ad="Bayi hakedişi", yon=KuralYonu.HAKEDIS, tutar=TL("95.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
+        UcretKurali.objects.create(
+            ad="Tedarikçi X fiyatı", yon=KuralYonu.TEDARIKCI_GELIRI,
+            tutar=TL("140.00"), kategori=self.kategori,
+            tedarikci=self.tedarikci, tetikleyici_durum=self.aktif,
+        )
+
+    def test_aktif_olunca_tedarikciden_tahsil_edilir(self):
+        self._kurallari_kur()
+        basvuru = self._basvuru(tedarikci=self.tedarikci)
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        basvuru.refresh_from_db()
+        self.cuzdan.refresh_from_db()
+        self.tedarikci_cuzdan.refresh_from_db()
+
+        self.assertEqual(self.cuzdan.bakiye, TL("1095.00"))
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("4860.00"))
+        self.assertEqual(basvuru.tedarikci_geliri, TL("140.00"))
+        self.assertEqual(basvuru.kar, TL("45.00"))
+
+    def test_tedarikci_sonradan_atanabilir(self):
+        """İşlem aktifleştikten sonra da satılabilir."""
+        self._kurallari_kur()
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        basvuru.refresh_from_db()
+        self.assertEqual(basvuru.tedarikci_geliri, TL("0.00"))
+        self.assertEqual(basvuru.kar, TL("-95.00"))
+
+        basvuru.tedarikci = self.tedarikci
+        basvuru.save()
+
+        basvuru.refresh_from_db()
+        self.tedarikci_cuzdan.refresh_from_db()
+        self.assertEqual(basvuru.tedarikci_geliri, TL("140.00"))
+        self.assertEqual(basvuru.kar, TL("45.00"))
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("4860.00"))
+
+    def test_tedarikci_fiyati_tedarikciye_gore_degisir(self):
+        digeri = User.objects.create_user("tedarikci2", password="parola123")
+        Cuzdan.objects.create(bayi=digeri, bakiye=TL("5000.00"))
+        self._kurallari_kur()
+        UcretKurali.objects.create(
+            ad="Tedarikçi Y fiyatı", yon=KuralYonu.TEDARIKCI_GELIRI,
+            tutar=TL("120.00"), kategori=self.kategori,
+            tedarikci=digeri, tetikleyici_durum=self.aktif,
+        )
+
+        b1 = self._basvuru(tedarikci=self.tedarikci)
+        b1.durum = self.aktif
+        b1.save()
+        b2 = self._basvuru(tedarikci=digeri)
+        b2.durum = self.aktif
+        b2.save()
+
+        b1.refresh_from_db()
+        b2.refresh_from_db()
+        self.assertEqual(b1.tedarikci_geliri, TL("140.00"))
+        self.assertEqual(b2.tedarikci_geliri, TL("120.00"))
+
+    def test_tedarikcisiz_basvuruda_tedarikci_kurali_uygulanmaz(self):
+        self._kurallari_kur()
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        basvuru.refresh_from_db()
+        self.assertEqual(basvuru.tedarikci_geliri, TL("0.00"))
+        self.assertFalse(basvuru.tedarikci_islendi)
+
+    def test_iptalde_tedarikciye_de_iade_edilir(self):
+        self._kurallari_kur()
+        basvuru = self._basvuru(tedarikci=self.tedarikci)
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        basvuru.durum = self.iptal
+        basvuru.save()
+
+        basvuru.refresh_from_db()
+        self.cuzdan.refresh_from_db()
+        self.tedarikci_cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("1000.00"))
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("5000.00"))
+        self.assertEqual(basvuru.kar, TL("0.00"))
+
+    def test_tedarikci_bedeli_iki_kez_islenmez(self):
+        self._kurallari_kur()
+        basvuru = self._basvuru(tedarikci=self.tedarikci)
+        basvuru.durum = self.aktif
+        basvuru.save()
+        basvuru.save()
+
+        from apps.finans.services import tedarikci_bedelini_isle
+        tedarikci_bedelini_isle(basvuru)
+
+        self.tedarikci_cuzdan.refresh_from_db()
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("4860.00"))
+
+    def test_bir_kullanici_hem_bayi_hem_tedarikci_olabilir(self):
+        from apps.bayi.models import BayiProfili
+
+        profil = BayiProfili.objects.get(kullanici=self.bayi)
+        profil.tedarikci_mi = True
+        profil.save()
+
+        self.assertTrue(profil.bayi_mi)
+        self.assertTrue(profil.tedarikci_mi)
+        self.assertEqual(profil.rol_adi, "Bayi ve Tedarikçi")

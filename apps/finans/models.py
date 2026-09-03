@@ -111,6 +111,7 @@ class HareketTipi(models.TextChoices):
     YUKLEME = "yukleme", "Bakiye Yükleme"
     TAHSILAT = "tahsilat", "İşlem Ücreti Tahsilatı"
     HAKEDIS = "hakedis", "Hakediş"
+    TEDARIKCI_BEDELI = "tedarikci_bedeli", "Tedarikçi İşlem Bedeli"
     BORC_EKLE = "borc_ekle", "Borç Ekleme"
     BORC_TAHSIL = "borc_tahsil", "Borç Tahsilatı"
     DUZELTME = "duzeltme", "Manuel Düzeltme"
@@ -206,6 +207,7 @@ class CuzdanHareketi(models.Model):
 class KuralYonu(models.TextChoices):
     TAHSILAT = "tahsilat", "Tahsilat (bayiden alınır)"
     HAKEDIS = "hakedis", "Hakediş (bayiye verilir)"
+    TEDARIKCI_GELIRI = "tedarikci_geliri", "Tedarikçi Geliri (tedarikçiden alınır)"
 
 
 class UcretKurali(ZamanDamgali):
@@ -217,7 +219,7 @@ class UcretKurali(ZamanDamgali):
     """
 
     ad = models.CharField("Kural Adı", max_length=200)
-    yon = models.CharField("Yön", max_length=10, choices=KuralYonu.choices)
+    yon = models.CharField("Yön", max_length=20, choices=KuralYonu.choices)
     tutar = models.DecimalField(
         "Tutar",
         max_digits=12,
@@ -275,6 +277,18 @@ class UcretKurali(ZamanDamgali):
         on_delete=models.CASCADE,
         help_text="Yalnızca bu bayiye özel bir istisna tanımlamak için kullanın.",
     )
+    tedarikci = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Tek Tedarikçi",
+        related_name="ozel_tedarikci_kurallari",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        help_text=(
+            "Tedarikçi geliri kuralları için: fiyat tedarikçiden tedarikçiye "
+            "değiştiğinde her biri için ayrı kural tanımlayın."
+        ),
+    )
 
     tetikleyici_durum = models.ForeignKey(
         "basvurular.BasvuruDurumu",
@@ -326,6 +340,7 @@ class UcretKurali(ZamanDamgali):
             agirlik
             for alan_id, agirlik in (
                 (self.bayi_id, 32),
+                (self.tedarikci_id, 32),
                 (self.kampanya_id, 16),
                 (self.tarife_id, 8),
                 (self.bayi_grubu_id, 4),

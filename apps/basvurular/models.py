@@ -182,12 +182,31 @@ class Basvuru(ZamanDamgali):
         "Operasyon Notu", blank=True, help_text="Bayiye gösterilmez."
     )
 
+    # --- Tedarikçi (işlemi satın alan taraf; operasyon elle atar) ---
+    tedarikci = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Tedarikçi",
+        related_name="ustlendigi_basvurular",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        help_text="İşlemi satın alan taraf. Boşsa işlem henüz satılmamıştır.",
+    )
+
     # --- Para (durum tetiklendiğinde doldurulan anlık değerler) ---
     tahsil_edilen = models.DecimalField(
-        "Tahsil Edilen", max_digits=12, decimal_places=2, default=SIFIR
+        "Bayiden Tahsilat", max_digits=12, decimal_places=2, default=SIFIR
     )
-    hakedis = models.DecimalField("Hakediş", max_digits=12, decimal_places=2, default=SIFIR)
+    hakedis = models.DecimalField(
+        "Bayiye Hakediş", max_digits=12, decimal_places=2, default=SIFIR
+    )
+    tedarikci_geliri = models.DecimalField(
+        "Tedarikçi Geliri", max_digits=12, decimal_places=2, default=SIFIR
+    )
     para_islendi = models.BooleanField("Para İşlendi", default=False, editable=False)
+    tedarikci_islendi = models.BooleanField(
+        "Tedarikçi Bedeli İşlendi", default=False, editable=False
+    )
     sonuclanma_tarihi = models.DateTimeField("Sonuçlanma Tarihi", null=True, blank=True)
 
     class Meta:
@@ -196,6 +215,7 @@ class Basvuru(ZamanDamgali):
         ordering = ["-olusturma_tarihi"]
         indexes = [
             models.Index(fields=["bayi", "-olusturma_tarihi"]),
+            models.Index(fields=["tedarikci", "-olusturma_tarihi"]),
             models.Index(fields=["durum", "-olusturma_tarihi"]),
             models.Index(fields=["kategori", "-olusturma_tarihi"]),
             models.Index(fields=["kimlik_no"]),
@@ -213,6 +233,15 @@ class Basvuru(ZamanDamgali):
     def net_tutar(self):
         """Bayi açısından net etki: hakediş eksi tahsilat."""
         return self.hakedis - self.tahsil_edilen
+
+    @property
+    def kar(self):
+        """Firmanın bu işlemden kazancı.
+
+        Tedarikçiden aldığımız bedel ve bayiden kestiğimiz ücret gelirdir;
+        bayiye ödediğimiz hakediş giderdir.
+        """
+        return self.tedarikci_geliri + self.tahsil_edilen - self.hakedis
 
     def clean(self):
         if self.kategori_id and self.tarife_id:

@@ -63,6 +63,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dahil. `cekirdek_alan` doluysa değer başvurunun kendi kolonuna yazılır
   (aranabilir olur), boşsa `ek_bilgiler` JSON'una girer. Forma yeni bir sabit
   alan ekleme; kategori tanımından geçir.
+- **Roller birbirini dışlamaz.** Bir firma hem bayi hem tedarikçi olabilir
+  (`BayiProfili.bayi_mi` / `tedarikci_mi`). Bayi başvuru getirir ve hakediş
+  alır; tedarikçi işlemi satın alır, bedeli hesabından düşer.
+- **Kâr = tedarikçi geliri + bayiden tahsilat − bayiye hakediş.**
+  `Basvuru.kar` bunu hesaplar. Tedarikçi fiyatı tedarikçiden tedarikçiye
+  değişir; `UcretKurali.tedarikci` kapsamıyla tanımlanır. Tedarikçi işlem
+  aktifleştikten sonra da atanabildiği için bedeli kendi tekillik anahtarıyla
+  ayrı işlenir (`tedarikci_bedelini_isle`).
+- **Bayi hakedişini şeffaf görür.** `/hakedisler/` sayfası hangi tarifeden ne
+  kazanacağını, kesintisini ve elde kalan neti gösterir. Yeni bir para kalemi
+  eklerken bu sayfayı da güncelle.
 - **SIM kartlar bayiye zimmetlidir.** Bayi yalnızca kendisine atanmış ve
   "Bayiye Atandı" durumundaki kartlarla başvuru girebilir. Başvuru olumsuz
   sonuçlanınca kart otomatik olarak stoğa döner; kart fiziksel olarak bayide

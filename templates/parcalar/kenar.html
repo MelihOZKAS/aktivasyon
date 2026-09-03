@@ -35,6 +35,7 @@
       {% url 'basvurular:kategori-sec' as u_yeni %}
       {% url 'basvurular:liste' as u_liste %}
       {% url 'bayi:tarifeler' as u_tarifeler %}
+      {% url 'bayi:hakedisler' as u_hakedisler %}
       {% url 'bayi:cuzdan' as u_cuzdan %}
 
       <a href="{{ u_panel }}"
@@ -63,6 +64,13 @@
                 {% if request.path == u_tarifeler %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
         <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h8M18 15l2 2-2 2"/></svg>
         Tarifeler
+      </a>
+
+      <a href="{{ u_hakedisler }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path == u_hakedisler %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M8 7h6.5a2.5 2.5 0 010 5H9a2.5 2.5 0 000 5h7"/></svg>
+        Hakedişler
       </a>
 
       <a href="{{ u_cuzdan }}"

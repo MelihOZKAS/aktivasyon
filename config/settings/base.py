@@ -224,7 +224,7 @@ UNFOLD = {
                         "link": "/yonetim/finans/cuzdanhareketi/",
                     },
                     {
-                        "title": "Ücret Kuralları",
+                        "title": "Ücret ve Hakediş Kuralları",
                         "icon": "rule",
                         "link": "/yonetim/finans/ucretkurali/",
                     },

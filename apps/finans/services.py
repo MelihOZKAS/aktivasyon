@@ -78,6 +78,9 @@ def uygun_kurallari_bul(basvuru, durum):
 
     Kapsam alanı boş olan kural "hepsi" demektir. Aday kurallar arasından
     en spesifik olan, eşitlikte önceliği yüksek olan kazanır.
+
+    Tedarikçi kapsamı yalnızca başvuruya bir tedarikçi atanmışsa eşleşir;
+    atanmamışsa tedarikçiye özel kurallar devreye girmez.
     """
     bugun = basvuru.olusturma_tarihi.date()
     cuzdan = getattr(basvuru.bayi, "cuzdan", None)
@@ -96,6 +99,7 @@ def uygun_kurallari_bul(basvuru, durum):
         .filter(kapsam("kampanya_id", basvuru.kampanya_id))
         .filter(kapsam("bayi_grubu_id", grup_id))
         .filter(kapsam("bayi_id", basvuru.bayi_id))
+        .filter(kapsam("tedarikci_id", basvuru.tedarikci_id))
         .select_related("kategori", "operator", "tarife", "kampanya")
     )
 
@@ -183,20 +187,87 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
         return basvuru_kilitli
 
 
+def tedarikci_bedelini_isle(basvuru, *, olusturan=None):
+    """İşlemi satın alan tedarikçinin hesabından bedeli düşer.
+
+    Tedarikçi operasyon tarafından elle atanır; atama başvuru aktifleştikten
+    sonra da yapılabilir. Bu yüzden bayi tarafındaki paradan ayrı, kendi
+    tekillik anahtarıyla işlenir.
+    """
+    if not basvuru.tedarikci_id:
+        return basvuru
+
+    with transaction.atomic():
+        cuzdan = Cuzdan.objects.select_for_update().get(bayi_id=basvuru.tedarikci_id)
+        basvuru_kilitli = type(basvuru).objects.select_for_update().get(pk=basvuru.pk)
+
+        if basvuru_kilitli.tedarikci_islendi:
+            return basvuru_kilitli
+
+        kurallar = uygun_kurallari_bul(basvuru_kilitli, basvuru_kilitli.durum)
+        kural = kurallar.get(KuralYonu.TEDARIKCI_GELIRI)
+        if kural is None or kural.tutar <= SIFIR:
+            return basvuru_kilitli
+
+        tutar = kural.tutar
+        bakiyeden = min(tutar, max(cuzdan.bakiye, SIFIR))
+        borctan = tutar - bakiyeden
+
+        if bakiyeden > SIFIR:
+            _hareket_yaz(
+                cuzdan=cuzdan,
+                tip=HareketTipi.TEDARIKCI_BEDELI,
+                tutar=-bakiyeden,
+                idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:tedarikci:bakiye",
+                aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad}",
+                basvuru=basvuru_kilitli,
+                kural=kural,
+                olusturan=olusturan,
+            )
+        if borctan > SIFIR:
+            _hareket_yaz(
+                cuzdan=cuzdan,
+                tip=HareketTipi.BORC_EKLE,
+                tutar=borctan,
+                idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:tedarikci:borc",
+                aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad} (borç)",
+                basvuru=basvuru_kilitli,
+                kural=kural,
+                olusturan=olusturan,
+                borca_yaz=True,
+            )
+
+        basvuru_kilitli.tedarikci_geliri = tutar
+        basvuru_kilitli.tedarikci_islendi = True
+        basvuru_kilitli.save(
+            update_fields=["tedarikci_geliri", "tedarikci_islendi", "guncelleme_tarihi"]
+        )
+        return basvuru_kilitli
+
+
 def basvuru_parasini_geri_al(basvuru, *, olusturan=None):
     """Başvuru olumsuz bir duruma döndüğünde işlenmiş parayı ters kayıtla iptal eder."""
     with transaction.atomic():
-        cuzdan = Cuzdan.objects.select_for_update().get(bayi_id=basvuru.bayi_id)
         basvuru_kilitli = type(basvuru).objects.select_for_update().get(pk=basvuru.pk)
 
-        if not basvuru_kilitli.para_islendi:
+        if not (basvuru_kilitli.para_islendi or basvuru_kilitli.tedarikci_islendi):
             return basvuru_kilitli
 
-        hareketler = basvuru_kilitli.cuzdan_hareketleri.filter(
-            ters_kayit__isnull=True
-        ).exclude(tip=HareketTipi.IPTAL)
+        hareketler = list(
+            basvuru_kilitli.cuzdan_hareketleri.filter(ters_kayit__isnull=True)
+            .exclude(tip=HareketTipi.IPTAL)
+            .select_related("cuzdan")
+        )
+        # Hem bayinin hem tedarikçinin cüzdanı kilitlenir.
+        cuzdanlar = {
+            c.pk: c
+            for c in Cuzdan.objects.select_for_update().filter(
+                pk__in={h.cuzdan_id for h in hareketler}
+            )
+        }
 
         for hareket in hareketler:
+            cuzdan = cuzdanlar[hareket.cuzdan_id]
             borca_yaziliyordu = hareket.tip in {HareketTipi.BORC_EKLE, HareketTipi.BORC_TAHSIL}
             ters = _hareket_yaz(
                 cuzdan=cuzdan,
@@ -215,9 +286,14 @@ def basvuru_parasini_geri_al(basvuru, *, olusturan=None):
 
         basvuru_kilitli.tahsil_edilen = SIFIR
         basvuru_kilitli.hakedis = SIFIR
+        basvuru_kilitli.tedarikci_geliri = SIFIR
         basvuru_kilitli.para_islendi = False
+        basvuru_kilitli.tedarikci_islendi = False
         basvuru_kilitli.save(
-            update_fields=["tahsil_edilen", "hakedis", "para_islendi", "guncelleme_tarihi"]
+            update_fields=[
+                "tahsil_edilen", "hakedis", "tedarikci_geliri",
+                "para_islendi", "tedarikci_islendi", "guncelleme_tarihi",
+            ]
         )
         return basvuru_kilitli
 

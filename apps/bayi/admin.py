@@ -26,6 +26,7 @@ class BayiProfiliInline(StackedInline):
     can_delete = False
     extra = 0
     fields = (
+        ("bayi_mi", "tedarikci_mi"),
         ("unvan", "yetkili_adi"),
         ("telefon", "sehir"),
         "adres",
@@ -86,10 +87,35 @@ class GrupAdmin(TemelGrupAdmin, ModelAdmin):
 
 @admin.register(BayiProfili)
 class BayiProfiliAdmin(ModelAdmin):
-    list_display = ("kullanici", "unvan", "yetkili_adi", "telefon", "sehir")
+    list_display = ("kullanici", "unvan", "rol_rozeti", "telefon", "sehir")
     search_fields = ("kullanici__username", "unvan", "yetkili_adi", "telefon", "vergi_no")
     autocomplete_fields = ("kullanici",)
-    list_filter = ("sehir",)
+    list_filter = ("bayi_mi", "tedarikci_mi", "sehir")
+    fieldsets = (
+        (
+            "Roller",
+            {
+                "fields": (("bayi_mi", "tedarikci_mi"),),
+                "description": (
+                    "Roller birbirini dışlamaz. Bayi başvuru getirir ve hakediş alır; "
+                    "tedarikçi kendisine atanan işlemleri satın alır, bedeli hesabından düşer."
+                ),
+            },
+        ),
+        ("Firma", {"fields": ("kullanici", "unvan", "yetkili_adi", "telefon", "sehir", "adres")}),
+        ("Kayıt", {"fields": ("vergi_dairesi", "vergi_no", "notlar")}),
+    )
+
+    @admin.display(description="Rol")
+    def rol_rozeti(self, obj):
+        renkler = {"Bayi": "#0E5E5B", "Tedarikçi": "#B45309", "Bayi ve Tedarikçi": "#0F8A4D"}
+        ad = obj.rol_adi
+        return format_html(
+            '<span style="background:{};color:#fff;padding:.15rem .6rem;'
+            'border-radius:999px;font-size:.75rem;font-weight:600">{}</span>',
+            renkler.get(ad, "#6F7B8F"),
+            ad,
+        )
 
 
 class SimAtamaFormu(forms.Form):

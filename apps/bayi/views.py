@@ -344,3 +344,98 @@ def bayi_basvurusu(request):
         form = BayiBasvuruFormu()
 
     return render(request, "bayi/bayi_basvurusu.html", {"form": form})
+
+
+@login_required
+def hakedisler(request):
+    """Bayinin hangi işten ne kazanacağını açıkça gösteren sayfa.
+
+    Kuralları burada da `uygun_kurallari_bul` mantığıyla değil, katalog
+    üzerinden geziyoruz: bayi tarife tarife ne alacağını görmeli.
+    """
+    from apps.finans.models import KuralYonu, UcretKurali
+
+    cuzdan = getattr(request.user, "cuzdan", None)
+    grup_id = cuzdan.grup_id if cuzdan else None
+
+    # Bu bayiyi ilgilendiren kurallar: herkese açık olanlar, grubuna ait
+    # olanlar ve yalnızca ona tanımlananlar.
+    kurallar = list(
+        UcretKurali.objects.filter(
+            aktif=True, yon__in=[KuralYonu.HAKEDIS, KuralYonu.TAHSILAT]
+        )
+        .filter(Q(bayi__isnull=True) | Q(bayi=request.user))
+        .filter(Q(bayi_grubu__isnull=True) | Q(bayi_grubu_id=grup_id))
+        .filter(tedarikci__isnull=True)
+        .select_related("kategori", "operator", "tarife", "kampanya")
+    )
+
+    def en_uygun(yon, kategori, operator=None, tarife=None):
+        """Verilen kapsam için geçerli kuralı seçer: en spesifik olan kazanır."""
+        secilen = None
+        for kural in kurallar:
+            if kural.yon != yon:
+                continue
+            if kural.kategori_id not in (None, kategori.pk):
+                continue
+            if operator and kural.operator_id not in (None, operator.pk):
+                continue
+            if not operator and kural.operator_id is not None:
+                continue
+            if tarife and kural.tarife_id not in (None, tarife.pk):
+                continue
+            if not tarife and kural.tarife_id is not None:
+                continue
+            if secilen is None or (kural.ozgulluk, kural.oncelik) > (
+                secilen.ozgulluk, secilen.oncelik
+            ):
+                secilen = kural
+        return secilen
+
+    satirlar = []
+    kategoriler = (
+        BasvuruKategorisi.objects.filter(aktif=True)
+        .prefetch_related("tarifeler__operator")
+        .order_by("sira", "ad")
+    )
+
+    for kategori in kategoriler:
+        tarifeler = [t for t in kategori.tarifeler.all() if t.aktif]
+        kalemler = []
+
+        for tarife in sorted(
+            tarifeler, key=lambda t: (t.operator.sira, t.operator.ad, t.sira, t.ad)
+        ):
+            hakedis = en_uygun(KuralYonu.HAKEDIS, kategori, tarife.operator, tarife)
+            ucret = en_uygun(KuralYonu.TAHSILAT, kategori, tarife.operator, tarife)
+            if hakedis is None and ucret is None:
+                continue
+            kalemler.append(
+                {
+                    "ad": tarife.ad,
+                    "operator": tarife.operator,
+                    "hakedis": hakedis.tutar if hakedis else None,
+                    "ucret": ucret.tutar if ucret else None,
+                    "net": (hakedis.tutar if hakedis else 0) - (ucret.tutar if ucret else 0),
+                }
+            )
+
+        # Tarife bazında kural yoksa kategori genelindeki kuralı göster.
+        if not kalemler:
+            hakedis = en_uygun(KuralYonu.HAKEDIS, kategori)
+            ucret = en_uygun(KuralYonu.TAHSILAT, kategori)
+            if hakedis is None and ucret is None:
+                continue
+            kalemler.append(
+                {
+                    "ad": "Tüm tarifeler",
+                    "operator": None,
+                    "hakedis": hakedis.tutar if hakedis else None,
+                    "ucret": ucret.tutar if ucret else None,
+                    "net": (hakedis.tutar if hakedis else 0) - (ucret.tutar if ucret else 0),
+                }
+            )
+
+        satirlar.append({"kategori": kategori, "kalemler": kalemler})
+
+    return render(request, "bayi/hakedisler.html", {"satirlar": satirlar})

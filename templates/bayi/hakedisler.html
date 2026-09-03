@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}Hakedişler · Aktivasyon{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-4xl">
+
+  <h2 class="baslik text-xl font-bold">Hakedişler</h2>
+  <p class="mt-1.5 max-w-2xl text-sm text-soluk">
+    Hangi işten ne kazanacağın burada yazıyor. Hat ücreti olan kalemlerde
+    kesinti de görünür; sağdaki tutar eline geçecek nettir.
+  </p>
+
+  {% if satirlar %}
+  <div class="mt-6 space-y-5">
+    {% for satir in satirlar %}
+    <section class="yuzey overflow-hidden rounded-kart">
+      <header class="flex items-center gap-3 border-b border-cizgi px-5 py-3.5">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-zemin
+                     text-murekkep-yumusak">
+          <span class="ikon text-[19px]">{{ satir.kategori.ikon }}</span>
+        </span>
+        <h3 class="baslik font-semibold">{{ satir.kategori.ad }}</h3>
+      </header>
+
+      <div class="kaydir-x">
+        <table class="w-full min-w-[34rem] text-sm">
+          <thead>
+            <tr class="border-b border-cizgi text-left text-xs text-soluk">
+              <th class="px-5 py-2.5 font-semibold">Tarife</th>
+              <th class="px-3 py-2.5 text-right font-semibold">Hakediş</th>
+              <th class="px-3 py-2.5 text-right font-semibold">Hat ücreti</th>
+              <th class="px-5 py-2.5 text-right font-semibold">Eline geçen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for kalem in satir.kalemler %}
+            <tr class="border-b border-cizgi last:border-0">
+              <td class="px-5 py-3">
+                <span class="flex items-center gap-2.5">
+                  {% if kalem.operator %}
+                  <span class="rozet shrink-0"
+                        style="background: {{ kalem.operator.renk }}1f;
+                               color: {{ kalem.operator.renk|okunur_renk }}">
+                    {{ kalem.operator.ad }}
+                  </span>
+                  {% endif %}
+                  <span class="font-medium">{{ kalem.ad }}</span>
+                </span>
+              </td>
+              <td class="rakam px-3 py-3 text-right">
+                {% if kalem.hakedis %}
+                <span class="font-semibold text-olumlu">{{ kalem.hakedis|para }} ₺</span>
+                {% else %}<span class="text-silik">—</span>{% endif %}
+              </td>
+              <td class="rakam px-3 py-3 text-right">
+                {% if kalem.ucret %}
+                <span class="font-semibold text-uyari">−{{ kalem.ucret|para }} ₺</span>
+                {% else %}<span class="text-silik">—</span>{% endif %}
+              </td>
+              <td class="rakam px-5 py-3 text-right">
+                <span class="font-bold">{{ kalem.net|para }} ₺</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="mt-7 border-t border-cizgi pt-5">
+    <p class="text-sm text-soluk">
+      Tutarlar başvuru <b>aktif</b> olduğunda cüzdanına işlenir.
+    </p>
+    <a href="{% url 'bayi:cuzdan' %}" class="dugme dugme-sessiz mt-3 text-sm">
+      Geçmiş hareketleri gör
+    </a>
+  </div>
+
+  {% else %}
+  <div class="yuzey sim mt-6 rounded-kart px-6 py-14 text-center">
+    <p class="baslik font-semibold">Henüz hakediş tanımlı değil</p>
+    <p class="mx-auto mt-1.5 max-w-xs text-sm text-soluk">
+      Tutarlar tanımlandığında burada listelenecek.
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

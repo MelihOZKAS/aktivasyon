@@ -7,13 +7,27 @@ from apps.katalog.models import Operator, ZamanDamgali
 
 
 class BayiProfili(ZamanDamgali):
-    """Kullanıcıya bağlı bayi bilgileri. Cüzdan ayrı modelde tutulur."""
+    """Kullanıcıya bağlı firma bilgileri. Cüzdan ayrı modelde tutulur.
+
+    Roller birbirini dışlamaz: bir firma hem bayi (başvuru getirir, hakediş
+    alır) hem tedarikçi (işlemi satın alır, bize öder) olabilir.
+    """
 
     kullanici = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         verbose_name="Kullanıcı",
         related_name="bayi_profili",
         on_delete=models.CASCADE,
+    )
+    bayi_mi = models.BooleanField(
+        "Bayi",
+        default=True,
+        help_text="Başvuru girebilir, tamamlanan işlemlerden hakediş alır.",
+    )
+    tedarikci_mi = models.BooleanField(
+        "Tedarikçi",
+        default=False,
+        help_text="Kendisine atanan işlemleri satın alır; bedeli hesabından düşülür.",
     )
     unvan = models.CharField("Firma Ünvanı", max_length=200, blank=True)
     yetkili_adi = models.CharField("Yetkili Adı", max_length=150, blank=True)
@@ -31,6 +45,14 @@ class BayiProfili(ZamanDamgali):
 
     def __str__(self):
         return self.unvan or self.kullanici.get_username()
+
+    @property
+    def rol_adi(self):
+        if self.bayi_mi and self.tedarikci_mi:
+            return "Bayi ve Tedarikçi"
+        if self.tedarikci_mi:
+            return "Tedarikçi"
+        return "Bayi"
 
 
 class SimKartDurumu(models.TextChoices):
