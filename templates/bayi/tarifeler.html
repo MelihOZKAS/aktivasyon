@@ -11,15 +11,16 @@
     Müşteriye anlatırken buradan bakabilirsin. Başlığa dokun, ayrıntısı açılsın.
   </p>
 
-  {% if kategoriler %}
-  {# Kategori sekmeleri: dar ekranda yana kayar #}
+  {% if operatorler %}
+  {# Operatör sekmeleri: dar ekranda yana kayar. Nokta operatörün marka rengi. #}
   <div class="kaydir-x -mx-5 mt-6 px-5 sm:mx-0 sm:px-0">
     <div class="flex gap-2 pb-1">
-      {% for kategori in kategoriler %}
-      <a href="?kategori={{ kategori.slug }}"
-         class="dugme shrink-0 text-sm
-                {% if kategori == secili %}dugme-birincil{% else %}dugme-sessiz{% endif %}">
-        {{ kategori.ad }}
+      {% for operator in operatorler %}
+      <a href="?operator={{ operator.slug }}"
+         class="dugme shrink-0 gap-2 text-sm
+                {% if operator == secili %}dugme-birincil{% else %}dugme-sessiz{% endif %}">
+        <span class="h-2 w-2 shrink-0 rounded-full" style="background: {{ operator.renk }}"></span>
+        {{ operator.ad }}
       </a>
       {% endfor %}
     </div>
@@ -33,19 +34,16 @@
              {% if forloop.first %}open{% endif %}>
       <summary class="flex min-h-14 cursor-pointer list-none items-center gap-3 px-5 py-3.5
                       transition-colors hover:bg-zemin">
-        <span class="rozet shrink-0"
-              style="background: {{ tarife.operator.renk }}1f;
-                     color: {{ tarife.operator.renk|okunur_renk }}">
-          {{ tarife.operator.ad }}
-        </span>
-
         <span class="min-w-0 flex-1">
           <span class="baslik block truncate font-semibold">{{ tarife.ad }}</span>
-          {% if tarife.gecerli_kampanyalar %}
-          <span class="mt-0.5 block text-xs text-soluk">
-            {{ tarife.gecerli_kampanyalar|length }} kampanya
+          <span class="mt-0.5 flex items-center gap-2 text-xs text-soluk">
+            <span class="truncate">{{ tarife.kategori.ad }}</span>
+            {% if tarife.gecerli_kampanyalar %}
+            <span class="shrink-0 text-olumlu">
+              · {{ tarife.gecerli_kampanyalar|length }} kampanya
+            </span>
+            {% endif %}
           </span>
-          {% endif %}
         </span>
 
         <svg width="20" height="20" viewBox="0 0 24 24"
@@ -110,7 +108,9 @@
 
   {% else %}
   <div class="yuzey sim mt-6 rounded-kart px-6 py-14 text-center">
-    <p class="baslik font-semibold">Henüz tarife yok</p>
+    <p class="baslik font-semibold">
+      {% if secili %}{{ secili.ad }} için tarife yok{% else %}Henüz tarife yok{% endif %}
+    </p>
     <p class="mx-auto mt-1.5 max-w-xs text-sm text-soluk">
       Tarifeler tanımlandığında burada listelenecek.
     </p>

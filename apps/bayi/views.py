@@ -18,7 +18,7 @@ from apps.bayi.forms import BayiBasvuruFormu
 from apps.bayi.models import Duyuru
 from apps.bildirim.telegram import bayi_basvurusu_bildir
 from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
-from apps.katalog.models import BasvuruKategorisi, Tarife
+from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
 
 # Bir başvurunun yolculuğu: giriş ekranında ve ana sayfada aynı anlatı.
 ASAMALAR = [
@@ -257,26 +257,27 @@ def tarifeler(request):
     altında yönetimin girdiği açıklama, görsel ve geçerli kampanyalar
     görünür.
     """
-    kategoriler = (
-        BasvuruKategorisi.objects.filter(aktif=True, tarifeler__aktif=True)
+    # Bayi müşteriye anlatırken önce operatörü seçiyor; sekmeler ona göre.
+    operatorler = (
+        Operator.objects.filter(aktif=True, tarifeler__aktif=True)
         .distinct()
         .order_by("sira", "ad")
     )
 
-    secili_slug = request.GET.get("kategori") or ""
+    secili_slug = request.GET.get("operator") or ""
     secili = None
     if secili_slug:
-        secili = kategoriler.filter(slug=secili_slug).first()
+        secili = operatorler.filter(slug=secili_slug).first()
     if secili is None:
-        secili = kategoriler.first()
+        secili = operatorler.first()
 
     tarifeler_listesi = []
     if secili:
         tarifeler_listesi = (
-            Tarife.objects.filter(kategori=secili, aktif=True)
-            .select_related("operator")
+            Tarife.objects.filter(operator=secili, aktif=True)
+            .select_related("kategori")
             .prefetch_related("kampanyalar")
-            .order_by("operator__sira", "operator__ad", "sira", "ad")
+            .order_by("kategori__sira", "kategori__ad", "sira", "ad")
         )
         for tarife in tarifeler_listesi:
             tarife.gecerli_kampanyalar = [
@@ -287,7 +288,7 @@ def tarifeler(request):
         request,
         "bayi/tarifeler.html",
         {
-            "kategoriler": kategoriler,
+            "operatorler": operatorler,
             "secili": secili,
             "tarifeler": tarifeler_listesi,
         },

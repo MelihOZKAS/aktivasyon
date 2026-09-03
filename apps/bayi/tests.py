@@ -441,18 +441,26 @@ class TarifeSayfasiTestleri(TestCase):
         self.tarife.save()
         self.assertNotContains(self.client.get(self.url), "Platinum 30 GB")
 
-    def test_operator_rengi_okunur_hale_getirilir(self):
-        """Turkcell sarısı beyaz zeminde okunmaz; filtreden geçmeli."""
-        yanit = self.client.get(self.url).content.decode()
-        self.assertIn("#997900", yanit)
+    def test_operator_sekmesiyle_filtrelenir(self):
+        """Bayi önce operatörü seçiyor; sekmeler ona göre."""
+        from apps.katalog.models import Operator, Tarife
 
-    def test_kategori_sekmesiyle_filtrelenir(self):
-        from apps.katalog.models import BasvuruKategorisi, Tarife
-
-        digeri = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        vodafone = Operator.objects.create(ad="Vodafone", renk="#e60000", sira=20)
         Tarife.objects.create(
-            kategori=digeri, operator=self.operator, ad="Gençlik Kontörlü"
+            kategori=self.kategori, operator=vodafone, ad="Red 20 GB"
         )
-        yanit = self.client.get(self.url, {"kategori": digeri.slug})
-        self.assertContains(yanit, "Gençlik Kontörlü")
+
+        yanit = self.client.get(self.url, {"operator": vodafone.slug})
+        self.assertContains(yanit, "Red 20 GB")
         self.assertNotContains(yanit, "Platinum 30 GB")
+
+    def test_kategori_satirda_rozet_olarak_gorunur(self):
+        """Operatör sekmede seçili olduğu için satırda kategori gösterilir."""
+        yanit = self.client.get(self.url)
+        self.assertContains(yanit, "Faturalı Yeni Hat")
+
+    def test_tarifesiz_operator_sekmede_cikmaz(self):
+        from apps.katalog.models import Operator
+
+        Operator.objects.create(ad="Netgsm", sira=99)
+        self.assertNotContains(self.client.get(self.url), "Netgsm")
