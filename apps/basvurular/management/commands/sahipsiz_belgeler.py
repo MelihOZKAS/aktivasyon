@@ -1,0 +1,64 @@
+"""Kaydı olmayan belge dosyalarını bulur ve temizler.
+
+Normal akışta buna gerek olmaz: silme, veritabanı değişikliği commit
+edildikten sonra çalışır. Yine de disk hatası ya da yarıda kalan bir
+işlem sahipsiz dosya bırakabilir. Kişisel veri söz konusu olduğu için
+arada bir çalıştırmakta fayda var.
+"""
+
+from pathlib import Path
+
+from django.conf import settings
+from django.core.management.base import BaseCommand
+
+from apps.basvurular.models import BasvuruBelgesi
+
+
+class Command(BaseCommand):
+    help = "Veritabanında kaydı olmayan belge dosyalarını bulur."
+
+    def add_arguments(self, ayrıştırıcı):
+        ayrıştırıcı.add_argument(
+            "--sil", action="store_true", help="Bulunanları gerçekten sil."
+        )
+
+    def handle(self, *args, **secenekler):
+        klasor = Path(settings.MEDIA_ROOT) / "basvuru"
+        if not klasor.exists():
+            self.stdout.write("Belge klasörü yok, temizlenecek bir şey de yok.")
+            return
+
+        kayitli = set(
+            BasvuruBelgesi.objects.exclude(dosya="").values_list("dosya", flat=True)
+        )
+        kok = Path(settings.MEDIA_ROOT)
+
+        sahipsiz = [
+            yol
+            for yol in klasor.rglob("*")
+            if yol.is_file() and str(yol.relative_to(kok)) not in kayitli
+        ]
+
+        if not sahipsiz:
+            self.stdout.write(self.style.SUCCESS("Sahipsiz dosya yok."))
+            return
+
+        toplam = sum(y.stat().st_size for y in sahipsiz)
+        for yol in sahipsiz:
+            self.stdout.write(f"  {yol.relative_to(kok)}")
+
+        if secenekler["sil"]:
+            for yol in sahipsiz:
+                yol.unlink(missing_ok=True)
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"{len(sahipsiz)} sahipsiz dosya silindi ({toplam/1024/1024:.1f} MB)."
+                )
+            )
+        else:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"{len(sahipsiz)} sahipsiz dosya bulundu ({toplam/1024/1024:.1f} MB). "
+                    "Silmek için --sil ekleyin."
+                )
+            )

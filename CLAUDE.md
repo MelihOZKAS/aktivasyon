@@ -125,7 +125,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Hatalı ve Eksik Evrak silmez, çünkü o başvurular düzeltilip yeniden
   denenebilir. Başvuru kaydı ve para geçmişi her hâlükârda kalır.
 - **Görüntüler diskte tutulur, veritabanında değil.** Veritabanı yalnızca
-  dosya yolunu saklar.
+  dosya yolunu saklar. base64 ile satır içinde saklamak %33 şişme, dev
+  `pg_dump` yedekleri ve her görüntülemede tüm veriyi belleğe alma demektir.
+- **Dosya silme `transaction.on_commit` içinde yapılır.** İşlem geri alınırsa
+  dosya gitmiş, kayıt geri gelmiş olmamalı.
 - **Admin'de HTML üretirken `format_html_join` kullan.** `"".join(...)` düz
   `str` döndürür ve dıştaki `format_html` onu kaçışlayıp etiketleri metin
   olarak basar.

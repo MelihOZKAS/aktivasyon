@@ -109,6 +109,17 @@ Hangi durumun sileceğini siz seçersiniz: **Başvuru Durumları** ekranındaki
 "Belgeleri Sil" kutusu. Varsayılan olarak *Aktif* ve *İptal* siler; *Hatalı*
 ve *Eksik Evrak* silmez, çünkü o başvurular düzeltilip yeniden denenebilir.
 
+Dosyalar veritabanı değişikliği **commit edildikten sonra** silinir. Aksi
+hâlde bir hata yüzünden işlem geri alınsa dosya çoktan gitmiş, kayıt geri
+gelmiş olur ve olmayan bir dosyayı işaret ederdi.
+
+Yine de disk hatası sahipsiz dosya bırakabilir; arada bir kontrol edin:
+
+```bash
+python manage.py sahipsiz_belgeler        # bulur, listeler
+python manage.py sahipsiz_belgeler --sil  # siler
+```
+
 Silinen şey yalnızca görüntülerdir. Başvuru kaydı, durum geçmişi, para
 hareketleri ve hakediş bilgisi yerinde kalır; bayi detayında "işi tamamlandı,
 görüntüler silindi" notu görünür.

@@ -487,8 +487,10 @@ class BelgeSilmeTestleri(TestCase):
         basvuru, belge, yol = self._basvuru_ve_belge()
         self.assertTrue(os.path.exists(yol))
 
-        basvuru.durum = self.aktif
-        basvuru.save()
+        # Dosya silme commit sonrasına ertelenir; testte tetiklenmesi gerekir.
+        with self.captureOnCommitCallbacks(execute=True):
+            basvuru.durum = self.aktif
+            basvuru.save()
 
         basvuru.refresh_from_db()
         self.assertTrue(basvuru.belgeler_silindi)
@@ -501,8 +503,9 @@ class BelgeSilmeTestleri(TestCase):
         import os
 
         basvuru, belge, yol = self._basvuru_ve_belge()
-        basvuru.durum = self.iptal
-        basvuru.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            basvuru.durum = self.iptal
+            basvuru.save()
 
         basvuru.refresh_from_db()
         self.assertTrue(basvuru.belgeler_silindi)
@@ -534,21 +537,42 @@ class BelgeSilmeTestleri(TestCase):
 
     def test_silme_iki_kez_calismaz(self):
         basvuru, _, _ = self._basvuru_ve_belge()
-        basvuru.durum = self.aktif
-        basvuru.save()
-        basvuru.durum = self.iptal
-        basvuru.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            basvuru.durum = self.aktif
+            basvuru.save()
+            basvuru.durum = self.iptal
+            basvuru.save()
 
         basvuru.refresh_from_db()
         self.assertTrue(basvuru.belgeler_silindi)
 
     def test_silinen_belge_detayda_aciklaniyor(self):
         basvuru, _, _ = self._basvuru_ve_belge()
-        basvuru.durum = self.aktif
-        basvuru.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            basvuru.durum = self.aktif
+            basvuru.save()
 
         self.client.force_login(self.bayi)
         yanit = self.client.get(
             reverse("basvurular:detay", args=[basvuru.referans_no])
         )
         self.assertContains(yanit, "Bu başvurunun işi tamamlandı")
+
+
+    def test_geri_alinan_islemde_dosya_silinmez(self):
+        """Transaction geri alınırsa dosya da yerinde kalmalı."""
+        import os
+        from django.db import transaction
+
+        basvuru, belge, yol = self._basvuru_ve_belge()
+
+        try:
+            with transaction.atomic():
+                basvuru.durum = self.aktif
+                basvuru.save()
+                raise RuntimeError("iptal")
+        except RuntimeError:
+            pass
+
+        self.assertTrue(os.path.exists(yol))
+        self.assertTrue(BasvuruBelgesi.objects.filter(pk=belge.pk).exists())
