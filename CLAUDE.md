@@ -42,6 +42,11 @@ gerekirse yeni bir dil icat etme, bu motifi kullan.
 **5. Marka renkleri `okunur_renk` filtresinden geçer.** Operatör renkleri
 admin'den giriliyor; Turkcell sarısı gibi açık renkler beyazda okunmaz.
 
+**6. Yönetim paneli ön yüzle aynı renkte olmalı.** Vurgu rengini
+değiştirirken `static/src/app.css` içindeki `--color-vurgu` ile
+`config/settings/base.py` içindeki `UNFOLD["COLORS"]["primary"]` birlikte
+güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor kaldı.
+
 ## Kod
 
 - **Migration dosyaları asla elle silinmez, `.gitignore`'a eklenmez.** Eski
@@ -62,9 +67,37 @@ admin'den giriliyor; Turkcell sarısı gibi açık renkler beyazda okunmaz.
   "Bayiye Atandı" durumundaki kartlarla başvuru girebilir. Başvuru olumsuz
   sonuçlanınca kart otomatik olarak stoğa döner; kart fiziksel olarak bayide
   durduğu için çöp edilmemeli.
+- **URL'ler okunur olmalı: slug'lı, sorgu dizesiz.** `?kategori=4` değil
+  `/basvuru/yeni/adsl-internet/`. Kayıtlara referans numarasıyla erişilir,
+  id ile değil (sayaç taranmasın). Slug üretiminde
+  `apps.katalog.utils.turkce_slug` kullan — Django'nun `slugify`'ı Türkçe
+  harfleri düşürür ("Faturalı" → "fatural").
+- **Bayiye içerik gösteren alanlar admin'den girilir.** Tarife ve kampanya
+  açıklaması ile görseli `/tarifeler/` sayfasında görünür; şablona sabit
+  metin yazma.
 - Şablon değişikliğinden sonra CSS'i derle:
   `./.tools/tailwindcss -i static/src/app.css -o static/app.css --minify`
 - Testler: `.venv/bin/python manage.py test`
+
+## Bildirimler
+
+- **Bildirim asla işin önüne geçmez.** Telegram mesajı transaction
+  tamamlandıktan sonra, ayrı bir iş parçacığında gider ve her tür hatası
+  yutulur. Yeni bir bildirim eklerken `apps/bildirim/telegram.py` içindeki
+  `mesaj_gonder` üzerinden geç; doğrudan istek atma. Eski sistemde
+  `requests.get()` view içindeydi ve Telegram çöktüğünde başvuru kaydedilmiş
+  olmasına rağmen bayi hata sayfası görüyordu.
+- Mesaja giren kullanıcı verisi HTML olarak kaçışlanır.
+- Hangi durumların bildireceğini admin seçer (`BasvuruDurumu.bildirim_gonder`).
+
+## Yönetim paneli
+
+- **django-unfold Türkçe çeviriyle gelmiyor.** İngilizce bir metin görürsen
+  `locale/tr/LC_MESSAGES/django.po` dosyasına ekleyip `compilemessages`
+  çalıştır. Şablonu kopyalayıp metni sabitleme.
+- Ekleme düğmesi `templates/unfold/helpers/add_link.html` ile ezilmiştir:
+  unfold'un ikon-only yuvarlak düğmesi ne yaptığını anlatmıyordu. unfold
+  yükseltmelerinde bu şablonu gözden geçir.
 
 ## Güvenlik
 
