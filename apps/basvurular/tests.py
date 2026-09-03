@@ -74,9 +74,11 @@ class DinamikFormTestleri(TestCase):
 
         self.client.force_login(self.bayi)
 
+    def _url(self):
+        return reverse("basvurular:yeni", args=[self.kategori.slug])
+
     def _gonderi(self, **degisiklikler):
         veri = {
-            "kategori": self.kategori.pk,
             "operator": self.operator.pk,
             "tarife": self.tarife.pk,
             "kampanya": "",
@@ -97,7 +99,7 @@ class DinamikFormTestleri(TestCase):
         return veri
 
     def test_form_kategoriye_gore_alanlari_uretir(self):
-        yanit = self.client.get(reverse("basvurular:yeni"), {"kategori": self.kategori.pk})
+        yanit = self.client.get(self._url())
         self.assertEqual(yanit.status_code, 200)
         form = yanit.context["form"]
         self.assertIn("ek__aks", form.fields)
@@ -105,7 +107,7 @@ class DinamikFormTestleri(TestCase):
         self.assertIn("ek__kimlik_on", form.fields)
 
     def test_basvuru_gonderilir_ve_ek_bilgiler_kaydedilir(self):
-        yanit = self.client.post(reverse("basvurular:yeni"), self._gonderi())
+        yanit = self.client.post(self._url(), self._gonderi())
         self.assertEqual(yanit.status_code, 302)
 
         basvuru = Basvuru.objects.get()
@@ -117,14 +119,14 @@ class DinamikFormTestleri(TestCase):
         self.assertEqual(basvuru.belgeler.first().alan_kodu, "kimlik_on")
 
     def test_zorunlu_dinamik_alan_bos_birakilamaz(self):
-        yanit = self.client.post(reverse("basvurular:yeni"), self._gonderi(**{"ek__aks": ""}))
+        yanit = self.client.post(self._url(), self._gonderi(**{"ek__aks": ""}))
         self.assertEqual(yanit.status_code, 200)
         self.assertIn("ek__aks", yanit.context["form"].errors)
         self.assertEqual(Basvuru.objects.count(), 0)
 
     def test_kategoriye_ait_olmayan_operator_reddedilir(self):
         baska = Operator.objects.create(ad="Turkcell")
-        yanit = self.client.post(reverse("basvurular:yeni"), self._gonderi(operator=baska.pk))
+        yanit = self.client.post(self._url(), self._gonderi(operator=baska.pk))
         self.assertEqual(yanit.status_code, 200)
         self.assertIn("operator", yanit.context["form"].errors)
 
@@ -133,14 +135,14 @@ class DinamikFormTestleri(TestCase):
         turkcell = Operator.objects.create(ad="Turkcell")
         self.kategori.operatorler.add(turkcell)
 
-        yanit = self.client.post(reverse("basvurular:yeni"), self._gonderi(operator=turkcell.pk))
+        yanit = self.client.post(self._url(), self._gonderi(operator=turkcell.pk))
         self.assertEqual(yanit.status_code, 200)
         self.assertIn("tarife", yanit.context["form"].errors)
         self.assertEqual(Basvuru.objects.count(), 0)
 
     def test_dogrulama_deseni_uygulanir(self):
         KategoriAlani.objects.filter(kod="aks").update(dogrulama_deseni=r"^AKS-\d{4}$")
-        yanit = self.client.post(reverse("basvurular:yeni"), self._gonderi(**{"ek__aks": "yanlis"}))
+        yanit = self.client.post(self._url(), self._gonderi(**{"ek__aks": "yanlis"}))
         self.assertIn("ek__aks", yanit.context["form"].errors)
 
     def test_basvuru_girisinde_para_islenmez(self):
@@ -148,7 +150,7 @@ class DinamikFormTestleri(TestCase):
             ad="Hakediş", yon=KuralYonu.HAKEDIS, tutar=Decimal("150.00"),
             kategori=self.kategori, tetikleyici_durum=self.aktif,
         )
-        self.client.post(reverse("basvurular:yeni"), self._gonderi())
+        self.client.post(self._url(), self._gonderi())
 
         self.cuzdan.refresh_from_db()
         self.assertEqual(self.cuzdan.bakiye, Decimal("500.00"))
@@ -162,11 +164,11 @@ class DinamikFormTestleri(TestCase):
             tarife=self.tarife, kimlik_no="99999999999", isim="Gizli", soyisim="Kayıt",
             irtibat="5559998877", durum=self.beklemede,
         )
-        yanit = self.client.get(reverse("basvurular:detay", args=[basvuru.pk]))
+        yanit = self.client.get(reverse("basvurular:detay", args=[basvuru.referans_no]))
         self.assertEqual(yanit.status_code, 404)
 
     def test_liste_arama_ile_filtrelenir(self):
-        self.client.post(reverse("basvurular:yeni"), self._gonderi())
+        self.client.post(self._url(), self._gonderi())
         Basvuru.objects.create(
             bayi=self.bayi, kategori=self.kategori, operator=self.operator,
             tarife=self.tarife, kimlik_no="55555555555", isim="Mehmet", soyisim="Kaya",
@@ -177,14 +179,14 @@ class DinamikFormTestleri(TestCase):
 
     def test_htmx_tarife_secenekleri_operatore_gore_gelir(self):
         yanit = self.client.get(
-            reverse("basvurular:tarife-secenekleri"),
-            {"kategori": self.kategori.pk, "operator": self.operator.pk},
+            reverse("basvurular:tarifeler"),
+            {"kategori": self.kategori.slug, "operator": self.operator.pk},
         )
         self.assertContains(yanit, "Red 20 GB")
 
     def test_giris_yapmadan_erisim_engellenir(self):
         self.client.logout()
-        for ad in ["basvurular:liste", "basvurular:yeni", "bayi:panel", "bayi:cuzdan"]:
+        for ad in ["basvurular:liste", "basvurular:kategori-sec", "bayi:panel", "bayi:cuzdan"]:
             yanit = self.client.get(reverse(ad))
             self.assertEqual(yanit.status_code, 302, ad)
             self.assertIn("/giris-yap/", yanit["Location"], ad)
@@ -194,3 +196,127 @@ class DinamikFormTestleri(TestCase):
         yanit = self.client.get(reverse("bayi:anasayfa"))
         self.assertEqual(yanit.status_code, 200)
         self.assertContains(yanit, "Faturalı Yeni Hat")
+
+
+class UrlYapisiTestleri(TestCase):
+    """URL'ler okunur olmalı: kategori slug'ı, başvuru referans numarası."""
+
+    def setUp(self):
+        self.durum = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+        self.operator = Operator.objects.create(ad="Türk Telekom")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.client.force_login(self.bayi)
+
+    def test_turkce_slug_harf_dusurmez(self):
+        """Django slugify'ı 'Faturalı' -> 'fatural' yapıyordu."""
+        self.assertEqual(self.kategori.slug, "faturali-yeni-hat")
+        self.assertEqual(self.operator.slug, "turk-telekom")
+
+        for ad, beklenen in [
+            ("MNT / Numara Taşıma", "mnt-numara-tasima"),
+            ("Şebeke İçi Geçiş", "sebeke-ici-gecis"),
+            ("Kontörlü Yeni Hat", "kontorlu-yeni-hat"),
+        ]:
+            self.assertEqual(BasvuruKategorisi.objects.create(ad=ad).slug, beklenen)
+
+    def test_form_urlinde_sorgu_dizesi_yok(self):
+        url = reverse("basvurular:yeni", args=[self.kategori.slug])
+        self.assertEqual(url, "/basvuru/yeni/faturali-yeni-hat/")
+        self.assertNotIn("?", url)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_detay_urli_referans_numarasi_kullanir(self):
+        basvuru = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            kimlik_no="12345678901", isim="Ayşe", soyisim="Demir",
+            irtibat="5551112233", durum=self.durum,
+        )
+        url = reverse("basvurular:detay", args=[basvuru.referans_no])
+        self.assertEqual(url, f"/basvuru/{basvuru.referans_no}/")
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_gecersiz_referans_desene_uymaz(self):
+        """Dönüştürücünün deseni dar; sabit yollarla çakışma olmaz."""
+        self.assertEqual(self.client.get("/basvuru/kucukharf1/").status_code, 404)
+        self.assertEqual(self.client.get("/basvuru/yeni/").status_code, 200)
+
+    def test_bilinmeyen_kategori_slugu_404(self):
+        self.assertEqual(self.client.get("/basvuru/yeni/olmayan-kategori/").status_code, 404)
+
+
+@override_settings(MEDIA_ROOT=GECICI_MEDYA)
+class BelgeErisimTestleri(TestCase):
+    """Kimlik ve pasaport görüntüleri kişisel veridir.
+
+    Yalnızca başvuruyu giren bayi ve yetkili personel görebilir; doğrudan
+    MEDIA_URL üzerinden erişim üretimde hiç açılmaz.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(GECICI_MEDYA, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        from apps.basvurular.models import BasvuruBelgesi
+        from apps.finans.models import Cuzdan
+
+        self.durum = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.sahibi = User.objects.create_user("sahibi", password="parola12345")
+        self.digeri = User.objects.create_user("digeri", password="parola12345")
+        self.personel = User.objects.create_user(
+            "personel", password="parola12345", is_staff=True
+        )
+        for k in (self.sahibi, self.digeri):
+            Cuzdan.objects.create(bayi=k)
+
+        self.operator = Operator.objects.create(ad="Vodafone")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.basvuru = Basvuru.objects.create(
+            bayi=self.sahibi, kategori=self.kategori, operator=self.operator,
+            kimlik_no="12345678901", isim="Ayşe", soyisim="Demir",
+            irtibat="5551112233", durum=self.durum,
+        )
+        self.belge = BasvuruBelgesi.objects.create(
+            basvuru=self.basvuru, alan_kodu="kimlik_on",
+            etiket="Kimlik Ön Yüz", dosya=kucuk_png(),
+        )
+        self.url = self.belge.get_absolute_url()
+
+    def test_sahibi_belgeyi_gorebilir(self):
+        self.client.force_login(self.sahibi)
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+    def test_personel_belgeyi_gorebilir(self):
+        self.client.force_login(self.personel)
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+    def test_baska_bayi_belgeyi_goremez(self):
+        self.client.force_login(self.digeri)
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_giris_yapmayan_goremez(self):
+        yanit = self.client.get(self.url)
+        self.assertEqual(yanit.status_code, 302)
+        self.assertIn("/giris-yap/", yanit["Location"])
+
+    def test_belge_ozel_olarak_isaretlenir(self):
+        """Paylaşımlı önbellekler kişisel veriyi saklamamalı."""
+        self.client.force_login(self.sahibi)
+        yanit = self.client.get(self.url)
+        self.assertIn("private", yanit["Cache-Control"])
+        self.assertEqual(yanit["X-Content-Type-Options"], "nosniff")
+
+    def test_uretimde_dogrudan_medya_yolu_acilmaz(self):
+        """DEBUG=False iken /media/... hiçbir URL desenine düşmez."""
+        from django.urls import Resolver404, resolve
+
+        with override_settings(DEBUG=False):
+            with self.assertRaises(Resolver404):
+                resolve("/media/basvuru/2026/09/kimlik.png")

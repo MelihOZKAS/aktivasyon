@@ -18,8 +18,8 @@
   --color-soluk: #6F7B8F;
   --color-silik: #9AA5B7;
 
-  --color-vurgu: #4A2FE7;
-  --color-vurgu-acik: #EEEBFE;
+  --color-vurgu: #0E5E5B;
+  --color-vurgu-acik: #E4F0EF;
 
   --color-olumlu: #0F8A4D;
   --color-olumlu-acik: #E6F5ED;
@@ -42,6 +42,22 @@
 
   html {
     -webkit-text-size-adjust: 100%;
+  }
+
+  /* Hiçbir ekran yana kaymaz. Taşan içerik kendi kutusunda kaydırılır. */
+  html, body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  img, svg, video, canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Uzun referans no / IBAN gibi kırılamayan diziler dar ekranı zorlamasın. */
+  .rakam, dd, td {
+    overflow-wrap: anywhere;
   }
 
   body {
@@ -135,6 +151,9 @@
   /* Girdiler: tezgâhta parmakla basılacak kadar geniş. */
   .girdi {
     width: 100%;
+    /* min-height 44px: tezgâhta parmakla basılabilir hedef.
+       font-size 16px: iOS Safari odaklanınca sayfayı yakınlaştırmasın. */
+    min-height: 2.75rem;
     border-radius: 0.5rem;
     border: 1px solid var(--color-cizgi-koyu);
     background: var(--color-yuzey);
@@ -198,6 +217,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    min-height: 2.75rem;
     border-radius: 0.5rem;
     padding: 0.7rem 1.15rem;
     font-family: inherit;
@@ -238,6 +258,12 @@
     font-size: 0.75rem;
     font-weight: 600;
     white-space: nowrap;
+  }
+
+  /* Dar ekranda yan yana sığmayan içerik kendi kutusunda kaysın. */
+  .kaydir-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .ikon {

@@ -12,7 +12,7 @@
 
   <div class="mt-7 grid gap-3 sm:grid-cols-2">
     {% for kategori in kategoriler %}
-    <a href="?kategori={{ kategori.pk }}"
+    <a href="{% url 'basvurular:yeni' kategori.slug %}"
        class="yuzey sim rounded-kart p-5 transition-colors hover:border-vurgu hover:bg-vurgu/5">
       <h3 class="baslik font-semibold">{{ kategori.ad }}</h3>
       {% if kategori.aciklama %}

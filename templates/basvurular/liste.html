@@ -6,22 +6,22 @@
 {% block icerik %}
 <div class="mx-auto max-w-5xl">
 
-  <div class="mb-6 flex flex-wrap items-baseline justify-between gap-3">
+  <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
     <h2 class="baslik text-2xl font-bold">
       Başvurularım
       <span class="rakam ml-1 text-lg font-medium text-soluk">{{ toplam }}</span>
     </h2>
-    <a href="{% url 'basvurular:yeni' %}" class="dugme dugme-birincil text-sm">Yeni başvuru</a>
+    <a href="{% url 'basvurular:kategori-sec' %}" class="dugme dugme-birincil text-sm">Yeni başvuru</a>
   </div>
 
-  <form class="mb-5 flex flex-wrap gap-3"
+  <form class="mb-5 grid gap-3 sm:flex sm:flex-wrap"
         hx-get="{% url 'basvurular:liste' %}"
         hx-target="#liste-govdesi"
         hx-trigger="submit, change from:select, keyup changed delay:400ms from:input[name='q']"
         hx-push-url="true">
-    <input type="search" name="q" value="{{ arama }}" class="girdi max-w-xs"
+    <input type="search" name="q" value="{{ arama }}" class="girdi sm:max-w-xs"
            placeholder="Ad, referans, numara ya da kimlik no">
-    <select name="durum" class="girdi max-w-[12rem]">
+    <select name="durum" class="girdi sm:max-w-[12rem]">
       <option value="">Tüm durumlar</option>
       {% for durum in durumlar %}
       <option value="{{ durum.slug }}" {% if secili_durum == durum.slug %}selected{% endif %}>

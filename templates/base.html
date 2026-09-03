@@ -42,12 +42,48 @@
 </div>
 
 <script>
-  document.addEventListener("click", function (olay) {
-    var dugme = olay.target.closest("[data-menu-ac]");
-    if (dugme) {
-      document.getElementById("kenar-menu").classList.toggle("hidden");
+  (function () {
+    var menu = document.getElementById("kenar-menu");
+    var perde = document.getElementById("menu-perde");
+    var acanDugme = null;
+
+    function acik() {
+      return !menu.classList.contains("-translate-x-full");
     }
-  });
+
+    function ac(dugme) {
+      acanDugme = dugme || null;
+      menu.classList.remove("-translate-x-full");
+      perde.hidden = false;
+      document.body.style.overflow = "hidden";
+      var ilkBaglanti = menu.querySelector("a, button");
+      if (ilkBaglanti) ilkBaglanti.focus();
+    }
+
+    function kapat() {
+      menu.classList.add("-translate-x-full");
+      perde.hidden = true;
+      document.body.style.overflow = "";
+      if (acanDugme) acanDugme.focus();
+      acanDugme = null;
+    }
+
+    document.addEventListener("click", function (olay) {
+      var acDugmesi = olay.target.closest("[data-menu-ac]");
+      if (acDugmesi) return ac(acDugmesi);
+      if (olay.target.closest("[data-menu-kapat]") || olay.target === perde) kapat();
+    });
+
+    document.addEventListener("keydown", function (olay) {
+      if (olay.key === "Escape" && acik()) kapat();
+    });
+
+    // Masaüstüne genişlerken çekmece açık kalmasın.
+    var genisEkran = matchMedia("(min-width: 1024px)");
+    genisEkran.addEventListener("change", function (e) {
+      if (e.matches && acik()) kapat();
+    });
+  })();
 </script>
 {% block betik %}{% endblock %}
 </body>

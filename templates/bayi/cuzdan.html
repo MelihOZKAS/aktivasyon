@@ -9,7 +9,7 @@
 
   <section>
     <p class="text-sm text-soluk">Bakiye</p>
-    <p class="rakam mt-1.5 text-[3.25rem] font-bold leading-[0.95] sm:text-[4rem]">
+    <p class="rakam mt-1.5 text-[2.5rem] font-bold leading-[0.95] sm:text-[3.25rem] lg:text-[4rem]">
       {{ cuzdan.bakiye|para }}<span class="ml-1 text-3xl text-silik">₺</span>
     </p>
     {% if cuzdan.borc %}
@@ -44,8 +44,8 @@
   <section>
     <div class="mb-4 flex flex-wrap items-baseline justify-between gap-3">
       <h2 class="baslik text-lg font-semibold">Hareketler</h2>
-      <form method="get">
-        <select name="tip" class="girdi max-w-[14rem] py-2 text-sm" onchange="this.form.submit()">
+      <form method="get" class="w-full sm:w-auto">
+        <select name="tip" class="girdi text-sm sm:max-w-[14rem]" onchange="this.form.submit()">
           <option value="">Tüm hareketler</option>
           {% for deger, etiket in hareket_tipleri %}
           <option value="{{ deger }}" {% if secili_tip == deger %}selected{% endif %}>{{ etiket }}</option>

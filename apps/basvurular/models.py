@@ -241,6 +241,23 @@ class BasvuruBelgesi(models.Model):
     def __str__(self):
         return f"{self.basvuru.referans_no} · {self.etiket or self.alan_kodu}"
 
+    def get_absolute_url(self):
+        """Belgeye erişim her zaman izin kontrolünden geçer.
+
+        Kimlik ve pasaport görüntüleri doğrudan MEDIA_URL üzerinden
+        sunulmaz; yalnızca başvurunun sahibi bayi ve yetkili personel
+        görebilir.
+        """
+        from django.urls import reverse
+
+        return reverse(
+            "basvurular:belge", args=[self.basvuru.referans_no, self.alan_kodu]
+        )
+
+    @property
+    def resim_mi(self):
+        return self.dosya.name.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif"))
+
 
 class DurumGecmisi(models.Model):
     """Başvurunun durum değişim kaydı. Kim, ne zaman, neyi değiştirdi."""

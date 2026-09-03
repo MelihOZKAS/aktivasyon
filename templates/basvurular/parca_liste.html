@@ -2,7 +2,7 @@
 {% if sayfa.object_list %}
 <div class="yuzey overflow-hidden rounded-kart">
   {% for basvuru in sayfa %}
-  <a href="{% url 'basvurular:detay' basvuru.pk %}"
+  <a href="{% url 'basvurular:detay' basvuru.referans_no %}"
      class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-zemin
             {% if not forloop.last %}border-b border-cizgi{% endif %}">
     {% sinyal basvuru.durum %}

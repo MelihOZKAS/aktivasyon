@@ -1,12 +1,15 @@
 """Bayi paneli: giriş, gösterge paneli ve cüzdan."""
 
+from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from urllib.parse import quote
 from django.views.decorators.http import require_POST
 
 from apps.basvurular.models import Basvuru
@@ -58,8 +61,8 @@ OZELLIKLER = [
     },
     {
         "baslik": "Bakiye ve borç limiti",
-        "metin": "Her bayinin bakiyesi, borcu ve limiti ayrı. Limit grup "
-                 "bazında varsayılan gelir, bayi bazında değiştirilebilir.",
+        "metin": "Her bayinin bakiyesi ve borcu ayrı. Borçlanma varsayılan "
+                 "olarak kapalıdır; açtığın bayiye girdiğin tutar kadar limit tanınır.",
     },
     {
         "baslik": "Değişmez defter",
@@ -93,11 +96,40 @@ def anasayfa(request):
 
 
 class GirisView(LoginView):
+    """Sistemin tek giriş kapısı: hem bayi hem yönetici buradan girer."""
+
     template_name = "bayi/giris.html"
     redirect_authenticated_user = True
 
     def get_context_data(self, **kwargs):
         return {**super().get_context_data(**kwargs), "asamalar": ASAMALAR}
+
+    def get_success_url(self):
+        hedef = self.get_redirect_url()
+        if hedef:
+            return hedef
+        # Yönetici girişte doğrudan yönetim paneline düşsün.
+        if self.request.user.is_staff:
+            return reverse("admin:index")
+        return reverse("bayi:panel")
+
+
+def yonetim_girisi(request):
+    """Django admin'in kendi giriş formunu tek kapıya yönlendirir.
+
+    Girişi olmayan kullanıcı /giris-yap ekranına gider. Girişi olan ama yetkisi
+    olmayan bayi, sonsuz yönlendirme döngüsüne düşmesin diye kendi paneline
+    açık bir mesajla gönderilir.
+    """
+    hedef = request.GET.get("next") or reverse("admin:index")
+
+    if request.user.is_authenticated:
+        if request.user.is_staff:
+            return redirect(hedef)
+        messages.error(request, "Yönetim paneline erişim yetkin yok.")
+        return redirect("bayi:panel")
+
+    return redirect(f"{reverse('bayi:giris')}?next={quote(hedef)}")
 
 
 @require_POST

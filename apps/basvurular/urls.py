@@ -1,13 +1,18 @@
-from django.urls import path
+from django.urls import path, register_converter
 
 from . import views
+from .converters import ReferansDonusturucu
+
+register_converter(ReferansDonusturucu, "referans")
 
 app_name = "basvurular"
 
 urlpatterns = [
     path("", views.liste, name="liste"),
-    path("yeni/", views.yeni, name="yeni"),
-    path("secenek/tarife/", views.tarife_secenekleri, name="tarife-secenekleri"),
-    path("secenek/kampanya/", views.kampanya_secenekleri, name="kampanya-secenekleri"),
-    path("<int:pk>/", views.detay, name="detay"),
+    path("yeni/", views.kategori_sec, name="kategori-sec"),
+    path("yeni/<slug:kategori>/", views.yeni, name="yeni"),
+    path("tarifeler/", views.tarife_secenekleri, name="tarifeler"),
+    path("kampanyalar/", views.kampanya_secenekleri, name="kampanyalar"),
+    path("<referans:referans>/", views.detay, name="detay"),
+    path("<referans:referans>/belge/<slug:alan_kodu>/", views.belge, name="belge"),
 ]

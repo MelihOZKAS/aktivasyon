@@ -172,6 +172,7 @@ staticfiles/
 media/*
 !media/.gitkeep
 .tools/
+.playwright-mcp/
 .env
 
 # Derlenmiş Tailwind çıktısı sürüm kontrolünde tutulur (sunucuda Node yok)

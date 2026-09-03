@@ -20,17 +20,18 @@ class BasvuruBelgesiInline(TabularInline):
 
     @admin.display(description="Önizleme")
     def onizleme(self, obj):
-        if not obj.dosya:
+        """Kişisel veri olduğu için önizleme de izin kontrollü yoldan geçer."""
+        if not obj.dosya or not obj.pk:
             return "—"
-        ad = obj.dosya.name.lower()
-        if ad.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
+        url = obj.get_absolute_url()
+        if obj.resim_mi:
             return format_html(
                 '<a href="{}" target="_blank" rel="noopener">'
                 '<img src="{}" style="max-height:64px;border-radius:.375rem"></a>',
-                obj.dosya.url,
-                obj.dosya.url,
+                url,
+                url,
             )
-        return format_html('<a href="{}" target="_blank" rel="noopener">Dosyayı aç</a>', obj.dosya.url)
+        return format_html('<a href="{}" target="_blank" rel="noopener">Dosyayı aç</a>', url)
 
 
 class DurumGecmisiInline(TabularInline):

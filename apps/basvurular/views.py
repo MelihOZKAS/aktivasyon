@@ -1,32 +1,35 @@
 """Bayi tarafındaki başvuru akışı: yeni başvuru, liste, detay."""
 
+from pathlib import Path
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.basvurular.forms import BasvuruFormu
-from apps.basvurular.models import Basvuru, BasvuruDurumu
+from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
 from apps.finans.services import YetersizBakiye
 from apps.katalog.models import BasvuruKategorisi, Kampanya, Tarife
 
 
 @login_required
-def yeni(request):
-    """Kategori seçimi ve seçilen kategoriye göre kurulan başvuru formu."""
-    kategoriler = BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad")
-    kategori_id = request.POST.get("kategori") or request.GET.get("kategori")
+def kategori_sec(request):
+    """Hangi başvuru tipinin girileceğini seçtiren ekran."""
+    return render(
+        request,
+        "basvurular/kategori_sec.html",
+        {"kategoriler": BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad")},
+    )
 
-    if not kategori_id:
-        return render(
-            request,
-            "basvurular/kategori_sec.html",
-            {"kategoriler": kategoriler},
-        )
 
+@login_required
+def yeni(request, kategori):
+    """Seçilen kategoriye göre kurulan başvuru formu."""
     kategori = get_object_or_404(
-        BasvuruKategorisi.objects.prefetch_related("alanlar"), pk=kategori_id, aktif=True
+        BasvuruKategorisi.objects.prefetch_related("alanlar"), slug=kategori, aktif=True
     )
 
     cuzdan = getattr(request.user, "cuzdan", None)
@@ -49,27 +52,23 @@ def yeni(request):
                     request,
                     f"Başvuru alındı. Takip numaran: {basvuru.referans_no}",
                 )
-                return redirect("basvurular:detay", pk=basvuru.pk)
+                return redirect("basvurular:detay", referans=basvuru.referans_no)
     else:
         form = BasvuruFormu(kategori=kategori)
 
-    return render(
-        request,
-        "basvurular/yeni.html",
-        {"form": form, "kategori": kategori, "kategoriler": kategoriler},
-    )
+    return render(request, "basvurular/yeni.html", {"form": form, "kategori": kategori})
 
 
 @login_required
 def tarife_secenekleri(request):
     """HTMX: operatör seçilince o operatöre ait tarifeleri döndürür."""
-    kategori_id = request.GET.get("kategori")
+    kategori_slug = request.GET.get("kategori")
     operator_id = request.GET.get("operator")
 
     tarifeler = Tarife.objects.none()
-    if kategori_id and operator_id:
+    if kategori_slug and operator_id:
         tarifeler = Tarife.objects.filter(
-            kategori_id=kategori_id, operator_id=operator_id, aktif=True
+            kategori__slug=kategori_slug, operator_id=operator_id, aktif=True
         ).order_by("sira", "ad")
 
     return render(request, "basvurular/parca_tarife.html", {"tarifeler": tarifeler})
@@ -135,11 +134,11 @@ def liste(request):
 
 
 @login_required
-def detay(request, pk):
+def detay(request, referans):
     basvuru = get_object_or_404(
         Basvuru.objects.select_related("kategori", "operator", "tarife", "kampanya", "durum")
         .prefetch_related("belgeler", "durum_gecmisi__yeni_durum", "kategori__alanlar"),
-        pk=pk,
+        referans_no=referans,
         bayi=request.user,
     )
 
@@ -153,3 +152,35 @@ def detay(request, pk):
         "basvurular/detay.html",
         {"basvuru": basvuru, "ek_satirlar": ek_satirlar},
     )
+
+
+@login_required
+def belge(request, referans, alan_kodu):
+    """Başvuru belgesini izin kontrolünden geçirerek sunar.
+
+    Kimlik ve pasaport görüntüleri kişisel veridir; MEDIA_URL üzerinden
+    doğrudan erişime açılmaz. Yalnızca başvuruyu giren bayi ve yetkili
+    personel görüntüleyebilir.
+    """
+    kayit = get_object_or_404(
+        BasvuruBelgesi.objects.select_related("basvuru"),
+        basvuru__referans_no=referans,
+        alan_kodu=alan_kodu,
+    )
+
+    if not request.user.is_staff and kayit.basvuru.bayi_id != request.user.id:
+        raise Http404
+
+    if not kayit.dosya:
+        raise Http404
+
+    try:
+        akis = kayit.dosya.open("rb")
+    except FileNotFoundError as hata:
+        raise Http404("Belge dosyası bulunamadı.") from hata
+
+    yanit = FileResponse(akis, filename=Path(kayit.dosya.name).name)
+    # Tarayıcı ve ara sunucular kişisel veriyi paylaşımlı önbelleğe almasın.
+    yanit["Cache-Control"] = "private, max-age=300"
+    yanit["X-Content-Type-Options"] = "nosniff"
+    return yanit

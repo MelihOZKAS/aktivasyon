@@ -8,7 +8,7 @@ gerekmez; admin panelinden kategori açıp alanlarını tanımlamak yeterlidir.
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
-from django.utils.text import slugify
+from apps.katalog.utils import turkce_slug
 
 
 class MusteriTipi(models.TextChoices):
@@ -50,7 +50,7 @@ class Operator(ZamanDamgali):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.ad)
+            self.slug = turkce_slug(self.ad)
         super().save(*args, **kwargs)
 
 
@@ -100,7 +100,7 @@ class BasvuruKategorisi(ZamanDamgali):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.ad)
+            self.slug = turkce_slug(self.ad)
         super().save(*args, **kwargs)
 
     def gecerli_operatorler(self):

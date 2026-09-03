@@ -78,12 +78,15 @@
     <h3 class="baslik font-semibold">Belgeler</h3>
     <div class="mt-4 grid gap-3 sm:grid-cols-3">
       {% for belge in basvuru.belgeler.all %}
-      <a href="{{ belge.dosya.url }}" target="_blank" rel="noopener"
+      <a href="{{ belge.get_absolute_url }}" target="_blank" rel="noopener"
          class="block overflow-hidden rounded-lg border border-cizgi">
-        <div class="aspect-4/3 bg-zemin">
-          <img src="{{ belge.dosya.url }}" alt="{{ belge.etiket }}"
-               class="h-full w-full object-cover" loading="lazy"
-               onerror="this.style.display='none'">
+        <div class="grid aspect-[4/3] place-items-center bg-zemin">
+          {% if belge.resim_mi %}
+          <img src="{{ belge.get_absolute_url }}" alt="{{ belge.etiket }}"
+               class="h-full w-full object-cover" loading="lazy">
+          {% else %}
+          <span class="ikon text-3xl text-soluk">description</span>
+          {% endif %}
         </div>
         <p class="px-3 py-2 text-xs font-medium">{{ belge.etiket|default:belge.alan_kodu }}</p>
       </a>

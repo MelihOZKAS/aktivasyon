@@ -54,7 +54,48 @@ cp .env.ornek .env            # SECRET_KEY'i değiştir
 .venv/bin/python manage.py runserver
 ```
 
-Bayi paneli `/`, yönetim `/yonetim/`.
+### URL yapısı
+
+Sorgu dizesi kullanılmaz; adresler okunur olmalı.
+
+| Yol | Ne |
+|---|---|
+| `/` | Tanıtım sayfası (herkese açık) |
+| `/giris-yap/` | **Tek giriş kapısı** — bayi de yönetici de buradan girer |
+| `/panel/` | Bayi paneli |
+| `/basvuru/` | Başvuru listesi |
+| `/basvuru/yeni/` | Kategori seçimi |
+| `/basvuru/yeni/<kategori-slug>/` | Başvuru formu |
+| `/basvuru/<REFERANS>/` | Başvuru detayı (referans no ile, id ile değil) |
+| `/basvuru/<REFERANS>/belge/<alan>/` | Belge (izin kontrollü) |
+| `/cuzdan/` | Cüzdan |
+| `/yonetim/` | Yönetim paneli (yalnızca yetkili) |
+
+Yeni ekran eklerken aynı biçimi koru: slug'lı, sorgu dizesiz. Slug üretiminde
+`apps.katalog.utils.turkce_slug` kullan — Django'nun `slugify`'ı Türkçe harfleri
+düşürür ("Faturalı" → "fatural").
+
+### Giriş ve yetki
+
+Giriş tek yerdedir. Girişten sonra yönetici `/yonetim/`'e, bayi `/panel/`'e
+düşer. `/yonetim/login/` kendi formunu göstermez, `/giris-yap/`'a yönlendirir.
+Yetkisiz bir bayi yönetim adresine giderse açık bir mesajla kendi paneline
+gönderilir. Kategori, tarife, ücret kuralı gibi tüm düzenlemeler yalnızca
+yetkili kullanıcı tarafından yapılabilir.
+
+### Yüklenen belgeler
+
+Kimlik ve pasaport görüntüleri kişisel veridir; **MEDIA_URL üzerinden doğrudan
+sunulmaz**. Erişim `/basvuru/<REFERANS>/belge/<alan>/` üzerinden ve izin
+kontrolüyle olur: yalnızca başvuruyu giren bayi ve yetkili personel görebilir.
+
+Dosyalar diskte durur (`media/`), S3 gibi bir nesne deposu kullanılmaz.
+Sunucuda `/home/aktivasyon/media/` altındadır ve bind mount olduğu için
+container yeniden kurulunca kaybolmaz — ama Docker volume olmadığı için
+yedeklemeye ayrıca dahil edilmelidir.
+
+**Nginx'e `/media/` için location tanımlamayın**; tanımlarsanız izin kontrolü
+devre dışı kalır.
 
 ### Tema
 

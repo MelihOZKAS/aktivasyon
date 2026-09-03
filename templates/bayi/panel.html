@@ -10,16 +10,16 @@
   {% comment %} Kahraman: bayinin gün içinde en çok baktığı tek sayı.
   Kart yok, gradient yok — doğrudan zeminde, altında ince bir defter satırı. {% endcomment %}
   <section>
-    <div class="flex flex-wrap items-start gap-x-16 gap-y-7">
+    <div class="flex flex-wrap items-start gap-x-14 gap-y-6">
       <div>
         <p class="text-sm text-soluk">Bakiye</p>
-        <p class="rakam mt-1.5 text-[3.25rem] font-bold leading-[0.95] sm:text-[4rem]">
+        <p class="rakam mt-1.5 text-[2.5rem] font-bold leading-[0.95] sm:text-[3.25rem] lg:text-[4rem]">
           {{ cuzdan.bakiye|para }}<span class="ml-1 text-3xl text-silik">₺</span>
         </p>
       </div>
       <div>
         <p class="text-sm text-soluk">Bu ay hakediş</p>
-        <p class="rakam mt-1.5 text-[3.25rem] font-bold leading-[0.95] text-olumlu sm:text-[4rem]">
+        <p class="rakam mt-1.5 text-[2.5rem] font-bold leading-[0.95] text-olumlu sm:text-[3.25rem] lg:text-[4rem]">
           {{ aylik_hakedis|para }}<span class="ml-1 text-3xl text-olumlu/40">₺</span>
         </p>
       </div>
@@ -54,7 +54,7 @@
     <h2 class="baslik mb-4 text-lg font-semibold">Yeni başvuru</h2>
     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {% for kategori in kategoriler %}
-      <a href="{% url 'basvurular:yeni' %}?kategori={{ kategori.pk }}"
+      <a href="{% url 'basvurular:yeni' kategori.slug %}"
          class="yuzey sim group flex items-center gap-4 rounded-kart p-4 transition-colors
                 hover:border-vurgu hover:bg-vurgu/5">
         <span class="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-zemin
@@ -81,7 +81,8 @@
   <section>
     <div class="mb-4 flex items-baseline justify-between">
       <h2 class="baslik text-lg font-semibold">Son başvurular</h2>
-      <a href="{% url 'basvurular:liste' %}" class="text-sm font-medium text-vurgu hover:underline">
+      <a href="{% url 'basvurular:liste' %}"
+         class="-mr-2 flex min-h-11 items-center px-2 text-sm font-medium text-vurgu hover:underline">
         Tümünü gör
       </a>
     </div>
@@ -89,7 +90,7 @@
     {% if son_basvurular %}
     <div class="yuzey overflow-hidden rounded-kart">
       {% for basvuru in son_basvurular %}
-      <a href="{% url 'basvurular:detay' basvuru.pk %}"
+      <a href="{% url 'basvurular:detay' basvuru.referans_no %}"
          class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-zemin
                 {% if not forloop.last %}border-b border-cizgi{% endif %}">
         {% sinyal basvuru.durum %}

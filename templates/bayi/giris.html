@@ -7,7 +7,7 @@
 
   {# Sol: masa. Bir başvurunun yolculuğu, sistemin ne yaptığını tek bakışta anlatır. #}
   <div class="hidden flex-col justify-between border-r border-cizgi bg-zemin p-14 lg:flex">
-    <a href="{% url 'bayi:anasayfa' %}" class="flex items-center gap-2.5">
+    <a href="{% url 'bayi:anasayfa' %}" class="flex min-h-11 items-center gap-2.5">
       <span class="sim grid h-9 w-9 place-items-center bg-vurgu text-white">
         <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2">
           <path d="M12 20v-6M7 20v-3M17 20v-9M4 6.5C6.5 4 9.1 3 12 3s5.5 1 8 3.5"/>
@@ -49,7 +49,7 @@
   {# Sağ: form. Beyaz kağıt, geniş hedefler, tek sütun. #}
   <div class="flex items-center justify-center bg-yuzey px-6 py-14">
     <div class="w-full max-w-sm">
-      <a href="{% url 'bayi:anasayfa' %}" class="mb-9 inline-flex items-center gap-2.5 lg:hidden">
+      <a href="{% url 'bayi:anasayfa' %}" class="mb-9 inline-flex min-h-11 items-center gap-2.5 lg:hidden">
         <span class="sim grid h-10 w-10 place-items-center bg-vurgu text-white">
           <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2">
             <path d="M12 20v-6M7 20v-3M17 20v-9M4 6.5C6.5 4 9.1 3 12 3s5.5 1 8 3.5"/>

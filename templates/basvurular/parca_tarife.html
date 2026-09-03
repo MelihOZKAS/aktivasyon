@@ -1,6 +1,6 @@
 <label for="id_tarife" class="alan-etiketi mb-1.5 block">Tarife</label>
 <select name="tarife" id="id_tarife" class="girdi"
-        hx-get="{% url 'basvurular:kampanya-secenekleri' %}"
+        hx-get="{% url 'basvurular:kampanyalar' %}"
         hx-target="#kampanya-kutusu"
         hx-trigger="change">
   <option value="">{% if tarifeler %}Seçiniz{% else %}Önce operatör seç{% endif %}</option>
