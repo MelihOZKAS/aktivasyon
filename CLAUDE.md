@@ -138,6 +138,16 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `apps/basvurular/services.belgeleri_sil` çalışır. Aktif ve İptal siler;
   Hatalı ve Eksik Evrak silmez, çünkü o başvurular düzeltilip yeniden
   denenebilir. Başvuru kaydı ve para geçmişi her hâlükârda kalır.
+- **Dosya alanları otomatik temizlenir.** Django kayıt silinince dosyayı
+  diskten silmez; `apps/dosya.py` bunu kapatır — kayıt silinince ve dosya
+  değişince eskisi commit sonrasında silinir. Yeni bir dosya/görsel alanı
+  eklerken ilgili `AppConfig.ready()` içinde `dosyalari_temizle`'ye kaydet.
+- **Kategoride aktif tarifesi olan operatör forma otomatik girer.** Tarife
+  tanımlayıp operatörü kategorinin listesine eklemeyi unutmak sessiz bir
+  tuzaktı; `gecerli_operatorler()` ikisini birleştirir.
+- **SIM karşılığı takibi kategoriye bağlı.** `sim_karsiligi_gerekir` açık
+  kategorilerde tamamlanan her işlem, operatörden alınacak yeni SIM olarak
+  takibe girer (`Basvuru.sim_karsiligi_alindi`).
 - **Yüklenen görseller küçültülüp WebP'ye çevrilir** (`apps/basvurular/gorsel.py`).
   Uzun kenar 1000px, kalite 85 — kimlik kartı kadrajın çoğunu kapladığı için
   karttaki yazı ~18px kalıyor ve okunuyor. Tasarruf %95'in üzerinde. Yeni bir

@@ -139,6 +139,7 @@ class BasvuruAdmin(ModelAdmin):
         "durum_rozeti",
         "tutar_ozeti",
         "kar_gosterimi",
+        "sim_karsiligi_rozeti",
         "olusturma_tarihi",
     )
     list_filter = (
@@ -149,6 +150,7 @@ class BasvuruAdmin(ModelAdmin):
         "musteri_tipi",
         "para_islendi",
         "tedarikci_islendi",
+        "sim_karsiligi_alindi",
         "olusturma_tarihi",
     )
     search_fields = (
@@ -171,6 +173,7 @@ class BasvuruAdmin(ModelAdmin):
         "para_islendi",
         "tedarikci_islendi",
         "belgeler_silindi",
+        "sim_karsiligi_tarihi",
         "kar_ozeti",
         "olusturma_tarihi",
         "guncelleme_tarihi",
@@ -179,7 +182,12 @@ class BasvuruAdmin(ModelAdmin):
     inlines = [BasvuruBelgesiInline, CuzdanHareketiInline, DurumGecmisiInline]
     date_hierarchy = "olusturma_tarihi"
     list_per_page = 50
-    actions = ("tedarikciye_ata", "tedarikci_atamasini_kaldir")
+    actions = (
+        "tedarikciye_ata",
+        "tedarikci_atamasini_kaldir",
+        "sim_karsiligi_alindi_isaretle",
+        "sim_karsiligi_geri_al",
+    )
     fieldsets = (
         (
             "Başvuru",
@@ -201,6 +209,17 @@ class BasvuruAdmin(ModelAdmin):
         ),
         ("Kategoriye Özel Alanlar", {"fields": ("ek_bilgiler_tablosu",)}),
         ("Durum", {"fields": ("durum", "bayi_aciklamasi", "operasyon_notu")}),
+        (
+            "SIM karşılığı",
+            {
+                "fields": ("sim_karsiligi_alindi", "sim_karsiligi_tarihi"),
+                "description": (
+                    "Bu aktivasyonun tükettiği SIM'in yenisi operatörden "
+                    "alındığında işaretleyin. Yalnızca kategorisinde “SIM "
+                    "Karşılığı Takip Edilsin” açık olan işlemlerde anlamlıdır."
+                ),
+            },
+        ),
         (
             "Tedarikçi",
             {
@@ -268,6 +287,12 @@ class BasvuruAdmin(ModelAdmin):
             "hakedis": odenen,
             "kar": gelir + kesinti - odenen,
         }
+        # Operatörden alınacak SIM sayısı: tamamlanmış ama karşılığı gelmemiş.
+        yanit.context_data["bekleyen_sim"] = sorgu.filter(
+            kategori__sim_karsiligi_gerekir=True,
+            durum__hakedis_tetikler=True,
+            sim_karsiligi_alindi=False,
+        ).count()
         return yanit
 
     @display(description="Durum")
@@ -344,6 +369,39 @@ class BasvuruAdmin(ModelAdmin):
             ),
         )
         return format_html("<table>{}</table>", satirlar)
+
+    @display(description="SIM karşılığı")
+    def sim_karsiligi_rozeti(self, obj):
+        if not obj.kategori.sim_karsiligi_gerekir:
+            return format_html('<span style="color:#9AA5B7">—</span>')
+        if obj.sim_karsiligi_alindi:
+            return format_html('<span style="color:#0F8A4D;font-weight:600">alındı</span>')
+        if obj.durum.hakedis_tetikler:
+            return format_html('<span style="color:#B45309;font-weight:600">bekliyor</span>')
+        return format_html('<span style="color:#9AA5B7">—</span>')
+
+    @admin.action(description="SIM karşılığı alındı olarak işaretle")
+    def sim_karsiligi_alindi_isaretle(self, request, secilenler):
+        """Operatörden yeni kartlar geldiğinde toplu işaretlemek için."""
+        adet = 0
+        for basvuru in secilenler.filter(sim_karsiligi_alindi=False):
+            basvuru.sim_karsiligi_alindi = True
+            basvuru.save(update_fields=["sim_karsiligi_alindi", "sim_karsiligi_tarihi"])
+            adet += 1
+        self.message_user(
+            request,
+            f"{adet} işlemin SIM karşılığı alındı olarak işaretlendi.",
+            messages.SUCCESS if adet else messages.WARNING,
+        )
+
+    @admin.action(description="SIM karşılığı işaretini geri al")
+    def sim_karsiligi_geri_al(self, request, secilenler):
+        adet = 0
+        for basvuru in secilenler.filter(sim_karsiligi_alindi=True):
+            basvuru.sim_karsiligi_alindi = False
+            basvuru.save(update_fields=["sim_karsiligi_alindi", "sim_karsiligi_tarihi"])
+            adet += 1
+        self.message_user(request, f"{adet} işlemin işareti geri alındı.", messages.SUCCESS)
 
     @admin.action(description="Seçili işlemleri bir tedarikçiye sat")
     def tedarikciye_ata(self, request, secilenler):

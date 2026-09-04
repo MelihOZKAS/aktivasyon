@@ -87,6 +87,14 @@ class BasvuruKategorisi(ZamanDamgali):
         default=True,
         help_text="Pasaportlu işlemler gibi tarifesiz kategorilerde kapatın.",
     )
+    sim_karsiligi_gerekir = models.BooleanField(
+        "SIM Karşılığı Takip Edilsin",
+        default=False,
+        help_text=(
+            "Bu tip aktivasyon fiziksel SIM tüketiyorsa açın. Tamamlanan her "
+            "işlem için operatörden alınacak yeni SIM takibe girer."
+        ),
+    )
     sira = models.PositiveIntegerField("Sıra", default=0)
     aktif = models.BooleanField("Aktif", default=True)
 
@@ -104,8 +112,19 @@ class BasvuruKategorisi(ZamanDamgali):
         super().save(*args, **kwargs)
 
     def gecerli_operatorler(self):
-        """Kategoriye özel operatör listesi; tanımlı değilse tüm aktif operatörler."""
-        secilenler = self.operatorler.filter(aktif=True)
+        """Bu kategoride başvuru girilebilecek operatörler.
+
+        Kategoriye bağlanmış operatörlerin yanında, bu kategoride aktif
+        tarifesi olan operatörler de listeye girer. Aksi hâlde tarife
+        tanımlayıp operatörü listeye eklemeyi unutan yönetici, tarifesini
+        formda göremezdi.
+
+        Hiçbiri yoksa tüm aktif operatörler gösterilir.
+        """
+        secilenler = Operator.objects.filter(aktif=True).filter(
+            models.Q(kategoriler=self) | models.Q(tarifeler__kategori=self,
+                                                  tarifeler__aktif=True)
+        ).distinct()
         return secilenler if secilenler.exists() else Operator.objects.filter(aktif=True)
 
 

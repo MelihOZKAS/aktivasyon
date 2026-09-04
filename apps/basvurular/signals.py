@@ -23,6 +23,15 @@ logger = logging.getLogger(__name__)
 
 
 @receiver(pre_save, sender=Basvuru)
+def sim_karsiligi_tarihini_damgala(sender, instance, **kwargs):
+    """Karşılığı alındı işaretlendiği anı kaydeder."""
+    if instance.sim_karsiligi_alindi and instance.sim_karsiligi_tarihi is None:
+        instance.sim_karsiligi_tarihi = timezone.now()
+    elif not instance.sim_karsiligi_alindi:
+        instance.sim_karsiligi_tarihi = None
+
+
+@receiver(pre_save, sender=Basvuru)
 def onceki_durumu_hatirla(sender, instance, **kwargs):
     """Kaydetmeden önce durumu ve tedarikçiyi instance üzerinde saklar."""
     if not instance.pk:

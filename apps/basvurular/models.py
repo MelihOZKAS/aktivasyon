@@ -216,6 +216,16 @@ class Basvuru(ZamanDamgali):
     tedarikci_islendi = models.BooleanField(
         "Tedarikçi Bedeli İşlendi", default=False, editable=False
     )
+
+    # --- SIM karşılığı (operatörden alınacak yeni kart) ---
+    sim_karsiligi_alindi = models.BooleanField(
+        "SIM Karşılığı Alındı",
+        default=False,
+        help_text="Bu aktivasyonun tükettiği SIM'in yenisi operatörden alındı mı?",
+    )
+    sim_karsiligi_tarihi = models.DateTimeField(
+        "SIM Karşılığı Alınma Tarihi", null=True, blank=True, editable=False
+    )
     sonuclanma_tarihi = models.DateTimeField(
         "Sonuçlanma Tarihi",
         null=True,
@@ -236,6 +246,7 @@ class Basvuru(ZamanDamgali):
         indexes = [
             models.Index(fields=["bayi", "-olusturma_tarihi"]),
             models.Index(fields=["tedarikci", "-olusturma_tarihi"]),
+            models.Index(fields=["sim_karsiligi_alindi", "-olusturma_tarihi"]),
             models.Index(fields=["durum", "-olusturma_tarihi"]),
             models.Index(fields=["kategori", "-olusturma_tarihi"]),
             models.Index(fields=["kimlik_no"]),
@@ -253,6 +264,15 @@ class Basvuru(ZamanDamgali):
     def net_tutar(self):
         """Bayi açısından net etki: hakediş eksi tahsilat."""
         return self.hakedis - self.tahsil_edilen
+
+    @property
+    def sim_karsiligi_bekliyor(self):
+        """Tamamlanmış ama karşılığı henüz alınmamış aktivasyon."""
+        return (
+            self.kategori.sim_karsiligi_gerekir
+            and self.durum.hakedis_tetikler
+            and not self.sim_karsiligi_alindi
+        )
 
     @property
     def sonuclandi_mi(self):

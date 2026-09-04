@@ -131,6 +131,11 @@ Dosyalar veritabanı değişikliği **commit edildikten sonra** silinir. Aksi
 hâlde bir hata yüzünden işlem geri alınsa dosya çoktan gitmiş, kayıt geri
 gelmiş olur ve olmayan bir dosyayı işaret ederdi.
 
+Kayıt silindiğinde ve dosya değiştirildiğinde eski dosya diskten otomatik
+silinir (`apps/dosya.py`). Django bunu kendiliğinden yapmaz; silinen her
+tarife görseli ve değiştirilen her kimlik fotoğrafı aksi hâlde diskte
+kalırdı.
+
 Yine de disk hatası sahipsiz dosya bırakabilir; arada bir kontrol edin:
 
 ```bash
@@ -246,6 +251,14 @@ python manage.py compilemessages
 Ekleme düğmesi de `templates/unfold/helpers/add_link.html` ile ezilmiştir:
 unfold'un ikon-only yuvarlak düğmesi ne işe yaradığını anlatmıyordu, artık
 "Yeni <model> ekle" yazıyor.
+
+## SIM karşılığı takibi
+
+Fiziksel SIM tüketen kategorilerde (**Kategoriler** ekranında "SIM Karşılığı
+Takip Edilsin" açık olanlar), tamamlanan her işlem operatörden alınacak yeni
+bir SIM anlamına gelir. Başvuru listesinin üstünde kaç kart beklendiği
+görünür; kartlar geldiğinde işlemleri seçip **"SIM karşılığı alındı olarak
+işaretle"** deyin.
 
 ## Tedarikçi
 
