@@ -470,3 +470,36 @@ class StatikDosyalar(TestCase):
                     icerik,
                     f"{yol} derlenmemiş kaynak; static/ dışına taşınmalı",
                 )
+
+
+class YonetimPaneliTurkcesi(TestCase):
+    """django-unfold Türkçe çeviriyle gelmiyor; eksikler bizim katalogda.
+
+    Derlenmiş `.mo` dosyası bir süre `.gitignore`'daydı: yerelde her şey
+    Türkçeydi ama sunucuda İngilizce görünüyordu, çünkü Django `.po`
+    değil `.mo` okur ve sunucuda `compilemessages` çalışmıyor.
+    """
+
+    def test_derlenmis_katalog_yerinde(self):
+        from django.conf import settings
+
+        for yol in settings.LOCALE_PATHS:
+            mo = Path(yol) / "tr" / "LC_MESSAGES" / "django.mo"
+            self.assertTrue(mo.exists(), f"{mo} yok — compilemessages çalıştırın")
+
+    def test_unfold_metinleri_turkce(self):
+        from django.utils import translation
+
+        with translation.override("tr"):
+            for metin in (
+                "Type to search",
+                "No results found",
+                "Reset filters",
+                "This page yielded into no results. "
+                "Create a new item or reset your filters.",
+                "Log out",
+                "Change password",
+            ):
+                self.assertNotEqual(
+                    translation.gettext(metin), metin, f"çevrilmemiş: {metin}"
+                )

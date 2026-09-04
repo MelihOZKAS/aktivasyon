@@ -54,6 +54,9 @@ cover/
 # Translations
 *.mo
 *.pot
+# Sunucuda gettext yok ve compilemessages çalışmıyor; Django .po değil .mo
+# okuduğu için derlenmiş katalog depoya girer (static/app.css ile aynı sebep).
+!locale/**/*.mo
 
 # Django stuff:
 *.log

@@ -98,3 +98,81 @@ msgstr "Parola değiştir"
 
 msgid "After you've created a user, you’ll be able to edit more user options."
 msgstr "Kullanıcıyı oluşturduktan sonra diğer ayarlarını düzenleyebilirsiniz."
+
+msgid "Reset filters"
+msgstr "Filtreleri sıfırla"
+
+msgid "This page yielded into no results. Create a new item or reset your filters."
+msgstr "Bu sayfada sonuç yok. Yeni bir kayıt ekleyin ya da filtreleri sıfırlayın."
+
+msgid "Run"
+msgstr "Çalıştır"
+
+msgid "System"
+msgstr "Sistem"
+
+msgid "True"
+msgstr "Evet"
+
+msgid "False"
+msgstr "Hayır"
+
+msgid "Select all rows"
+msgstr "Tüm satırları seç"
+
+msgid "Toggle password visibility"
+msgstr "Parolayı göster / gizle"
+
+msgid "You have been successfully logged out from the administration"
+msgstr "Yönetim panelinden başarıyla çıkış yaptınız"
+
+msgid "Models in the {{ name }} application"
+msgstr "{{ name }} uygulamasındaki modeller"
+
+msgid "By {{ filter_title }}"
+msgstr "{{ filter_title }} filtresi"
+
+msgid "Sorting priority: {{ priority_number }}"
+msgstr "Sıralama önceliği: {{ priority_number }}"
+
+msgid "{{ full_result_count }} total"
+msgstr "toplam {{ full_result_count }}"
+
+msgid "Add {{ name }}"
+msgstr "{{ name }} ekle"
+
+msgid "Add another {{ model }}"
+msgstr "Bir {{ model }} daha ekle"
+
+msgid "Change selected {{ model }}"
+msgstr "Seçili {{ model }} kaydını düzenle"
+
+msgid "Delete selected {{ model }}"
+msgstr "Seçili {{ model }} kaydını sil"
+
+msgid "View selected {{ model }}"
+msgstr "Seçili {{ model }} kaydını görüntüle"
+
+msgid "Select all {{ total_count }} {{ module_name }}"
+msgstr "{{ total_count }} {{ module_name }} kaydının tümünü seç"
+
+msgid "Enter a new password for the user <strong>{{ username }}</strong>."
+msgstr "<strong>{{ username }}</strong> kullanıcısı için yeni bir parola girin."
+
+msgid "Are you sure you want to delete the selected {{ objects_name }}? All of the following objects and their related items will be deleted:"
+msgstr "Seçili {{ objects_name }} kayıtlarını silmek istediğinize emin misiniz? Aşağıdaki kayıtlar ve bunlara bağlı olan her şey silinecek:"
+
+msgid "Are you sure you want to delete the {{ object_name }} \"{{ escaped_object }}\"? All of the following related items will be deleted:"
+msgstr "{{ object_name }} \"{{ escaped_object }}\" kaydını silmek istediğinize emin misiniz? Aşağıdaki bağlı kayıtların tümü silinecek:"
+
+msgid "Deleting the selected {{ objects_name }} would require deleting the following protected related objects:"
+msgstr "Seçili {{ objects_name }} kayıtlarını silmek, korumalı olan şu bağlı kayıtların da silinmesini gerektirir:"
+
+msgid "Deleting the selected {{ objects_name }} would result in deleting related objects, but your account doesn't have permission to delete the following types of objects:"
+msgstr "Seçili {{ objects_name }} kayıtlarını silmek bağlı kayıtları da siler; ancak hesabınızın şu tipteki kayıtları silme yetkisi yok:"
+
+msgid "Deleting the {{ object_name }} '{{ escaped_object }}' would require deleting the following protected related objects:"
+msgstr "{{ object_name }} '{{ escaped_object }}' kaydını silmek, korumalı olan şu bağlı kayıtların da silinmesini gerektirir:"
+
+msgid "Deleting the {{ object_name }} '{{ escaped_object }}' would result in deleting related objects, but your account doesn't have permission to delete the following types of objects:"
+msgstr "{{ object_name }} '{{ escaped_object }}' kaydını silmek bağlı kayıtları da siler; ancak hesabınızın şu tipteki kayıtları silme yetkisi yok:"

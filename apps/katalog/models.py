@@ -51,6 +51,8 @@ class Operator(ZamanDamgali):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = turkce_slug(self.ad)
+        # Logo da diğer görseller gibi küçültülüp WebP'ye çevrilir.
+        self.logo = kucult(self.logo)
         super().save(*args, **kwargs)
 
 

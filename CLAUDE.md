@@ -198,6 +198,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **django-unfold Türkçe çeviriyle gelmiyor.** İngilizce bir metin görürsen
   `locale/tr/LC_MESSAGES/django.po` dosyasına ekleyip `compilemessages`
   çalıştır. Şablonu kopyalayıp metni sabitleme.
+- **Derlenmiş `django.mo` depoya girer** (`.gitignore`'da `!locale/**/*.mo`
+  istisnası). Django `.po` değil `.mo` okur; sunucuda gettext yok ve
+  `compilemessages` çalışmıyor. `.po`'yu güncelleyip `.mo`'yu commit'lemezsen
+  yerelde Türkçe, sunucuda İngilizce görürsün — bir kez öyle oldu.
 - Ekleme düğmesi `templates/unfold/helpers/add_link.html` ile ezilmiştir:
   unfold'un ikon-only yuvarlak düğmesi ne yaptığını anlatmıyordu. unfold
   yükseltmelerinde bu şablonu gözden geçir.
