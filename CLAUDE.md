@@ -1,5 +1,54 @@
 # Aktivasyon — çalışma kuralları
 
+## Sistem nedir
+
+Telekom bayileri için başvuru toplama, evrak takibi, bakiye ve otomatik
+hakediş sistemi. Üç taraf var:
+
+| Taraf | Ne yapar | Para yönü |
+|---|---|---|
+| **Bayi** | Müşteriyi getirir, başvuruyu girer | Hakediş alır, hat ücreti öder |
+| **Tedarikçi** | Kendisine satılan işlemi üstlenir, aktivasyonu yapar | Ana hakedişi bize öder |
+| **Operatör** | Tedarikçi yoksa aktivasyon doğrudan onda yapılır | Ana hakedişi bize öder |
+
+Bir firma hem bayi hem tedarikçi olabilir.
+
+**Temel ilke: başvuru tipleri, tarifeler, kampanyalar, form alanları,
+durumlar ve para kuralları veridir — kod değil.** Yeni bir başvuru tipi
+eklemek yönetim panelinden kayıt açmaktır; yazılım değişikliği gerekmez.
+Bu ilkeyi bozan bir çözüm önerme.
+
+| Katman | Uygulama | İçerik |
+|---|---|---|
+| Katalog | `apps/katalog` | Operatör, kategori, tarife, kampanya, form alanları |
+| Başvuru | `apps/basvurular` | Tek `Basvuru` modeli, belgeler, durum geçmişi |
+| Finans | `apps/finans` | Cüzdan, değişmez defter, ücret ve hakediş kuralları |
+| Bayi | `apps/bayi` | Profil ve roller, SIM stoğu, duyurular, paneller |
+| Bildirim | `apps/bildirim` | Telegram |
+
+## Kurulum sırası
+
+Sistem bir kez kurulup sonra kendi kendine çalışacak şekilde tasarlandı.
+Kurulumda sıra önemli, çünkü her adım öncekine dayanır:
+
+1. **Operatörler** — marka rengiyle birlikte
+2. **Başvuru durumları** — hangisi başlangıç, hangisi parayı tetikliyor,
+   hangisi olumsuz, hangisi belgeleri siliyor
+3. **Kategoriler** — hangi operatörlerde geçerli, tarife zorunlu mu, SIM
+   karşılığı takip edilecek mi
+4. **Form alanları** — her kategoride hangi bilgiler sorulacak
+5. **Tarifeler ve kampanyalar** — bayiye gösterilecek açıklama ve görselle
+6. **Bayi grupları** — fiyat kademesi
+7. **Ücret ve hakediş kuralları** — üç yön: bayiye hakediş, bayiden
+   tahsilat, ana hakediş (operatör ya da tedarikçi bazlı)
+8. **Kullanıcılar** — rolleri ve cüzdanlarıyla
+
+Bundan sonra günlük işte tek elle yapılan şey **başvuru durumunu
+değiştirmek**; para, SIM stoğu, belge silme ve bildirimler kendiliğinden
+işler. Tedarikçi ataması da bilinçli olarak elle yapılır.
+
+`manage.py baslangic_verisi` 1-4 arasını örnek verilerle kurar.
+
 ## Tasarım
 
 **1. Her ekran %100 mobil uyumlu olmalı. İstisnasız.**

@@ -42,6 +42,29 @@ görünür. Yetersiz bakiye hatası bayiye limit bilgisi sızdırmaz (`YetersizB
 mesajı geneldir, ayrıntı `detay` alanındadır). Bu kural
 `apps/bayi/tests.py` içinde testlerle sabitlenmiştir.
 
+## Kurulum sırası
+
+Sistem bir kez kurulur, sonra kendi kendine çalışır. Sıra önemli — her adım
+öncekine dayanır:
+
+1. **Operatörler** — marka rengiyle
+2. **Başvuru durumları** — hangisi başlangıç, hangisi parayı tetikliyor,
+   hangisi olumsuz, hangisi belgeleri siliyor, hangisi bildirim gönderiyor
+3. **Kategoriler** — geçerli operatörler, tarife zorunlu mu, SIM karşılığı
+   takip edilecek mi
+4. **Form alanları** — her kategoride hangi bilgiler sorulacak
+5. **Tarifeler ve kampanyalar** — bayiye gösterilecek açıklama ve görselle
+6. **Bayi grupları** — fiyat kademesi
+7. **Ücret ve hakediş kuralları** — bayiye hakediş, bayiden tahsilat, ana
+   hakediş (operatör ya da tedarikçi bazlı)
+8. **Kullanıcılar** — rolleri ve cüzdanlarıyla
+
+Bundan sonra günlük işte elle yapılan tek şey **başvuru durumunu
+değiştirmek**. Para hareketi, SIM stoğu, belge silme ve bildirimler
+kendiliğinden işler. Tedarikçi ataması bilinçli olarak elle yapılır.
+
+`manage.py baslangic_verisi` 1-4 arasını örnek verilerle kurar.
+
 ## Geliştirme
 
 ```bash
