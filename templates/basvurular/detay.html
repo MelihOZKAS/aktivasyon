@@ -73,7 +73,7 @@
     </dl>
   </div>
 
-  {% if basvuru.belgeler_silindi %}
+  {% if belgeler_gorunur and basvuru.belgeler_silindi %}
   <div class="yuzey rounded-kart p-6">
     <h3 class="baslik font-semibold">Belgeler</h3>
     <p class="mt-2 text-sm leading-relaxed text-soluk">
@@ -81,7 +81,7 @@
       silindi; başvuru kaydı ve hakediş geçmişi yerinde duruyor.
     </p>
   </div>
-  {% elif basvuru.belgeler.all %}
+  {% elif belgeler_gorunur and basvuru.belgeler.all %}
   <div class="yuzey rounded-kart p-6">
     <h3 class="baslik font-semibold">Belgeler</h3>
     <div class="mt-4 grid gap-3 sm:grid-cols-3">

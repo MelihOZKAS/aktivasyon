@@ -564,6 +564,61 @@ class RolErisimTestleri(TestCase):
         yanit = self.client.get(reverse("basvurular:detay", args=[digeri.referans_no]))
         self.assertEqual(yanit.status_code, 404)
 
+    def test_tedarikci_kimlik_goruntulerini_goremez(self):
+        """Kimlik fotoğrafı ayrı bir yetki; tedarikçi işlemi görür, belgeyi görmez."""
+        import io
+        import tempfile
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.test import override_settings
+        from PIL import Image
+        from apps.basvurular.models import BasvuruBelgesi
+
+        tampon = io.BytesIO()
+        Image.new("RGB", (4, 4), "white").save(tampon, format="PNG")
+
+        with override_settings(MEDIA_ROOT=tempfile.mkdtemp()):
+            belge = BasvuruBelgesi.objects.create(
+                basvuru=self.basvuru, alan_kodu="kimlik_on", etiket="Kimlik Ön",
+                dosya=SimpleUploadedFile("k.png", tampon.getvalue(), content_type="image/png"),
+            )
+
+            self.client.force_login(self.tedarikci)
+            # İşlemin kendisini görebilir...
+            detay = self.client.get(
+                reverse("basvurular:detay", args=[self.basvuru.referans_no])
+            )
+            self.assertEqual(detay.status_code, 200)
+            self.assertNotContains(detay, "Belgeler")
+            # ...ama kimlik görüntüsüne erişemez.
+            self.assertEqual(
+                self.client.get(belge.get_absolute_url()).status_code, 404
+            )
+
+            # Başvuruyu getiren bayi görebilir.
+            self.client.force_login(self.bayi)
+            self.assertEqual(
+                self.client.get(belge.get_absolute_url()).status_code, 200
+            )
+
+    def test_toplu_tedarikciye_satma(self):
+        from apps.basvurular.models import Basvuru
+
+        yonetici = User.objects.create_superuser("yon", "y@x.com", "parola12345")
+        self.client.force_login(yonetici)
+
+        self.client.post(
+            "/yonetim/basvurular/basvuru/",
+            {
+                "action": "tedarikciye_ata",
+                "_selected_action": [self.basvuru.pk],
+                "uygula": "1",
+                "tedarikci": self.tedarikci.pk,
+            },
+            follow=True,
+        )
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.basvuru.tedarikci, self.tedarikci)
+
     def test_profilsiz_kullanici_bayi_sayilir(self):
         """Eski kayıtlar rol kontrolüyle kilitlenmemeli."""
         eski = User.objects.create_user("profilsiz", password="parola12345")

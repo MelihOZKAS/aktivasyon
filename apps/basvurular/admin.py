@@ -1,7 +1,10 @@
 from decimal import Decimal
 
-from django.contrib import admin
+from django import forms
+from django.contrib import admin, messages
+from django.contrib.auth.models import User
 from django.db.models import Sum
+from django.shortcuts import render
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
@@ -113,6 +116,18 @@ class BasvuruDurumuAdmin(ModelAdmin):
         )
 
 
+class TedarikciAtamaFormu(forms.Form):
+    """Seçili işlemleri bir tedarikçiye satmak için."""
+
+    tedarikci = forms.ModelChoiceField(
+        label="Hangi tedarikçiye satılsın?",
+        queryset=User.objects.filter(
+            is_active=True, bayi_profili__tedarikci_mi=True
+        ).order_by("username"),
+        help_text="Yalnızca tedarikçi rolü açık hesaplar listelenir.",
+    )
+
+
 @admin.register(Basvuru)
 class BasvuruAdmin(ModelAdmin):
     list_display = (
@@ -164,6 +179,7 @@ class BasvuruAdmin(ModelAdmin):
     inlines = [BasvuruBelgesiInline, CuzdanHareketiInline, DurumGecmisiInline]
     date_hierarchy = "olusturma_tarihi"
     list_per_page = 50
+    actions = ("tedarikciye_ata", "tedarikci_atamasini_kaldir")
     fieldsets = (
         (
             "Başvuru",
@@ -328,6 +344,61 @@ class BasvuruAdmin(ModelAdmin):
             ),
         )
         return format_html("<table>{}</table>", satirlar)
+
+    @admin.action(description="Seçili işlemleri bir tedarikçiye sat")
+    def tedarikciye_ata(self, request, secilenler):
+        """Birden çok işlemi tek seferde tedarikçiye atar.
+
+        Zaten aktif olan işlemlerde bedel atama anında tedarikçinin
+        hesabından düşer.
+        """
+        if "uygula" in request.POST:
+            form = TedarikciAtamaFormu(request.POST)
+            if form.is_valid():
+                tedarikci = form.cleaned_data["tedarikci"]
+                atanan = atlanan = 0
+                for basvuru in secilenler:
+                    if basvuru.tedarikci_islendi:
+                        atlanan += 1
+                        continue
+                    basvuru.tedarikci = tedarikci
+                    # save() sinyali tetikler: aktifse bedel hemen işlenir.
+                    basvuru.save()
+                    atanan += 1
+
+                self.message_user(
+                    request,
+                    f"{atanan} işlem {tedarikci.get_username()} hesabına satıldı"
+                    + (f", {atlanan} tanesi zaten işlenmişti." if atlanan else "."),
+                    messages.SUCCESS,
+                )
+                return None
+        else:
+            form = TedarikciAtamaFormu()
+
+        return render(
+            request,
+            "admin/basvurular/tedarikci_ata.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "İşlemleri tedarikçiye sat",
+                "form": form,
+                "basvurular": secilenler,
+                "opts": self.model._meta,
+                "action_checkbox_name": admin.helpers.ACTION_CHECKBOX_NAME,
+            },
+        )
+
+    @admin.action(description="Tedarikçi atamasını kaldır (bedeli işlenmemişse)")
+    def tedarikci_atamasini_kaldir(self, request, secilenler):
+        kaldirilan = secilenler.filter(tedarikci_islendi=False).update(tedarikci=None)
+        atlanan = secilenler.count() - kaldirilan
+        self.message_user(
+            request,
+            f"{kaldirilan} işlemin tedarikçisi kaldırıldı"
+            + (f", {atlanan} tanesinde bedel işlendiği için dokunulmadı." if atlanan else "."),
+            messages.SUCCESS if kaldirilan else messages.WARNING,
+        )
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)

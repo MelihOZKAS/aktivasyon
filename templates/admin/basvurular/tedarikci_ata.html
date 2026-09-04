@@ -1,0 +1,47 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-xl border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <p class="mb-4 text-sm text-base-500">
+      Seçilen {{ basvurular|length }} işlem bu tedarikçiye satılacak. Aktif olan
+      işlemlerde bedel hemen tedarikçinin hesabından düşer; bedeli daha önce
+      işlenmiş işlemler atlanır.
+    </p>
+
+    <ul class="mb-6 max-h-64 space-y-1 overflow-y-auto text-sm">
+      {% for basvuru in basvurular %}
+      <li class="flex items-center justify-between border-b border-base-100 py-1.5
+                 dark:border-base-800">
+        <span>{{ basvuru.referans_no }} · {{ basvuru.ad_soyad }}</span>
+        <span class="text-base-400">
+          {{ basvuru.kategori.ad }} · {{ basvuru.durum.ad }}
+          {% if basvuru.tedarikci %}· şu an {{ basvuru.tedarikci.get_username }}{% endif %}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+      {% for basvuru in basvurular %}
+      <input type="hidden" name="{{ action_checkbox_name }}" value="{{ basvuru.pk }}">
+      {% endfor %}
+      <input type="hidden" name="action" value="tedarikciye_ata">
+
+      {{ form.as_div }}
+
+      <div class="flex gap-3 pt-2">
+        <button type="submit" name="uygula" value="1"
+                class="rounded-md bg-primary-600 px-4 py-2 font-medium text-white">
+          Sat
+        </button>
+        <a href="{% url 'admin:basvurular_basvuru_changelist' %}"
+           class="rounded-md border border-base-200 px-4 py-2 font-medium dark:border-base-700">
+          Vazgeç
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -151,7 +151,12 @@ def detay(request, referans):
     return render(
         request,
         "basvurular/detay.html",
-        {"basvuru": basvuru, "ek_satirlar": ek_satirlar},
+        {
+            "basvuru": basvuru,
+            "ek_satirlar": ek_satirlar,
+            # Tedarikçi işlemi görür ama kimlik görüntülerini görmez.
+            "belgeler_gorunur": basvuru.bayi_id == request.user.id,
+        },
     )
 
 
@@ -169,8 +174,10 @@ def belge(request, referans, alan_kodu):
         alan_kodu=alan_kodu,
     )
 
-    ilgili = {kayit.basvuru.bayi_id, kayit.basvuru.tedarikci_id}
-    if not request.user.is_staff and request.user.id not in ilgili:
+    # Kimlik görüntüleri yalnızca başvuruyu getiren bayiye ve personele açık.
+    # Tedarikçi işlemin bilgilerini görür ama kimlik fotoğraflarını görmez;
+    # gerekirse bu kural burada gevşetilir.
+    if not request.user.is_staff and kayit.basvuru.bayi_id != request.user.id:
         raise Http404
 
     if not kayit.dosya:

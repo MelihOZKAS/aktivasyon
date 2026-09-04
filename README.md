@@ -247,6 +247,30 @@ Ekleme düğmesi de `templates/unfold/helpers/add_link.html` ile ezilmiştir:
 unfold'un ikon-only yuvarlak düğmesi ne işe yaradığını anlatmıyordu, artık
 "Yeni <model> ekle" yazıyor.
 
+## Tedarikçi
+
+Bir firma hem bayi hem tedarikçi olabilir; roller **Bayi Profilleri**
+ekranındaki iki kutuyla açılır.
+
+- **Bayi rolü:** başvuru getirir, tamamlanınca hakediş alır
+- **Tedarikçi rolü:** kendisine satılan işlemi üstlenir, bedeli hesabından düşer
+
+İşlem satmak için başvuruları seçip **"Seçili işlemleri bir tedarikçiye sat"**
+işlemini kullanın. Zaten aktif olan işlemlerde bedel atama anında düşer.
+Bedeli işlenmiş bir işlemin tedarikçisi değiştirilemez.
+
+Fiyat tedarikçiye özeldir: **Ücret ve Hakediş Kuralları**'nda yön olarak
+*Tedarikçi Geliri* seçip *Tek Tedarikçi* alanını doldurun. Aynı işlem için
+her tedarikçiye farklı fiyat tanımlayabilirsiniz.
+
+Kâr = tedarikçiden alınan + bayiden kesilen − bayiye ödenen. Başvuru
+listesinde sütun olarak, detayda hesap tablosu olarak ve listenin üstünde
+filtreye göre toplam olarak görünür.
+
+Tedarikçi `/tedarikci/` panelinde üstlendiği işlemleri ve hesabını görür.
+**Kimlik görüntülerine erişemez** — işlemin bilgilerini görür, fotoğrafları
+görmez.
+
 ## Bayi başvurusu
 
 `/bayi-basvurusu/` kamuya açıktır: isim, soy isim ve telefon alınır.
