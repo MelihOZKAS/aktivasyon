@@ -337,7 +337,16 @@ class BayiBasvuruFormuTestleri(TestCase):
         self.url = reverse("bayi:bayi-basvurusu")
 
     def _veri(self, **degisiklik):
-        veri = {"isim": "Melih", "soyisim": "Kaya", "irtibat": "5321234567", "website": ""}
+        veri = {
+            "isim": "Melih",
+            "soyisim": "Kaya",
+            "irtibat": "5321234567",
+            # Parola artık başvuru sırasında seçiliyor; hesap açılınca
+            # kullanıcı bu parolayla giriyor.
+            "parola": "CokGuclu-Parola-2026",
+            "parola_tekrar": "CokGuclu-Parola-2026",
+            "website": "",
+        }
         veri.update(degisiklik)
         return veri
 
@@ -714,3 +723,161 @@ class YanMenuRozetleri(TestCase):
                     isim=f"Aday{sira}", soyisim="Test", irtibat="5551112233"
                 )
             self.assertEqual(rozetler.bekleyen_bayi_basvurulari(None), "2+")
+
+
+class BayiBasvurusundaParola(TestCase):
+    """Başvuran parolasını kendisi seçer; hesap açılınca onunla girer."""
+
+    ADRES = "/bayi-basvurusu/"
+
+    def _veri(self, **degisiklik):
+        veri = {
+            "isim": "Melih",
+            "soyisim": "Kaya",
+            "irtibat": "5551234567",
+            "parola": "CokGuclu-Parola-2026",
+            "parola_tekrar": "CokGuclu-Parola-2026",
+            "website": "",
+        }
+        veri.update(degisiklik)
+        return veri
+
+    def test_parola_duz_metin_saklanmaz(self):
+        from django.contrib.auth.hashers import check_password
+
+        from apps.bayi.models import BayiBasvurusu
+
+        self.client.post(self.ADRES, self._veri())
+
+        basvuru = BayiBasvurusu.objects.get()
+        self.assertNotIn("CokGuclu-Parola-2026", basvuru.parola_ozeti)
+        self.assertTrue(check_password("CokGuclu-Parola-2026", basvuru.parola_ozeti))
+
+    def test_parolalar_uyusmazsa_kayit_olmaz(self):
+        from apps.bayi.models import BayiBasvurusu
+
+        cevap = self.client.post(
+            self.ADRES, self._veri(parola_tekrar="baska-bir-sey-2026")
+        )
+
+        self.assertEqual(BayiBasvurusu.objects.count(), 0)
+        self.assertContains(cevap, "Parolalar aynı değil")
+
+    def test_zayif_parola_reddedilir(self):
+        from apps.bayi.models import BayiBasvurusu
+
+        self.client.post(self.ADRES, self._veri(parola="12345", parola_tekrar="12345"))
+
+        self.assertEqual(BayiBasvurusu.objects.count(), 0)
+
+    def test_ayni_numarayla_ikinci_basvuru_alinmaz(self):
+        from apps.bayi.models import BayiBasvurusu
+
+        self.client.post(self.ADRES, self._veri())
+        cevap = self.client.post(self.ADRES, self._veri(isim="Başkası"))
+
+        self.assertEqual(BayiBasvurusu.objects.count(), 1)
+        self.assertContains(cevap, "bekleyen bir başvurunuz var")
+
+    def test_numara_kullaniciysa_uyarilir(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.models import BayiBasvurusu
+
+        User.objects.create_user("5551234567", password="parola12345")
+        cevap = self.client.post(self.ADRES, self._veri())
+
+        self.assertEqual(BayiBasvurusu.objects.count(), 0)
+        self.assertContains(cevap, "açılmış bir hesap var")
+
+    def test_telegram_bildirimine_parola_girmez(self):
+        from unittest.mock import patch
+
+        with patch("apps.bayi.views.bayi_basvurusu_bildir") as bildirim:
+            self.client.post(self.ADRES, self._veri())
+
+        basvuru = bildirim.call_args.args[0]
+        self.assertNotIn("CokGuclu-Parola-2026", str(basvuru.__dict__))
+
+
+class BasvurudanHesapAcma(TestCase):
+    def setUp(self):
+        from apps.bayi.models import BayiBasvurusu
+
+        self.client.post(
+            "/bayi-basvurusu/",
+            {
+                "isim": "Melih",
+                "soyisim": "Kaya",
+                "irtibat": "5551234567",
+                "parola": "CokGuclu-Parola-2026",
+                "parola_tekrar": "CokGuclu-Parola-2026",
+                "website": "",
+            },
+        )
+        self.basvuru = BayiBasvurusu.objects.get()
+
+    def test_secilen_parolayla_giris_yapilir(self):
+        from apps.bayi.services import bayi_hesabi_ac
+
+        kullanici, yeni = bayi_hesabi_ac(self.basvuru)
+
+        self.assertTrue(yeni)
+        self.assertEqual(kullanici.get_username(), "5551234567")
+        self.assertTrue(kullanici.check_password("CokGuclu-Parola-2026"))
+        self.assertTrue(
+            self.client.login(username="5551234567", password="CokGuclu-Parola-2026")
+        )
+
+    def test_profil_ve_cuzdan_da_acilir(self):
+        from apps.bayi.services import bayi_hesabi_ac
+
+        kullanici, _ = bayi_hesabi_ac(self.basvuru)
+
+        self.assertTrue(kullanici.bayi_profili.bayi_mi)
+        self.assertEqual(kullanici.bayi_profili.telefon, "5551234567")
+        self.assertEqual(kullanici.cuzdan.bakiye, 0)
+        # Fiyat kademesini yönetici seçer.
+        self.assertIsNone(kullanici.cuzdan.grup)
+
+    def test_basvuru_onaylandi_olur_ve_hesaba_baglanir(self):
+        from apps.bayi.models import BayiBasvuruDurumu
+        from apps.bayi.services import bayi_hesabi_ac
+
+        kullanici, _ = bayi_hesabi_ac(self.basvuru)
+        self.basvuru.refresh_from_db()
+
+        self.assertEqual(self.basvuru.durum, BayiBasvuruDurumu.ONAYLANDI)
+        self.assertEqual(self.basvuru.olusturulan_kullanici, kullanici)
+
+    def test_ikinci_cagri_yeni_hesap_acmaz(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.services import bayi_hesabi_ac
+
+        bayi_hesabi_ac(self.basvuru)
+        self.basvuru.refresh_from_db()
+        _, yeni = bayi_hesabi_ac(self.basvuru)
+
+        self.assertFalse(yeni)
+        self.assertEqual(User.objects.filter(username="5551234567").count(), 1)
+
+    def test_kullanici_adi_doluysa_anlasilir_hata(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.services import HesapAcilamadi, bayi_hesabi_ac
+
+        User.objects.create_user("5551234567", password="parola12345")
+
+        with self.assertRaises(HesapAcilamadi):
+            bayi_hesabi_ac(self.basvuru)
+
+    def test_parolasiz_eski_basvuruda_hesap_girise_kapali_acilir(self):
+        from apps.bayi.services import bayi_hesabi_ac
+
+        self.basvuru.parola_ozeti = ""
+        self.basvuru.save(update_fields=["parola_ozeti"])
+
+        kullanici, _ = bayi_hesabi_ac(self.basvuru)
+
+        self.assertFalse(kullanici.has_usable_password())

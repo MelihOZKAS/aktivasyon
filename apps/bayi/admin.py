@@ -17,6 +17,7 @@ from apps.bayi.models import (
     SimKart,
     SimKartDurumu,
 )
+from apps.bayi.services import HesapAcilamadi, bayi_hesabi_ac
 from apps.finans.models import Cuzdan
 from apps.katalog.models import Operator
 
@@ -233,7 +234,7 @@ class BayiBasvurusuAdmin(ModelAdmin):
     date_hierarchy = "olusturma_tarihi"
     readonly_fields = ("isim", "soyisim", "irtibat", "olusturma_tarihi")
     autocomplete_fields = ("olusturulan_kullanici",)
-    actions = ("gorusuldu_isaretle", "reddet")
+    actions = ("hesap_ac", "gorusuldu_isaretle", "reddet")
     fieldsets = (
         (
             "Başvuran",
@@ -242,7 +243,18 @@ class BayiBasvurusuAdmin(ModelAdmin):
                 "description": "Bu bilgiler başvuran tarafından girildi, değiştirilemez.",
             },
         ),
-        ("Değerlendirme", {"fields": ("durum", "notlar", "olusturulan_kullanici")}),
+        (
+            "Değerlendirme",
+            {
+                "fields": ("durum", "notlar", "olusturulan_kullanici"),
+                "description": (
+                    "Hesabı açmak için listeden başvuruyu seçip “Seçili "
+                    "başvurular için bayi hesabı aç” işlemini kullanın. "
+                    "Kullanıcı adı telefon numarası olur, parola başvuranın "
+                    "kendi seçtiğidir."
+                ),
+            },
+        ),
     )
 
     def get_queryset(self, request):
@@ -272,6 +284,41 @@ class BayiBasvurusuAdmin(ModelAdmin):
             renkler.get(obj.durum, "#6F7B8F"),
             obj.get_durum_display(),
         )
+
+    @admin.action(description="Seçili başvurular için bayi hesabı aç")
+    def hesap_ac(self, request, secilenler):
+        """Kullanıcı adı telefon, parola başvuranın seçtiği parola."""
+        acilan, atlanan, hatalar = [], 0, []
+
+        for basvuru in secilenler:
+            try:
+                kullanici, yeni = bayi_hesabi_ac(basvuru)
+            except HesapAcilamadi as hata:
+                hatalar.append(f"{basvuru.ad_soyad}: {hata}")
+                continue
+            if yeni:
+                acilan.append(kullanici.get_username())
+            else:
+                atlanan += 1
+
+        if acilan:
+            self.message_user(
+                request,
+                format_html(
+                    "{} hesap açıldı: {}. Kullanıcı adı telefon numarasıdır; "
+                    "parolayı başvuran kendisi seçti. Cüzdan grubunu (fiyat "
+                    "kademesi) belirlemeyi unutmayın.",
+                    len(acilan),
+                    ", ".join(acilan),
+                ),
+                messages.SUCCESS,
+            )
+        if atlanan:
+            self.message_user(
+                request, f"{atlanan} başvurunun hesabı zaten açılmıştı.", messages.INFO
+            )
+        for satir in hatalar:
+            self.message_user(request, satir, messages.ERROR)
 
     @admin.action(description="Görüşüldü olarak işaretle")
     def gorusuldu_isaretle(self, request, secilenler):

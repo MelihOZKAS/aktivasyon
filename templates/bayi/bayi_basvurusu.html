@@ -43,7 +43,8 @@
 
       <h1 class="baslik text-3xl font-bold">Bayi başvurusu</h1>
       <p class="mt-2 text-soluk">
-        Adınızı ve telefonunuzu bırakın, sizi arayalım.
+        Bilgilerinizi bırakın, sizi arayalım. Hesabınız açıldığında burada
+        belirlediğiniz parolayla girersiniz.
       </p>
 
       <form method="post" class="mt-8 space-y-5" novalidate>
@@ -74,6 +75,31 @@
           <p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>
           {% endfor %}
         </div>
+
+        <div>
+          <label for="{{ form.parola.id_for_label }}" class="alan-etiketi mb-1.5">
+            Parola
+          </label>
+          {{ form.parola }}
+          <p class="mt-1.5 text-sm text-soluk">{{ form.parola.help_text }}</p>
+          {% for hata in form.parola.errors %}
+          <p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>
+          {% endfor %}
+        </div>
+
+        <div>
+          <label for="{{ form.parola_tekrar.id_for_label }}" class="alan-etiketi mb-1.5">
+            Parola (tekrar)
+          </label>
+          {{ form.parola_tekrar }}
+          {% for hata in form.parola_tekrar.errors %}
+          <p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>
+          {% endfor %}
+        </div>
+
+        <p class="rounded-kart border border-cizgi bg-zemin px-4 py-3 text-sm text-murekkep-yumusak">
+          Kullanıcı adınız <strong>telefon numaranız</strong> olacak.
+        </p>
 
         {# Botlar için tuzak alan; ekran okuyucudan ve gözden gizli. #}
         <div class="hidden" aria-hidden="true">{{ form.website }}</div>

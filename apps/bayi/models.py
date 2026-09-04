@@ -190,6 +190,16 @@ class BayiBasvurusu(ZamanDamgali):
         choices=BayiBasvuruDurumu.choices,
         default=BayiBasvuruDurumu.YENI,
     )
+    parola_ozeti = models.CharField(
+        "Parola Özeti",
+        max_length=128,
+        blank=True,
+        editable=False,
+        help_text=(
+            "Başvuran kendi parolasını seçer. Burada yalnızca özeti durur; "
+            "düz metin hiçbir yerde saklanmaz ve kimse göremez."
+        ),
+    )
     notlar = models.TextField("Notlar", blank=True, help_text="Başvurana gösterilmez.")
     olusturulan_kullanici = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -212,3 +222,12 @@ class BayiBasvurusu(ZamanDamgali):
     @property
     def ad_soyad(self):
         return f"{self.isim} {self.soyisim}".strip()
+
+    @property
+    def kullanici_adi(self):
+        """Hesap açılırsa kullanıcı adı telefon numarası olur.
+
+        Bayi zaten numarasını biliyor; ayrıca bir kullanıcı adı uydurup
+        telefonla bildirmek gerekmiyor.
+        """
+        return self.irtibat

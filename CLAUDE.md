@@ -127,6 +127,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dahil. `cekirdek_alan` doluysa değer başvurunun kendi kolonuna yazılır
   (aranabilir olur), boşsa `ek_bilgiler` JSON'una girer. Forma yeni bir sabit
   alan ekleme; kategori tanımından geçir.
+- **Bayi parolasını başvuru sırasında kendisi seçer.** Kamuya açık formda
+  parola alanı vardır; `BayiBasvurusu.parola_ozeti` yalnızca **özeti** tutar,
+  düz metin hiçbir yere yazılmaz — Telegram bildirimine de girmez. Yönetici
+  listeden "Seçili başvurular için bayi hesabı aç" işlemini çalıştırınca özet
+  doğrudan `User.password`'e taşınır; kimse parolayı görmeden bayi kendi
+  seçtiği parolayla girer. **Kullanıcı adı telefon numarasıdır** — ayrıca bir
+  ad uydurup telefonla bildirmek gerekmiyor. Hesap açma mantığı tek yerde:
+  `apps.bayi.services.bayi_hesabi_ac`.
 - **Roller birbirini dışlamaz.** Bir firma hem bayi hem tedarikçi olabilir
   (`BayiProfili.bayi_mi` / `tedarikci_mi`). Bayi başvuru getirir ve hakediş
   alır; tedarikçi işlemi satın alır, bedeli hesabından düşer.
