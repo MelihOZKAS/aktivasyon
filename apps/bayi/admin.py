@@ -259,7 +259,7 @@ class BayiBasvurusuAdmin(ModelAdmin):
     """Bayi olmak isteyenlerin bıraktığı talepler."""
 
     list_display = (
-        "ad_soyad", "irtibat_baglantisi", "durum_rozeti",
+        "ad_soyad", "irtibat_baglantisi", "durum_rozeti", "parola_secildi",
         "olusturulan_kullanici", "olusturma_tarihi",
     )
     list_filter = ("durum", "olusturma_tarihi")
@@ -281,10 +281,10 @@ class BayiBasvurusuAdmin(ModelAdmin):
             {
                 "fields": ("durum", "notlar", "olusturulan_kullanici"),
                 "description": (
-                    "Hesabı açmak için listeden başvuruyu seçip “Seçili "
-                    "başvurular için bayi hesabı aç” işlemini kullanın. "
-                    "Kullanıcı adı telefon numarası olur, parola başvuranın "
-                    "kendi seçtiğidir."
+                    "Durumu “Onaylandı” yapıp kaydetmek hesabı da açar; "
+                    "listeden “Seçili başvurular için bayi hesabı aç” işlemi "
+                    "de aynı işi yapar. Kullanıcı adı telefon numarası olur, "
+                    "parola başvuranın kendi seçtiğidir."
                 ),
             },
         ),
@@ -318,6 +318,64 @@ class BayiBasvurusuAdmin(ModelAdmin):
             obj.get_durum_display(),
         )
 
+    @admin.display(description="Parola", boolean=True)
+    def parola_secildi(self, obj):
+        """Başvuran parolasını seçmiş mi? Seçmediyse hesap girişe kapalı açılır."""
+        return obj.parolasini_secti
+
+    def save_model(self, request, obj, form, change):
+        """Durum “Onaylandı” seçilince hesap da açılır.
+
+        Sistemde günlük işte tek elle yapılan şey durumu değiştirmektir;
+        hesabın ayrıca listeden bir işlemle açılmasını beklemek sessiz bir
+        tuzaktı. Yönetici onayladığını sanıyor, bayi giriş ekranında
+        “kullanıcı adı veya parola hatalı” görüyordu. Mantık yine tek yerde:
+        `bayi_hesabi_ac`.
+        """
+        super().save_model(request, obj, form, change)
+
+        if obj.durum != BayiBasvuruDurumu.ONAYLANDI or obj.olusturulan_kullanici_id:
+            return
+
+        try:
+            kullanici, _ = bayi_hesabi_ac(obj)
+        except HesapAcilamadi as hata:
+            self.message_user(request, str(hata), messages.ERROR)
+            return
+
+        self._acilanlari_bildir(request, [kullanici])
+
+    def _acilanlari_bildir(self, request, kullanicilar):
+        """Açılan hesapları bildirir; parolasız açılanı ayrıca uyarır."""
+        self.message_user(
+            request,
+            format_html(
+                "{} hesap açıldı: {}. Kullanıcı adı telefon numarasıdır; "
+                "parolayı başvuran kendisi seçti. Cüzdan grubunu (fiyat "
+                "kademesi) belirlemeyi unutmayın.",
+                len(kullanicilar),
+                ", ".join(k.get_username() for k in kullanicilar),
+            ),
+            messages.SUCCESS,
+        )
+
+        # Parolasız açılan hesap girişe kapalıdır. Bunu yöneticiye burada
+        # söylemezsek kimse fark etmez; bayi giriş ekranında öğrenir.
+        parolasiz = [
+            k.get_username() for k in kullanicilar if not k.has_usable_password()
+        ]
+        if parolasiz:
+            self.message_user(
+                request,
+                format_html(
+                    "{} hesabının parolası yok — başvuruda parola seçilmemiş. "
+                    "Bu hesap girişe kapalı; kullanıcı sayfasından parola "
+                    "belirleyin.",
+                    ", ".join(parolasiz),
+                ),
+                messages.WARNING,
+            )
+
     @admin.action(description="Seçili başvurular için bayi hesabı aç")
     def hesap_ac(self, request, secilenler):
         """Kullanıcı adı telefon, parola başvuranın seçtiği parola."""
@@ -330,22 +388,12 @@ class BayiBasvurusuAdmin(ModelAdmin):
                 hatalar.append(f"{basvuru.ad_soyad}: {hata}")
                 continue
             if yeni:
-                acilan.append(kullanici.get_username())
+                acilan.append(kullanici)
             else:
                 atlanan += 1
 
         if acilan:
-            self.message_user(
-                request,
-                format_html(
-                    "{} hesap açıldı: {}. Kullanıcı adı telefon numarasıdır; "
-                    "parolayı başvuran kendisi seçti. Cüzdan grubunu (fiyat "
-                    "kademesi) belirlemeyi unutmayın.",
-                    len(acilan),
-                    ", ".join(acilan),
-                ),
-                messages.SUCCESS,
-            )
+            self._acilanlari_bildir(request, acilan)
         if atlanan:
             self.message_user(
                 request, f"{atlanan} başvurunun hesabı zaten açılmıştı.", messages.INFO

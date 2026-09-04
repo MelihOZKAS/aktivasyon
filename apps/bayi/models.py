@@ -240,5 +240,19 @@ class BayiBasvurusu(ZamanDamgali):
 
         Bayi zaten numarasını biliyor; ayrıca bir kullanıcı adı uydurup
         telefonla bildirmek gerekmiyor.
+
+        Numara burada bir kez daha tek biçime indirilir: normalleştirme
+        gelmeden önce alınmış eski başvurularda `irtibat` "05435609672"
+        olarak durabilir. O hâliyle hesap açılırsa bayi numarasını
+        `5435609672` diye yazar ve giremez.
         """
-        return self.irtibat
+        return normalize(self.irtibat)
+
+    @property
+    def parolasini_secti(self):
+        """Başvuran kendi parolasını seçmiş mi?
+
+        Seçmediyse hesap girişe kapalı açılır; yönetici bunu hesabı açmadan
+        önce görmeli, bayi giriş ekranında öğrenmemeli.
+        """
+        return bool(self.parola_ozeti)

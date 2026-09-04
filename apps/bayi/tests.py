@@ -882,6 +882,115 @@ class BasvurudanHesapAcma(TestCase):
 
         self.assertFalse(kullanici.has_usable_password())
 
+    def test_eski_bicimli_numara_hesap_acarken_duzeltilir(self):
+        """Normalleştirme gelmeden önce alınmış başvurular da tek biçime iner.
+
+        `irtibat` "05551234567" kalırsa hesap o adla açılır; bayi numarasını
+        `5551234567` diye yazar ve giremez.
+        """
+        from apps.bayi.models import BayiBasvurusu
+        from apps.bayi.services import bayi_hesabi_ac
+
+        # save() normalleştirdiği için kolona doğrudan yazıyoruz.
+        BayiBasvurusu.objects.filter(pk=self.basvuru.pk).update(
+            irtibat="0555 123 45 67"
+        )
+        self.basvuru.refresh_from_db()
+
+        kullanici, _ = bayi_hesabi_ac(self.basvuru)
+
+        self.assertEqual(kullanici.get_username(), "5551234567")
+        self.assertTrue(
+            self.client.login(username="5551234567", password="CokGuclu-Parola-2026")
+        )
+
+
+class YonetimdenOnaylama(TestCase):
+    """Durumu “Onaylandı” yapmak hesabı da açar.
+
+    Hesabın ayrıca listeden bir işlemle açılmasını beklemek sessiz bir
+    tuzaktı: yönetici onayladığını sanıyor, bayi giriş ekranında hata
+    görüyordu.
+    """
+
+    ADRES = "/yonetim/bayi/bayibasvurusu/{}/change/"
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.models import BayiBasvurusu
+
+        self.client.post(
+            "/bayi-basvurusu/",
+            {
+                "isim": "Melih",
+                "soyisim": "Kaya",
+                "irtibat": "5551234567",
+                "parola": "CokGuclu-Parola-2026",
+                "parola_tekrar": "CokGuclu-Parola-2026",
+                "website": "",
+            },
+        )
+        self.basvuru = BayiBasvurusu.objects.get()
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _onayla(self):
+        return self.client.post(
+            self.ADRES.format(self.basvuru.pk),
+            {"durum": "onaylandi", "notlar": "", "olusturulan_kullanici": ""},
+            follow=True,
+        )
+
+    def test_durum_onaylandi_yapilinca_hesap_acilir(self):
+        self._onayla()
+        self.basvuru.refresh_from_db()
+
+        self.assertIsNotNone(self.basvuru.olusturulan_kullanici)
+        self.assertEqual(
+            self.basvuru.olusturulan_kullanici.get_username(), "5551234567"
+        )
+
+    def test_acilan_hesapla_secilen_parolayla_girilir(self):
+        self._onayla()
+        self.client.logout()
+
+        cevap = self.client.post(
+            "/giris-yap/",
+            {"username": "0555 123 45 67", "password": "CokGuclu-Parola-2026"},
+        )
+
+        self.assertEqual(cevap.status_code, 302)
+        self.assertEqual(cevap["Location"], "/panel/")
+
+    def test_ikinci_kayit_yeni_hesap_acmaz(self):
+        from django.contrib.auth.models import User
+
+        self._onayla()
+        self._onayla()
+
+        self.assertEqual(User.objects.filter(username="5551234567").count(), 1)
+
+    def test_parolasiz_basvuruda_uyari_gosterilir(self):
+        from apps.bayi.models import BayiBasvurusu
+
+        BayiBasvurusu.objects.filter(pk=self.basvuru.pk).update(parola_ozeti="")
+
+        cevap = self._onayla()
+
+        self.assertContains(cevap, "parolası yok")
+
+    def test_kullanici_adi_doluysa_hesap_acilmaz_ve_hata_gosterilir(self):
+        from django.contrib.auth.models import User
+
+        User.objects.create_user("5551234567", password="baska-parola-123")
+
+        cevap = self._onayla()
+        self.basvuru.refresh_from_db()
+
+        self.assertContains(cevap, "zaten alınmış")
+        self.assertIsNone(self.basvuru.olusturulan_kullanici)
+
 
 class TelefonNormallestirme(TestCase):
     """Kullanıcı adı telefon olduğu için numara tek biçimde saklanmalı."""

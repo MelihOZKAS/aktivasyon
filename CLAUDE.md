@@ -129,12 +129,23 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   alan ekleme; kategori tanımından geçir.
 - **Bayi parolasını başvuru sırasında kendisi seçer.** Kamuya açık formda
   parola alanı vardır; `BayiBasvurusu.parola_ozeti` yalnızca **özeti** tutar,
-  düz metin hiçbir yere yazılmaz — Telegram bildirimine de girmez. Yönetici
-  listeden "Seçili başvurular için bayi hesabı aç" işlemini çalıştırınca özet
-  doğrudan `User.password`'e taşınır; kimse parolayı görmeden bayi kendi
-  seçtiği parolayla girer. **Kullanıcı adı telefon numarasıdır** — ayrıca bir
-  ad uydurup telefonla bildirmek gerekmiyor. Hesap açma mantığı tek yerde:
-  `apps.bayi.services.bayi_hesabi_ac`.
+  düz metin hiçbir yere yazılmaz — Telegram bildirimine de girmez. Özet
+  hesap açılırken doğrudan `User.password`'e taşınır; kimse parolayı görmeden
+  bayi kendi seçtiği parolayla girer. **Kullanıcı adı telefon numarasıdır** —
+  ayrıca bir ad uydurup telefonla bildirmek gerekmiyor. Hesap açma mantığı tek
+  yerde: `apps.bayi.services.bayi_hesabi_ac`.
+- **Başvurunun durumunu "Onaylandı" yapmak hesabı açar.** Listedeki "Seçili
+  başvurular için bayi hesabı aç" işlemi de aynı işi yapar; ikisi de aynı
+  servisi çağırır (`BayiBasvurusuAdmin.save_model`). Onayı yalnızca listedeki
+  işleme bağlamak sessiz bir tuzaktı: yönetici durumu değiştirip onayladığını
+  sanıyor, bayi giriş ekranında "kullanıcı adı veya parola hatalı" görüyordu.
+  Sistemde günlük işte tek elle yapılan şey durumu değiştirmektir; onay da bu
+  kurala uyar. Başvuruda parola yoksa hesap girişe kapalı açılır ve yönetici
+  bunu açık bir uyarı olarak görür.
+- **"Bayi giremiyor" şikâyeti `manage.py bayi_hesap <numara>` ile ayrıştırılır.**
+  Başvuru mu düşmemiş, hesap mı açılmamış, parola mı yok, numara mı başka
+  biçimde kaydedilmiş — dördü de giriş ekranında aynı hatayı gösterir. Komut
+  parolayı göstermez, yalnızca var/yok der.
 - **Telefon numarası her yerde tek biçimde durur: `5321234567`.**
   `apps.bayi.telefon.normalize` boşluğu, ayraçları, `+90` ülke kodunu ve
   baştaki sıfırı atar; harf içeren gerçek kullanıcı adlarına dokunmaz. Dört
