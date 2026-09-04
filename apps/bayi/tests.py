@@ -632,3 +632,85 @@ class RolErisimTestleri(TestCase):
         Cuzdan.objects.create(bayi=eski)
         self.client.force_login(eski)
         self.assertEqual(self.client.get(reverse("bayi:panel")).status_code, 200)
+
+
+class YanMenuRozetleri(TestCase):
+    """Bekleyen iş sayısı yan menüde görünmeli; iş yokken rozet çizilmemeli."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        self.yonetici = User.objects.create_superuser(
+            "rozet.yonetici", password="parola12345"
+        )
+        self.client.force_login(self.yonetici)
+
+    def _menu(self):
+        cevap = self.client.get("/yonetim/")
+        self.assertEqual(cevap.status_code, 200)
+        icerik = cevap.content.decode()
+        # Menü gerçekten çizilmiş olmalı; boş sayfada her assert geçer.
+        self.assertIn("Bayi Başvuruları", icerik)
+        return icerik
+
+    def test_bekleyen_yoksa_rozet_cizilmez(self):
+        from apps import rozetler
+
+        self.assertEqual(rozetler.bekleyen_bayi_basvurulari(None), "")
+        self.assertEqual(rozetler.bekleyen_basvurular(None), "")
+
+        icerik = self._menu()
+        # Rozetin nokta yolu ekrana basılmamalı; unfold'un varsayılan
+        # şablonu boş değerde tam olarak bunu yapıyordu.
+        self.assertNotIn("apps.rozetler", icerik)
+
+    def test_yeni_bayi_basvurusu_sayilir(self):
+        from apps import rozetler
+        from apps.bayi.models import BayiBasvurusu, BayiBasvuruDurumu
+
+        for sira in range(3):
+            BayiBasvurusu.objects.create(
+                isim=f"Aday{sira}", soyisim="Test", irtibat="5551112233"
+            )
+        # Görüşülen başvuru artık bekleyen değildir.
+        BayiBasvurusu.objects.create(
+            isim="Görüşüldü", soyisim="Test", irtibat="5551112233",
+            durum=BayiBasvuruDurumu.GORUSULDU,
+        )
+
+        self.assertEqual(rozetler.bekleyen_bayi_basvurulari(None), "3")
+        self.assertIn(">3<", self._menu())
+
+    def test_basvuru_durumu_degisince_rozetten_duser(self):
+        from apps import rozetler
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+        from apps.katalog.models import BasvuruKategorisi
+
+        beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        islemde = BasvuruDurumu.objects.create(ad="İşlemde", slug="islemde")
+        kategori = BasvuruKategorisi.objects.create(ad="MNT")
+
+        basvuru = Basvuru.objects.create(
+            bayi=self.yonetici, kategori=kategori, durum=beklemede, isim="Ali"
+        )
+        self.assertEqual(rozetler.bekleyen_basvurular(None), "1")
+
+        basvuru.durum = islemde
+        basvuru.save()
+        self.assertEqual(rozetler.bekleyen_basvurular(None), "")
+
+    def test_yuz_ustu_kisaltilir(self):
+        from unittest.mock import patch
+
+        from apps import rozetler
+
+        with patch.object(rozetler, "UST_SINIR", 2):
+            from apps.bayi.models import BayiBasvurusu
+
+            for sira in range(5):
+                BayiBasvurusu.objects.create(
+                    isim=f"Aday{sira}", soyisim="Test", irtibat="5551112233"
+                )
+            self.assertEqual(rozetler.bekleyen_bayi_basvurulari(None), "2+")

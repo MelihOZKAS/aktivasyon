@@ -1,0 +1,22 @@
+{% comment %}
+unfold'un kendi rozeti `badge` anahtarı dolu olduğu sürece her zaman çizilir.
+Geri çağırım boş ya da sıfır dönerse `{% if item.badge_callback %}` yanlışa
+düşüyor ve rozetin içine sayı yerine geri çağırımın nokta yolu basılıyordu
+("apps.rozetler.bekleyen_basvurular").
+
+Burada değer önce çözülür: boşsa rozet hiç çizilmez, doluysa çizilir. Kutu
+yerine daire (`rounded-full`) kullanılır; sınıfların hepsi unfold'un derlenmiş
+CSS'inde var, kendi Tailwind çıktımız yönetim panelinde yüklü değil.
+
+unfold yükseltmelerinde bu şablonu gözden geçir.
+{% endcomment %}
+
+{% with sinif="font-semibold h-[18px] leading-[18px] ml-2 px-1 relative rounded-full text-center text-[11px] whitespace-nowrap uppercase min-w-[18px] bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400" %}
+    {% if "badge_callback" in item %}
+        {% with deger=item.badge_callback %}
+            {% if deger %}<span class="{{ sinif }}">{{ deger }}</span>{% endif %}
+        {% endwith %}
+    {% elif item.badge %}
+        <span class="{{ sinif }}">{{ item.badge }}</span>
+    {% endif %}
+{% endwith %}

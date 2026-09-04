@@ -182,6 +182,9 @@ UNFOLD = {
                         "title": "Başvurular",
                         "icon": "inbox",
                         "link": "/yonetim/basvurular/basvuru/",
+                        # Başlangıç durumundan çıkmamış, yani henüz kimsenin
+                        # bakmadığı başvuru sayısı.
+                        "badge": "apps.rozetler.bekleyen_basvurular",
                     },
                     {
                         "title": "Başvuru Durumları",
@@ -256,6 +259,7 @@ UNFOLD = {
                         "title": "Bayi Başvuruları",
                         "icon": "how_to_reg",
                         "link": "/yonetim/bayi/bayibasvurusu/",
+                        "badge": "apps.rozetler.bekleyen_bayi_basvurulari",
                     },
                     {
                         "title": "Bayi Profilleri",

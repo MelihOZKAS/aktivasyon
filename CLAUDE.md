@@ -202,6 +202,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   istisnası). Django `.po` değil `.mo` okur; sunucuda gettext yok ve
   `compilemessages` çalışmıyor. `.po`'yu güncelleyip `.mo`'yu commit'lemezsen
   yerelde Türkçe, sunucuda İngilizce görürsün — bir kez öyle oldu.
+- **Yan menü rozetleri "bakılacak iş" sayar, toplam kayıt değil.**
+  `apps/rozetler.py`: yeni bayi başvuruları ve başlangıç durumundan çıkmamış
+  başvurular. Personel durumu değiştirir değiştirmez sayıdan düşer. Hangi
+  durumun başlangıç olduğu veridir (`BasvuruDurumu.baslangic_durumu`), koda
+  gömülü değil. Yeni bir rozet eklerken aynı ilkeye uy — kuyruk uzunluğunu
+  göster, arşivi değil.
+- **Rozet şablonu ezilmiştir** (`templates/unfold/helpers/app_list_badge.html`).
+  unfold rozeti `badge` anahtarı dolu olduğu sürece çiziyor; geri çağırım boş
+  dönünce sayı yerine geri çağırımın nokta yolunu basıyordu. Ezilmiş sürüm
+  değeri önce çözer, boşsa hiç çizmez. Rozet sınıfları unfold'un derlenmiş
+  CSS'inden gelir — bizim `static/app.css` yönetim panelinde yüklü değildir,
+  oraya yeni sınıf uyduramazsın.
 - Ekleme düğmesi `templates/unfold/helpers/add_link.html` ile ezilmiştir:
   unfold'un ikon-only yuvarlak düğmesi ne yaptığını anlatmıyordu. unfold
   yükseltmelerinde bu şablonu gözden geçir.
