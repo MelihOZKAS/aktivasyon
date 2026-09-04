@@ -31,16 +31,16 @@ Her hareketin `idempotency_anahtari` alanı benzersizdir: aynı olay iki kez iş
 
 ### Borçlanma
 
-Varsayılan olarak hiçbir bayi borçlanamaz. Yönetim panelinden bayinin cüzdanında
-**Borçlanabilir** açılır ve bir tutar girilir; bayinin üst sınırı o tutardır.
-İzin kapalıyken girilmiş tutar dikkate alınmaz.
+**Borç için üst sınır yoktur.** Bakiye yetmezse tahsilat borç hanesine yazılır
+ve işlem tamamlanır; bayi tezgâh başında bakiye bitti diye durmaz. Bir bayiyi
+tamamen durdurmak gerekirse cüzdanındaki **İşlem Yapabilir** kapatılır.
 
-Borç limiti ve kullanılabilir tutar **bayiye hiçbir ekranda gösterilmez**.
-Kullanılabilir tutar da gizlidir, çünkü bakiyeden farkı limiti ele verir.
-Bayi yalnızca bakiyesini görür; "Borç" satırı da yalnızca gerçekten borcu varsa
-görünür. Yetersiz bakiye hatası bayiye limit bilgisi sızdırmaz (`YetersizBakiye`
-mesajı geneldir, ayrıntı `detay` alanındadır). Bu kural
-`apps/bayi/tests.py` içinde testlerle sabitlenmiştir.
+Bayi panelinde "borç limiti" ya da "kullanılabilir tutar" **gösterilmez**;
+böyle bir kavram yoktur. Bayi yalnızca bakiyesini görür, "Borç" satırı da
+yalnızca gerçekten borcu varsa görünür. Bu kural `apps/bayi/tests.py` içinde
+testlerle sabitlenmiştir.
+
+Sonraki bakiye yüklemesi önce borcu kapatır, artan bakiyeye geçer.
 
 ## Kurulum sırası
 
@@ -63,7 +63,27 @@ Bundan sonra günlük işte elle yapılan tek şey **başvuru durumunu
 değiştirmek**. Para hareketi, SIM stoğu, belge silme ve bildirimler
 kendiliğinden işler. Tedarikçi ataması bilinçli olarak elle yapılır.
 
-`manage.py baslangic_verisi` 1-4 arasını örnek verilerle kurar.
+### Tek komutla kurulum
+
+`manage.py kurulum` bu sekiz adımı sırasıyla yürütür:
+
+```bash
+manage.py kurulum                     # migration + 1-4. adımlar (üretim)
+manage.py kurulum --yonetici admin    # üstüne yönetici hesabı açar
+manage.py kurulum --ornek             # 5-8. adımları da örnek verilerle doldurur
+manage.py kurulum --sifirla --ornek   # önce her şeyi siler, sıfırdan kurar
+```
+
+| Bayrak | Ne yapar |
+|---|---|
+| _(yok)_ | Migration'ları uygular, durum/operatör/kategori/form alanlarını açar. Var olan kayıtlara dokunmaz; her açılışta güvenle çalışır. |
+| `--ornek` | Tarife, kampanya, bayi grubu, ücret kuralı, banka, duyuru, SIM stoğu ve deneme hesapları ekler. Yalnızca geliştirme için; üretimde `--zorla` ister. |
+| `--yonetici AD` | Yönetici hesabı açar. Parola `DJANGO_SUPERUSER_PASSWORD` yoksa üretilir ve bir kez ekrana yazılır. Hesap zaten varsa parolası değiştirilmez. |
+| `--sifirla` | Bu projenin veritabanındaki her şeyi siler. Silmeden önce hangi veritabanına bağlı olduğunu yazar ve adını yazmanızı ister; `--evet` onayı atlar. |
+
+`--sifirla` yalnızca `DATABASE_URL`'in gösterdiği veritabanına dokunur
+(PostgreSQL'de `DROP SCHEMA public CASCADE`, SQLite'ta dosyayı siler).
+Aynı sunucudaki diğer projelerin veritabanları ayrıdır, etkilenmez.
 
 ## Geliştirme
 
@@ -71,11 +91,11 @@ kendiliğinden işler. Tedarikçi ataması bilinçli olarak elle yapılır.
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 cp .env.ornek .env            # SECRET_KEY'i değiştir
-.venv/bin/python manage.py migrate
-.venv/bin/python manage.py baslangic_verisi
-.venv/bin/python manage.py createsuperuser
+.venv/bin/python manage.py kurulum --ornek
 .venv/bin/python manage.py runserver
 ```
+
+Deneme hesapları ve parolaları: `kullanicilar.md`.
 
 ### URL yapısı
 
@@ -367,29 +387,43 @@ docker compose -f docker-compose.yml up -d --build app_fadil
 ```bash
 cd /home/aktivasyon
 
-# 1) Önce yedek al (silmeden önce her zaman)
+# 1) Önce yedek al — silmeden önce her zaman
 docker exec postgresfadil pg_dump -U nasip_fadil_user -p 5434 fadil_db \
   > ~/fadil_db_yedek_$(date +%F_%H%M).sql
 
-# 2) Yalnızca bu projenin container'larını durdur
-docker compose -f docker-compose.yml down
-
-# 3) Yalnızca bu projenin veri volume'unu sil
-#    DİKKAT: 'docker volume prune' KULLANMA — diğer projeleri siler.
-docker volume rm aktivasyon_postgresql-data-fadil
-
-# 4) Yeniden ayağa kaldır; migration ve başlangıç verisi otomatik çalışır
+# 2) Son sürümü çek ve container'ı yenile
+git pull
 docker compose -f docker-compose.yml up -d --build
 
-# 5) Yönetici hesabı aç
-docker exec -it app_fadil python manage.py createsuperuser
+# 3) Sıfırla ve yeniden kur (veritabanı adını yazarak onaylarsınız)
+docker exec -it app_fadil python manage.py kurulum --sifirla --yonetici admin
 ```
 
-Volume adını doğrulamak için: `docker volume ls | grep fadil`
+Üçüncü adım yalnızca `fadil_db` şemasını düşürür; aynı PostgreSQL sunucusundaki
+diğer veritabanlarına dokunmaz. Ürettiği yönetici parolası bir kez ekrana yazılır.
+
+Container'ı da komple silmek isterseniz volume'u elle kaldırabilirsiniz:
+
+```bash
+docker compose -f docker-compose.yml down
+docker volume rm aktivasyon_postgresql-data-fadil   # yalnızca bu proje
+docker compose -f docker-compose.yml up -d --build  # kurulum otomatik çalışır
+```
+
+> **`docker volume prune` KULLANMAYIN** — sunucudaki diğer projelerin
+> volume'larını da siler. Volume adını doğrulamak için: `docker volume ls | grep fadil`
 
 ### Kurulum sonrası
 
-1. `/yonetim/` → Bayi Grupları: en az bir grup aç, borç limitini belirle
-2. Operatörler ve tarifeleri gir
-3. Ücret Kuralları: hangi kategoride ne kadar tahsilat/hakediş olacağını tanımla
-4. Kullanıcılar: her bayi için kullanıcı aç — cüzdan ve profil satır içi doldurulur
+`kurulum` komutu 1-4. adımları (durumlar, operatörler, kategoriler, form
+alanları) hazır getirir. Geriye yönetim panelinden girilecekler kalır:
+
+1. **Tarifeler ve kampanyalar** — her kategori/operatör için, açıklama ve görselle
+2. **Bayi grupları** — fiyat kademeleri
+3. **Ücret ve hakediş kuralları** — üç yön: bayiye hakediş, bayiden tahsilat,
+   ana hakediş (operatör ya da tedarikçi bazlı). Aradaki fark kârdır.
+4. **Kullanıcılar** — her bayi için hesap; cüzdan ve profil satır içi doldurulur
+5. **Banka hesapları** — bayiler bakiye yüklerken görecek
+
+Nasıl görüneceğini denemek için geliştirme makinenizde
+`manage.py kurulum --ornek` çalıştırıp örnek kurgusuna bakabilirsiniz.

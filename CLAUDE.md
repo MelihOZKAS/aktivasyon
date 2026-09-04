@@ -47,7 +47,18 @@ Bundan sonra günlük işte tek elle yapılan şey **başvuru durumunu
 değiştirmek**; para, SIM stoğu, belge silme ve bildirimler kendiliğinden
 işler. Tedarikçi ataması da bilinçli olarak elle yapılır.
 
-`manage.py baslangic_verisi` 1-4 arasını örnek verilerle kurar.
+**Kurulum tek komuttur: `manage.py kurulum`.** Migration'ları uygular ve
+1-4. adımları açar; `--ornek` 5-8'i de örnek verilerle doldurur, `--yonetici AD`
+yönetici hesabı açar, `--sifirla` önce her şeyi siler. Yeni bir kurulum adımı
+eklerken bu komuta da ekle — kurulumu belgeye değil komuta yazıyoruz.
+
+`--sifirla` yalnızca `DATABASE_URL`'in gösterdiği veritabanına dokunur
+(PostgreSQL'de `DROP SCHEMA public CASCADE`, SQLite'ta dosyayı siler) ve
+silmeden önce veritabanı adının yazılmasını ister. Sunucuda `docker volume
+prune` **kullanılmaz**; diğer projelerin volume'larını da siler.
+
+Örnek veri komutları (`ornek_veri`, `ornek_kullanicilar`) DEBUG kapalıyken
+`--zorla` olmadan çalışmaz: üretime deneme parolası ve uydurma fiyat girmesin.
 
 ## Tasarım
 

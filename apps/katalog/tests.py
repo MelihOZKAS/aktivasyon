@@ -141,3 +141,168 @@ class DosyaTemizligi(TestCase):
             pass
 
         self.assertTrue(os.path.exists(yol))
+
+
+class KurulumKomutu(TestCase):
+    """`manage.py kurulum` sistemi tek başına ayağa kaldırabilmeli.
+
+    Sıfırdan kurulan bir veritabanında elle hiçbir kayıt açmadan başvuru
+    girilip parası işlenebilmeli; kurulum sırasının bütün adımları veriyle
+    dolmalı.
+    """
+
+    @staticmethod
+    def _kur(*argumanlar):
+        from django.core.management import call_command
+
+        call_command("kurulum", *argumanlar, stdout=io.StringIO(), stderr=io.StringIO())
+
+    def test_ornek_kurulum_her_adimi_doldurur(self):
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.bayi.models import SimKart
+        from apps.finans.models import BayiGrubu, KuralYonu, UcretKurali
+        from apps.katalog.models import KategoriAlani
+
+        self._kur("--ornek", "--zorla")
+
+        # 1-4: durumlar, operatörler, kategoriler, form alanları
+        self.assertTrue(BasvuruDurumu.objects.filter(baslangic_durumu=True).exists())
+        self.assertTrue(BasvuruDurumu.objects.filter(hakedis_tetikler=True).exists())
+        self.assertTrue(Operator.objects.exists())
+        self.assertTrue(BasvuruKategorisi.objects.exists())
+        self.assertTrue(KategoriAlani.objects.filter(cekirdek_alan="isim").exists())
+
+        # 5-7: tarifeler, gruplar, üç yönde de kural
+        self.assertTrue(Tarife.objects.exists())
+        self.assertTrue(BayiGrubu.objects.exists())
+        for yon in (KuralYonu.TAHSILAT, KuralYonu.HAKEDIS, KuralYonu.ANA_HAKEDIS):
+            self.assertTrue(
+                UcretKurali.objects.filter(yon=yon).exists(), f"{yon} kuralı yok"
+            )
+
+        # 8: kullanıcılar, cüzdanları ve SIM stoğu
+        self.assertTrue(User.objects.filter(is_superuser=True).exists())
+        bayi = User.objects.get(username="bayi.kaya")
+        self.assertTrue(bayi.cuzdan.bakiye > 0)
+        self.assertTrue(SimKart.objects.bayinin_stogu(bayi).exists())
+
+    def test_kurulan_sistem_parayi_kendi_isler(self):
+        """Kurulumdan sonra elle kural yazmadan hakediş ve kâr oluşmalı."""
+        from decimal import Decimal
+
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+
+        self._kur("--ornek", "--zorla")
+
+        bayi = User.objects.get(username="bayi.kaya")
+        onceki_bakiye = bayi.cuzdan.bakiye
+        kategori = BasvuruKategorisi.objects.get(ad="Kontörlü Yeni Hat")
+        tarife = Tarife.objects.filter(kategori=kategori).first()
+
+        basvuru = Basvuru.objects.create(
+            bayi=bayi,
+            kategori=kategori,
+            operator=tarife.operator,
+            tarife=tarife,
+            kimlik_no="12345678901",
+            isim="Ayşe",
+            soyisim="Demir",
+            irtibat="5551234567",
+            durum=BasvuruDurumu.objects.get(baslangic_durumu=True),
+        )
+        basvuru.durum = BasvuruDurumu.objects.get(hakedis_tetikler=True)
+        basvuru.save()
+
+        basvuru.refresh_from_db()
+        bayi.cuzdan.refresh_from_db()
+
+        self.assertEqual(basvuru.tahsil_edilen, Decimal("25.00"))
+        self.assertEqual(basvuru.hakedis, Decimal("60.00"))
+        self.assertEqual(basvuru.ana_hakedis, Decimal("140.00"))
+        # Kâr = ana hakediş + tahsilat − hakediş
+        self.assertEqual(basvuru.kar, Decimal("105.00"))
+        self.assertEqual(bayi.cuzdan.bakiye, onceki_bakiye - 25 + 60)
+
+    def test_ikinci_calistirma_kayitlari_cogaltmaz(self):
+        from apps.finans.models import UcretKurali
+
+        self._kur("--ornek", "--zorla")
+        sayilar = (
+            Operator.objects.count(),
+            BasvuruKategorisi.objects.count(),
+            Tarife.objects.count(),
+            UcretKurali.objects.count(),
+        )
+
+        self._kur("--ornek", "--zorla")
+
+        self.assertEqual(
+            sayilar,
+            (
+                Operator.objects.count(),
+                BasvuruKategorisi.objects.count(),
+                Tarife.objects.count(),
+                UcretKurali.objects.count(),
+            ),
+        )
+
+    def test_yonetici_hesabi_acilir(self):
+        from django.contrib.auth.models import User
+
+        self._kur("--yonetici", "kurulum.admin")
+
+        kullanici = User.objects.get(username="kurulum.admin")
+        self.assertTrue(kullanici.is_superuser)
+        self.assertTrue(kullanici.is_staff)
+
+    def test_var_olan_yoneticinin_parolasi_degismez(self):
+        from django.contrib.auth.models import User
+
+        kullanici = User.objects.create_user("melih", password="eski-parola")
+        self._kur("--yonetici", "melih")
+
+        kullanici.refresh_from_db()
+        self.assertTrue(kullanici.is_superuser)
+        self.assertTrue(kullanici.check_password("eski-parola"))
+
+    def test_yanlis_ad_yazilirsa_hicbir_sey_silinmez(self):
+        """--sifirla onayı veritabanı adının yazılmasını ister."""
+        from unittest.mock import patch
+
+        from django.core.management.base import CommandError
+
+        self._kur()
+        onceki = BasvuruKategorisi.objects.count()
+
+        with patch("builtins.input", return_value="yanlis-ad"):
+            with self.assertRaises(CommandError):
+                self._kur("--sifirla")
+
+        self.assertEqual(BasvuruKategorisi.objects.count(), onceki)
+
+    def test_ornek_veri_uretimde_kazara_calismaz(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        with override_settings(DEBUG=False):
+            for komut in ("ornek_veri", "ornek_kullanicilar"):
+                with self.assertRaises(CommandError, msg=komut):
+                    call_command(komut, stdout=io.StringIO())
+
+    def test_durum_renklerinde_mor_yok(self):
+        """Tasarım kuralı: mor/violet renk kullanılmaz."""
+        import colorsys
+
+        from apps.basvurular.models import BasvuruDurumu
+
+        self._kur()
+        for durum in BasvuruDurumu.objects.all():
+            kod = durum.renk.lstrip("#")
+            r, g, b = (int(kod[i:i + 2], 16) / 255 for i in (0, 2, 4))
+            ton, _, doygunluk = colorsys.rgb_to_hsv(r, g, b)
+            mor = 0.72 <= ton <= 0.85 and doygunluk > 0.25
+            self.assertFalse(mor, f"{durum.ad} moru andırıyor: {durum.renk}")

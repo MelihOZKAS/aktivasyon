@@ -15,13 +15,11 @@ until pg_isready -h "$VT_HOST" -p "$VT_PORT" -U "$POSTGRES_USER" >/dev/null 2>&1
   sleep 1
 done
 
-echo "Migration'lar uygulanıyor..."
-python manage.py migrate --noinput
+# Migration'ları uygular ve eksik başlangıç verisini tamamlar.
+# Var olan kayıtlara dokunmaz; her açılışta güvenle çalışır.
+python manage.py kurulum
 
 echo "Statik dosyalar toplanıyor..."
 python manage.py collectstatic --noinput
-
-echo "Başlangıç verisi kontrol ediliyor..."
-python manage.py baslangic_verisi
 
 exec "$@"

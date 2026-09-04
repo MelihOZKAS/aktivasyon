@@ -16,7 +16,7 @@ DURUMLAR = [
     ("Beklemede", "beklemede", "#64748b", "schedule", True, False, False, False, 10, 1, False, False),
     ("İşlemde", "islemde", "#3b82f6", "sync", False, False, False, False, 20, 3, False, False),
     ("Eksik Evrak", "eksik-evrak", "#f59e0b", "warning", False, False, False, True, 30, 2, True, False),
-    ("Mutabakat Bekliyor", "mutabakat", "#8b5cf6", "handshake", False, False, False, False, 40, 4, False, False),
+    ("Mutabakat Bekliyor", "mutabakat", "#0891b2", "handshake", False, False, False, False, 40, 4, False, False),
     ("Aktif", "aktif", "#16a34a", "check_circle", False, True, False, False, 50, 5, True, True),
     ("Hatalı", "hatali", "#dc2626", "cancel", False, False, True, False, 60, 1, True, False),
     ("İptal", "iptal", "#78716c", "block", False, False, True, False, 70, 1, True, True),
@@ -47,12 +47,14 @@ TASINACAK_NUMARA = (
     "numara", "Taşınacak No", AlanTipi.TELEFON, True, "Müşteri", "", "numara",
 )
 
-# (ad, ikon, musteri_tipi, tarife_zorunlu, sira, kategoriye özel ek alanlar)
+# (ad, ikon, musteri_tipi, tarife_zorunlu, sim_karsiligi, sira,
+#  kategoriye özel ek alanlar)
 KATEGORILER = [
     (
         "MNT / Numara Taşıma",
         "swap_horiz",
         MusteriTipi.HEPSI,
+        True,
         True,
         10,
         [
@@ -69,6 +71,7 @@ KATEGORILER = [
         "sim_card",
         MusteriTipi.HEPSI,
         True,
+        True,
         20,
         [
             ("sim_imei", "SIM / IMEI", AlanTipi.SIM_KART, True, "", ""),
@@ -81,6 +84,7 @@ KATEGORILER = [
         "Faturalı Yeni Hat",
         "receipt_long",
         MusteriTipi.HEPSI,
+        True,
         True,
         30,
         [
@@ -96,6 +100,7 @@ KATEGORILER = [
         "cell_tower",
         MusteriTipi.HEPSI,
         True,
+        False,
         40,
         [
             ("aks", "AKS Kodu", AlanTipi.METIN, True, "", ""),
@@ -109,6 +114,7 @@ KATEGORILER = [
         "router",
         MusteriTipi.HEPSI,
         True,
+        False,
         50,
         [
             ("sabit_hat", "Sabit Hat Durumu", AlanTipi.SECIM, True, "", "Sabit hattı var\nSabit hattı yok\nYeni sabit hat istiyor"),
@@ -124,6 +130,7 @@ KATEGORILER = [
         "flight_takeoff",
         MusteriTipi.YABANCI,
         False,
+        True,
         60,
         [
             ("gececegi_operator", "Geçeceği Operatör", AlanTipi.METIN, True, "", ""),
@@ -137,6 +144,7 @@ KATEGORILER = [
         "badge",
         MusteriTipi.YABANCI,
         False,
+        True,
         70,
         [
             ("sim_imei", "SIM / IMEI", AlanTipi.SIM_KART, False, "", ""),
@@ -185,13 +193,16 @@ class Command(BaseCommand):
             if olusturuldu:
                 self.stdout.write(f"  operatör: {ad}")
 
-        for ad, ikon, musteri_tipi, tarife_zorunlu, sira, alanlar in KATEGORILER:
+        for (
+            ad, ikon, musteri_tipi, tarife_zorunlu, sim_karsiligi, sira, alanlar
+        ) in KATEGORILER:
             kategori, olusturuldu = BasvuruKategorisi.objects.get_or_create(
                 ad=ad,
                 defaults={
                     "ikon": ikon,
                     "musteri_tipi": musteri_tipi,
                     "tarife_zorunlu": tarife_zorunlu,
+                    "sim_karsiligi_gerekir": sim_karsiligi,
                     "sira": sira,
                 },
             )
