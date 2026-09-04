@@ -80,11 +80,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   olmayabilir; para işlenirken `_cuzdani_getir` sıfır bakiyeli cüzdan açar.
 - **Aynı kapsamda iki ücret kuralı varsa son eklenen kazanır.** Sonuç
   rastgele olmamalı; sıralama `(özgüllük, öncelik, pk)` üçlüsüne dayanır.
-- **Kâr = tedarikçi geliri + bayiden tahsilat − bayiye hakediş.**
-  `Basvuru.kar` bunu hesaplar. Tedarikçi fiyatı tedarikçiden tedarikçiye
-  değişir; `UcretKurali.tedarikci` kapsamıyla tanımlanır. Tedarikçi işlem
-  aktifleştikten sonra da atanabildiği için bedeli kendi tekillik anahtarıyla
-  ayrı işlenir (`tedarikci_bedelini_isle`).
+- **Kâr = ana hakediş + bayiden tahsilat − bayiye hakediş.** `Basvuru.kar`
+  bunu hesaplar. **Ana hakediş iki kaynaktan gelir:** işlemi bir tedarikçi
+  üstlendiyse ondan (cüzdanından düşer), üstlenilmemişse operatörden
+  (operatörün cüzdanı yoktur, hareket yazılmaz; tutar yalnızca başvuruya
+  işlenir). Tutar `UcretKurali`'nda `yon=ANA_HAKEDIS` ile tanımlanır ve
+  `operator` ya da `tedarikci` kapsamıyla daraltılır. Tedarikçi sonradan da
+  atanabildiği için kendi tekillik anahtarıyla ayrı işlenir
+  (`ana_hakedisi_isle`).
 - **Bayi hakedişini şeffaf görür.** `/hakedisler/` sayfası hangi tarifeden ne
   kazanacağını, kesintisini ve elde kalan neti gösterir. Yeni bir para kalemi
   eklerken bu sayfayı da güncelle.

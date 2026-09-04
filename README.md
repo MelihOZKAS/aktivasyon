@@ -286,9 +286,23 @@ Fiyat tedarikçiye özeldir: **Ücret ve Hakediş Kuralları**'nda yön olarak
 *Tedarikçi Geliri* seçip *Tek Tedarikçi* alanını doldurun. Aynı işlem için
 her tedarikçiye farklı fiyat tanımlayabilirsiniz.
 
-Kâr = tedarikçiden alınan + bayiden kesilen − bayiye ödenen. Başvuru
-listesinde sütun olarak, detayda hesap tablosu olarak ve listenin üstünde
-filtreye göre toplam olarak görünür.
+### Ana hakediş ve kâr
+
+Kâr = **ana hakediş** + bayiden kesilen − bayiye ödenen.
+
+Ana hakediş, işlemden bize giren tutardır ve iki kaynaktan gelebilir:
+
+| Durum | Kaynak | Cüzdan hareketi |
+|---|---|---|
+| İşlemi tedarikçi üstlendi | O tedarikçiden | Hesabından düşer |
+| Üstlenilmedi | Operatörden | Yok — operatörün cüzdanı yoktur, tutar yalnızca kâra yazılır |
+
+Tanımlamak için **Ücret ve Hakediş Kuralları**'nda yön olarak *Ana Hakediş*
+seçin; operatör bazlı tutar için **Operatör** alanını, tedarikçiye özel tutar
+için **Tek Tedarikçi** alanını doldurun.
+
+Kâr, başvuru listesinde sütun olarak, detayda kaynağıyla birlikte hesap
+tablosu olarak ve listenin üstünde filtreye göre toplam olarak görünür.
 
 Tedarikçi `/tedarikci/` panelinde üstlendiği işlemleri ve hesabını görür.
 Aktivasyonu fiilen kendisi yaptığı için **üstlendiği işlemin kimlik

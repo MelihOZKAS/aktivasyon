@@ -209,12 +209,16 @@ class Basvuru(ZamanDamgali):
     hakedis = models.DecimalField(
         "Bayiye Hakediş", max_digits=12, decimal_places=2, default=SIFIR
     )
-    tedarikci_geliri = models.DecimalField(
-        "Tedarikçi Geliri", max_digits=12, decimal_places=2, default=SIFIR
+    ana_hakedis = models.DecimalField(
+        "Ana Hakediş",
+        max_digits=12,
+        decimal_places=2,
+        default=SIFIR,
+        help_text="Operatörden ya da işlemi üstlenen tedarikçiden aldığımız tutar.",
     )
     para_islendi = models.BooleanField("Para İşlendi", default=False, editable=False)
-    tedarikci_islendi = models.BooleanField(
-        "Tedarikçi Bedeli İşlendi", default=False, editable=False
+    ana_hakedis_islendi = models.BooleanField(
+        "Ana Hakediş İşlendi", default=False, editable=False
     )
 
     # --- SIM karşılığı (operatörden alınacak yeni kart) ---
@@ -294,10 +298,18 @@ class Basvuru(ZamanDamgali):
     def kar(self):
         """Firmanın bu işlemden kazancı.
 
-        Tedarikçiden aldığımız bedel ve bayiden kestiğimiz ücret gelirdir;
-        bayiye ödediğimiz hakediş giderdir.
+        Ana hakediş (operatörden ya da tedarikçiden) ve bayiden kestiğimiz
+        ücret gelirdir; bayiye ödediğimiz hakediş giderdir.
         """
-        return self.tedarikci_geliri + self.tahsil_edilen - self.hakedis
+        return self.ana_hakedis + self.tahsil_edilen - self.hakedis
+
+    @property
+    def ana_hakedis_kaynagi(self):
+        """Ana hakedişi kimden alıyoruz?"""
+        if self.tedarikci_id:
+            profil = getattr(self.tedarikci, "bayi_profili", None)
+            return profil.unvan if profil and profil.unvan else self.tedarikci.get_username()
+        return self.operator.ad if self.operator_id else "—"
 
     def clean(self):
         if self.kategori_id and self.tarife_id:

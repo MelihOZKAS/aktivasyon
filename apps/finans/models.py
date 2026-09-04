@@ -111,7 +111,7 @@ class HareketTipi(models.TextChoices):
     YUKLEME = "yukleme", "Bakiye Yükleme"
     TAHSILAT = "tahsilat", "İşlem Ücreti Tahsilatı"
     HAKEDIS = "hakedis", "Hakediş"
-    TEDARIKCI_BEDELI = "tedarikci_bedeli", "Tedarikçi İşlem Bedeli"
+    TEDARIKCI_BEDELI = "tedarikci_bedeli", "Tedarikçiden Tahsilat"
     BORC_EKLE = "borc_ekle", "Borç Ekleme"
     BORC_TAHSIL = "borc_tahsil", "Borç Tahsilatı"
     DUZELTME = "duzeltme", "Manuel Düzeltme"
@@ -207,7 +207,7 @@ class CuzdanHareketi(models.Model):
 class KuralYonu(models.TextChoices):
     TAHSILAT = "tahsilat", "Tahsilat (bayiden alınır)"
     HAKEDIS = "hakedis", "Hakediş (bayiye verilir)"
-    TEDARIKCI_GELIRI = "tedarikci_geliri", "Tedarikçi Geliri (tedarikçiden alınır)"
+    ANA_HAKEDIS = "tedarikci_geliri", "Ana Hakediş (operatörden ya da tedarikçiden alınır)"
 
 
 class UcretKurali(ZamanDamgali):
@@ -285,8 +285,9 @@ class UcretKurali(ZamanDamgali):
         blank=True,
         on_delete=models.CASCADE,
         help_text=(
-            "Tedarikçi geliri kuralları için: fiyat tedarikçiden tedarikçiye "
-            "değiştiğinde her biri için ayrı kural tanımlayın."
+            "Ana hakediş kuralları için: tutar tedarikçiden tedarikçiye "
+            "değiştiğinde her biri için ayrı kural tanımlayın. Operatörden "
+            "alınan tutar için bu alanı boş bırakıp Operatör alanını doldurun."
         ),
     )
 

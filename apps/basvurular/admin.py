@@ -151,7 +151,7 @@ class BasvuruAdmin(ModelAdmin):
         "tedarikci",
         "musteri_tipi",
         "para_islendi",
-        "tedarikci_islendi",
+        "ana_hakedis_islendi",
         "sim_karsiligi_alindi",
         "olusturma_tarihi",
     )
@@ -172,9 +172,9 @@ class BasvuruAdmin(ModelAdmin):
         "referans_no",
         "tahsil_edilen",
         "hakedis",
-        "tedarikci_geliri",
+        "ana_hakedis",
         "para_islendi",
-        "tedarikci_islendi",
+        "ana_hakedis_islendi",
         "belgeler_silindi",
         "sim_karsiligi_tarihi",
         "kar_ozeti",
@@ -224,12 +224,13 @@ class BasvuruAdmin(ModelAdmin):
             },
         ),
         (
-            "Tedarikçi",
+            "Ana hakediş",
             {
-                "fields": ("tedarikci", "tedarikci_geliri", "tedarikci_islendi"),
+                "fields": ("tedarikci", "ana_hakedis", "ana_hakedis_islendi"),
                 "description": (
-                    "İşlemi satın alan tarafı buradan atarsınız. Başvuru zaten "
-                    "aktifse atama anında bedel tedarikçinin hesabından düşer."
+                    "Ana hakediş operatörden ya da işlemi üstlenen tedarikçiden "
+                    "gelir. Tedarikçi atanmışsa tutar onun hesabından düşer; "
+                    "atanmamışsa operatörden alınır ve yalnızca kâr hesabına yazılır."
                 ),
             },
         ),
@@ -315,7 +316,7 @@ class BasvuruAdmin(ModelAdmin):
             return yanit
 
         toplam = sorgu.aggregate(
-            gelir=Sum("tedarikci_geliri"),
+            gelir=Sum("ana_hakedis"),
             kesinti=Sum("tahsil_edilen"),
             odenen=Sum("hakedis"),
         )
@@ -324,7 +325,7 @@ class BasvuruAdmin(ModelAdmin):
         odenen = toplam["odenen"] or Decimal("0")
 
         yanit.context_data["kar_ozeti"] = {
-            "tedarikci_geliri": gelir,
+            "ana_hakedis": gelir,
             "tahsilat": kesinti,
             "hakedis": odenen,
             "kar": gelir + kesinti - odenen,
@@ -353,10 +354,10 @@ class BasvuruAdmin(ModelAdmin):
             obj.hakedis,
         )
 
-    @display(description="Kâr", ordering="tedarikci_geliri")
+    @display(description="Kâr", ordering="ana_hakedis")
     def kar_gosterimi(self, obj):
         """Tedarikçiden aldığımız + bayiden kestiğimiz − bayiye ödediğimiz."""
-        if not (obj.para_islendi or obj.tedarikci_islendi):
+        if not (obj.para_islendi or obj.ana_hakedis_islendi):
             return format_html('<span style="color:#94a3b8">—</span>')
         kar = obj.kar
         renk = "#0F8A4D" if kar > 0 else ("#D42046" if kar < 0 else "#6F7B8F")
@@ -367,7 +368,7 @@ class BasvuruAdmin(ModelAdmin):
         if not obj.pk:
             return "—"
         satirlar = [
-            ("Tedarikçiden alınan", obj.tedarikci_geliri, "#0F8A4D"),
+            (f"Ana hakediş ({obj.ana_hakedis_kaynagi})", obj.ana_hakedis, "#0F8A4D"),
             ("Bayiden kesilen", obj.tahsil_edilen, "#0F8A4D"),
             ("Bayiye ödenen", -obj.hakedis, "#D42046"),
         ]
@@ -459,7 +460,7 @@ class BasvuruAdmin(ModelAdmin):
                 tedarikci = form.cleaned_data["tedarikci"]
                 atanan = atlanan = 0
                 for basvuru in secilenler:
-                    if basvuru.tedarikci_islendi:
+                    if basvuru.ana_hakedis_islendi:
                         atlanan += 1
                         continue
                     basvuru.tedarikci = tedarikci
@@ -492,7 +493,7 @@ class BasvuruAdmin(ModelAdmin):
 
     @admin.action(description="Tedarikçi atamasını kaldır (bedeli işlenmemişse)")
     def tedarikci_atamasini_kaldir(self, request, secilenler):
-        kaldirilan = secilenler.filter(tedarikci_islendi=False).update(tedarikci=None)
+        kaldirilan = secilenler.filter(ana_hakedis_islendi=False).update(tedarikci=None)
         atlanan = secilenler.count() - kaldirilan
         self.message_user(
             request,

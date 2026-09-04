@@ -54,7 +54,7 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     from apps.finans.services import (
         basvuru_parasini_geri_al,
         basvuru_parasini_isle,
-        tedarikci_bedelini_isle,
+        ana_hakedisi_isle,
     )
 
     onceki_durum_id = getattr(instance, "_onceki_durum_id", None)
@@ -63,12 +63,12 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     tedarikci_atandi = not created and onceki_tedarikci_id != instance.tedarikci_id
 
     # Tedarikçi işlem aktifleştikten sonra da atanabilir; o durumda yalnızca
-    # tedarikçi tarafını işleriz.
+    # ana hakediş tarafını yeniden değerlendiririz.
     if not durum_degisti:
         if tedarikci_atandi and instance.durum.hakedis_tetikler:
-            guncel = tedarikci_bedelini_isle(instance)
-            instance.tedarikci_geliri = guncel.tedarikci_geliri
-            instance.tedarikci_islendi = guncel.tedarikci_islendi
+            guncel = ana_hakedisi_isle(instance)
+            instance.ana_hakedis = guncel.ana_hakedis
+            instance.ana_hakedis_islendi = guncel.ana_hakedis_islendi
         return
 
     DurumGecmisi.objects.create(
@@ -104,8 +104,8 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
 
     if durum.hakedis_tetikler and not instance.para_islendi:
         guncel = basvuru_parasini_isle(instance)
-        guncel = tedarikci_bedelini_isle(guncel)
-    elif durum.olumsuz_sonuc and (instance.para_islendi or instance.tedarikci_islendi):
+        guncel = ana_hakedisi_isle(guncel)
+    elif durum.olumsuz_sonuc and (instance.para_islendi or instance.ana_hakedis_islendi):
         guncel = basvuru_parasini_geri_al(instance)
     else:
         return
@@ -113,6 +113,6 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     # Servis kilitli bir kopya üzerinde çalıştı; eldeki instance'ı senkronla.
     instance.tahsil_edilen = guncel.tahsil_edilen
     instance.hakedis = guncel.hakedis
-    instance.tedarikci_geliri = guncel.tedarikci_geliri
+    instance.ana_hakedis = guncel.ana_hakedis
     instance.para_islendi = guncel.para_islendi
-    instance.tedarikci_islendi = guncel.tedarikci_islendi
+    instance.ana_hakedis_islendi = guncel.ana_hakedis_islendi

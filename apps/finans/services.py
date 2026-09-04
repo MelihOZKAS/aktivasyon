@@ -202,60 +202,66 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
         return basvuru_kilitli
 
 
-def tedarikci_bedelini_isle(basvuru, *, olusturan=None):
-    """İşlemi satın alan tedarikçinin hesabından bedeli düşer.
+def ana_hakedisi_isle(basvuru, *, olusturan=None):
+    """İşlemden bize giren ana hakedişi kaydeder.
 
-    Tedarikçi operasyon tarafından elle atanır; atama başvuru aktifleştikten
-    sonra da yapılabilir. Bu yüzden bayi tarafındaki paradan ayrı, kendi
-    tekillik anahtarıyla işlenir.
+    Kaynak iki türlü olabilir:
+
+    · **Tedarikçi:** işlemi bir tedarikçi üstlendiyse bedel onun hesabından
+      düşer; cüzdan hareketi oluşur.
+    · **Operatör:** işlem üstlenilmemişse tutar doğrudan operatörden gelir.
+      Operatörün sistemde cüzdanı yok, bu yüzden hareket yazılmaz; tutar
+      yalnızca başvuruya işlenir ve kâr hesabına girer.
+
+    Tedarikçi sonradan da atanabildiği için bayi tarafındaki paradan ayrı,
+    kendi tekillik anahtarıyla işlenir.
     """
-    if not basvuru.tedarikci_id:
-        return basvuru
-
     with transaction.atomic():
-        cuzdan = _cuzdani_getir(basvuru.tedarikci_id)
         basvuru_kilitli = type(basvuru).objects.select_for_update().get(pk=basvuru.pk)
 
-        if basvuru_kilitli.tedarikci_islendi:
+        if basvuru_kilitli.ana_hakedis_islendi:
             return basvuru_kilitli
 
         kurallar = uygun_kurallari_bul(basvuru_kilitli, basvuru_kilitli.durum)
-        kural = kurallar.get(KuralYonu.TEDARIKCI_GELIRI)
+        kural = kurallar.get(KuralYonu.ANA_HAKEDIS)
         if kural is None or kural.tutar <= SIFIR:
             return basvuru_kilitli
 
         tutar = kural.tutar
-        bakiyeden = min(tutar, max(cuzdan.bakiye, SIFIR))
-        borctan = tutar - bakiyeden
 
-        if bakiyeden > SIFIR:
-            _hareket_yaz(
-                cuzdan=cuzdan,
-                tip=HareketTipi.TEDARIKCI_BEDELI,
-                tutar=-bakiyeden,
-                idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:tedarikci:bakiye",
-                aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad}",
-                basvuru=basvuru_kilitli,
-                kural=kural,
-                olusturan=olusturan,
-            )
-        if borctan > SIFIR:
-            _hareket_yaz(
-                cuzdan=cuzdan,
-                tip=HareketTipi.BORC_EKLE,
-                tutar=borctan,
-                idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:tedarikci:borc",
-                aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad} (borç)",
-                basvuru=basvuru_kilitli,
-                kural=kural,
-                olusturan=olusturan,
-                borca_yaz=True,
-            )
+        if basvuru_kilitli.tedarikci_id:
+            cuzdan = _cuzdani_getir(basvuru_kilitli.tedarikci_id)
+            bakiyeden = min(tutar, max(cuzdan.bakiye, SIFIR))
+            borctan = tutar - bakiyeden
 
-        basvuru_kilitli.tedarikci_geliri = tutar
-        basvuru_kilitli.tedarikci_islendi = True
+            if bakiyeden > SIFIR:
+                _hareket_yaz(
+                    cuzdan=cuzdan,
+                    tip=HareketTipi.TEDARIKCI_BEDELI,
+                    tutar=-bakiyeden,
+                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:anahakedis:bakiye",
+                    aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad}",
+                    basvuru=basvuru_kilitli,
+                    kural=kural,
+                    olusturan=olusturan,
+                )
+            if borctan > SIFIR:
+                _hareket_yaz(
+                    cuzdan=cuzdan,
+                    tip=HareketTipi.BORC_EKLE,
+                    tutar=borctan,
+                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:anahakedis:borc",
+                    aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad} (borç)",
+                    basvuru=basvuru_kilitli,
+                    kural=kural,
+                    olusturan=olusturan,
+                    borca_yaz=True,
+                )
+
+        basvuru_kilitli.ana_hakedis = tutar
+        basvuru_kilitli.ana_hakedis_islendi = True
         basvuru_kilitli.save(
-            update_fields=["tedarikci_geliri", "tedarikci_islendi", "guncelleme_tarihi"]
+            update_fields=["ana_hakedis", "ana_hakedis_islendi", "guncelleme_tarihi"]
         )
         return basvuru_kilitli
 
@@ -265,7 +271,7 @@ def basvuru_parasini_geri_al(basvuru, *, olusturan=None):
     with transaction.atomic():
         basvuru_kilitli = type(basvuru).objects.select_for_update().get(pk=basvuru.pk)
 
-        if not (basvuru_kilitli.para_islendi or basvuru_kilitli.tedarikci_islendi):
+        if not (basvuru_kilitli.para_islendi or basvuru_kilitli.ana_hakedis_islendi):
             return basvuru_kilitli
 
         hareketler = list(
@@ -301,13 +307,13 @@ def basvuru_parasini_geri_al(basvuru, *, olusturan=None):
 
         basvuru_kilitli.tahsil_edilen = SIFIR
         basvuru_kilitli.hakedis = SIFIR
-        basvuru_kilitli.tedarikci_geliri = SIFIR
+        basvuru_kilitli.ana_hakedis = SIFIR
         basvuru_kilitli.para_islendi = False
-        basvuru_kilitli.tedarikci_islendi = False
+        basvuru_kilitli.ana_hakedis_islendi = False
         basvuru_kilitli.save(
             update_fields=[
-                "tahsil_edilen", "hakedis", "tedarikci_geliri",
-                "para_islendi", "tedarikci_islendi", "guncelleme_tarihi",
+                "tahsil_edilen", "hakedis", "ana_hakedis",
+                "para_islendi", "ana_hakedis_islendi", "guncelleme_tarihi",
             ]
         )
         return basvuru_kilitli

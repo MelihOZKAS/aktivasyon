@@ -472,9 +472,9 @@ def tedarikci_panel(request):
     aylik_gider = (
         Basvuru.objects.filter(
             tedarikci=request.user,
-            tedarikci_islendi=True,
+            ana_hakedis_islendi=True,
             olusturma_tarihi__gte=ayin_basi,
-        ).aggregate(toplam=Sum("tedarikci_geliri"))["toplam"]
+        ).aggregate(toplam=Sum("ana_hakedis"))["toplam"]
         or 0
     )
 

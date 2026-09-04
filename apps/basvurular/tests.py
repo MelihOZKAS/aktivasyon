@@ -433,7 +433,8 @@ class BelgeYuklemeGuvenligiTestleri(TestCase):
         belge = Basvuru.objects.get().belgeler.get(alan_kodu="kimlik_on")
         yanit = self.client.get(belge.get_absolute_url())
         self.assertNotIn("attachment", yanit.get("Content-Disposition", ""))
-        self.assertEqual(yanit["Content-Type"], "image/png")
+        # Yüklenen PNG kaydedilirken WebP'ye çevrildi.
+        self.assertEqual(yanit["Content-Type"], "image/webp")
 
 
 @override_settings(MEDIA_ROOT=GECICI_MEDYA)

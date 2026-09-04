@@ -84,9 +84,9 @@
           <p class="text-sm font-semibold" style="color: {{ basvuru.durum.renk|okunur_renk }}">
             {{ basvuru.durum.ad }}
           </p>
-          {% if basvuru.tedarikci_islendi %}
+          {% if basvuru.ana_hakedis_islendi %}
           <p class="rakam mt-0.5 text-xs font-semibold text-uyari">
-            −{{ basvuru.tedarikci_geliri|para }} ₺
+            −{{ basvuru.ana_hakedis|para }} ₺
           </p>
           {% else %}
           <p class="mt-0.5 text-xs text-soluk">{{ basvuru.olusturma_tarihi|date:"j M Y" }}</p>
