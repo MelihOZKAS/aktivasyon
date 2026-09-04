@@ -213,7 +213,7 @@ kalan dördü panelden girilir — **sıra önemli**, her adım öncekine dayan�
 |---|---|---|
 | 5 | Tarifeler | Her kategori + operatör için tarife; açıklama ve görselle. Kampanyalar tarifenin altına |
 | 6 | Bayi Grupları | Fiyat kademeleri (ör. Standart, Anlaşmalı) |
-| 7 | Ücret ve Hakediş Kuralları | Üç yön: bayiye hakediş, bayiden tahsilat, ana hakediş. Aradaki fark kârın |
+| 7 | Tarifeler → *Bu tarifenin parası* | Her tarifede üç rakam: operatörden alışın, tedarikçiden alışın, bayiye ödeyeceğin. Aradaki fark kârın; tablonun üstünde hesaplanmış durur |
 | 8 | Kullanıcılar | Her bayi için hesap; cüzdan ve profil satır içi doldurulur |
 | + | Banka Hesapları | Bayiler bakiye yüklerken görecek |
 | + | SIM Stoğu | Kartları tek tek gir, bayilere zimmetle |
@@ -267,6 +267,23 @@ Tasarım eski görünüyorsa statikleri yeniden topla:
 ```bash
 docker exec -it app_fadil python manage.py collectstatic --noinput --clear
 ```
+
+**Tarife ya da kampanya görseli 404 veriyorsa** önce dosya sunucuda duruyor mu
+bak — `media/` git'e girmez, container'a host klasöründen bağlanır:
+
+```bash
+docker exec -it app_fadil ls -R media/tarife | head
+```
+
+Dosya yerindeyse eksik olan koddur: `/media/` altındaki açık görselleri
+`apps/medya.py` sunar, daha eski sürümlerde bu yol hiç yoktu.
+
+```bash
+git pull && docker compose up -d --build
+```
+
+Kimlik görüntüleri bu yoldan **açılmaz**; onlar başvuru sayfasındaki izin
+kontrollü bağlantıdan gelir, doğrudan `/media/basvuru/...` istemek 404 verir.
 
 Yönetici parolasını değiştirmek istersen:
 

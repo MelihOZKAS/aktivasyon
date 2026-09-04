@@ -39,8 +39,9 @@ Kurulumda sıra önemli, çünkü her adım öncekine dayanır:
 4. **Form alanları** — her kategoride hangi bilgiler sorulacak
 5. **Tarifeler ve kampanyalar** — bayiye gösterilecek açıklama ve görselle
 6. **Bayi grupları** — fiyat kademesi
-7. **Ücret ve hakediş kuralları** — üç yön: bayiye hakediş, bayiden
-   tahsilat, ana hakediş (operatör ya da tedarikçi bazlı)
+7. **Fiyatlar** — tarifenin kendi sayfasındaki *Bu tarifenin parası*
+   tablosundan: operatörden alış, tedarikçiden alış, bayiye ödenecek
+   (bayi grubu başına). Genel kurallar için *Ücret ve Hakediş Kuralları*
 8. **Kullanıcılar** — rolleri ve cüzdanlarıyla
 
 Bundan sonra günlük işte tek elle yapılan şey **başvuru durumunu
@@ -197,10 +198,33 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **Bayi hakedişini şeffaf görür.** `/hakedisler/` sayfası hangi tarifeden ne
   kazanacağını, kesintisini ve elde kalan neti gösterir. Yeni bir para kalemi
   eklerken bu sayfayı da güncelle.
+- **Tarifenin parası tarifenin sayfasından girilir.** Kural motoru genel
+  kalır (kampanya, bayi grubu, tek bayi, tarih aralığı hâlâ mümkün) ama günlük
+  iş üç rakamdan ibaret: **operatörden alışım**, **tedarikçiden alışım**,
+  **bayiye ödeyeceğim** (bayi grubu = bayinin fiyat listesi). `TarifeAdmin`
+  altındaki **Bu tarifenin parası** satır içi tablosu (`TarifeParaKuraliInline`)
+  üçünü aynı ekranda toplar; üstündeki özet her alış kaynağı × bayi grubu
+  bileşimi için kârı yazar. Kayıtlar yine `UcretKurali` — motorun tek kaynağı
+  değişmedi.
+  `KuralYonu` etiketleri bilinçli olarak alış/satış diliyle yazıldı: "yön" ve
+  "hakediş" soyut kalıyor, "Alışım (operatörden ya da tedarikçiden)" herkesin
+  bildiği şey. `UcretKurali.ad` boş bırakılabilir, kapsamdan üretilir; iki
+  rakam girmeye gelen yönetici bir de ad uydurmasın.
+  **Tedarikçi kapsamı bir süre yalnızca motorda vardı**, formda alanı yoktu:
+  tedarikçiden alış fiyatı panelden hiç girilemiyordu. Hem kural admin'inde hem
+  satır içi tabloda alan artık var; kullanıcı seçen kutuların ekle/düzenle/sil
+  düğmeleri `_kullanici_kutusunu_sadelestir` ile kapatılır.
 - **SIM kartlar bayiye zimmetlidir.** Bayi yalnızca kendisine atanmış ve
   "Bayiye Atandı" durumundaki kartlarla başvuru girebilir. Başvuru olumsuz
   sonuçlanınca kart otomatik olarak stoğa döner; kart fiziksel olarak bayide
   durduğu için çöp edilmemeli.
+  Formda IMEI elle yazılmaz, **seçim kutusundan seçilir**: listeye zaten
+  yalnızca girilebilecek kartlar giriyor, 16 haneyi tezgâh başında yazmak
+  hataya davetiyeydi (datalist telefonda güvenilir çalışmıyordu). Stok boşsa
+  kutu sebebini yazar. Sunucu doğrulaması (`_sim_dogrula`) yerinde durur.
+  Yönetim panelindeki SIM listesi kartın hangi bayide olduğunu ünvanıyla
+  gösterir — kullanıcı adı telefon numarası olduğu için numara tek başına
+  hangi firma olduğunu anlatmıyordu.
 - **URL'ler okunur olmalı: slug'lı, sorgu dizesiz.** `?kategori=4` değil
   `/basvuru/yeni/adsl-internet/`. Kayıtlara referans numarasıyla erişilir,
   id ile değil (sayaç taranmasın). Slug üretiminde
@@ -309,6 +333,15 @@ gösterdiği veritabanının şemasını düşürür.
   özniteliği güvenlik değildir.
 - **Belgeler yalnızca izin kontrollü görünümden sunulur.** Doğrudan
   `dosya.url` kullanma; `belge.get_absolute_url()` kullan.
+- **Açık görseller `/media/` altından Django tarafından sunulur.** Tarife,
+  kampanya ve operatör görselleri admin'den yüklenip diske yazılır;
+  `static()` yalnızca DEBUG açıkken URL üretir, WhiteNoise ise açılışta
+  taradığı `STATIC_ROOT`'u sunar. Sonradan yüklenen dosya ikisine de
+  girmediği için görsel yerelde görünüp üretimde 404 veriyordu.
+  `apps/medya.py` bu üç klasörü DEBUG'dan bağımsız sunar — yeni bir açık
+  görsel klasörü eklersen `ACIK_KLASORLER`'e yaz. Kişisel veri taşıyan
+  klasör buraya **girmez** (`basvuru/`, eski sistemin `evrak/`'ı);
+  görüntüler veritabanına ya da base64'e taşınmaz, diskte kalır.
 - **Kimlik görüntüleri işi bitince hemen silinir.** Bekleme ya da cron yok:
   `BasvuruDurumu.belgeleri_sil` işaretli bir duruma geçildiğinde
   `apps/basvurular/services.belgeleri_sil` çalışır. Aktif ve İptal siler;
