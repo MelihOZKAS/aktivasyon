@@ -227,7 +227,7 @@ güvenli aralığa çeker; rozetlerde ve sinyal çubuklarında hep bu filtre kul
 Sunucuda Node yoktur; CSS burada derlenip `static/app.css` olarak commit edilir.
 
 ```bash
-./.tools/tailwindcss -i static/src/app.css -o static/app.css --minify
+./.tools/tailwindcss -i assets/app.css -o static/app.css --minify
 ```
 
 Şablon değiştirdikten sonra bu komutu çalıştırmayı unutma.
@@ -421,7 +421,7 @@ derlemez** — `static/app.css` depodan geldiği gibi kullanılır. Bu yüzden �
 ya da tema değiştiren her commit'te derlenmiş CSS'i de commit'lemek gerekir:
 
 ```bash
-./.tools/tailwindcss -i static/src/app.css -o static/app.css --minify
+./.tools/tailwindcss -i assets/app.css -o static/app.css --minify
 git diff --stat static/app.css      # push'tan önce boş olmalı
 ```
 

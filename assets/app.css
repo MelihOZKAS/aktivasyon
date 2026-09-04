@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-@source "../../templates";
-@source "../../apps";
+@source "../templates";
+@source "../apps";
 
 /* Beyaz tema. Arayüz kağıt, mürekkep ve griden ibarettir; ekrandaki her renk
    bir bilgi taşır (operatör markası, başvuru durumu, para yönü). */

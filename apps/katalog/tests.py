@@ -424,3 +424,49 @@ class SahipsizBelgeTemizligi(TestCase):
         self._calistir("--sil")
 
         self.assertTrue(yol.exists())
+
+
+class StatikDosyalar(TestCase):
+    """`collectstatic` üretim deposuyla hatasız çalışmalı.
+
+    Tailwind'in kaynak dosyası bir süre `static/` altındaydı ve
+    `collectstatic` onu da toplayıp `@import "tailwindcss"` satırında
+    çöküyordu. Container açılışta buna çarpıp ölüyordu; hata ancak
+    sunucuda görülüyordu.
+    """
+
+    def test_uretim_deposuyla_toplanabiliyor(self):
+        import tempfile
+
+        from django.conf import settings
+        from django.core.management import call_command
+
+        with tempfile.TemporaryDirectory(prefix="statik-test-") as hedef:
+            with override_settings(
+                STATIC_ROOT=hedef,
+                STORAGES={
+                    **settings.STORAGES,
+                    "staticfiles": {
+                        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+                    },
+                },
+            ):
+                call_command(
+                    "collectstatic", "--noinput", "--clear",
+                    verbosity=0, stdout=io.StringIO(), stderr=io.StringIO(),
+                )
+
+            self.assertTrue((Path(hedef) / "staticfiles.json").exists())
+
+    def test_tailwind_kaynagi_static_altinda_degil(self):
+        """Kaynak dosya derleme girdisidir; yayınlanan klasöre konmaz."""
+        from django.conf import settings
+
+        for klasor in settings.STATICFILES_DIRS:
+            for yol in Path(klasor).rglob("*.css"):
+                icerik = yol.read_text(errors="ignore")
+                self.assertNotIn(
+                    '@import "tailwindcss"',
+                    icerik,
+                    f"{yol} derlenmemiş kaynak; static/ dışına taşınmalı",
+                )

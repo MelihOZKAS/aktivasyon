@@ -107,7 +107,7 @@ gerekirse yeni bir dil icat etme, bu motifi kullan.
 admin'den giriliyor; Turkcell sarısı gibi açık renkler beyazda okunmaz.
 
 **6. Yönetim paneli ön yüzle aynı renkte olmalı.** Vurgu rengini
-değiştirirken `static/src/app.css` içindeki `--color-vurgu` ile
+değiştirirken `assets/app.css` içindeki `--color-vurgu` ile
 `config/settings/base.py` içindeki `UNFOLD["COLORS"]["primary"]` birlikte
 güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor kaldı.
 
@@ -168,7 +168,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   açıklaması ile görseli `/tarifeler/` sayfasında görünür; şablona sabit
   metin yazma.
 - **Şablon değişikliğinden sonra CSS'i derle ve derlenmiş dosyayı commit'le:**
-  `./.tools/tailwindcss -i static/src/app.css -o static/app.css --minify`
+  `./.tools/tailwindcss -i assets/app.css -o static/app.css --minify`
+  Kaynak `assets/app.css`, çıktı `static/app.css`. **Kaynak dosya `static/`
+  altında durmaz:** orada durduğunda `collectstatic` onu da toplayıp
+  `@import "tailwindcss"` satırında çöküyor ve container açılamıyordu.
   Sunucuda Node yok, Docker imajı Tailwind çalıştırmıyor; `static/app.css`
   depodan geldiği gibi kullanılır (`.gitignore`'da `!static/app.css` istisnası
   bu yüzden var). Derlemeyi unutursan yeni sınıflar üretimde çalışmaz ve

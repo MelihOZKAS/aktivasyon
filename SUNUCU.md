@@ -18,7 +18,7 @@ cd ~/Desktop/Code/aktivasyon
 ```
 
 ```bash
-./.tools/tailwindcss -i static/src/app.css -o static/app.css --minify
+./.tools/tailwindcss -i assets/app.css -o static/app.css --minify
 ```
 
 ```bash
