@@ -881,3 +881,126 @@ class BasvurudanHesapAcma(TestCase):
         kullanici, _ = bayi_hesabi_ac(self.basvuru)
 
         self.assertFalse(kullanici.has_usable_password())
+
+
+class TelefonNormallestirme(TestCase):
+    """Kullanıcı adı telefon olduğu için numara tek biçimde saklanmalı."""
+
+    def test_bosluk_ulke_kodu_ve_bastaki_sifir_atilir(self):
+        from apps.bayi.telefon import normalize
+
+        for yazim in (
+            "0532 123 45 67",
+            "+90 532 123 45 67",
+            "90 532 123 45 67",
+            "532-123-45-67",
+            "(0532) 123 45 67",
+            " 05321234567 ",
+            "5321234567",
+        ):
+            self.assertEqual(normalize(yazim), "5321234567", yazim)
+
+    def test_harf_iceren_kullanici_adi_bozulmaz(self):
+        from apps.bayi.telefon import normalize
+
+        for ad in ("fadil", "bayi.kaya", "tedarikci.ege"):
+            self.assertEqual(normalize(ad), ad)
+
+    def test_bos_deger_gecer(self):
+        from apps.bayi.telefon import normalize
+
+        self.assertEqual(normalize(""), "")
+        self.assertIsNone(normalize(None))
+
+    def test_admin_kullanici_adini_numaraya_cevirir(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.admin import BayiKullaniciEklemeFormu
+
+        form = BayiKullaniciEklemeFormu(
+            data={
+                "username": "0532 123 45 67",
+                "password1": "CokGuclu-Parola-2026",
+                "password2": "CokGuclu-Parola-2026",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+
+        self.assertTrue(User.objects.filter(username="5321234567").exists())
+
+    def test_admin_gercek_kullanici_adina_dokunmaz(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.admin import BayiKullaniciEklemeFormu
+
+        form = BayiKullaniciEklemeFormu(
+            data={
+                "username": "fadil",
+                "password1": "CokGuclu-Parola-2026",
+                "password2": "CokGuclu-Parola-2026",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+
+        self.assertTrue(User.objects.filter(username="fadil").exists())
+
+    def test_profil_telefonu_tek_bicimde_saklanir(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.models import BayiProfili
+
+        kullanici = User.objects.create_user("5321234567", password="parola12345")
+        profil = BayiProfili.objects.create(
+            kullanici=kullanici, telefon="0532 123 45 67"
+        )
+
+        profil.refresh_from_db()
+        self.assertEqual(profil.telefon, "5321234567")
+
+    def test_basvuru_numarasi_form_disindan_da_temizlenir(self):
+        from apps.bayi.models import BayiBasvurusu
+
+        basvuru = BayiBasvurusu.objects.create(
+            isim="Melih", soyisim="Kaya", irtibat="+90 532 123 45 67"
+        )
+
+        basvuru.refresh_from_db()
+        self.assertEqual(basvuru.irtibat, "5321234567")
+        self.assertEqual(basvuru.kullanici_adi, "5321234567")
+
+
+class TelefonlaGiris(TestCase):
+    """Bayi numarasını nasıl yazarsa yazsın girebilmeli."""
+
+    ADRES = "/giris-yap/"
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        User.objects.create_user("5321234567", password="CokGuclu-Parola-2026")
+
+    def _dene(self, kullanici_adi):
+        self.client.logout()
+        cevap = self.client.post(
+            self.ADRES,
+            {"username": kullanici_adi, "password": "CokGuclu-Parola-2026"},
+        )
+        return cevap.wsgi_request.user.is_authenticated
+
+    def test_bosluklu_ve_sifirli_yazim_kabul_edilir(self):
+        for yazim in ("0532 123 45 67", "+90 532 123 45 67", "5321234567"):
+            self.assertTrue(self._dene(yazim), yazim)
+
+    def test_yanlis_parola_yine_reddedilir(self):
+        cevap = self.client.post(
+            self.ADRES, {"username": "0532 123 45 67", "password": "yanlis"}
+        )
+        self.assertFalse(cevap.wsgi_request.user.is_authenticated)
+
+    def test_harfli_kullanici_adi_calismaya_devam_eder(self):
+        from django.contrib.auth.models import User
+
+        User.objects.create_user("fadil", password="CokGuclu-Parola-2026")
+        self.assertTrue(self._dene("fadil"))

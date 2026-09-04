@@ -18,6 +18,7 @@ from apps.bayi.models import (
     SimKartDurumu,
 )
 from apps.bayi.services import HesapAcilamadi, bayi_hesabi_ac
+from apps.bayi.telefon import normalize
 from apps.finans.models import Cuzdan
 from apps.katalog.models import Operator
 
@@ -44,14 +45,46 @@ class CuzdanInline(StackedInline):
     readonly_fields = ("bakiye", "borc")
 
 
+class KullaniciAdiKarisimi:
+    """Kullanıcı adı telefon numarasıysa tek biçime indirir.
+
+    Bayi giriş ekranına numarasını yazacak. Yönetici "0532 123 45 67" diye
+    açarsa bayi "5321234567" yazıp giremez. Boşluk, ülke kodu ve baştaki
+    sıfır burada düşer; harf içeren gerçek kullanıcı adlarına dokunulmaz.
+    """
+
+    YARDIM = (
+        "Bayi bu adla giriş yapar. Telefon numarasını yazın — boşluklar, "
+        "ülke kodu ve baştaki sıfır kendiliğinden silinir "
+        "(0532 123 45 67 → 5321234567)."
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        alan = self.fields.get("username")
+        if alan is not None:
+            alan.help_text = self.YARDIM
+
+    def clean_username(self):
+        return normalize(self.cleaned_data["username"])
+
+
+class BayiKullaniciEklemeFormu(KullaniciAdiKarisimi, UserCreationForm):
+    pass
+
+
+class BayiKullaniciDuzenlemeFormu(KullaniciAdiKarisimi, UserChangeForm):
+    pass
+
+
 admin.site.unregister(User)
 admin.site.unregister(Group)
 
 
 @admin.register(User)
 class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
-    form = UserChangeForm
-    add_form = UserCreationForm
+    form = BayiKullaniciDuzenlemeFormu
+    add_form = BayiKullaniciEklemeFormu
     change_password_form = AdminPasswordChangeForm
     inlines = [BayiProfiliInline, CuzdanInline]
     list_display = (

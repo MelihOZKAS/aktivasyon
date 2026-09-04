@@ -72,7 +72,9 @@
         {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
         <div>
-          <label for="id_username" class="alan-etiketi mb-1.5">Kullanıcı adı</label>
+          <label for="id_username" class="alan-etiketi mb-1.5">
+            Kullanıcı adı <span class="font-normal text-soluk">· bayiler telefon numarası</span>
+          </label>
           <input type="text" name="username" id="id_username" class="girdi"
                  autocomplete="username" autocapitalize="none" required autofocus
                  value="{{ form.username.value|default:'' }}">

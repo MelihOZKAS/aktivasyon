@@ -3,6 +3,7 @@
 from django.conf import settings
 from django.db import models
 
+from apps.bayi.telefon import normalize
 from apps.katalog.models import Operator, ZamanDamgali
 
 
@@ -45,6 +46,10 @@ class BayiProfili(ZamanDamgali):
 
     def __str__(self):
         return self.unvan or self.kullanici.get_username()
+
+    def save(self, *args, **kwargs):
+        self.telefon = normalize(self.telefon)
+        super().save(*args, **kwargs)
 
     @property
     def rol_adi(self):
@@ -218,6 +223,12 @@ class BayiBasvurusu(ZamanDamgali):
 
     def __str__(self):
         return f"{self.isim} {self.soyisim}".strip()
+
+    def save(self, *args, **kwargs):
+        # Numara kullanıcı adı olacak; form dışından (admin, betik, içe
+        # aktarma) gelse de tek biçimde saklanır.
+        self.irtibat = normalize(self.irtibat)
+        super().save(*args, **kwargs)
 
     @property
     def ad_soyad(self):

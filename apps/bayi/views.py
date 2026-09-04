@@ -14,7 +14,7 @@ from urllib.parse import quote
 from django.views.decorators.http import require_POST
 
 from apps.basvurular.models import Basvuru, BasvuruDurumu
-from apps.bayi.forms import BayiBasvuruFormu
+from apps.bayi.forms import BayiBasvuruFormu, GirisFormu
 from apps.bayi.models import Duyuru
 from apps.bayi.yetki import bayi_gerekli, baslangic_sayfasi, tedarikci_gerekli
 from apps.bildirim.telegram import bayi_basvurusu_bildir
@@ -64,9 +64,9 @@ OZELLIKLER = [
                  "ödeneceğini kural olarak tanımlarsın. Gerisi otomatik.",
     },
     {
-        "baslik": "Bakiye ve borç limiti",
-        "metin": "Her bayinin bakiyesi ve borcu ayrı. Borçlanma varsayılan "
-                 "olarak kapalıdır; açtığın bayiye girdiğin tutar kadar limit tanınır.",
+        "baslik": "Bakiye ve borç takibi",
+        "metin": "Her bayinin bakiyesi ve borcu ayrı tutulur. Bakiye yetmezse "
+                 "işlem durmaz, kalan tutar borca yazılır; tezgâh başında iş kesilmez.",
     },
     {
         "baslik": "Değişmez defter",
@@ -104,6 +104,7 @@ class GirisView(LoginView):
     """Sistemin tek giriş kapısı: hem bayi hem yönetici buradan girer."""
 
     template_name = "bayi/giris.html"
+    authentication_form = GirisFormu
     redirect_authenticated_user = True
 
     def get_context_data(self, **kwargs):

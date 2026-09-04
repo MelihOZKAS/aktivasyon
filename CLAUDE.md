@@ -135,6 +135,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   seçtiği parolayla girer. **Kullanıcı adı telefon numarasıdır** — ayrıca bir
   ad uydurup telefonla bildirmek gerekmiyor. Hesap açma mantığı tek yerde:
   `apps.bayi.services.bayi_hesabi_ac`.
+- **Telefon numarası her yerde tek biçimde durur: `5321234567`.**
+  `apps.bayi.telefon.normalize` boşluğu, ayraçları, `+90` ülke kodunu ve
+  baştaki sıfırı atar; harf içeren gerçek kullanıcı adlarına dokunmaz. Dört
+  yerde çağrılır: başvuru formu, yönetim panelinin kullanıcı ekleme/düzenleme
+  formu, `BayiProfili.save`, `BayiBasvurusu.save`. Giriş formu da aynı
+  normalleştirmeden geçer — bayi "0532 123 45 67" yazınca da girer. Numara
+  tutan yeni bir alan eklersen buradan geçir; aksi hâlde aynı kişi iki ayrı
+  hesap olur ve hangisiyle gireceğini bilemez.
 - **Roller birbirini dışlamaz.** Bir firma hem bayi hem tedarikçi olabilir
   (`BayiProfili.bayi_mi` / `tedarikci_mi`). Bayi başvuru getirir ve hakediş
   alır; tedarikçi işlemi satın alır, bedeli hesabından düşer.

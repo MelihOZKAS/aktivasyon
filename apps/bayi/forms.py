@@ -1,16 +1,14 @@
 """Kamuya açık formlar."""
 
-import re
-
 from django import forms
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
 from apps.bayi.models import BayiBasvurusu, BayiBasvuruDurumu
-
-TELEFON_DESENI = re.compile(r"^0?5\d{9}$")
+from apps.bayi.telefon import gecerli_mi, normalize
 
 # Bekleyen bir başvuru varken ikincisi açılmaz; aynı kişi iki kez doldurunca
 # operasyon iki kayıt görüyordu.
@@ -67,12 +65,13 @@ class BayiBasvuruFormu(forms.ModelForm):
         }
 
     def clean_irtibat(self):
-        numara = re.sub(r"\D", "", self.cleaned_data["irtibat"])
-        if not TELEFON_DESENI.match(numara):
+        # Numara aynı zamanda kullanıcı adı olacak: boşluk, ülke kodu ve
+        # baştaki sıfır atılıp tek biçime indirilir.
+        numara = normalize(self.cleaned_data["irtibat"])
+        if not gecerli_mi(numara):
             raise forms.ValidationError(
                 "Telefon numarasını 5 ile başlayacak şekilde, 10 hane girin."
             )
-        numara = numara.lstrip("0")
 
         # Numara aynı zamanda kullanıcı adı olacak. Çakışmayı burada söylemek,
         # kullanılamayacak bir parola seçtirip sonra telefonla açıklamaktan iyi.
@@ -114,3 +113,16 @@ class BayiBasvuruFormu(forms.ModelForm):
     @property
     def bot_doldurdu(self):
         return bool(self.cleaned_data.get("website"))
+
+
+class GirisFormu(AuthenticationForm):
+    """Giriş formu: telefonla girenler numarayı nasıl yazarsa yazsın kabul eder.
+
+    Bayinin kullanıcı adı telefon numarası. Tezgâh başında telefonunu
+    "0532 123 45 67" diye yazması çok olası; kullanıcı adı `5321234567`
+    olduğu için giriş reddedilirdi. Numara burada da tek biçime indirilir.
+    Harf içeren kullanıcı adlarına dokunulmaz.
+    """
+
+    def clean_username(self):
+        return normalize(self.cleaned_data["username"])
