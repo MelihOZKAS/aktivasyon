@@ -206,6 +206,46 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   unfold'un ikon-only yuvarlak düğmesi ne yaptığını anlatmıyordu. unfold
   yükseltmelerinde bu şablonu gözden geçir.
 
+## Sunucu
+
+Adım adım kurulum ve sorun giderme `SUNUCU.md` dosyasındadır. Yeni bir
+kurulum adımı çıkarsa oraya da yaz — o dosya çalıştırılmak için var,
+buradaki metin ise neden öyle olduğunu anlatır.
+
+**Sunucu hiçbir şey derlemez.** Node, Tailwind ve gettext yok; Docker imajı
+yalnızca Python çalıştırır. Bu yüzden üretilmiş üç dosya bilinçli olarak
+depoya girer:
+
+| Dosya | Kaynağı | Unutulursa |
+|---|---|---|
+| `static/app.css` | `assets/app.css` (Tailwind) | Yeni sınıflar üretimde çalışmaz |
+| `locale/tr/LC_MESSAGES/django.mo` | `django.po` (`compilemessages`) | Panel sunucuda İngilizce görünür |
+| `apps/*/migrations/*.py` | `makemigrations` | Şema uyuşmaz, `migrate` patlar |
+
+İlk ikisi `.gitignore`'da açık istisnadır (`!static/app.css`,
+`!locale/**/*.mo`); migration'lar hiç yoksayılmaz. Push etmeden önce ilk
+ikisini derle, `git status` temiz olmalı.
+
+**Kurulum başarısız olursa container ölür** (`entrypoint.sh` içinde
+`set -e`). Ölü container'a `docker exec` ile girilemediği için çıkış yolu
+açılış betiğini atlamaktan geçer:
+
+```
+docker compose run --rm --entrypoint python app_fadil manage.py kurulum --sifirla --evet
+```
+
+`kurulum` komutu `InconsistentMigrationHistory` hatasını yakalayıp bu
+komutu ekrana yazar; başka bir açılış hatası eklersen aynısını yap —
+traceback değil, çıkış yolu göster.
+
+**Statikler her açılışta `--clear` ile toplanır.** Tasarım değiştiğinde eski
+dosyalar `STATIC_ROOT`'ta birikmesin diye.
+
+**Bu projeye ait olmayan hiçbir şeye dokunulmaz.** Sunucuda 50-60 başka site
+var. `docker volume prune` ve `docker system prune -a` yasak; volume silmek
+gerekirse adı tek tek yazılır. `kurulum --sifirla` yalnızca `DATABASE_URL`'in
+gösterdiği veritabanının şemasını düşürür.
+
 ## Güvenlik
 
 - **Yüklenen dosyaları asla doğrulamadan kabul etme.** Belgeleri personel açar;
@@ -248,8 +288,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **Yüklenen görseller küçültülüp WebP'ye çevrilir** (`apps/basvurular/gorsel.py`).
   Uzun kenar 1000px, kalite 85 — kimlik kartı kadrajın çoğunu kapladığı için
   karttaki yazı ~18px kalıyor ve okunuyor. Tasarruf %95'in üzerinde. Yeni bir
-  görsel alanı eklerken `gorseli_kucult`'tan geçir. EXIF döndürmesi uygulanıp
-  veri temizlenir; konum bilgisi kimlik görüntüsünde tutulmaz.
+  görsel alanı eklerken `gorseli_kucult`'tan geçir — model `save()`'inde
+  `kucult()` ile ya da formda doğrudan. Şu an dört alan geçiyor: başvuru
+  belgeleri, tarife görseli, kampanya görseli, operatör logosu. Logo bir süre
+  atlanmıştı; yeni alan eklerken bu listeyi de güncelle. EXIF döndürmesi
+  uygulanıp veri temizlenir; konum bilgisi kimlik görüntüsünde tutulmaz.
 - **Görüntüler diskte tutulur, veritabanında değil.** Veritabanı yalnızca
   dosya yolunu saklar. base64 ile satır içinde saklamak %33 şişme, dev
   `pg_dump` yedekleri ve her görüntülemede tüm veriyi belleğe alma demektir.
