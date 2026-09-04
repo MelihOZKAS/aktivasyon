@@ -4,6 +4,10 @@ Normal akışta buna gerek olmaz: silme, veritabanı değişikliği commit
 edildikten sonra çalışır. Yine de disk hatası ya da yarıda kalan bir
 işlem sahipsiz dosya bırakabilir. Kişisel veri söz konusu olduğu için
 arada bir çalıştırmakta fayda var.
+
+Veritabanı sıfırlandıktan sonra da gereklidir: kayıtlar gider, kimlik
+görüntüleri diskte kalır. Eski sistemin `evrak/` klasörü de taranır —
+yeni yapıda oraya yazan bir model yok, oradaki her dosya sahipsizdir.
 """
 
 from pathlib import Path
@@ -12,6 +16,10 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from apps.basvurular.models import BasvuruBelgesi
+
+# Yalnızca başvuru belgesi klasörleri taranır. Tarife/kampanya/operatör
+# görselleri kendi modellerine bağlıdır, buraya girmemeli.
+KLASORLER = ["basvuru", "evrak"]
 
 
 class Command(BaseCommand):
@@ -23,18 +31,19 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **secenekler):
-        klasor = Path(settings.MEDIA_ROOT) / "basvuru"
-        if not klasor.exists():
+        kok = Path(settings.MEDIA_ROOT)
+        klasorler = [kok / ad for ad in KLASORLER if (kok / ad).is_dir()]
+        if not klasorler:
             self.stdout.write("Belge klasörü yok, temizlenecek bir şey de yok.")
             return
 
         kayitli = set(
             BasvuruBelgesi.objects.exclude(dosya="").values_list("dosya", flat=True)
         )
-        kok = Path(settings.MEDIA_ROOT)
 
         sahipsiz = [
             yol
+            for klasor in klasorler
             for yol in klasor.rglob("*")
             if yol.is_file() and str(yol.relative_to(kok)) not in kayitli
         ]

@@ -19,7 +19,9 @@ done
 # Var olan kayıtlara dokunmaz; her açılışta güvenle çalışır.
 python manage.py kurulum
 
+# --clear: eski tasarımdan kalan dosyalar STATIC_ROOT'ta birikmesin.
+# Sunucu Tailwind derlemiyor; static/app.css depodan geldiği gibi kullanılır.
 echo "Statik dosyalar toplanıyor..."
-python manage.py collectstatic --noinput
+python manage.py collectstatic --noinput --clear
 
 exec "$@"

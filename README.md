@@ -387,22 +387,40 @@ docker compose -f docker-compose.yml up -d --build app_fadil
 ```bash
 cd /home/aktivasyon
 
-# 1) Önce yedek al — silmeden önce her zaman
-docker exec postgresfadil pg_dump -U nasip_fadil_user -p 5434 fadil_db \
-  > ~/fadil_db_yedek_$(date +%F_%H%M).sql
-
-# 2) Son sürümü çek ve container'ı yenile
+# 1) Son sürümü çek ve container'ı yenile
 git pull
 docker compose -f docker-compose.yml up -d --build
 
-# 3) Sıfırla ve yeniden kur (veritabanı adını yazarak onaylarsınız)
+# 2) Sıfırla ve yeniden kur (veritabanı adını yazarak onaylarsınız)
 docker exec -it app_fadil python manage.py kurulum --sifirla \
   --yonetici fadil --parola 'PAROLANIZ'
+
+# 3) Eski sistemin kimlik görüntülerini diskten temizle
+docker exec -it app_fadil python manage.py sahipsiz_belgeler --sil
 ```
 
-Üçüncü adım yalnızca `fadil_db` şemasını düşürür; aynı PostgreSQL sunucusundaki
-diğer veritabanlarına dokunmaz. `--parola` vermezseniz güçlü bir parola üretilir
-ve bir kez ekrana yazılır.
+İkinci adım yalnızca `fadil_db` şemasını düşürür; aynı PostgreSQL sunucusundaki
+diğer veritabanlarına dokunmaz. Eski yapının tabloları da bu sırada gider —
+şema komple düşürülüp migration'lar sıfırdan uygulanır. `--parola` vermezseniz
+güçlü bir parola üretilir ve bir kez ekrana yazılır.
+
+Üçüncü adım atlanmamalı: **veritabanını silmek diskteki dosyaları silmez.**
+Eski sistemin `media/evrak/` altındaki kimlik ve pasaport görüntüleri, onlara
+işaret eden kayıt gittiği hâlde sunucuda durmaya devam eder. `sahipsiz_belgeler`
+hem eski `evrak/` hem yeni `basvuru/` klasörünü tarar; tarife ve kampanya
+görsellerine dokunmaz. Ne silineceğini önce `--sil` olmadan çalıştırıp
+görebilirsiniz.
+
+Statik dosyalar için ayrı bir şey yapmanız gerekmez: container her açıldığında
+`entrypoint.sh` içindeki `collectstatic --noinput --clear` çalışır, eski
+tasarımdan kalan dosyalar silinip yenileri toplanır. Sunucu **Tailwind
+derlemez** — `static/app.css` depodan geldiği gibi kullanılır. Bu yüzden şablon
+ya da tema değiştiren her commit'te derlenmiş CSS'i de commit'lemek gerekir:
+
+```bash
+./.tools/tailwindcss -i static/src/app.css -o static/app.css --minify
+git diff --stat static/app.css      # push'tan önce boş olmalı
+```
 
 Komut satırına yazılan parola kabuk geçmişine (`~/.bash_history`) düşer.
 Sonradan değiştirmek için: `/yonetim/` → Kullanıcılar, ya da

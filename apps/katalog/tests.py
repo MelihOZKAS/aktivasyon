@@ -4,6 +4,7 @@ import io
 import os
 import shutil
 import tempfile
+from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -331,3 +332,75 @@ class KurulumKomutu(TestCase):
             ton, _, doygunluk = colorsys.rgb_to_hsv(r, g, b)
             mor = 0.72 <= ton <= 0.85 and doygunluk > 0.25
             self.assertFalse(mor, f"{durum.ad} moru andırıyor: {durum.renk}")
+
+
+@override_settings(MEDIA_ROOT=GECICI_MEDYA)
+class SahipsizBelgeTemizligi(TestCase):
+    """Veritabanı sıfırlanınca kimlik görüntüleri diskte kalmamalı."""
+
+    def setUp(self):
+        self.kok = Path(GECICI_MEDYA)
+        shutil.rmtree(self.kok / "basvuru", ignore_errors=True)
+        shutil.rmtree(self.kok / "evrak", ignore_errors=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(GECICI_MEDYA, ignore_errors=True)
+        super().tearDownClass()
+
+    def _dosya(self, göreli):
+        yol = self.kok / göreli
+        yol.parent.mkdir(parents=True, exist_ok=True)
+        yol.write_bytes(b"kimlik")
+        return yol
+
+    def _calistir(self, *argumanlar):
+        from django.core.management import call_command
+
+        cikti = io.StringIO()
+        call_command("sahipsiz_belgeler", *argumanlar, stdout=cikti, stderr=cikti)
+        return cikti.getvalue()
+
+    def test_eski_sistemin_evrak_klasoru_de_taranir(self):
+        """Eski yapı `evrak/` kullanıyordu; yeni yapıda oraya yazan model yok."""
+        eski = self._dosya("evrak/2023/kimlik_on.jpg")
+        yeni = self._dosya("basvuru/2026/09/kimlik_arka.webp")
+
+        self._calistir("--sil")
+
+        self.assertFalse(eski.exists())
+        self.assertFalse(yeni.exists())
+
+    def test_kayitli_belge_silinmez(self):
+        from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
+        from django.contrib.auth.models import User
+
+        kategori = BasvuruKategorisi.objects.create(ad="MNT")
+        durum = BasvuruDurumu.objects.create(ad="Beklemede", slug="beklemede")
+        bayi = User.objects.create_user("bayi", password="parola123")
+        basvuru = Basvuru.objects.create(
+            bayi=bayi, kategori=kategori, durum=durum, isim="Ali"
+        )
+        goreli = "basvuru/2026/09/duran.webp"
+        yol = self._dosya(goreli)
+        BasvuruBelgesi.objects.create(basvuru=basvuru, alan_kodu="kimlik_on", dosya=goreli)
+
+        self._calistir("--sil")
+
+        self.assertTrue(yol.exists())
+
+    def test_sil_verilmezse_yalnizca_raporlar(self):
+        yol = self._dosya("evrak/eski.jpg")
+
+        cikti = self._calistir()
+
+        self.assertTrue(yol.exists())
+        self.assertIn("Silmek için --sil", cikti)
+
+    def test_tarife_gorseline_dokunulmaz(self):
+        """Görsel klasörleri kendi modellerine bağlı; tarama dışında kalmalı."""
+        yol = self._dosya("tarife/2026/09/kapak.webp")
+
+        self._calistir("--sil")
+
+        self.assertTrue(yol.exists())

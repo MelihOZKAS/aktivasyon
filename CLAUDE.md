@@ -167,8 +167,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **Bayiye içerik gösteren alanlar admin'den girilir.** Tarife ve kampanya
   açıklaması ile görseli `/tarifeler/` sayfasında görünür; şablona sabit
   metin yazma.
-- Şablon değişikliğinden sonra CSS'i derle:
+- **Şablon değişikliğinden sonra CSS'i derle ve derlenmiş dosyayı commit'le:**
   `./.tools/tailwindcss -i static/src/app.css -o static/app.css --minify`
+  Sunucuda Node yok, Docker imajı Tailwind çalıştırmıyor; `static/app.css`
+  depodan geldiği gibi kullanılır (`.gitignore`'da `!static/app.css` istisnası
+  bu yüzden var). Derlemeyi unutursan yeni sınıflar üretimde çalışmaz ve
+  bunu ancak canlıda fark edersin. Kontrol: derledikten sonra
+  `git diff --stat static/app.css` boş olmalı.
 - Testler: `.venv/bin/python manage.py test`
 
 ## Bildirimler
@@ -205,6 +210,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `apps/basvurular/services.belgeleri_sil` çalışır. Aktif ve İptal siler;
   Hatalı ve Eksik Evrak silmez, çünkü o başvurular düzeltilip yeniden
   denenebilir. Başvuru kaydı ve para geçmişi her hâlükârda kalır.
+- **Veritabanını silmek diskteki dosyaları silmez.** Sıfırlamadan sonra
+  `manage.py sahipsiz_belgeler --sil` çalıştırılır; eski sistemin `evrak/`
+  klasörü de taranır, çünkü yeni yapıda oraya yazan bir model yok. Yeni bir
+  belge klasörü eklersen komuttaki `KLASORLER` listesine ekle.
 - **Dosya alanları otomatik temizlenir.** Django kayıt silinince dosyayı
   diskten silmez; `apps/dosya.py` bunu kapatır — kayıt silinince ve dosya
   değişince eskisi commit sonrasında silinir. Yeni bir dosya/görsel alanı
