@@ -1,3 +1,5 @@
+import logging
+
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as TemelGrupAdmin
@@ -5,9 +7,13 @@ from django.contrib.auth.admin import UserAdmin as TemelKullaniciAdmin
 from django.contrib.auth.models import Group, User
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, StackedInline
+from unfold.decorators import action as unfold_islem
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
+from django.contrib.auth import update_session_auth_hash
+from django.http import Http404
 from django.shortcuts import render
+from django.urls import reverse
 
 from apps.bayi.models import (
     BayiBasvuruDurumu,
@@ -17,10 +23,13 @@ from apps.bayi.models import (
     SimKart,
     SimKartDurumu,
 )
+from apps.bayi.parola import uret as parola_uret
 from apps.bayi.services import HesapAcilamadi, bayi_hesabi_ac
 from apps.bayi.telefon import normalize
 from apps.finans.models import Cuzdan
 from apps.katalog.models import Operator
+
+logger = logging.getLogger(__name__)
 
 
 class BayiProfiliInline(StackedInline):
@@ -87,6 +96,11 @@ class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
     add_form = BayiKullaniciEklemeFormu
     change_password_form = AdminPasswordChangeForm
     inlines = [BayiProfiliInline, CuzdanInline]
+    # Parola düğmesi hem listenin her satırında hem kullanıcı sayfasının
+    # üstünde durur: bayi telefonla arayıp "giremiyorum" dediğinde yönetici
+    # aramadan çıkmadan halletsin.
+    actions_row = ["yeni_parola"]
+    actions_detail = ["yeni_parola"]
     list_display = (
         "username",
         "unvan_gosterimi",
@@ -104,6 +118,56 @@ class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
     def unvan_gosterimi(self, obj):
         profil = getattr(obj, "bayi_profili", None)
         return profil.unvan if profil and profil.unvan else "—"
+
+    @unfold_islem(
+        description="Yeni parola",
+        url_path="yeni-parola",
+        permissions=["change"],
+        icon="key",
+    )
+    def yeni_parola(self, request, object_id):
+        """Bayiye okunabilir yeni bir parola üretir ve bir kez gösterir.
+
+        Sistem parolayı saklamaz — yalnızca özetini tutar — bu yüzden
+        "eski parolası neydi" diye bakılamaz; unutulduğunda tek yol yenisini
+        vermek. Yönetici parola uydurmak zorunda kalmasın diye üretimi sistem
+        yapıyor.
+
+        Üretme işi POST ile olur: düğme bir bağlantı olsaydı, yöneticinin
+        ziyaret ettiği herhangi bir sayfa gizlice bayinin parolasını
+        sıfırlayabilirdi. GET onay ekranını, POST parolayı üretir.
+        """
+        kullanici = self.get_object(request, object_id)
+        if kullanici is None:
+            raise Http404("Kullanıcı bulunamadı.")
+
+        baglam = {
+            **self.admin_site.each_context(request),
+            "title": "Yeni parola",
+            "opts": self.model._meta,
+            "kullanici": kullanici,
+            "giris_adresi": request.build_absolute_uri(reverse("bayi:giris")),
+            "kullanici_adresi": reverse(
+                "admin:auth_user_change", args=[kullanici.pk]
+            ),
+        }
+
+        if request.method != "POST":
+            return render(request, "admin/bayi/yeni_parola.html", baglam)
+
+        parola = parola_uret()
+        kullanici.set_password(parola)
+        kullanici.save(update_fields=["password"])
+
+        # Yönetici kendi parolasını yenilediyse kendi oturumundan düşmesin.
+        if kullanici.pk == request.user.pk:
+            update_session_auth_hash(request, kullanici)
+
+        # Parola yalnızca bu yanıtta görünür: log'a, mesaja, bildirime girmez.
+        logger.info("%s için yeni parola üretildi.", kullanici.get_username())
+        return render(
+            request, "admin/bayi/yeni_parola.html", {**baglam, "parola": parola}
+        )
 
     @admin.display(description="Bakiye")
     def bakiye_gosterimi(self, obj):
@@ -292,6 +356,22 @@ class BayiBasvurusuAdmin(ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("olusturulan_kullanici")
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """“Açılan Hesap” kutusunun yanındaki ekle/düzenle/sil düğmelerini kaldırır.
+
+        O kırmızı çöp kutusu seçimi değil, seçili kullanıcının **kendisini**
+        siliyor. Yanlış hesap seçilince ilk refleks ona basmak oluyor ve
+        yönetici hesabı bile silinebiliyor — bir kez silindi. Buradan yapılacak
+        iş var olan bir hesabı başvuruya bağlamak; kullanıcı açmak, düzenlemek
+        ve silmek Kullanıcılar ekranının işi.
+        """
+        alan = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == "olusturulan_kullanici" and hasattr(alan, "widget"):
+            alan.widget.can_add_related = False
+            alan.widget.can_change_related = False
+            alan.widget.can_delete_related = False
+        return alan
 
     @admin.display(description="Ad Soyad", ordering="isim")
     def ad_soyad(self, obj):

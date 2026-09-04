@@ -1113,3 +1113,93 @@ class TelefonlaGiris(TestCase):
 
         User.objects.create_user("fadil", password="CokGuclu-Parola-2026")
         self.assertTrue(self._dene("fadil"))
+
+
+class YeniParolaDugmesi(TestCase):
+    """Bayi parolasını unutunca yönetici tek düğmeyle yenisini verir.
+
+    E-posta ile sıfırlama yok: üretilen parola ekranda bir kez gösterilir,
+    yönetici bayiye iletir.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        self.bayi = User.objects.create_user("5524144444", password="eski-parola-99")
+        self.yonetici = User.objects.create_superuser("fadil", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+        self.adres = f"/yonetim/auth/user/{self.bayi.pk}/yeni-parola/"
+
+    def test_get_onay_sorar_parolayi_degistirmez(self):
+        cevap = self.client.get(self.adres)
+        self.bayi.refresh_from_db()
+
+        self.assertEqual(cevap.status_code, 200)
+        self.assertTrue(self.bayi.check_password("eski-parola-99"))
+
+    def test_post_yeni_parola_uretir_ve_gosterir(self):
+        from apps.bayi.parola import KELIMELER
+
+        cevap = self.client.post(self.adres)
+        self.bayi.refresh_from_db()
+
+        self.assertEqual(cevap.status_code, 200)
+        self.assertFalse(self.bayi.check_password("eski-parola-99"))
+
+        # Ekranda gösterilen parola gerçekten hesabın parolası olmalı.
+        icerik = cevap.content.decode()
+        parola = next(
+            satir.strip()
+            for satir in icerik.splitlines()
+            if satir.strip().startswith("Parola: ")
+        ).removeprefix("Parola: ").split("<")[0]
+        self.assertTrue(self.bayi.check_password(parola))
+        self.assertIn(parola.split("-")[0], KELIMELER)
+
+    def test_kendi_parolasini_yenileyen_yonetici_oturumdan_dusmez(self):
+        adres = f"/yonetim/auth/user/{self.yonetici.pk}/yeni-parola/"
+
+        self.client.post(adres)
+        cevap = self.client.get("/yonetim/")
+
+        self.assertEqual(cevap.status_code, 200)
+
+    def test_yetkisiz_kullanici_parola_uretemez(self):
+        self.client.force_login(self.bayi)
+
+        cevap = self.client.post(self.adres)
+        self.bayi.refresh_from_db()
+
+        self.assertIn(cevap.status_code, (302, 403))
+        self.assertTrue(self.bayi.check_password("eski-parola-99"))
+
+    def test_uretilen_parola_her_seferinde_farkli(self):
+        from apps.bayi.parola import uret
+
+        self.assertGreater(len({uret() for _ in range(50)}), 45)
+
+
+class AcilanHesapKutusu(TestCase):
+    """Başvuru ekranındaki hesap kutusu kullanıcı silmemeli.
+
+    Kutunun yanındaki kırmızı çöp kutusu seçimi değil kullanıcının kendisini
+    siliyordu; yanlış hesap seçilince ilk refleks ona basmak oluyor.
+    """
+
+    def test_silme_dugmesi_gosterilmez(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.models import BayiBasvurusu
+
+        yonetici = User.objects.create_superuser("fadil", password="Panel-2026x")
+        basvuru = BayiBasvurusu.objects.create(
+            isim="Melih", soyisim="Kaya", irtibat="5551234567"
+        )
+        self.client.force_login(yonetici)
+
+        icerik = self.client.get(
+            f"/yonetim/bayi/bayibasvurusu/{basvuru.pk}/change/"
+        ).content.decode()
+
+        self.assertNotIn("delete_olusturulan_kullanici", icerik)
+        self.assertNotIn("add_olusturulan_kullanici", icerik)

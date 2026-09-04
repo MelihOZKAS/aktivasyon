@@ -146,6 +146,21 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Başvuru mu düşmemiş, hesap mı açılmamış, parola mı yok, numara mı başka
   biçimde kaydedilmiş — dördü de giriş ekranında aynı hatayı gösterir. Komut
   parolayı göstermez, yalnızca var/yok der.
+- **Parola unutulunca yönetici yenisini üretir; e-posta ile sıfırlama yoktur.**
+  Kullanıcı listesinin her satırında ve kullanıcı sayfasının üstünde "Yeni
+  parola" düğmesi var. `apps.bayi.parola.uret` telefonda okunabilecek bir
+  parola verir (`kavun-limon-7431`; Türkçe'ye özgü harf yok, bayi klavyede
+  aramasın), parola bir kez gösterilir ve yanında bayiye gönderilecek mesaj
+  hazır durur. Üretme **POST ile** olur: düğme düz bağlantı olsaydı
+  yöneticinin açtığı herhangi bir sayfa bayinin parolasını sıfırlatabilirdi.
+  Parola log'a, mesaja, bildirime girmez — sistem yalnızca özetini saklar,
+  bu yüzden "eski parolası neydi" diye bakılamaz.
+- **Kullanıcı seçtiren kutularda ekle/düzenle/sil düğmeleri kapatılır.**
+  Başvurudaki "Açılan Hesap" kutusunun yanındaki kırmızı çöp kutusu seçimi
+  değil, seçili kullanıcının kendisini siler; yanlış hesap seçilince ilk
+  refleks ona basmak oluyor ve bir kez yönetici hesabı böyle silindi.
+  `BayiBasvurusuAdmin.formfield_for_foreignkey` üçünü de kapatır. Kullanıcı
+  seçtiren yeni bir alan eklersen aynısını yap.
 - **Telefon numarası her yerde tek biçimde durur: `5321234567`.**
   `apps.bayi.telefon.normalize` boşluğu, ayraçları, `+90` ülke kodunu ve
   baştaki sıfırı atar; harf içeren gerçek kullanıcı adlarına dokunmaz. Dört
