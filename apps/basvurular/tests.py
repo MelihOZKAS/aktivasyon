@@ -761,3 +761,75 @@ class SimAlacakTestleri(TestCase):
 
         b.refresh_from_db()
         self.assertIsNone(b.sim_karsiligi_tarihi)
+
+
+class AdminTarifeSecimiTestleri(TestCase):
+    """Yanlış kategorinin tarifesi seçim kutusunda hiç görünmemeli."""
+
+    def setUp(self):
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import Kampanya, Operator, Tarife
+
+        BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.operator = Operator.objects.create(ad="Vodafone")
+        self.kont = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.mnt = BasvuruKategorisi.objects.create(ad="MNT")
+
+        self.dogru = Tarife.objects.create(
+            kategori=self.kont, operator=self.operator, ad="Gençlik"
+        )
+        self.yanlis = Tarife.objects.create(
+            kategori=self.mnt, operator=self.operator, ad="Uyumlu 12 GB"
+        )
+        self.kampanya = Kampanya.objects.create(tarife=self.dogru, ad="İlk 3 ay")
+        self.yanlis_kampanya = Kampanya.objects.create(
+            tarife=self.yanlis, ad="Taşıma kampanyası"
+        )
+
+        bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=bayi)
+        self.basvuru = Basvuru.objects.create(
+            bayi=bayi, kategori=self.kont, operator=self.operator,
+            isim="Ayşe", soyisim="Demir", kimlik_no="1",
+            irtibat="5551112233", durum=BasvuruDurumu.objects.first(),
+        )
+
+        self.yonetici = User.objects.create_superuser("yon", "y@x.com", "parola12345")
+        self.client.force_login(self.yonetici)
+
+    def _secenekler(self, alan):
+        import re
+
+        yanit = self.client.get(
+            f"/yonetim/basvurular/basvuru/{self.basvuru.pk}/change/"
+        )
+        blok = re.search(
+            rf'<select[^>]*name="{alan}".*?</select>', yanit.content.decode(), re.S
+        )
+        return blok.group(0) if blok else ""
+
+    def test_baska_kategorinin_tarifesi_listelenmez(self):
+        secim = self._secenekler("tarife")
+        self.assertIn("Gençlik", secim)
+        self.assertNotIn("Uyumlu 12 GB", secim)
+
+    def test_baska_kategorinin_kampanyasi_listelenmez(self):
+        secim = self._secenekler("kampanya")
+        self.assertIn("İlk 3 ay", secim)
+        self.assertNotIn("Taşıma kampanyası", secim)
+
+    def test_tarife_adinda_kategori_gorunur(self):
+        """Seçim kutusunda hangi kategoriye ait olduğu okunabilmeli."""
+        self.assertEqual(
+            str(self.dogru), "Kontörlü Yeni Hat · Vodafone · Gençlik"
+        )
+
+    def test_yanlis_tarife_yine_de_reddedilir(self):
+        """Kutu daraltıldı ama sunucu doğrulaması da yerinde durmalı."""
+        from django.core.exceptions import ValidationError
+
+        self.basvuru.tarife = self.yanlis
+        with self.assertRaises(ValidationError):
+            self.basvuru.full_clean(exclude=["referans_no"])

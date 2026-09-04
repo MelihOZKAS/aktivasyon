@@ -181,7 +181,9 @@ class Tarife(ZamanDamgali):
         ]
 
     def __str__(self):
-        return f"{self.operator.ad} · {self.ad}"
+        # Kategori de yazılır: seçim kutularında hangi kategoriye ait olduğu
+        # görünmeden yanlış tarife seçilebiliyordu.
+        return f"{self.kategori.ad} · {self.operator.ad} · {self.ad}"
 
     def save(self, *args, **kwargs):
         self.gorsel = kucult(self.gorsel)

@@ -142,6 +142,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   diskten silmez; `apps/dosya.py` bunu kapatır — kayıt silinince ve dosya
   değişince eskisi commit sonrasında silinir. Yeni bir dosya/görsel alanı
   eklerken ilgili `AppConfig.ready()` içinde `dosyalari_temizle`'ye kaydet.
+- **Seçim kutuları geçersiz seçenek göstermemeli.** Başvuru admin'inde
+  tarife ve kampanya, başvurunun kategorisine göre daraltılır. Bu yüzden
+  ikisi bilinçli olarak `autocomplete_fields` değil: autocomplete kutusu
+  hedef admin'in tüm kayıtlarını gösterir, sibling alana göre daraltılamaz.
+  Sunucu doğrulaması yine de yerinde durur.
 - **Kategoride aktif tarifesi olan operatör forma otomatik girer.** Tarife
   tanımlayıp operatörü kategorinin listesine eklemeyi unutmak sessiz bir
   tuzaktı; `gecerli_operatorler()` ikisini birleştirir.

@@ -10,6 +10,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 
 from apps.basvurular.raporlar import sim_alacaklari
+from apps.katalog.models import Kampanya, Tarife
 from apps.basvurular.models import (
     Basvuru,
     BasvuruBelgesi,
@@ -163,9 +164,10 @@ class BasvuruAdmin(ModelAdmin):
         "irtibat",
         "bayi__username",
     )
-    autocomplete_fields = (
-        "bayi", "tedarikci", "kategori", "operator", "tarife", "kampanya", "durum"
-    )
+    # tarife/kampanya bilinçli olarak autocomplete değil: autocomplete
+    # kutusu bağlı olduğu admin'in tüm kayıtlarını gösterir ve kategoriye
+    # göre daraltılamaz. Düz seçim kutusu kategoriye göre filtreleniyor.
+    autocomplete_fields = ("bayi", "tedarikci", "kategori", "operator", "durum")
     readonly_fields = (
         "referans_no",
         "tahsil_edilen",
@@ -263,6 +265,45 @@ class BasvuruAdmin(ModelAdmin):
             .get_queryset(request)
             .select_related("bayi", "tedarikci", "kategori", "operator", "tarife", "durum")
         )
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Düzenlenen başvurunun kategorisini forma taşır."""
+        form = super().get_form(request, obj, **kwargs)
+        form._duzenlenen_kategori_id = obj.kategori_id if obj else None
+        return form
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Tarife ve kampanya seçeneklerini başvurunun kategorisiyle sınırlar.
+
+        Kutu tüm tarifeleri gösterdiği için başka kategorinin tarifesi
+        seçilip kaydetmede reddediliyordu; artık yanlış seçenek hiç
+        listelenmiyor.
+        """
+        kategori_id = getattr(self, "_duzenlenen_kategori_id", None)
+
+        if db_field.name == "tarife" and kategori_id:
+            kwargs["queryset"] = (
+                Tarife.objects.filter(kategori_id=kategori_id, aktif=True)
+                .select_related("operator")
+                .order_by("operator__ad", "sira", "ad")
+            )
+        elif db_field.name == "kampanya" and kategori_id:
+            kwargs["queryset"] = (
+                Kampanya.objects.filter(tarife__kategori_id=kategori_id, aktif=True)
+                .select_related("tarife")
+                .order_by("tarife__ad", "sira", "ad")
+            )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def get_object(self, request, object_id, from_field=None):
+        nesne = super().get_object(request, object_id, from_field)
+        # formfield_for_foreignkey nesneyi görmediği için kategoriyi burada saklıyoruz.
+        self._duzenlenen_kategori_id = nesne.kategori_id if nesne else None
+        return nesne
+
+    def add_view(self, request, form_url="", extra_context=None):
+        self._duzenlenen_kategori_id = None
+        return super().add_view(request, form_url, extra_context)
 
     def changelist_view(self, request, extra_context=None):
         """Listenin üstünde, uygulanan filtreye göre kâr özeti gösterir."""
