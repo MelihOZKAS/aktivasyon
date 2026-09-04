@@ -110,6 +110,35 @@ class BasvuruFormu(forms.Form):
             self.fields["musteri_tipi"].initial = self.kategori.musteri_tipi
             self.fields["musteri_tipi"].widget = forms.HiddenInput()
 
+    def _sim_secenekleri(self):
+        """Bayinin stoğundaki kartlar. Aynı formda iki SIM alanı olabilir,
+        sorgu bir kez çalışır."""
+        from apps.bayi.models import SimKart
+
+        if hasattr(self, "_sim_stogu"):
+            return self._sim_stogu
+
+        if self.bayi is None:
+            self._sim_stogu = [("", "SIM kart seçin")]
+            return self._sim_stogu
+
+        kartlar = (
+            SimKart.objects.bayinin_stogu(self.bayi)
+            .select_related("operator")
+            .order_by("imei")[:500]
+        )
+        secenekler = [
+            (k.imei, f"{k.imei} · {k.operator.ad}" if k.operator_id else k.imei)
+            for k in kartlar
+        ]
+        # Stok boşsa sebebini söyle: boş bir kutu "bir şey bozuldu" gibi durur.
+        self._sim_stogu = (
+            [("", "SIM kart seçin"), *secenekler]
+            if secenekler
+            else [("", "Stoğunuzda kullanılabilir SIM kart yok")]
+        )
+        return self._sim_stogu
+
     def _tanimli_alanlari_ekle(self):
         """KategoriAlani kayıtlarını gerçek form alanlarına dönüştürür."""
         for tanim in self.alan_tanimlari:
@@ -137,19 +166,19 @@ class BasvuruFormu(forms.Form):
                     argumanlar["max_length"] = tanim.max_uzunluk
 
             if tanim.tip == AlanTipi.SIM_KART:
-                # Bayi yalnızca kendisine atanmış, stoktaki SIM'lerle işlem yapar.
+                # Bayi yalnızca kendisine atanmış, stoktaki SIM'lerle işlem
+                # yapabildiği için numarayı elle yazdırmanın anlamı yok: liste
+                # zaten girilebilecek kartların tamamı. Seçim kutusu telefonda
+                # yerel seçiciyi açar, 16 hane yazarken yapılan hatayı da keser.
+                # Değer yine sunucuda doğrulanır (`_sim_dogrula`).
                 alan_sinifi = forms.CharField
-                argumanlar["widget"] = forms.TextInput(
-                    attrs={
-                        "class": GIRDI_SINIFI,
-                        "list": f"sim-{tanim.kod}",
-                        "inputmode": "numeric",
-                        "autocomplete": "off",
-                        "placeholder": "SIM / IMEI",
-                    }
+                argumanlar["widget"] = forms.Select(
+                    choices=self._sim_secenekleri(),
+                    attrs={"class": GIRDI_SINIFI},
                 )
                 argumanlar["help_text"] = (
-                    tanim.yardim_metni or "Yalnızca size zimmetli SIM kartları girebilirsiniz."
+                    tanim.yardim_metni
+                    or "Listede yalnızca size zimmetli, henüz kullanılmamış kartlar var."
                 )
 
             if tanim.dosya_mi:
@@ -220,23 +249,6 @@ class BasvuruFormu(forms.Form):
             self.cleaned_data[f"_sim_{tanim.kod}"] = kart
 
     # -- şablon yardımcıları ----------------------------------------------
-
-    @property
-    def sim_secenekleri(self):
-        """Şablonda datalist doldurmak için bayinin stoktaki kartları."""
-        from apps.bayi.models import SimKart
-
-        if self.bayi is None:
-            return {}
-        kodlar = [t.kod for t in self.alan_tanimlari if t.tip == AlanTipi.SIM_KART]
-        if not kodlar:
-            return {}
-        kartlar = list(
-            SimKart.objects.bayinin_stogu(self.bayi)
-            .select_related("operator")
-            .order_by("imei")[:500]
-        )
-        return {kod: kartlar for kod in kodlar}
 
     @property
     def gruplu_alanlar(self):

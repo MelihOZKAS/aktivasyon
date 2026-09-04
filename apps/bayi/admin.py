@@ -227,7 +227,9 @@ class SimAtamaFormu(forms.Form):
 
 @admin.register(SimKart)
 class SimKartAdmin(ModelAdmin):
-    list_display = ("imei", "bayi", "operator", "durum_rozeti", "basvuru", "olusturma_tarihi")
+    list_display = (
+        "imei", "zimmetli_bayi", "operator", "durum_rozeti", "basvuru", "olusturma_tarihi",
+    )
     list_filter = ("durum", "operator", "bayi")
     search_fields = ("imei", "bayi__username", "basvuru__referans_no")
     autocomplete_fields = ("bayi", "operator", "basvuru")
@@ -235,7 +237,31 @@ class SimKartAdmin(ModelAdmin):
     actions = ("bayiye_ata", "bayiden_geri_al", "arizali_isaretle")
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("bayi", "operator", "basvuru")
+        return super().get_queryset(request).select_related(
+            "bayi", "bayi__bayi_profili", "operator", "basvuru"
+        )
+
+    @admin.display(description="Zimmetli Bayi", ordering="bayi__username")
+    def zimmetli_bayi(self, obj):
+        """Kartın kimde olduğu tek bakışta okunmalı.
+
+        Kullanıcı adı telefon numarasıdır; numara tek başına hangi firma
+        olduğunu anlatmıyor. Ünvan varsa o yazılır, numara altında durur.
+        """
+        if not obj.bayi_id:
+            return format_html('<span style="color:#6F7B8F">stokta · zimmetsiz</span>')
+
+        numara = obj.bayi.get_username()
+        profil = getattr(obj.bayi, "bayi_profili", None)
+        unvan = profil.unvan if profil and profil.unvan else ""
+        if not unvan:
+            return numara
+        return format_html(
+            '<span style="font-weight:600">{}</span><br>'
+            '<span style="color:#6F7B8F;font-size:.75rem">{}</span>',
+            unvan,
+            numara,
+        )
 
     @admin.display(description="Durum")
     def durum_rozeti(self, obj):

@@ -134,15 +134,6 @@
       </div>
     </section>
 
-    {# Bayinin stoğundaki SIM'ler: yazarken önerilir, sunucuda ayrıca doğrulanır #}
-    {% for kod, kartlar in form.sim_secenekleri.items %}
-    <datalist id="sim-{{ kod }}">
-      {% for kart in kartlar %}
-      <option value="{{ kart.imei }}">{{ kart.operator.ad|default:"" }}</option>
-      {% endfor %}
-    </datalist>
-    {% endfor %}
-
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
       <a href="{% url 'bayi:panel' %}" class="dugme dugme-sessiz sm:w-auto">Vazgeç</a>
       <button type="submit" class="dugme dugme-birincil sm:w-auto">Başvuruyu gönder</button>

@@ -231,6 +231,50 @@ class SimKartTestleri(TestCase):
         yanit = self.client.post(self._url(), self._gonderi("0000000000000000"))
         self.assertIn("alan__sim", yanit.context["form"].errors)
 
+    def test_sim_alani_yalnizca_kendi_stogunu_listeler(self):
+        """Bayi IMEI'yi elle yazmaz, listeden seçer.
+
+        16 haneyi tezgâh başında yazmak hataya davetiye; üstelik listeye
+        yalnızca girebileceği kartlar giriyor.
+        """
+        form = self.client.get(self._url()).context["form"]
+        degerler = [d for d, _ in form.fields["alan__sim"].widget.choices]
+
+        self.assertIn(self.benim.imei, degerler)
+        self.assertNotIn(self.baskasinin.imei, degerler)
+        self.assertNotIn(self.sahipsiz.imei, degerler)
+
+    def test_kullanilan_kart_listeden_duser(self):
+        self.client.post(self._url(), self._gonderi(self.benim.imei))
+
+        form = self.client.get(self._url()).context["form"]
+        degerler = [d for d, _ in form.fields["alan__sim"].widget.choices]
+
+        self.assertNotIn(self.benim.imei, degerler)
+
+    def test_stok_bosken_sebebi_yazilir(self):
+        """Boş bir kutu 'bir şey bozuldu' gibi durur; sebebi görünmeli."""
+        self.benim.bayi = None
+        self.benim.save()
+
+        form = self.client.get(self._url()).context["form"]
+        etiketler = [e for _, e in form.fields["alan__sim"].widget.choices]
+
+        self.assertEqual(etiketler, ["Stoğunuzda kullanılabilir SIM kart yok"])
+
+    def test_sim_listesinde_zimmetli_bayi_gorunur(self):
+        """Kullanıcı adı telefon numarası; listede firma ünvanı da okunmalı."""
+        from apps.bayi.models import BayiProfili
+
+        BayiProfili.objects.create(kullanici=self.bayi, unvan="Ege İletişim")
+        yonetici = User.objects.create_superuser("yon3", "y3@x.com", "parola12345")
+        self.client.force_login(yonetici)
+
+        yanit = self.client.get("/yonetim/bayi/simkart/")
+
+        self.assertContains(yanit, "Ege İletişim")
+        self.assertContains(yanit, "stokta · zimmetsiz")
+
     def test_kullanilmis_sim_tekrar_kullanilamaz(self):
         self.client.post(self._url(), self._gonderi(self.benim.imei))
         yanit = self.client.post(self._url(), self._gonderi(self.benim.imei))
