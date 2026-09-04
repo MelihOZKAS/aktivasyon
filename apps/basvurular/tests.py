@@ -659,3 +659,105 @@ class GorselKucultmeTestleri(TestCase):
             # Döndürme uygulandığı için en ve boy yer değiştirmiş olmalı.
             self.assertEqual(g.size, (300, 600))
             self.assertFalse(g.getexif())
+
+
+class SimAlacakTestleri(TestCase):
+    """SIM karşılığı: işlemi tedarikçi üstlendiyse alacak ondan."""
+
+    def setUp(self):
+        from apps.bayi.models import BayiProfili
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import Operator
+
+        self.beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.turkcell = Operator.objects.create(ad="Turkcell")
+        self.vodafone = Operator.objects.create(ad="Vodafone")
+
+        self.simli = BasvuruKategorisi.objects.create(
+            ad="Kontörlü Yeni Hat", sim_karsiligi_gerekir=True
+        )
+        self.simsiz = BasvuruKategorisi.objects.create(
+            ad="ADSL", sim_karsiligi_gerekir=False
+        )
+
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+        self.tedarikci = User.objects.create_user("tedarik", password="parola12345")
+        Cuzdan.objects.create(bayi=self.tedarikci, bakiye=Decimal("9000.00"))
+        BayiProfili.objects.create(
+            kullanici=self.tedarikci, unvan="Ege Tedarik",
+            bayi_mi=False, tedarikci_mi=True,
+        )
+
+    def _basvuru(self, kategori, operator, tedarikci=None, aktif=True):
+        b = Basvuru.objects.create(
+            bayi=self.bayi, kategori=kategori, operator=operator,
+            tedarikci=tedarikci, isim="Ayşe", soyisim="Demir",
+            kimlik_no="1", irtibat="5551112233", durum=self.beklemede,
+        )
+        if aktif:
+            b.durum = self.aktif
+            b.save()
+        return b
+
+    def test_tedarikcisiz_islem_operatorden_alacak(self):
+        b = self._basvuru(self.simli, self.turkcell)
+        self.assertEqual(b.sim_karsiligi_kimden, "Turkcell")
+
+    def test_tedarikciye_satilan_islem_tedarikciden_alacak(self):
+        b = self._basvuru(self.simli, self.turkcell, tedarikci=self.tedarikci)
+        self.assertEqual(b.sim_karsiligi_kimden, "Ege Tedarik")
+
+    def test_rapor_tarafa_gore_ayirir(self):
+        from apps.basvurular.raporlar import sim_alacaklari
+
+        self._basvuru(self.simli, self.turkcell)
+        self._basvuru(self.simli, self.turkcell)
+        self._basvuru(self.simli, self.vodafone)
+        self._basvuru(self.simli, self.turkcell, tedarikci=self.tedarikci)
+
+        rapor = sim_alacaklari()
+        self.assertEqual(rapor["toplam"], 4)
+        ozet = {s["ad"]: (s["tur"], s["adet"]) for s in rapor["satirlar"]}
+        self.assertEqual(ozet["Turkcell"], ("Operatör", 2))
+        self.assertEqual(ozet["Vodafone"], ("Operatör", 1))
+        self.assertEqual(ozet["Ege Tedarik"], ("Tedarikçi", 1))
+
+    def test_sim_gerektirmeyen_kategori_sayilmaz(self):
+        from apps.basvurular.raporlar import sim_alacaklari
+
+        self._basvuru(self.simsiz, self.turkcell)
+        self.assertEqual(sim_alacaklari()["toplam"], 0)
+
+    def test_tamamlanmamis_islem_sayilmaz(self):
+        from apps.basvurular.raporlar import sim_alacaklari
+
+        self._basvuru(self.simli, self.turkcell, aktif=False)
+        self.assertEqual(sim_alacaklari()["toplam"], 0)
+
+    def test_karsiligi_alinan_islem_dususur(self):
+        from apps.basvurular.raporlar import sim_alacaklari
+
+        b = self._basvuru(self.simli, self.turkcell)
+        self.assertEqual(sim_alacaklari()["toplam"], 1)
+
+        b.sim_karsiligi_alindi = True
+        b.save()
+        self.assertEqual(sim_alacaklari()["toplam"], 0)
+        b.refresh_from_db()
+        self.assertIsNotNone(b.sim_karsiligi_tarihi)
+
+    def test_isaret_geri_alininca_tarih_temizlenir(self):
+        b = self._basvuru(self.simli, self.turkcell)
+        b.sim_karsiligi_alindi = True
+        b.save()
+        b.sim_karsiligi_alindi = False
+        b.save()
+
+        b.refresh_from_db()
+        self.assertIsNone(b.sim_karsiligi_tarihi)

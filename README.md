@@ -255,10 +255,20 @@ unfold'un ikon-only yuvarlak düğmesi ne işe yaradığını anlatmıyordu, art
 ## SIM karşılığı takibi
 
 Fiziksel SIM tüketen kategorilerde (**Kategoriler** ekranında "SIM Karşılığı
-Takip Edilsin" açık olanlar), tamamlanan her işlem operatörden alınacak yeni
-bir SIM anlamına gelir. Başvuru listesinin üstünde kaç kart beklendiği
-görünür; kartlar geldiğinde işlemleri seçip **"SIM karşılığı alındı olarak
-işaretle"** deyin.
+Takip Edilsin" açık olanlar), tamamlanan her işlem yeni bir SIM alacağı
+doğurur.
+
+Alacak kimden?
+
+| Durum | Alacak |
+|---|---|
+| İşlemi bir tedarikçi üstlendiyse | **O tedarikçiden** |
+| Üstlenilmemişse | **Operatörden** |
+
+Başvuru listesinin üstünde kimden kaç kart beklendiği kart kart görünür;
+üstüne tıklayınca o tarafın bekleyen işlemleri listelenir. Kartlar geldiğinde
+seçip **"SIM karşılığı alındı olarak işaretle"** deyin — işaretlendiği an
+damgalanır.
 
 ## Tedarikçi
 

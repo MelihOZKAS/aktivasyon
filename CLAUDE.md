@@ -146,8 +146,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   tanımlayıp operatörü kategorinin listesine eklemeyi unutmak sessiz bir
   tuzaktı; `gecerli_operatorler()` ikisini birleştirir.
 - **SIM karşılığı takibi kategoriye bağlı.** `sim_karsiligi_gerekir` açık
-  kategorilerde tamamlanan her işlem, operatörden alınacak yeni SIM olarak
-  takibe girer (`Basvuru.sim_karsiligi_alindi`).
+  kategorilerde tamamlanan her işlem yeni bir SIM alacağı doğurur. Alacak,
+  işlemi bir tedarikçi üstlendiyse ondan, üstlenilmemişse operatördendir
+  (`Basvuru.sim_karsiligi_kimden`). Kimden kaç kart beklendiği
+  `apps/basvurular/raporlar.sim_alacaklari` ile hesaplanır ve başvuru
+  listesinin üstünde gösterilir.
+- **Şablonda çok satırlı yorum için `{% comment %}` kullan.** Django'nun
+  `{# #}` yorumu tek satırlıktır; çok satıra yayılırsa sayfada metin olarak
+  basılır.
 - **Yüklenen görseller küçültülüp WebP'ye çevrilir** (`apps/basvurular/gorsel.py`).
   Uzun kenar 1000px, kalite 85 — kimlik kartı kadrajın çoğunu kapladığı için
   karttaki yazı ~18px kalıyor ve okunuyor. Tasarruf %95'in üzerinde. Yeni bir

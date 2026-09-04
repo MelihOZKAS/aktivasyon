@@ -275,6 +275,18 @@ class Basvuru(ZamanDamgali):
         )
 
     @property
+    def sim_karsiligi_kimden(self):
+        """Yeni SIM kartı kimden alacağız?
+
+        İşlemi tedarikçi üstlendiyse alacak ondandır; üstlenilmemişse
+        doğrudan operatörden alınır.
+        """
+        if self.tedarikci_id:
+            profil = getattr(self.tedarikci, "bayi_profili", None)
+            return profil.unvan if profil and profil.unvan else self.tedarikci.get_username()
+        return self.operator.ad if self.operator_id else "—"
+
+    @property
     def sonuclandi_mi(self):
         return bool(self.durum.hakedis_tetikler or self.durum.olumsuz_sonuc)
 

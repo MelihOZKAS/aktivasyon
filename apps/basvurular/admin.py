@@ -9,6 +9,7 @@ from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 
+from apps.basvurular.raporlar import sim_alacaklari
 from apps.basvurular.models import (
     Basvuru,
     BasvuruBelgesi,
@@ -287,12 +288,9 @@ class BasvuruAdmin(ModelAdmin):
             "hakedis": odenen,
             "kar": gelir + kesinti - odenen,
         }
-        # Operatörden alınacak SIM sayısı: tamamlanmış ama karşılığı gelmemiş.
-        yanit.context_data["bekleyen_sim"] = sorgu.filter(
-            kategori__sim_karsiligi_gerekir=True,
-            durum__hakedis_tetikler=True,
-            sim_karsiligi_alindi=False,
-        ).count()
+        # Kimden kaç SIM kart alacağımız: tedarikçiye satılmışsa ondan,
+        # değilse operatörden.
+        yanit.context_data["sim_alacaklari"] = sim_alacaklari(sorgu)
         return yanit
 
     @display(description="Durum")
@@ -377,7 +375,11 @@ class BasvuruAdmin(ModelAdmin):
         if obj.sim_karsiligi_alindi:
             return format_html('<span style="color:#0F8A4D;font-weight:600">alındı</span>')
         if obj.durum.hakedis_tetikler:
-            return format_html('<span style="color:#B45309;font-weight:600">bekliyor</span>')
+            return format_html(
+                '<span style="color:#B45309;font-weight:600">bekliyor</span>'
+                '<br><span style="color:#6F7B8F;font-size:.72rem">{}</span>',
+                obj.sim_karsiligi_kimden,
+            )
         return format_html('<span style="color:#9AA5B7">—</span>')
 
     @admin.action(description="SIM karşılığı alındı olarak işaretle")
