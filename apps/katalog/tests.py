@@ -259,15 +259,40 @@ class KurulumKomutu(TestCase):
         self.assertTrue(kullanici.is_superuser)
         self.assertTrue(kullanici.is_staff)
 
+    def test_verilen_parolayla_yonetici_acilir(self):
+        from django.contrib.auth.models import User
+
+        self._kur("--yonetici", "fadil", "--parola", "Cok-Uzun-Bir-Parola-42.")
+
+        kullanici = User.objects.get(username="fadil")
+        self.assertTrue(kullanici.is_superuser)
+        self.assertTrue(kullanici.check_password("Cok-Uzun-Bir-Parola-42."))
+
     def test_var_olan_yoneticinin_parolasi_degismez(self):
+        """Yeniden kurulum, elle değiştirilmiş bir parolayı sessizce ezmemeli."""
         from django.contrib.auth.models import User
 
         kullanici = User.objects.create_user("melih", password="eski-parola")
-        self._kur("--yonetici", "melih")
+        self._kur("--yonetici", "melih", "--parola", "yeni-parola")
 
         kullanici.refresh_from_db()
         self.assertTrue(kullanici.is_superuser)
         self.assertTrue(kullanici.check_password("eski-parola"))
+
+    def test_parolayi_yenile_var_olan_hesabi_gunceller(self):
+        from django.contrib.auth.models import User
+
+        kullanici = User.objects.create_user("melih", password="eski-parola")
+        self._kur("--yonetici", "melih", "--parola", "yeni-parola", "--parolayi-yenile")
+
+        kullanici.refresh_from_db()
+        self.assertTrue(kullanici.check_password("yeni-parola"))
+
+    def test_parola_tek_basina_reddedilir(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            self._kur("--parola", "bir-parola")
 
     def test_yanlis_ad_yazilirsa_hicbir_sey_silinmez(self):
         """--sifirla onayı veritabanı adının yazılmasını ister."""

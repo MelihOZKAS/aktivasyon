@@ -1,7 +1,7 @@
 """Sistemi tek komutla kurar: migration, başlangıç verisi, örnek veri, yönetici.
 
     manage.py kurulum                     # migration + başlangıç verisi (üretim)
-    manage.py kurulum --yonetici admin    # üstüne yönetici hesabı açar
+    manage.py kurulum --yonetici fadil --parola "..."   # yönetici hesabı açar
     manage.py kurulum --sifirla --ornek   # her şeyi siler, örnek verilerle kurar
 
 `--sifirla` yalnızca DATABASE_URL'in gösterdiği veritabanına dokunur. Aynı
@@ -34,10 +34,21 @@ class Command(BaseCommand):
         ayristirici.add_argument(
             "--yonetici",
             metavar="KULLANICI_ADI",
+            help="Bu adla bir yönetici hesabı açar.",
+        )
+        ayristirici.add_argument(
+            "--parola",
+            metavar="PAROLA",
             help=(
-                "Bu adla bir yönetici hesabı açar. Parola DJANGO_SUPERUSER_PASSWORD "
-                "ortam değişkeninden alınır, yoksa üretilip bir kez ekrana yazılır."
+                "Yöneticinin parolası. Verilmezse DJANGO_SUPERUSER_PASSWORD "
+                "ortam değişkenine bakılır; o da yoksa üretilip bir kez ekrana yazılır."
             ),
+        )
+        ayristirici.add_argument(
+            "--parolayi-yenile",
+            action="store_true",
+            dest="parolayi_yenile",
+            help="Yönetici hesabı zaten varsa parolasını --parola değeriyle değiştirir.",
         )
         ayristirici.add_argument(
             "--evet",
@@ -79,10 +90,17 @@ class Command(BaseCommand):
             self._baslik(adim, "Örnek tarifeler, kurallar ve SIM stoğu")
             call_command("ornek_veri", zorla=zorla, stdout=self.stdout, stderr=self.stderr)
 
+        if secenekler["parola"] and not secenekler["yonetici"]:
+            raise CommandError("--parola tek başına anlamsız; --yonetici de verin.")
+
         if secenekler["yonetici"]:
             adim += 1
             self._baslik(adim, "Yönetici hesabı")
-            self._yonetici_ac(secenekler["yonetici"])
+            self._yonetici_ac(
+                secenekler["yonetici"],
+                parola=secenekler["parola"],
+                yenile=secenekler["parolayi_yenile"],
+            )
 
         self.stdout.write(self.style.SUCCESS("\nKurulum tamamlandı."))
         if not secenekler["ornek"]:
@@ -159,30 +177,41 @@ class Command(BaseCommand):
 
     # --- yönetici ---------------------------------------------------------
 
-    def _yonetici_ac(self, kullanici_adi):
+    def _yonetici_ac(self, kullanici_adi, *, parola=None, yenile=False):
         import os
 
         from django.contrib.auth.models import User
+
+        # Öncelik: --parola → DJANGO_SUPERUSER_PASSWORD → üretilen parola.
+        parola = parola or os.environ.get("DJANGO_SUPERUSER_PASSWORD", "")
+        verildi = bool(parola)
+        if not verildi:
+            parola = secrets.token_urlsafe(15)
 
         kullanici = User.objects.filter(username=kullanici_adi).first()
         if kullanici is not None:
             kullanici.is_staff = True
             kullanici.is_superuser = True
-            kullanici.save(update_fields=["is_staff", "is_superuser"])
+            if yenile:
+                if not verildi:
+                    raise CommandError(
+                        "Yenilenecek parola yok: --parola ile yeni parolayı verin."
+                    )
+                kullanici.set_password(parola)
+            kullanici.save()
             self.stdout.write(
-                f"   {kullanici_adi} zaten var; yönetici yetkisi doğrulandı. "
-                "Parola değiştirilmedi."
+                f"   {kullanici_adi} zaten var; yönetici yetkisi doğrulandı."
+            )
+            self.stdout.write(
+                "   Parola güncellendi."
+                if yenile
+                else "   Parola değiştirilmedi (--parolayi-yenile ile güncelleyebilirsiniz)."
             )
             return
 
-        parola = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
-        uretildi = parola is None
-        if uretildi:
-            parola = secrets.token_urlsafe(15)
-
         User.objects.create_superuser(username=kullanici_adi, password=parola)
         self.stdout.write(f"   {kullanici_adi} oluşturuldu.")
-        if uretildi:
+        if not verildi:
             self.stdout.write(
                 self.style.WARNING(
                     f"   Parola: {parola}\n"

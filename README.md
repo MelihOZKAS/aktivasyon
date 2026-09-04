@@ -69,7 +69,7 @@ kendiliğinden işler. Tedarikçi ataması bilinçli olarak elle yapılır.
 
 ```bash
 manage.py kurulum                     # migration + 1-4. adımlar (üretim)
-manage.py kurulum --yonetici admin    # üstüne yönetici hesabı açar
+manage.py kurulum --yonetici fadil --parola "..."     # yönetici hesabı açar
 manage.py kurulum --ornek             # 5-8. adımları da örnek verilerle doldurur
 manage.py kurulum --sifirla --ornek   # önce her şeyi siler, sıfırdan kurar
 ```
@@ -78,7 +78,7 @@ manage.py kurulum --sifirla --ornek   # önce her şeyi siler, sıfırdan kurar
 |---|---|
 | _(yok)_ | Migration'ları uygular, durum/operatör/kategori/form alanlarını açar. Var olan kayıtlara dokunmaz; her açılışta güvenle çalışır. |
 | `--ornek` | Tarife, kampanya, bayi grubu, ücret kuralı, banka, duyuru, SIM stoğu ve deneme hesapları ekler. Yalnızca geliştirme için; üretimde `--zorla` ister. |
-| `--yonetici AD` | Yönetici hesabı açar. Parola `DJANGO_SUPERUSER_PASSWORD` yoksa üretilir ve bir kez ekrana yazılır. Hesap zaten varsa parolası değiştirilmez. |
+| `--yonetici AD` | Yönetici hesabı açar. Parolayı `--parola` ile verirsiniz; vermezseniz üretilip bir kez ekrana yazılır. Hesap zaten varsa parolası değiştirilmez — `--parolayi-yenile` ile değiştirilir. |
 | `--sifirla` | Bu projenin veritabanındaki her şeyi siler. Silmeden önce hangi veritabanına bağlı olduğunu yazar ve adını yazmanızı ister; `--evet` onayı atlar. |
 
 `--sifirla` yalnızca `DATABASE_URL`'in gösterdiği veritabanına dokunur
@@ -396,11 +396,17 @@ git pull
 docker compose -f docker-compose.yml up -d --build
 
 # 3) Sıfırla ve yeniden kur (veritabanı adını yazarak onaylarsınız)
-docker exec -it app_fadil python manage.py kurulum --sifirla --yonetici admin
+docker exec -it app_fadil python manage.py kurulum --sifirla \
+  --yonetici fadil --parola 'PAROLANIZ'
 ```
 
 Üçüncü adım yalnızca `fadil_db` şemasını düşürür; aynı PostgreSQL sunucusundaki
-diğer veritabanlarına dokunmaz. Ürettiği yönetici parolası bir kez ekrana yazılır.
+diğer veritabanlarına dokunmaz. `--parola` vermezseniz güçlü bir parola üretilir
+ve bir kez ekrana yazılır.
+
+Komut satırına yazılan parola kabuk geçmişine (`~/.bash_history`) düşer.
+Sonradan değiştirmek için: `/yonetim/` → Kullanıcılar, ya da
+`manage.py kurulum --yonetici fadil --parola 'YENİ' --parolayi-yenile`.
 
 Container'ı da komple silmek isterseniz volume'u elle kaldırabilirsiniz:
 
