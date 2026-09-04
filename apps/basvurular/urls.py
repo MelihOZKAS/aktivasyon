@@ -12,7 +12,6 @@ urlpatterns = [
     path("yeni/", views.kategori_sec, name="kategori-sec"),
     path("yeni/<slug:kategori>/", views.yeni, name="yeni"),
     path("tarifeler/", views.tarife_secenekleri, name="tarifeler"),
-    path("kampanyalar/", views.kampanya_secenekleri, name="kampanyalar"),
     path("<referans:referans>/", views.detay, name="detay"),
     path("<referans:referans>/belge/<slug:alan_kodu>/", views.belge, name="belge"),
 ]

@@ -2,7 +2,7 @@
 
 `baslangic_verisi` iskeleti kurar (durumlar, operatörler, kategoriler, form
 alanları). Bu komut onun üstüne sistemi *çalışır* hâle getiren veriyi
-ekler: tarifeler, kampanyalar, bayi grupları, ücret ve hakediş kuralları,
+ekler: tarifeler, bayi grupları, ücret ve hakediş kuralları,
 banka hesabı, duyuru ve SIM stoğu.
 
 Rakamlar örnektir; gerçek anlaşma tutarları yönetim panelinden değiştirilir.
@@ -17,64 +17,62 @@ from django.db import transaction
 from apps.basvurular.models import BasvuruDurumu
 from apps.bayi.models import Duyuru, SimKart
 from apps.finans.models import Banka, BayiGrubu, KuralYonu, UcretKurali
-from apps.katalog.models import BasvuruKategorisi, Kampanya, MusteriTipi, Operator, Tarife
+from apps.katalog.models import BasvuruKategorisi, MusteriTipi, Operator, Tarife
 
 GRUPLAR = [
     ("Standart Bayi", "Yeni açılan bayilerin varsayılan kademesi."),
     ("Anlaşmalı Bayi", "Hacim taahhüdü veren bayiler; hakedişleri daha yüksek."),
 ]
 
-# (kategori, operatör, tarife adı, müşteri tipi, açıklama, kampanyalar)
+# (kategori, operatör, tarife adı, müşteri tipi, açıklama)
 TARIFELER = [
     (
         "MNT / Numara Taşıma", "Turkcell", "Platinum 20 GB", MusteriTipi.HEPSI,
         "20 GB internet, 1000 dakika, 1000 SMS. Taahhüt 24 ay.",
-        [("İlk 3 Ay Yarı Fiyat", "Numarasını taşıyan yeni müşteriye ilk 3 ay %50 indirim.")],
     ),
     (
         "MNT / Numara Taşıma", "Vodafone", "Uyumlu 12 GB", MusteriTipi.HEPSI,
-        "12 GB internet, 750 dakika. Taahhüt 12 ay.", [],
+        "12 GB internet, 750 dakika. Taahhüt 12 ay.",
     ),
     (
         "MNT / Numara Taşıma", "Türk Telekom", "Selfy Taşıma 15 GB", MusteriTipi.HEPSI,
-        "15 GB internet, sosyal medya paketi dahil. 18-29 yaş.", [],
+        "15 GB internet, sosyal medya paketi dahil. 18-29 yaş.",
     ),
     (
         "Kontörlü Yeni Hat", "Turkcell", "Gençlik Kontörlü 10 GB", MusteriTipi.HEPSI,
-        "Taahhütsüz kontörlü hat. 10 GB, 500 dakika.", [],
+        "Taahhütsüz kontörlü hat. 10 GB, 500 dakika.",
     ),
     (
         "Kontörlü Yeni Hat", "Vodafone", "Hazır Kart 8 GB", MusteriTipi.HEPSI,
-        "Taahhütsüz hazır kart. 8 GB, 300 dakika.", [],
+        "Taahhütsüz hazır kart. 8 GB, 300 dakika.",
     ),
     (
         "Faturalı Yeni Hat", "Vodafone", "Red 20 GB", MusteriTipi.HEPSI,
-        "20 GB internet, sınırsız şebeke içi. Taahhüt 24 ay.", [],
+        "20 GB internet, sınırsız şebeke içi. Taahhüt 24 ay.",
     ),
     (
         "Faturalı Yeni Hat", "Türk Telekom", "Selfy 25 GB", MusteriTipi.HEPSI,
-        "25 GB internet, TV+ dahil. Taahhüt 24 ay.", [],
+        "25 GB internet, TV+ dahil. Taahhüt 24 ay.",
     ),
     (
         "Şebeke İçi Geçiş", "Turkcell", "Şebeke İçi 15 GB", MusteriTipi.HEPSI,
-        "Mevcut Turkcell hattının paket yükseltmesi.", [],
+        "Mevcut Turkcell hattının paket yükseltmesi.",
     ),
     (
         "ADSL / İnternet", "Türk Telekom", "Fiber 100 Mbps", MusteriTipi.HEPSI,
         "100 Mbps fiber, sınırsız kota. Taahhüt 24 ay.",
-        [("Modem Hediyeli", "24 ay taahhütte modem ücretsiz verilir.")],
     ),
     (
         "ADSL / İnternet", "Türk Telekom", "Fiber 50 Mbps", MusteriTipi.HEPSI,
-        "50 Mbps fiber, sınırsız kota. Taahhüt 12 ay.", [],
+        "50 Mbps fiber, sınırsız kota. Taahhüt 12 ay.",
     ),
     (
         "Pasaportlu Numara Taşıma", "Vodafone", "Pasaportlu Taşıma 10 GB",
-        MusteriTipi.YABANCI, "Yabancı uyruklu müşteriler için taşıma paketi.", [],
+        MusteriTipi.YABANCI, "Yabancı uyruklu müşteriler için taşıma paketi.",
     ),
     (
         "Pasaportlu Yeni Hat", "Turkcell", "Pasaportlu Kontörlü 10 GB",
-        MusteriTipi.YABANCI, "Pasaportla açılan taahhütsüz hat.", [],
+        MusteriTipi.YABANCI, "Pasaportla açılan taahhütsüz hat.",
     ),
 ]
 
@@ -156,7 +154,7 @@ SIM_STOGU = [
 
 class Command(BaseCommand):
     help = (
-        "Örnek tarife, kampanya, ücret kuralı, banka, duyuru ve SIM stoğu "
+        "Örnek tarife, ücret kuralı, banka, duyuru ve SIM stoğu "
         "oluşturur. Önce baslangic_verisi çalıştırılmış olmalıdır."
     )
 
@@ -198,7 +196,6 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"\nHazır: {Tarife.objects.count()} tarife, "
-                f"{Kampanya.objects.count()} kampanya, "
                 f"{UcretKurali.objects.count()} ücret kuralı, "
                 f"{SimKart.objects.count()} SIM kart.\n"
                 f"Kurallar “{aktif_durum.ad}” durumunda işler.\n"
@@ -217,10 +214,10 @@ class Command(BaseCommand):
         return gruplar
 
     def _tarifeler(self):
-        self.stdout.write(self.style.MIGRATE_HEADING("\nTarifeler ve kampanyalar"))
+        self.stdout.write(self.style.MIGRATE_HEADING("\nTarifeler"))
         tarifeler = {}
         for sira, (
-            kategori_adi, operator_adi, tarife_adi, musteri_tipi, aciklama, kampanyalar
+            kategori_adi, operator_adi, tarife_adi, musteri_tipi, aciklama
         ) in enumerate(TARIFELER, start=1):
             kategori = BasvuruKategorisi.objects.filter(ad=kategori_adi).first()
             operator = Operator.objects.filter(ad=operator_adi).first()
@@ -248,18 +245,6 @@ class Command(BaseCommand):
                 f"  {kategori_adi:26} {operator_adi:14} {tarife_adi:26} "
                 f"{'oluşturuldu' if yeni else 'zaten var'}"
             )
-
-            for kampanya_sira, (kampanya_adi, kampanya_aciklama) in enumerate(
-                kampanyalar, start=1
-            ):
-                Kampanya.objects.get_or_create(
-                    tarife=tarife,
-                    ad=kampanya_adi,
-                    defaults={
-                        "aciklama": kampanya_aciklama,
-                        "sira": kampanya_sira * 10,
-                    },
-                )
         return tarifeler
 
     def _kurallar(self, aktif_durum, gruplar, tarifeler):

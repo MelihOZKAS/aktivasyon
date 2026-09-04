@@ -13,14 +13,14 @@ hakediş sistemi. Üç taraf var:
 
 Bir firma hem bayi hem tedarikçi olabilir.
 
-**Temel ilke: başvuru tipleri, tarifeler, kampanyalar, form alanları,
+**Temel ilke: başvuru tipleri, tarifeler, form alanları,
 durumlar ve para kuralları veridir — kod değil.** Yeni bir başvuru tipi
 eklemek yönetim panelinden kayıt açmaktır; yazılım değişikliği gerekmez.
 Bu ilkeyi bozan bir çözüm önerme.
 
 | Katman | Uygulama | İçerik |
 |---|---|---|
-| Katalog | `apps/katalog` | Operatör, kategori, tarife, kampanya, form alanları |
+| Katalog | `apps/katalog` | Operatör, kategori, tarife, form alanları |
 | Başvuru | `apps/basvurular` | Tek `Basvuru` modeli, belgeler, durum geçmişi |
 | Finans | `apps/finans` | Cüzdan, değişmez defter, ücret ve hakediş kuralları |
 | Bayi | `apps/bayi` | Profil ve roller, SIM stoğu, duyurular, paneller |
@@ -37,7 +37,7 @@ Kurulumda sıra önemli, çünkü her adım öncekine dayanır:
 3. **Kategoriler** — hangi operatörlerde geçerli, tarife zorunlu mu, SIM
    karşılığı takip edilecek mi
 4. **Form alanları** — her kategoride hangi bilgiler sorulacak
-5. **Tarifeler ve kampanyalar** — bayiye gösterilecek açıklama ve görselle
+5. **Tarifeler** — bayiye gösterilecek açıklama ve görselle
 6. **Bayi grupları** — fiyat kademesi
 7. **Fiyatlar** — tarifenin kendi sayfasındaki *Bu tarifenin parası*
    tablosundan: operatörden alış, tedarikçiden alış, bayiye ödenecek
@@ -199,7 +199,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kazanacağını, kesintisini ve elde kalan neti gösterir. Yeni bir para kalemi
   eklerken bu sayfayı da güncelle.
 - **Tarifenin parası tarifenin sayfasından girilir.** Kural motoru genel
-  kalır (kampanya, bayi grubu, tek bayi, tarih aralığı hâlâ mümkün) ama günlük
+  kalır (bayi grubu, tek bayi, tarih aralığı hâlâ mümkün) ama günlük
   iş üç rakamdan ibaret: **operatörden alışım**, **tedarikçiden alışım**,
   **bayiye ödeyeceğim** (bayi grubu = bayinin fiyat listesi). `TarifeAdmin`
   altındaki **Bu tarifenin parası** satır içi tablosu (`TarifeParaKuraliInline`)
@@ -230,9 +230,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   id ile değil (sayaç taranmasın). Slug üretiminde
   `apps.katalog.utils.turkce_slug` kullan — Django'nun `slugify`'ı Türkçe
   harfleri düşürür ("Faturalı" → "fatural").
-- **Bayiye içerik gösteren alanlar admin'den girilir.** Tarife ve kampanya
-  açıklaması ile görseli `/tarifeler/` sayfasında görünür; şablona sabit
-  metin yazma.
+- **Bayiye içerik gösteren alanlar admin'den girilir.** Tarife açıklaması
+  ile görseli `/tarifeler/` sayfasında görünür; şablona sabit metin yazma.
+- **Kampanya kavramı yok, geri eklenmesin.** Bir süre `Kampanya` modeli vardı:
+  tarifenin altında, tarih aralıklı, kendi görseliyle. Bu iş kolunda kampanyalı
+  satış yapılmadığı için kaldırıldı — bayi her başvuruda boş bir "Kampanya"
+  kutusu, yönetici de boş bir ekran görüyordu. "İleride lazım olur" diye duran
+  alan, her gün göze giren gürültüydü. Gerçekten gerekirse *Kampanya kavramını
+  kaldır* commit'i geri alınır; sıfırdan yazılacaksa tarifenin alt kaydı olur ve
+  `UcretKurali`'na kendi kapsam alanıyla girer.
 - **Şablon değişikliğinden sonra CSS'i derle ve derlenmiş dosyayı commit'le:**
   `./.tools/tailwindcss -i assets/app.css -o static/app.css --minify`
   Kaynak `assets/app.css`, çıktı `static/app.css`. **Kaynak dosya `static/`
@@ -334,11 +340,11 @@ gösterdiği veritabanının şemasını düşürür.
 - **Belgeler yalnızca izin kontrollü görünümden sunulur.** Doğrudan
   `dosya.url` kullanma; `belge.get_absolute_url()` kullan.
 - **Açık görseller `/media/` altından Django tarafından sunulur.** Tarife,
-  kampanya ve operatör görselleri admin'den yüklenip diske yazılır;
+  ve operatör görselleri admin'den yüklenip diske yazılır;
   `static()` yalnızca DEBUG açıkken URL üretir, WhiteNoise ise açılışta
   taradığı `STATIC_ROOT`'u sunar. Sonradan yüklenen dosya ikisine de
   girmediği için görsel yerelde görünüp üretimde 404 veriyordu.
-  `apps/medya.py` bu üç klasörü DEBUG'dan bağımsız sunar — yeni bir açık
+  `apps/medya.py` bu iki klasörü DEBUG'dan bağımsız sunar — yeni bir açık
   görsel klasörü eklersen `ACIK_KLASORLER`'e yaz. Kişisel veri taşıyan
   klasör buraya **girmez** (`basvuru/`, eski sistemin `evrak/`'ı);
   görüntüler veritabanına ya da base64'e taşınmaz, diskte kalır.
@@ -356,10 +362,10 @@ gösterdiği veritabanının şemasını düşürür.
   değişince eskisi commit sonrasında silinir. Yeni bir dosya/görsel alanı
   eklerken ilgili `AppConfig.ready()` içinde `dosyalari_temizle`'ye kaydet.
 - **Seçim kutuları geçersiz seçenek göstermemeli.** Başvuru admin'inde
-  tarife ve kampanya, başvurunun kategorisine göre daraltılır. Bu yüzden
-  ikisi bilinçli olarak `autocomplete_fields` değil: autocomplete kutusu
-  hedef admin'in tüm kayıtlarını gösterir, sibling alana göre daraltılamaz.
-  Sunucu doğrulaması yine de yerinde durur.
+  tarife, başvurunun kategorisine göre daraltılır. Bu yüzden bilinçli
+  olarak `autocomplete_fields` değil: autocomplete kutusu hedef admin'in
+  tüm kayıtlarını gösterir, sibling alana göre daraltılamaz. Sunucu
+  doğrulaması yine de yerinde durur.
 - **Kategoride aktif tarifesi olan operatör forma otomatik girer.** Tarife
   tanımlayıp operatörü kategorinin listesine eklemeyi unutmak sessiz bir
   tuzaktı; `gecerli_operatorler()` ikisini birleştirir.
@@ -376,8 +382,8 @@ gösterdiği veritabanının şemasını düşürür.
   Uzun kenar 1000px, kalite 85 — kimlik kartı kadrajın çoğunu kapladığı için
   karttaki yazı ~18px kalıyor ve okunuyor. Tasarruf %95'in üzerinde. Yeni bir
   görsel alanı eklerken `gorseli_kucult`'tan geçir — model `save()`'inde
-  `kucult()` ile ya da formda doğrudan. Şu an dört alan geçiyor: başvuru
-  belgeleri, tarife görseli, kampanya görseli, operatör logosu. Logo bir süre
+  `kucult()` ile ya da formda doğrudan. Şu an üç alan geçiyor: başvuru
+  belgeleri, tarife görseli, operatör logosu. Logo bir süre
   atlanmıştı; yeni alan eklerken bu listeyi de güncelle. EXIF döndürmesi
   uygulanıp veri temizlenir; konum bilgisi kimlik görüntüsünde tutulmaz.
 - **Görüntüler diskte tutulur, veritabanında değil.** Veritabanı yalnızca

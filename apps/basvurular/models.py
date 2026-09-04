@@ -15,7 +15,6 @@ from django.utils.crypto import get_random_string
 
 from apps.katalog.models import (
     BasvuruKategorisi,
-    Kampanya,
     MusteriTipi,
     Operator,
     Tarife,
@@ -137,14 +136,6 @@ class Basvuru(ZamanDamgali):
     tarife = models.ForeignKey(
         Tarife,
         verbose_name="Tarife",
-        related_name="basvurular",
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-    )
-    kampanya = models.ForeignKey(
-        Kampanya,
-        verbose_name="Kampanya",
         related_name="basvurular",
         null=True,
         blank=True,
@@ -315,9 +306,6 @@ class Basvuru(ZamanDamgali):
         if self.kategori_id and self.tarife_id:
             if self.tarife.kategori_id != self.kategori_id:
                 raise ValidationError({"tarife": "Seçilen tarife bu kategoriye ait değil."})
-        if self.tarife_id and self.kampanya_id:
-            if self.kampanya.tarife_id != self.tarife_id:
-                raise ValidationError({"kampanya": "Seçilen kampanya bu tarifeye ait değil."})
         if self.kategori_id and self.kategori.tarife_zorunlu and not self.tarife_id:
             raise ValidationError({"tarife": "Bu kategoride tarife seçimi zorunludur."})
 

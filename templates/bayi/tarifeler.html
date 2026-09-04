@@ -38,11 +38,6 @@
           <span class="baslik block truncate font-semibold">{{ tarife.ad }}</span>
           <span class="mt-0.5 flex items-center gap-2 text-xs text-soluk">
             <span class="truncate">{{ tarife.kategori.ad }}</span>
-            {% if tarife.gecerli_kampanyalar %}
-            <span class="shrink-0 text-olumlu">
-              · {{ tarife.gecerli_kampanyalar|length }} kampanya
-            </span>
-            {% endif %}
           </span>
         </span>
 
@@ -68,37 +63,7 @@
         </a>
         {% endif %}
 
-        {% if tarife.gecerli_kampanyalar %}
-        <div>
-          <h3 class="baslik mb-2 text-sm font-semibold">Kampanyalar</h3>
-          <div class="space-y-3">
-            {% for kampanya in tarife.gecerli_kampanyalar %}
-            <div class="yuzey sim-sol rounded-kart p-4">
-              <p class="font-medium">{{ kampanya.ad }}</p>
-              {% if kampanya.aciklama %}
-              <p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-murekkep-yumusak">
-                {{ kampanya.aciklama }}
-              </p>
-              {% endif %}
-              {% if kampanya.gorsel %}
-              <a href="{{ kampanya.gorsel.url }}" target="_blank" rel="noopener"
-                 class="mt-3 block overflow-hidden rounded-lg border border-cizgi">
-                <img src="{{ kampanya.gorsel.url }}" alt="{{ kampanya.ad }}"
-                     class="w-full" loading="lazy">
-              </a>
-              {% endif %}
-              {% if kampanya.bitis_tarihi %}
-              <p class="mt-2 text-xs text-soluk">
-                {{ kampanya.bitis_tarihi|date:"j F Y" }} tarihine kadar
-              </p>
-              {% endif %}
-            </div>
-            {% endfor %}
-          </div>
-        </div>
-        {% endif %}
-
-        {% if not tarife.aciklama and not tarife.gorsel and not tarife.gecerli_kampanyalar %}
+        {% if not tarife.aciklama and not tarife.gorsel %}
         <p class="text-sm text-soluk">Bu tarife için henüz ayrıntı girilmemiş.</p>
         {% endif %}
       </div>

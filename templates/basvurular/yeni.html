@@ -28,7 +28,7 @@
     </div>
     {% endif %}
 
-    {# Hat bilgileri: operatör seçilince tarife, tarife seçilince kampanya HTMX ile gelir #}
+    {# Hat bilgileri: operatör seçilince tarife listesi HTMX ile gelir #}
     <section class="yuzey rounded-kart p-5 sm:p-6">
       <h2 class="baslik font-semibold">Hat bilgileri</h2>
 
@@ -57,10 +57,6 @@
 
         <div id="tarife-kutusu">
           {% include "basvurular/parca_tarife.html" with tarifeler=form.fields.tarife.queryset secili=form.tarife.value %}
-        </div>
-
-        <div id="kampanya-kutusu" class="sm:col-span-2">
-          {% include "basvurular/parca_kampanya.html" with kampanyalar=form.fields.kampanya.queryset secili=form.kampanya.value %}
         </div>
       </div>
     </section>

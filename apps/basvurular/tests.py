@@ -91,7 +91,6 @@ class DinamikFormTestleri(TestCase):
         veri = {
             "operator": self.operator.pk,
             "tarife": self.tarife.pk,
-            "kampanya": "",
             "musteri_tipi": "turk",
             "bayi_aciklamasi": "",
             "alan__isim": "Ayşe",
@@ -329,7 +328,7 @@ class BelgeErisimTestleri(TestCase):
     def test_uretimde_dogrudan_medya_yolu_acilmaz(self):
         """Kimlik klasörü hiçbir URL desenine düşmez.
 
-        Tarife, kampanya ve operatör görselleri `/media/` altından sunulur
+        Tarife ve operatör görselleri `/media/` altından sunulur
         (`apps.medya`); `basvuru/` bilinçli olarak o listenin dışındadır.
         """
         from django.urls import Resolver404, resolve
@@ -368,7 +367,7 @@ class BelgeYuklemeGuvenligiTestleri(TestCase):
 
     def _gonderi(self, dosya):
         return {
-            "operator": self.operator.pk, "tarife": "", "kampanya": "",
+            "operator": self.operator.pk, "tarife": "",
             "musteri_tipi": "turk", "bayi_aciklamasi": "",
             "alan__ikametgah": dosya,
         }
@@ -773,7 +772,7 @@ class AdminTarifeSecimiTestleri(TestCase):
 
     def setUp(self):
         from apps.finans.models import Cuzdan
-        from apps.katalog.models import Kampanya, Operator, Tarife
+        from apps.katalog.models import Operator, Tarife
 
         BasvuruDurumu.objects.create(
             ad="Beklemede", slug="beklemede", baslangic_durumu=True
@@ -787,10 +786,6 @@ class AdminTarifeSecimiTestleri(TestCase):
         )
         self.yanlis = Tarife.objects.create(
             kategori=self.mnt, operator=self.operator, ad="Uyumlu 12 GB"
-        )
-        self.kampanya = Kampanya.objects.create(tarife=self.dogru, ad="İlk 3 ay")
-        self.yanlis_kampanya = Kampanya.objects.create(
-            tarife=self.yanlis, ad="Taşıma kampanyası"
         )
 
         bayi = User.objects.create_user("bayi", password="parola12345")
@@ -819,11 +814,6 @@ class AdminTarifeSecimiTestleri(TestCase):
         secim = self._secenekler("tarife")
         self.assertIn("Gençlik", secim)
         self.assertNotIn("Uyumlu 12 GB", secim)
-
-    def test_baska_kategorinin_kampanyasi_listelenmez(self):
-        secim = self._secenekler("kampanya")
-        self.assertIn("İlk 3 ay", secim)
-        self.assertNotIn("Taşıma kampanyası", secim)
 
     def test_tarife_adinda_kategori_gorunur(self):
         """Seçim kutusunda hangi kategoriye ait olduğu okunabilmeli."""

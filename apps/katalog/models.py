@@ -1,5 +1,5 @@
-"""Katalog: operatörler, başvuru kategorileri, tarifeler, kampanyalar ve
-kategorilere bağlı dinamik form alanları.
+"""Katalog: operatörler, başvuru kategorileri, tarifeler ve kategorilere
+bağlı dinamik form alanları.
 
 Buradaki her şey veridir. Yeni bir başvuru tipi eklemek için kod yazmak
 gerekmez; admin panelinden kategori açıp alanlarını tanımlamak yeterlidir.
@@ -190,62 +190,6 @@ class Tarife(ZamanDamgali):
     def save(self, *args, **kwargs):
         self.gorsel = kucult(self.gorsel)
         super().save(*args, **kwargs)
-
-
-class Kampanya(ZamanDamgali):
-    """Tarifenin altındaki alt kampanya. Tarih aralığı dolunca kendiliğinden düşer."""
-
-    tarife = models.ForeignKey(
-        Tarife,
-        verbose_name="Tarife",
-        related_name="kampanyalar",
-        on_delete=models.CASCADE,
-    )
-    ad = models.CharField("Kampanya Adı", max_length=200)
-    aciklama = models.TextField(
-        "Açıklama", blank=True, help_text="Bayi tarife sayfasında görünür."
-    )
-    gorsel = models.ImageField(
-        "Görsel", upload_to="kampanya/%Y/%m/", blank=True, null=True
-    )
-    baslangic_tarihi = models.DateField("Başlangıç Tarihi", null=True, blank=True)
-    bitis_tarihi = models.DateField("Bitiş Tarihi", null=True, blank=True)
-    sira = models.PositiveIntegerField("Sıra", default=0)
-    aktif = models.BooleanField("Aktif", default=True)
-
-    class Meta:
-        verbose_name = "Kampanya"
-        verbose_name_plural = "Kampanyalar"
-        ordering = ["tarife", "sira", "ad"]
-
-    def __str__(self):
-        return f"{self.tarife.ad} · {self.ad}"
-
-    def save(self, *args, **kwargs):
-        self.gorsel = kucult(self.gorsel)
-        super().save(*args, **kwargs)
-
-    def clean(self):
-        if (
-            self.baslangic_tarihi
-            and self.bitis_tarihi
-            and self.bitis_tarihi < self.baslangic_tarihi
-        ):
-            raise ValidationError(
-                {"bitis_tarihi": "Bitiş tarihi başlangıç tarihinden önce olamaz."}
-            )
-
-    @property
-    def su_an_gecerli(self):
-        """Kampanya bugün itibarıyla yayında mı?"""
-        if not self.aktif:
-            return False
-        bugun = timezone.localdate()
-        if self.baslangic_tarihi and bugun < self.baslangic_tarihi:
-            return False
-        if self.bitis_tarihi and bugun > self.bitis_tarihi:
-            return False
-        return True
 
 
 class CekirdekAlan(models.TextChoices):

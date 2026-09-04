@@ -17,7 +17,7 @@ from django.core.exceptions import ValidationError
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu, KimlikTipi
 from apps.basvurular.gorsel import gorseli_kucult
 from apps.basvurular.validators import belge_dogrula
-from apps.katalog.models import AlanTipi, Kampanya, MusteriTipi, Tarife
+from apps.katalog.models import AlanTipi, MusteriTipi, Tarife
 
 GIRDI_SINIFI = "girdi"
 ALAN_ONEKI = "alan__"
@@ -72,7 +72,6 @@ class BasvuruFormu(forms.Form):
 
     operator = forms.ModelChoiceField(label="Operatör", queryset=None)
     tarife = forms.ModelChoiceField(label="Tarife", queryset=None, required=False)
-    kampanya = forms.ModelChoiceField(label="Kampanya", queryset=None, required=False)
     musteri_tipi = forms.ChoiceField(label="Müşteri tipi", choices=MusteriTipi.choices)
     bayi_aciklamasi = forms.CharField(
         label="Operasyona iletmek istediğin bir şey var mı?",
@@ -98,12 +97,9 @@ class BasvuruFormu(forms.Form):
         self.fields["tarife"].queryset = Tarife.objects.filter(
             kategori=self.kategori, aktif=True
         ).select_related("operator")
-        self.fields["kampanya"].queryset = Kampanya.objects.filter(
-            tarife__kategori=self.kategori, aktif=True
-        ).select_related("tarife")
         self.fields["tarife"].required = self.kategori.tarife_zorunlu
 
-        for ad in ("operator", "tarife", "kampanya", "musteri_tipi"):
+        for ad in ("operator", "tarife", "musteri_tipi"):
             self.fields[ad].widget.attrs.setdefault("class", GIRDI_SINIFI)
 
         if self.kategori.musteri_tipi != MusteriTipi.HEPSI:
@@ -219,12 +215,6 @@ class BasvuruFormu(forms.Form):
         if tarife and operator and tarife.operator_id != operator.pk:
             self.add_error("tarife", "Seçilen tarife bu operatöre ait değil.")
 
-        kampanya = temiz.get("kampanya")
-        if kampanya:
-            if tarife and kampanya.tarife_id != tarife.pk:
-                self.add_error("kampanya", "Seçilen kampanya bu tarifeye ait değil.")
-            elif not kampanya.su_an_gecerli:
-                self.add_error("kampanya", "Bu kampanya şu an geçerli değil.")
 
         return temiz
 
@@ -285,7 +275,6 @@ class BasvuruFormu(forms.Form):
             durum=durum,
             operator=self.cleaned_data["operator"],
             tarife=self.cleaned_data.get("tarife"),
-            kampanya=self.cleaned_data.get("kampanya"),
             musteri_tipi=self.cleaned_data.get("musteri_tipi") or self.kategori.musteri_tipi,
             bayi_aciklamasi=self.cleaned_data.get("bayi_aciklamasi", ""),
         )

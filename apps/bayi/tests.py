@@ -199,7 +199,7 @@ class SimKartTestleri(TestCase):
 
     def _gonderi(self, imei):
         return {
-            "operator": self.operator.pk, "tarife": "", "kampanya": "",
+            "operator": self.operator.pk, "tarife": "",
             "musteri_tipi": "turk", "bayi_aciklamasi": "", "alan__sim": imei,
         }
 
@@ -450,7 +450,7 @@ class TarifeSayfasiTestleri(TestCase):
     """Bayinin göreceği tarife kataloğu."""
 
     def setUp(self):
-        from apps.katalog.models import BasvuruKategorisi, Kampanya, Operator, Tarife
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
 
         self.bayi = User.objects.create_user("bayi", password="parola12345")
         Cuzdan.objects.create(bayi=self.bayi)
@@ -459,9 +459,6 @@ class TarifeSayfasiTestleri(TestCase):
         self.tarife = Tarife.objects.create(
             kategori=self.kategori, operator=self.operator,
             ad="Platinum 30 GB", aciklama="Aylık 30 GB, sınırsız konuşma.",
-        )
-        self.kampanya = Kampanya.objects.create(
-            tarife=self.tarife, ad="İlk 3 ay yarı fiyat", aciklama="Yeni müşterilere."
         )
         self.url = reverse("bayi:tarifeler")
         self.client.force_login(self.bayi)
@@ -477,17 +474,6 @@ class TarifeSayfasiTestleri(TestCase):
         self.assertContains(yanit, "Platinum 30 GB")
         self.assertContains(yanit, "Aylık 30 GB")
         self.assertContains(yanit, "Turkcell")
-
-    def test_gecerli_kampanya_gorunur(self):
-        yanit = self.client.get(self.url)
-        self.assertContains(yanit, "İlk 3 ay yarı fiyat")
-
-    def test_suresi_gecmis_kampanya_gorunmez(self):
-        import datetime
-
-        self.kampanya.bitis_tarihi = datetime.date(2020, 1, 1)
-        self.kampanya.save()
-        self.assertNotContains(self.client.get(self.url), "İlk 3 ay yarı fiyat")
 
     def test_pasif_tarife_gorunmez(self):
         self.tarife.aktif = False

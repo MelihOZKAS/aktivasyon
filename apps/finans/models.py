@@ -13,7 +13,6 @@ from django.db import models
 
 from apps.katalog.models import (
     BasvuruKategorisi,
-    Kampanya,
     Operator,
     Tarife,
     ZamanDamgali,
@@ -224,7 +223,7 @@ KISA_YON = {
 class UcretKurali(ZamanDamgali):
     """Tüm para mantığının tek kaynağı.
 
-    Kapsam alanları (kategori/operatör/tarife/kampanya/grup/bayi) boş
+    Kapsam alanları (kategori/operatör/tarife/grup/bayi) boş
     bırakıldığında "hepsi" anlamına gelir. Bir başvuru için en spesifik
     eşleşen kural uygulanır; eşitlik durumunda `oncelik` belirler.
     """
@@ -263,14 +262,6 @@ class UcretKurali(ZamanDamgali):
     tarife = models.ForeignKey(
         Tarife,
         verbose_name="Tarife",
-        related_name="ucret_kurallari",
-        null=True,
-        blank=True,
-        on_delete=models.CASCADE,
-    )
-    kampanya = models.ForeignKey(
-        Kampanya,
-        verbose_name="Kampanya",
         related_name="ucret_kurallari",
         null=True,
         blank=True,
@@ -337,8 +328,7 @@ class UcretKurali(ZamanDamgali):
         # rakam girmeye gelen yönetici bir de ad uydurmak zorunda kalmasın.
         if not self.ad:
             kapsam = (
-                self.kampanya or self.tarife or self.bayi_grubu
-                or self.operator or self.kategori
+                self.tarife or self.bayi_grubu or self.operator or self.kategori
             )
             kisa = KISA_YON.get(self.yon, self.yon)
             self.ad = (f"{kapsam} · {kisa}" if kapsam else f"Tüm başvurular · {kisa}")[:200]
@@ -357,10 +347,6 @@ class UcretKurali(ZamanDamgali):
             raise ValidationError(
                 {"tarife": "Seçilen tarife, seçilen kategoriye ait değil."}
             )
-        if self.kampanya and self.tarife and self.kampanya.tarife_id != self.tarife_id:
-            raise ValidationError(
-                {"kampanya": "Seçilen kampanya, seçilen tarifeye ait değil."}
-            )
 
     @property
     def ozgulluk(self):
@@ -370,7 +356,6 @@ class UcretKurali(ZamanDamgali):
             for alan_id, agirlik in (
                 (self.bayi_id, 32),
                 (self.tedarikci_id, 32),
-                (self.kampanya_id, 16),
                 (self.tarife_id, 8),
                 (self.bayi_grubu_id, 4),
                 (self.operator_id, 2),

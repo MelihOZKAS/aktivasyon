@@ -55,7 +55,7 @@ ADIMLAR = [
 OZELLIKLER = [
     {
         "baslik": "Esnek başvuru tipleri",
-        "metin": "Kategori, tarife ve kampanya birer kayıt. Yeni bir hat tipi "
+        "metin": "Kategori ve tarife birer kayıt. Yeni bir hat tipi "
                  "eklemek için yazılım güncellemesi beklemezsin.",
     },
     {
@@ -165,7 +165,6 @@ def _kategori_hakedisleri(kullanici):
             yon=KuralYonu.HAKEDIS,
             kategori__isnull=False,
             tarife__isnull=True,
-            kampanya__isnull=True,
         )
         .filter(Q(bayi__isnull=True) | Q(bayi=kullanici))
         .filter(Q(bayi_grubu__isnull=True) | Q(bayi_grubu_id=grup_id))
@@ -256,8 +255,7 @@ def tarifeler(request):
     """Bayinin göreceği tarife kataloğu.
 
     Operatör başlıkları altında akordiyon olarak açılır; her tarifenin
-    altında yönetimin girdiği açıklama, görsel ve geçerli kampanyalar
-    görünür.
+    altında yönetimin girdiği açıklama ve görsel görünür.
     """
     # Bayi müşteriye anlatırken önce operatörü seçiyor; sekmeler ona göre.
     operatorler = (
@@ -278,13 +276,8 @@ def tarifeler(request):
         tarifeler_listesi = (
             Tarife.objects.filter(operator=secili, aktif=True)
             .select_related("kategori")
-            .prefetch_related("kampanyalar")
             .order_by("kategori__sira", "kategori__ad", "sira", "ad")
         )
-        for tarife in tarifeler_listesi:
-            tarife.gecerli_kampanyalar = [
-                k for k in tarife.kampanyalar.all() if k.su_an_gecerli
-            ]
 
     return render(
         request,
@@ -370,7 +363,7 @@ def hakedisler(request):
         .filter(Q(bayi__isnull=True) | Q(bayi=request.user))
         .filter(Q(bayi_grubu__isnull=True) | Q(bayi_grubu_id=grup_id))
         .filter(tedarikci__isnull=True)
-        .select_related("kategori", "operator", "tarife", "kampanya")
+        .select_related("kategori", "operator", "tarife")
     )
 
     def en_uygun(yon, kategori, operator=None, tarife=None):

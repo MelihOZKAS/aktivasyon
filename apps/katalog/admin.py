@@ -11,7 +11,6 @@ from apps.finans.admin import TarifeParaKuraliInline
 from apps.finans.models import KuralYonu
 from apps.katalog.models import (
     BasvuruKategorisi,
-    Kampanya,
     KategoriAlani,
     Operator,
     Tarife,
@@ -33,13 +32,6 @@ class TarifeInline(TabularInline):
     extra = 0
     fields = ("operator", "ad", "musteri_tipi", "gorsel", "sira", "aktif")
     ordering = ("operator", "sira")
-    show_change_link = True
-
-
-class KampanyaInline(TabularInline):
-    model = Kampanya
-    extra = 0
-    fields = ("ad", "gorsel", "baslangic_tarihi", "bitis_tarihi", "sira", "aktif")
     show_change_link = True
 
 
@@ -87,12 +79,12 @@ class BasvuruKategorisiAdmin(ModelAdmin):
 @admin.register(Tarife)
 class TarifeAdmin(ModelAdmin):
     list_display = (
-        "ad", "kategori", "operator", "gorsel_var_mi", "kampanya_sayisi", "aktif"
+        "ad", "kategori", "operator", "gorsel_var_mi", "aktif"
     )
     list_filter = ("aktif", "kategori", "operator", "musteri_tipi")
     search_fields = ("ad", "kategori__ad", "operator__ad")
     autocomplete_fields = ("kategori", "operator")
-    inlines = [TarifeParaKuraliInline, KampanyaInline]
+    inlines = [TarifeParaKuraliInline]
     readonly_fields = ("gorsel_onizleme", "para_ozeti")
     fieldsets = (
         ("Tarife", {"fields": ("kategori", "operator", "ad", "musteri_tipi")}),
@@ -130,14 +122,13 @@ class TarifeAdmin(ModelAdmin):
         Yönetici üç kaydı ayrı ayrı açıp kafasında toplamasın. Alış iki
         kaynaktan olabilir (operatör ya da tedarikçi), bayi fiyatı gruba göre
         değişebilir; tablo ikisinin her bileşimi için kârı yazar.
-        Kâr = alışım + bayiden tahsilat − bayiye ödenen. Kampanyaya özel
-        kurallar sayılmaz; onlar kampanyanın kendi hesabı.
+        Kâr = alışım + bayiden tahsilat − bayiye ödenen.
         """
         if obj is None or obj.pk is None:
             return "Tarife kaydedildikten sonra aşağıdaki tabloya girilir."
 
         kurallar = list(
-            obj.ucret_kurallari.filter(aktif=True, kampanya__isnull=True)
+            obj.ucret_kurallari.filter(aktif=True)
             .select_related("bayi_grubu", "tedarikci__bayi_profili")
         )
         if not kurallar:
@@ -216,43 +207,6 @@ class TarifeAdmin(ModelAdmin):
             obj.gorsel.url,
             obj.gorsel.url,
         )
-
-    @admin.display(description="Kampanya")
-    def kampanya_sayisi(self, obj):
-        return obj.kampanyalar.count()
-
-
-@admin.register(Kampanya)
-class KampanyaAdmin(ModelAdmin):
-    list_display = ("ad", "tarife", "baslangic_tarihi", "bitis_tarihi", "gecerli_mi", "aktif")
-    list_filter = ("aktif", "tarife__kategori", "tarife__operator")
-    search_fields = ("ad", "tarife__ad")
-    autocomplete_fields = ("tarife",)
-    readonly_fields = ("gorsel_onizleme",)
-    fieldsets = (
-        ("Kampanya", {"fields": ("tarife", "ad")}),
-        (
-            "Bayiye gösterilecek içerik",
-            {"fields": ("aciklama", "gorsel", "gorsel_onizleme")},
-        ),
-        ("Geçerlilik", {"fields": ("baslangic_tarihi", "bitis_tarihi", "sira", "aktif")}),
-    )
-
-    @admin.display(description="Önizleme")
-    def gorsel_onizleme(self, obj):
-        if not obj.gorsel:
-            return "Henüz görsel yüklenmedi."
-        return format_html(
-            '<a href="{}" target="_blank" rel="noopener">'
-            '<img src="{}" style="max-width:22rem;border-radius:.5rem;'
-            'border:1px solid rgba(0,0,0,.1)"></a>',
-            obj.gorsel.url,
-            obj.gorsel.url,
-        )
-
-    @admin.display(description="Şu An Geçerli", boolean=True)
-    def gecerli_mi(self, obj):
-        return obj.su_an_gecerli
 
 
 class AlanKopyalaFormu(forms.Form):
