@@ -361,6 +361,9 @@ doldurduğu kayıtlar sessizce atılır.
 
 ## Sunucu
 
+> **Adım adım kurulum için `SUNUCU.md`'ye bak.** Burada neyin neden öyle
+> olduğu anlatılır; oradaki liste doğrudan kopyalanıp çalıştırılır.
+
 Bu proje kendi container ve volume'larında tamamen izoledir. Aşağıdaki komutlar
 **yalnızca** bu projeye dokunur; sunucudaki diğer projeler etkilenmez.
 

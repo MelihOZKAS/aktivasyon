@@ -178,6 +178,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 
 ## Bildirimler
 
+- **`apps.bildirim` INSTALLED_APPS'te olmalı.** Bir süre değildi: bildirimler
+  doğrudan import edildikleri için çalışıyordu ama `telegram_dene` komutu
+  bulunamıyordu. Yeni bir uygulama eklerken INSTALLED_APPS'e de ekle.
 - **Bildirim asla işin önüne geçmez.** Telegram mesajı transaction
   tamamlandıktan sonra, ayrı bir iş parçacığında gider ve her tür hatası
   yutulur. Yeni bir bildirim eklerken `apps/bildirim/telegram.py` içindeki

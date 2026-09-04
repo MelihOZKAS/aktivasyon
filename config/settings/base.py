@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "apps.basvurular",
     "apps.finans",
     "apps.bayi",
+    "apps.bildirim",
 ]
 
 MIDDLEWARE = [
