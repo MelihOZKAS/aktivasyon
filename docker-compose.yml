@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   postgresfadil:
     container_name: postgresfadil
@@ -36,8 +35,9 @@ services:
 networks:
   main_fadil:
   bridge_network:
+    # nginx container'ı ayrı bir stack'te; ağ orada oluşturuluyor.
     name: nginx_network
-    driver: bridge
+    external: true
 
 volumes:
   postgresql-data-fadil:

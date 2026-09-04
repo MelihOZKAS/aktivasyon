@@ -15,6 +15,7 @@ from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import DEFAULT_DB_ALIAS, connections
+from django.db.migrations.exceptions import InconsistentMigrationHistory
 
 
 class Command(BaseCommand):
@@ -71,8 +72,21 @@ class Command(BaseCommand):
 
         adim += 1
         self._baslik(adim, "Migration'lar uygulanıyor")
-        call_command("migrate", "--noinput", verbosity=1, stdout=self.stdout,
-                     stderr=self.stderr)
+        try:
+            call_command("migrate", "--noinput", verbosity=1, stdout=self.stdout,
+                         stderr=self.stderr)
+        except InconsistentMigrationHistory as hata:
+            # Eski bir kurulumdan kalan migration geçmişi. Traceback yerine
+            # ne yapılacağını söyle: container açılışta buna çarpıp ölüyordu
+            # ve ölü container'a `docker exec` ile girilemiyordu.
+            raise CommandError(
+                f"Veritabanındaki migration geçmişi bu koda uymuyor:\n  {hata}\n\n"
+                "Bu, eski bir kurulumdan kalan veritabanıdır. Sıfırlamak için:\n"
+                "  manage.py kurulum --sifirla\n"
+                "Container açılmıyorsa açılış betiğini atlayarak çalıştırın:\n"
+                "  docker compose run --rm --entrypoint python app_fadil \\\n"
+                "    manage.py kurulum --sifirla --evet"
+            ) from hata
 
         adim += 1
         self._baslik(adim, "Başlangıç verisi (durumlar, operatörler, kategoriler)")

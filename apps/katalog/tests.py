@@ -310,6 +310,26 @@ class KurulumKomutu(TestCase):
 
         self.assertEqual(BasvuruKategorisi.objects.count(), onceki)
 
+    def test_bozuk_migration_gecmisi_ne_yapilacagini_soyler(self):
+        """Eski veritabanında migrate patlıyordu; traceback yerine yol gösterilmeli."""
+        from unittest.mock import patch
+
+        from django.core.management.base import CommandError
+        from django.db.migrations.exceptions import InconsistentMigrationHistory
+
+        hata = InconsistentMigrationHistory(
+            "Migration basvurular.0001_initial is applied before its dependency "
+            "katalog.0001_initial on database 'default'."
+        )
+        yol = "apps.katalog.management.commands.kurulum.call_command"
+        with patch(yol, side_effect=hata):
+            with self.assertRaises(CommandError) as kutu:
+                self._kur()
+
+        mesaj = str(kutu.exception)
+        self.assertIn("--sifirla", mesaj)
+        self.assertIn("docker compose run", mesaj)
+
     def test_ornek_veri_uretimde_kazara_calismaz(self):
         from django.core.management import call_command
         from django.core.management.base import CommandError

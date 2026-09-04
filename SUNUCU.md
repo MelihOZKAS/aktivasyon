@@ -239,6 +239,23 @@ Container ayağa kalkmıyorsa önce loglara bak:
 docker compose logs --tail=100 app_fadil
 ```
 
+**`InconsistentMigrationHistory` görüyorsan** veritabanı eski kurulumdan
+kalmıştır. Container açılışta buna çarpıp ölür, ölü container'a `docker exec`
+ile girilemez. Açılış betiğini atlayarak sıfırla:
+
+```bash
+read -rs PAROLA
+docker compose run --rm --entrypoint python app_fadil \
+  manage.py kurulum --sifirla --evet --yonetici fadil --parola "$PAROLA"
+unset PAROLA
+```
+
+```bash
+docker compose up -d
+```
+
+Volume silmene gerek yok; `--sifirla` yalnızca `fadil_db` şemasını düşürür.
+
 Kurulumu tekrar çalıştırmak zararsızdır; var olan kayıtları bozmaz:
 
 ```bash
