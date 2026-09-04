@@ -205,9 +205,20 @@ class CuzdanHareketi(models.Model):
 
 
 class KuralYonu(models.TextChoices):
-    TAHSILAT = "tahsilat", "Tahsilat (bayiden alınır)"
-    HAKEDIS = "hakedis", "Hakediş (bayiye verilir)"
-    ANA_HAKEDIS = "tedarikci_geliri", "Ana Hakediş (operatörden ya da tedarikçiden alınır)"
+    """Paranın üç yönü. Etiketler yöneticinin kendi diliyle yazılmıştır:
+    "yön" ve "hakediş" soyut kalıyordu, alış/satış herkesin bildiği şey."""
+
+    ANA_HAKEDIS = "tedarikci_geliri", "Alışım (operatörden ya da tedarikçiden)"
+    HAKEDIS = "hakedis", "Bayiye ödenecek (bayi fiyat listesi)"
+    TAHSILAT = "tahsilat", "Bayiden tahsil edilecek"
+
+
+# Otomatik kural adında kullanılır; uzun etiketler ada sığmıyor.
+KISA_YON = {
+    KuralYonu.TAHSILAT: "bayiden tahsilat",
+    KuralYonu.HAKEDIS: "bayiye ödenen",
+    KuralYonu.ANA_HAKEDIS: "alışım",
+}
 
 
 class UcretKurali(ZamanDamgali):
@@ -218,7 +229,12 @@ class UcretKurali(ZamanDamgali):
     eşleşen kural uygulanır; eşitlik durumunda `oncelik` belirler.
     """
 
-    ad = models.CharField("Kural Adı", max_length=200)
+    ad = models.CharField(
+        "Kural Adı",
+        max_length=200,
+        blank=True,
+        help_text="Boş bırakılırsa kapsamdan üretilir (ör. “Red 20 GB · bayiye hakediş”).",
+    )
     yon = models.CharField("Yön", max_length=20, choices=KuralYonu.choices)
     tutar = models.DecimalField(
         "Tutar",
@@ -315,6 +331,18 @@ class UcretKurali(ZamanDamgali):
 
     def __str__(self):
         return f"{self.ad} ({self.get_yon_display()} · {self.tutar} ₺)"
+
+    def save(self, *args, **kwargs):
+        # Ad yalnızca listede kuralı tanımak için var. Tarife sayfasından iki
+        # rakam girmeye gelen yönetici bir de ad uydurmak zorunda kalmasın.
+        if not self.ad:
+            kapsam = (
+                self.kampanya or self.tarife or self.bayi_grubu
+                or self.operator or self.kategori
+            )
+            kisa = KISA_YON.get(self.yon, self.yon)
+            self.ad = (f"{kapsam} · {kisa}" if kapsam else f"Tüm başvurular · {kisa}")[:200]
+        super().save(*args, **kwargs)
 
     def clean(self):
         if (

@@ -1,10 +1,14 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib import admin, messages
 from django.shortcuts import render
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 
+from apps.finans.admin import TarifeParaKuraliInline
+from apps.finans.models import KuralYonu
 from apps.katalog.models import (
     BasvuruKategorisi,
     Kampanya,
@@ -12,6 +16,8 @@ from apps.katalog.models import (
     Operator,
     Tarife,
 )
+
+SIFIR = Decimal("0.00")
 
 
 class KategoriAlaniInline(TabularInline):
@@ -86,10 +92,21 @@ class TarifeAdmin(ModelAdmin):
     list_filter = ("aktif", "kategori", "operator", "musteri_tipi")
     search_fields = ("ad", "kategori__ad", "operator__ad")
     autocomplete_fields = ("kategori", "operator")
-    inlines = [KampanyaInline]
-    readonly_fields = ("gorsel_onizleme",)
+    inlines = [TarifeParaKuraliInline, KampanyaInline]
+    readonly_fields = ("gorsel_onizleme", "para_ozeti")
     fieldsets = (
         ("Tarife", {"fields": ("kategori", "operator", "ad", "musteri_tipi")}),
+        (
+            "Para",
+            {
+                "fields": ("para_ozeti",),
+                "description": (
+                    "Bayiye vereceğiniz hakediş ile operatörden/tedarikçiden alacağınız "
+                    "tutar sayfanın altındaki <b>Bu tarifenin parası</b> tablosuna girilir. "
+                    "Aradaki fark kârınızdır."
+                ),
+            },
+        ),
         (
             "Bayiye gösterilecek içerik",
             {
@@ -105,6 +122,84 @@ class TarifeAdmin(ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("kategori", "operator")
+
+    @admin.display(description="Bu tarifede hesap")
+    def para_ozeti(self, obj):
+        """Alış, bayi fiyatı ve kâr tek tabloda.
+
+        Yönetici üç kaydı ayrı ayrı açıp kafasında toplamasın. Alış iki
+        kaynaktan olabilir (operatör ya da tedarikçi), bayi fiyatı gruba göre
+        değişebilir; tablo ikisinin her bileşimi için kârı yazar.
+        Kâr = alışım + bayiden tahsilat − bayiye ödenen. Kampanyaya özel
+        kurallar sayılmaz; onlar kampanyanın kendi hesabı.
+        """
+        if obj is None or obj.pk is None:
+            return "Tarife kaydedildikten sonra aşağıdaki tabloya girilir."
+
+        kurallar = list(
+            obj.ucret_kurallari.filter(aktif=True, kampanya__isnull=True)
+            .select_related("bayi_grubu", "tedarikci__bayi_profili")
+        )
+        if not kurallar:
+            return format_html(
+                '<span style="color:#6F7B8F">Henüz fiyat girilmedi. Aşağıdaki '
+                "<b>Bu tarifenin parası</b> tablosuna alış fiyatınızı ve bayiye "
+                "ödeyeceğiniz tutarı girin.</span>"
+            )
+
+        alislar = []
+        bayi_fiyatlari = {}
+        for kural in kurallar:
+            if kural.yon == KuralYonu.ANA_HAKEDIS:
+                if kural.tedarikci_id:
+                    profil = getattr(kural.tedarikci, "bayi_profili", None)
+                    kaynak = (
+                        profil.unvan
+                        if profil and profil.unvan
+                        else kural.tedarikci.get_username()
+                    )
+                else:
+                    kaynak = obj.operator.ad if obj.operator_id else "Operatör"
+                alislar.append((kaynak, kural.tutar))
+            else:
+                grup = kural.bayi_grubu.ad if kural.bayi_grubu_id else "Tüm bayiler"
+                bayi_fiyatlari.setdefault(grup, {})[kural.yon] = kural.tutar
+
+        # Yarım girilmiş tabloda da kâr sütunu anlamlı kalsın.
+        if not alislar:
+            alislar = [("girilmedi", SIFIR)]
+        if not bayi_fiyatlari:
+            bayi_fiyatlari = {"Tüm bayiler": {}}
+
+        satirlar = []
+        for kaynak, alis in sorted(alislar):
+            for grup, tutarlar in sorted(bayi_fiyatlari.items()):
+                odenen = tutarlar.get(KuralYonu.HAKEDIS, SIFIR)
+                tahsil = tutarlar.get(KuralYonu.TAHSILAT, SIFIR)
+                kar = alis + tahsil - odenen
+                satirlar.append((
+                    kaynak, alis, grup, odenen, tahsil,
+                    "#0F8A4D" if kar >= SIFIR else "#D42046", kar,
+                ))
+
+        hucre = 'padding:.3rem .9rem .3rem 0'
+        return format_html(
+            '<table style="border-collapse:collapse;font-size:.85rem">'
+            '<tr style="text-align:left;color:#6F7B8F">'
+            '<th style="{0}">Kimden alıyorum</th><th style="{0}">Alışım</th>'
+            '<th style="{0}">Bayi grubu</th><th style="{0}">Bayiye</th>'
+            '<th style="{0}">Bayiden</th><th style="padding:.3rem 0">Kâr</th>'
+            "</tr>{1}</table>",
+            hucre,
+            format_html_join(
+                "",
+                '<tr><td style="{0}">{1}</td><td style="{0}">{2} ₺</td>'
+                '<td style="{0}">{3}</td><td style="{0}">{4} ₺</td>'
+                '<td style="{0}">{5} ₺</td>'
+                '<td style="padding:.3rem 0"><b style="color:{6}">{7} ₺</b></td></tr>',
+                ((hucre, *satir) for satir in satirlar),
+            ),
+        )
 
     @display(description="Görsel", boolean=True)
     def gorsel_var_mi(self, obj):

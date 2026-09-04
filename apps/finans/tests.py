@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from apps.basvurular.models import Basvuru, BasvuruDurumu
+from apps.bayi.models import BayiProfili
 from apps.finans.models import Cuzdan, CuzdanHareketi, HareketTipi, KuralYonu, UcretKurali
 from apps.finans.services import basvuru_parasini_isle
 from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
@@ -516,3 +517,107 @@ class KenarDurumTestleri(TestCase):
         basvuru.refresh_from_db()
         self.assertEqual(cuzdan.bakiye, TL("970.00"))
         self.assertEqual(basvuru.kar, TL("30.00"))
+
+
+class TarifeParaEkraniTestleri(TestCase):
+    """Bayiye verilen ve operatörden alınan tutar tarifenin sayfasında durur.
+
+    Kural motoru genel kalsın; ama günlük iş "bu tarifede bayiye ne veriyorum,
+    ben ne alıyorum" sorusu. İki rakamı ayrı bir ekranda kapsam alanı
+    doldurarak aramak gereksizdi.
+    """
+
+    def setUp(self):
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True, sira=50
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.tarife = Tarife.objects.create(
+            kategori=self.kategori, operator=self.operator, ad="Red 20 GB"
+        )
+
+    def test_ad_bos_birakilirsa_kapsamdan_uretilir(self):
+        """Tarife sayfasından iki rakam giren yönetici bir de ad uydurmasın."""
+        kural = UcretKurali.objects.create(
+            yon=KuralYonu.HAKEDIS, tutar=TL("100.00"),
+            tarife=self.tarife, tetikleyici_durum=self.aktif,
+        )
+
+        # Tarifenin kendi adı kategori ve operatörü de içeriyor; kural
+        # listesinde hangi tarifeye ait olduğu tek bakışta okunuyor.
+        self.assertEqual(kural.ad, f"{self.tarife} · bayiye ödenen")
+        self.assertIn("Red 20 GB", kural.ad)
+
+    def test_verilen_ad_korunur(self):
+        kural = UcretKurali.objects.create(
+            ad="Özel anlaşma", yon=KuralYonu.HAKEDIS, tutar=TL("100.00"),
+            tarife=self.tarife, tetikleyici_durum=self.aktif,
+        )
+
+        self.assertEqual(kural.ad, "Özel anlaşma")
+
+    def test_tarife_sayfasi_kari_hesaplar(self):
+        UcretKurali.objects.create(
+            yon=KuralYonu.HAKEDIS, tutar=TL("100.00"),
+            tarife=self.tarife, tetikleyici_durum=self.aktif,
+        )
+        UcretKurali.objects.create(
+            yon=KuralYonu.ANA_HAKEDIS, tutar=TL("150.00"),
+            tarife=self.tarife, tetikleyici_durum=self.aktif,
+        )
+        yonetici = User.objects.create_superuser("yon", "y@x.com", "parola12345")
+        self.client.force_login(yonetici)
+
+        yanit = self.client.get(f"/yonetim/katalog/tarife/{self.tarife.pk}/change/")
+
+        self.assertContains(yanit, "Bu tarifenin parası")  # satır içi tablo
+        self.assertContains(yanit, "50.00 ₺")  # 150 alış − 100 bayiye = 50 kâr
+
+    def test_tedarikci_alisi_panelden_girilebilir(self):
+        """Motor tedarikçi kapsamını destekliyordu ama formda alan yoktu."""
+        from apps.finans.admin import TarifeParaKuraliInline
+
+        self.assertIn("tedarikci", TarifeParaKuraliInline.fields)
+
+        yonetici = User.objects.create_superuser("yon3", "y3@x.com", "parola12345")
+        self.client.force_login(yonetici)
+        yanit = self.client.get("/yonetim/finans/ucretkurali/add/")
+
+        self.assertContains(yanit, "tedarikci")
+
+    def test_ozet_alis_kaynagini_ayirir(self):
+        """Operatörden ve tedarikçiden alış ayrı satır; kâr ikisi için ayrı."""
+        tedarikci = User.objects.create_user("tedarikci1", password="parola12345")
+        BayiProfili.objects.create(
+            kullanici=tedarikci, unvan="Ege Tedarik", tedarikci_mi=True
+        )
+        UcretKurali.objects.create(
+            yon=KuralYonu.HAKEDIS, tutar=TL("100.00"),
+            tarife=self.tarife, tetikleyici_durum=self.aktif,
+        )
+        UcretKurali.objects.create(
+            yon=KuralYonu.ANA_HAKEDIS, tutar=TL("150.00"),
+            tarife=self.tarife, tetikleyici_durum=self.aktif,
+        )
+        UcretKurali.objects.create(
+            yon=KuralYonu.ANA_HAKEDIS, tutar=TL("140.00"), tedarikci=tedarikci,
+            tarife=self.tarife, tetikleyici_durum=self.aktif,
+        )
+        yonetici = User.objects.create_superuser("yon4", "y4@x.com", "parola12345")
+        self.client.force_login(yonetici)
+
+        yanit = self.client.get(f"/yonetim/katalog/tarife/{self.tarife.pk}/change/")
+
+        self.assertContains(yanit, "Turkcell")      # operatörden alış satırı
+        self.assertContains(yanit, "Ege Tedarik")   # tedarikçiden alış satırı
+        self.assertContains(yanit, "50.00 ₺")       # 150 − 100
+        self.assertContains(yanit, "40.00 ₺")       # 140 − 100
+
+    def test_kural_yokken_ne_yapilacagi_yazar(self):
+        yonetici = User.objects.create_superuser("yon2", "y2@x.com", "parola12345")
+        self.client.force_login(yonetici)
+
+        yanit = self.client.get(f"/yonetim/katalog/tarife/{self.tarife.pk}/change/")
+
+        self.assertContains(yanit, "Henüz fiyat girilmedi")

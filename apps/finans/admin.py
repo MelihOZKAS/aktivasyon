@@ -6,7 +6,7 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
-from unfold.admin import ModelAdmin
+from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import action, display
 
 from apps.finans.models import (
@@ -14,11 +14,64 @@ from apps.finans.models import (
     BayiGrubu,
     Cuzdan,
     CuzdanHareketi,
+    KuralYonu,
     UcretKurali,
 )
 from apps.finans.services import bakiye_yukle
 
 SIFIR = Decimal("0.00")
+
+
+def _kullanici_kutusunu_sadelestir(alan):
+    """Kullanıcı seçtiren kutuda ekle/düzenle/sil düğmelerini kapatır.
+
+    Kutunun yanındaki kırmızı çöp kutusu seçimi değil, seçili kullanıcının
+    kendisini siler; yanlış kişi seçilince ilk refleks ona basmak oluyor.
+    """
+    for ozellik in ("can_add_related", "can_change_related", "can_delete_related"):
+        if hasattr(alan.widget, ozellik):
+            setattr(alan.widget, ozellik, False)
+    return alan
+
+
+
+class TarifeParaKuraliInline(TabularInline):
+    """Tarifenin parası tarifenin sayfasında girilir.
+
+    Kural motoru genel: kampanyaya, bayi grubuna, tek bayiye, tarih aralığına
+    göre kural yazılabiliyor. Ama günlük iş bu değil — günlük iş "bu tarifede
+    bayiye ne veriyorum, ben ne alıyorum" sorusu. O iki rakamı ayrı bir ekranda,
+    kapsam alanlarını doldurarak aramak gereksiz; tarifeyi açan burada görür ve
+    girer. Kayıtlar yine `UcretKurali` — motor tek kaynaktan okumaya devam eder.
+    """
+
+    model = UcretKurali
+    fk_name = "tarife"
+    extra = 0
+    verbose_name = "Para kuralı"
+    verbose_name_plural = "Bu tarifenin parası"
+    fields = ("yon", "tutar", "tedarikci", "bayi_grubu", "tetikleyici_durum", "aktif")
+    autocomplete_fields = ("bayi_grubu", "tedarikci")
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        alan = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if alan is None:
+            return alan
+
+        # Para hemen her zaman "Aktif"te işler; yönetici her satırda aynı
+        # durumu tekrar seçmesin.
+        if db_field.name == "tetikleyici_durum":
+            from apps.basvurular.models import BasvuruDurumu
+
+            varsayilan = BasvuruDurumu.objects.filter(hakedis_tetikler=True).first()
+            if varsayilan:
+                alan.initial = varsayilan.pk
+
+        # Kullanıcı seçtiren kutuların yanındaki çöp kutusu seçimi değil,
+        # seçili kullanıcının kendisini siler.
+        if db_field.name == "tedarikci":
+            _kullanici_kutusunu_sadelestir(alan)
+        return alan
 
 
 @admin.register(BayiGrubu)
@@ -217,6 +270,7 @@ class UcretKuraliAdmin(ModelAdmin):
         "kampanya",
         "bayi_grubu",
         "bayi",
+        "tedarikci",
         "tetikleyici_durum",
     )
     fieldsets = (
@@ -231,11 +285,14 @@ class UcretKuraliAdmin(ModelAdmin):
                     "kampanya",
                     "bayi_grubu",
                     "bayi",
+                    "tedarikci",
                 ),
                 "description": (
                     "Boş bırakılan her alan “hepsi” anlamına gelir. Bir başvuruya "
                     "birden fazla kural uyarsa en dar kapsamlı olan uygulanır; "
-                    "eşitlik durumunda önceliği yüksek olan kazanır."
+                    "eşitlik durumunda önceliği yüksek olan kazanır.<br>"
+                    "<b>Alışım</b> kurallarında: tedarikçi boşsa tutar operatörden "
+                    "gelir, tedarikçi seçiliyse o tedarikçinin hesabından düşer."
                 ),
             },
         ),
@@ -250,9 +307,16 @@ class UcretKuraliAdmin(ModelAdmin):
             super()
             .get_queryset(request)
             .select_related(
-                "kategori", "operator", "tarife", "kampanya", "bayi_grubu", "bayi", "tetikleyici_durum"
+                "kategori", "operator", "tarife", "kampanya", "bayi_grubu",
+                "bayi", "tedarikci", "tetikleyici_durum",
             )
         )
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        alan = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if alan is not None and db_field.name in {"bayi", "tedarikci"}:
+            _kullanici_kutusunu_sadelestir(alan)
+        return alan
 
     @display(description="Yön")
     def yon_rozeti(self, obj):
@@ -272,6 +336,7 @@ class UcretKuraliAdmin(ModelAdmin):
     def kapsam_ozeti(self, obj):
         parcalar = [
             (obj.bayi, "Bayi"),
+            (obj.tedarikci, "Tedarikçi"),
             (obj.kampanya, "Kampanya"),
             (obj.tarife, "Tarife"),
             (obj.bayi_grubu, "Grup"),
