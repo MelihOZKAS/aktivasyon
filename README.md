@@ -268,8 +268,9 @@ listesinde sütun olarak, detayda hesap tablosu olarak ve listenin üstünde
 filtreye göre toplam olarak görünür.
 
 Tedarikçi `/tedarikci/` panelinde üstlendiği işlemleri ve hesabını görür.
-**Kimlik görüntülerine erişemez** — işlemin bilgilerini görür, fotoğrafları
-görmez.
+Aktivasyonu fiilen kendisi yaptığı için **üstlendiği işlemin kimlik
+görüntülerini de görebilir**; bilgileri oradan okuyup operatör sistemine
+girer. Kendisine atanmamış bir işlemin belgesine erişemez.
 
 ## Bayi başvurusu
 

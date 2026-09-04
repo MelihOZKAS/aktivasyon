@@ -66,9 +66,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **Roller birbirini dışlamaz.** Bir firma hem bayi hem tedarikçi olabilir
   (`BayiProfili.bayi_mi` / `tedarikci_mi`). Bayi başvuru getirir ve hakediş
   alır; tedarikçi işlemi satın alır, bedeli hesabından düşer.
-- **Tedarikçi kimlik görüntülerini görmez.** İşlemin bilgilerini görür ama
-  kimlik/pasaport fotoğrafına erişemez; bu ayrı bir yetki ve talep edilmedi.
-  Gevşetilecekse `basvurular.views.belge` ve `detay` birlikte güncellenir.
+- **Kimlik görüntülerini üç taraf görür:** başvuruyu getiren bayi, işlemi
+  üstlenen tedarikçi ve personel. Tedarikçi aktivasyonu fiilen kendisi
+  yaptığı için bilgileri kimlikten okuyup operatör sistemine giriyor.
+  İlgisiz kullanıcı 404 alır. Kural iki yerde: `basvurular.views.belge`
+  (dosya erişimi) ve `detay` (`belgeler_gorunur`) — birlikte güncellenir.
 - **Rol ekranları karışmaz.** Bayi görünümleri `@bayi_gerekli`, tedarikçi
   görünümleri `@tedarikci_gerekli` ile korunur (`apps/bayi/yetki.py`).
   Yeni bir ekran eklerken hangi role ait olduğunu belirt; profili olmayan

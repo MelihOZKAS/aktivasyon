@@ -564,8 +564,8 @@ class RolErisimTestleri(TestCase):
         yanit = self.client.get(reverse("basvurular:detay", args=[digeri.referans_no]))
         self.assertEqual(yanit.status_code, 404)
 
-    def test_tedarikci_kimlik_goruntulerini_goremez(self):
-        """Kimlik fotoğrafı ayrı bir yetki; tedarikçi işlemi görür, belgeyi görmez."""
+    def test_tedarikci_ustlendigi_islemin_kimligini_gorur(self):
+        """Aktivasyonu tedarikçi yapıyor; bilgileri kimlikten okuyacak."""
         import io
         import tempfile
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -582,22 +582,29 @@ class RolErisimTestleri(TestCase):
                 dosya=SimpleUploadedFile("k.png", tampon.getvalue(), content_type="image/png"),
             )
 
+            # Üstlendiği işlemin kimliğini görebilir.
             self.client.force_login(self.tedarikci)
-            # İşlemin kendisini görebilir...
             detay = self.client.get(
                 reverse("basvurular:detay", args=[self.basvuru.referans_no])
             )
             self.assertEqual(detay.status_code, 200)
-            self.assertNotContains(detay, "Belgeler")
-            # ...ama kimlik görüntüsüne erişemez.
+            self.assertContains(detay, "Belgeler")
             self.assertEqual(
-                self.client.get(belge.get_absolute_url()).status_code, 404
+                self.client.get(belge.get_absolute_url()).status_code, 200
             )
 
-            # Başvuruyu getiren bayi görebilir.
+            # Başvuruyu getiren bayi de görebilir.
             self.client.force_login(self.bayi)
             self.assertEqual(
                 self.client.get(belge.get_absolute_url()).status_code, 200
+            )
+
+            # Ama ilgisiz bir kullanıcı göremez.
+            yabanci = User.objects.create_user("yabanci", password="parola12345")
+            Cuzdan.objects.create(bayi=yabanci)
+            self.client.force_login(yabanci)
+            self.assertEqual(
+                self.client.get(belge.get_absolute_url()).status_code, 404
             )
 
     def test_toplu_tedarikciye_satma(self):

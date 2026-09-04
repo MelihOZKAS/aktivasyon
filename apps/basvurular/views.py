@@ -154,8 +154,9 @@ def detay(request, referans):
         {
             "basvuru": basvuru,
             "ek_satirlar": ek_satirlar,
-            # Tedarikçi işlemi görür ama kimlik görüntülerini görmez.
-            "belgeler_gorunur": basvuru.bayi_id == request.user.id,
+            # Başvuruyu getiren bayi ve işlemi üstlenen tedarikçi görebilir.
+            "belgeler_gorunur": request.user.id
+            in {basvuru.bayi_id, basvuru.tedarikci_id},
         },
     )
 
@@ -174,10 +175,11 @@ def belge(request, referans, alan_kodu):
         alan_kodu=alan_kodu,
     )
 
-    # Kimlik görüntüleri yalnızca başvuruyu getiren bayiye ve personele açık.
-    # Tedarikçi işlemin bilgilerini görür ama kimlik fotoğraflarını görmez;
-    # gerekirse bu kural burada gevşetilir.
-    if not request.user.is_staff and kayit.basvuru.bayi_id != request.user.id:
+    # Başvuruyu getiren bayi, işlemi üstlenen tedarikçi ve personel görebilir.
+    # Tedarikçi aktivasyonu fiilen kendisi yaptığı için kimlik bilgilerini
+    # operatör sistemine oradan giriyor; erişimi işin gereği.
+    ilgili = {kayit.basvuru.bayi_id, kayit.basvuru.tedarikci_id}
+    if not request.user.is_staff and request.user.id not in ilgili:
         raise Http404
 
     if not kayit.dosya:
