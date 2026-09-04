@@ -327,7 +327,11 @@ class BelgeErisimTestleri(TestCase):
         self.assertEqual(yanit["X-Content-Type-Options"], "nosniff")
 
     def test_uretimde_dogrudan_medya_yolu_acilmaz(self):
-        """DEBUG=False iken /media/... hiçbir URL desenine düşmez."""
+        """Kimlik klasörü hiçbir URL desenine düşmez.
+
+        Tarife, kampanya ve operatör görselleri `/media/` altından sunulur
+        (`apps.medya`); `basvuru/` bilinçli olarak o listenin dışındadır.
+        """
         from django.urls import Resolver404, resolve
 
         with override_settings(DEBUG=False):

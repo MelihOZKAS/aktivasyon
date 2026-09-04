@@ -503,3 +503,51 @@ class YonetimPaneliTurkcesi(TestCase):
                 self.assertNotEqual(
                     translation.gettext(metin), metin, f"çevrilmemiş: {metin}"
                 )
+
+
+@override_settings(MEDIA_ROOT=GECICI_MEDYA, DEBUG=False)
+class AcikGorselSunumu(TestCase):
+    """Bayiye gösterilen görsel üretimde de açılmalı.
+
+    Görsel admin'den yüklenir. Django'nun `static()` yardımcısı yalnızca DEBUG
+    açıkken URL üretir, WhiteNoise ise açılışta taradığı `STATIC_ROOT`'u sunar;
+    sonradan yüklenen dosya ikisine de girmediği için görsel yerelde görünüp
+    üretimde 404 veriyordu.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(GECICI_MEDYA, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        kategori = BasvuruKategorisi.objects.create(ad="MNT")
+        operator = Operator.objects.create(ad="Turkcell")
+        self.tarife = Tarife.objects.create(
+            kategori=kategori, operator=operator, ad="Platinum", gorsel=gorsel()
+        )
+
+    def test_tarife_gorseli_uretimde_acilir(self):
+        yanit = self.client.get(self.tarife.gorsel.url)
+
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn("public", yanit["Cache-Control"])
+
+    def test_kampanya_gorseli_de_acilir(self):
+        kampanya = Kampanya.objects.create(
+            tarife=self.tarife, ad="Yaz", gorsel=gorsel("kampanya.png")
+        )
+
+        self.assertEqual(self.client.get(kampanya.gorsel.url).status_code, 200)
+
+    def test_kimlik_klasoru_medya_yolundan_acilmaz(self):
+        """Kişisel veri yalnızca izin kontrollü belge görünümünden gelir."""
+        yanit = self.client.get("/media/basvuru/2026/09/kimlik.webp")
+
+        self.assertEqual(yanit.status_code, 404)
+
+    def test_ust_klasore_cikilamaz(self):
+        """Desen normalleştirmeden önce eşleşir; klasör sonradan denetlenir."""
+        yanit = self.client.get("/media/tarife/../basvuru/2026/09/kimlik.webp")
+
+        self.assertEqual(yanit.status_code, 404)
