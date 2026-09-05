@@ -3,6 +3,11 @@
 Kural: bakiye/borç yalnızca buradaki fonksiyonlar üzerinden değişir.
 Her fonksiyon atomiktir, cüzdanı satır bazında kilitler ve idempotency
 anahtarı ile aynı olayın iki kez işlenmesini engeller.
+
+**Bayiye giren her kuruş önce borcu kapatır.** Hakediş de, elle yapılan
+bakiye yüklemesi de aynı sırayı izler: borç varsa oradan düşülür, kalanı
+bakiyeye yazılır. Böylece cüzdanda aynı anda çekilebilir bakiye ve borç
+durmaz; bayinin gördüğü tek rakam gerçekten elindeki paradır.
 """
 
 import logging
@@ -139,6 +144,10 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
             logger.info("Başvuru %s için para zaten işlenmiş.", basvuru_kilitli.referans_no)
             return basvuru_kilitli
 
+        # Sürüm anahtara girer: geri alınmış bir başvuru yeniden işlendiğinde
+        # eski anahtara takılıp sessizce yutulmasın.
+        surum = basvuru_kilitli.para_surumu
+
         kurallar = uygun_kurallari_bul(basvuru_kilitli, basvuru_kilitli.durum)
         tahsilat_kurali = kurallar.get(KuralYonu.TAHSILAT)
         hakedis_kurali = kurallar.get(KuralYonu.HAKEDIS)
@@ -159,7 +168,7 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
                     cuzdan=cuzdan,
                     tip=HareketTipi.TAHSILAT,
                     tutar=-bakiyeden,
-                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:tahsilat:bakiye",
+                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:tahsilat:bakiye",
                     aciklama=f"{basvuru_kilitli.referans_no} · {tahsilat_kurali.ad}",
                     basvuru=basvuru_kilitli,
                     kural=tahsilat_kurali,
@@ -170,7 +179,7 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
                     cuzdan=cuzdan,
                     tip=HareketTipi.BORC_EKLE,
                     tutar=borctan,
-                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:tahsilat:borc",
+                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:tahsilat:borc",
                     aciklama=f"{basvuru_kilitli.referans_no} · {tahsilat_kurali.ad} (borç)",
                     basvuru=basvuru_kilitli,
                     kural=tahsilat_kurali,
@@ -180,17 +189,39 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
             tahsil_edilen = tutar
 
         if hakedis_kurali and hakedis_kurali.tutar > SIFIR:
-            _hareket_yaz(
-                cuzdan=cuzdan,
-                tip=HareketTipi.HAKEDIS,
-                tutar=hakedis_kurali.tutar,
-                idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:hakedis",
-                aciklama=f"{basvuru_kilitli.referans_no} · {hakedis_kurali.ad}",
-                basvuru=basvuru_kilitli,
-                kural=hakedis_kurali,
-                olusturan=olusturan,
-            )
-            hakedis = hakedis_kurali.tutar
+            tutar = hakedis_kurali.tutar
+            # Hakediş bir alacaktır: borç varken önce onu kapatır, kalanı
+            # bakiyeye geçer. Bakiye yüklemesi de aynı sırayı izler. Aksi
+            # hâlde cüzdanda aynı anda çekilebilir bakiye ve borç durur;
+            # 100 borcu olan bayi 250 hakediş alınca hem 250'yi çeker hem
+            # 100 borçlu görünürdü.
+            borctan_dusulen = min(tutar, cuzdan.borc)
+            bakiyeye_yazilan = tutar - borctan_dusulen
+
+            if borctan_dusulen > SIFIR:
+                _hareket_yaz(
+                    cuzdan=cuzdan,
+                    tip=HareketTipi.BORC_TAHSIL,
+                    tutar=-borctan_dusulen,
+                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:hakedis:borc",
+                    aciklama=f"{basvuru_kilitli.referans_no} · {hakedis_kurali.ad} (borçtan düşüldü)",
+                    basvuru=basvuru_kilitli,
+                    kural=hakedis_kurali,
+                    olusturan=olusturan,
+                    borca_yaz=True,
+                )
+            if bakiyeye_yazilan > SIFIR:
+                _hareket_yaz(
+                    cuzdan=cuzdan,
+                    tip=HareketTipi.HAKEDIS,
+                    tutar=bakiyeye_yazilan,
+                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:hakedis",
+                    aciklama=f"{basvuru_kilitli.referans_no} · {hakedis_kurali.ad}",
+                    basvuru=basvuru_kilitli,
+                    kural=hakedis_kurali,
+                    olusturan=olusturan,
+                )
+            hakedis = tutar
 
         basvuru_kilitli.tahsil_edilen = tahsil_edilen
         basvuru_kilitli.hakedis = hakedis
@@ -221,6 +252,7 @@ def ana_hakedisi_isle(basvuru, *, olusturan=None):
         if basvuru_kilitli.ana_hakedis_islendi:
             return basvuru_kilitli
 
+        surum = basvuru_kilitli.para_surumu
         kurallar = uygun_kurallari_bul(basvuru_kilitli, basvuru_kilitli.durum)
         kural = kurallar.get(KuralYonu.ANA_HAKEDIS)
         if kural is None or kural.tutar <= SIFIR:
@@ -238,7 +270,7 @@ def ana_hakedisi_isle(basvuru, *, olusturan=None):
                     cuzdan=cuzdan,
                     tip=HareketTipi.TEDARIKCI_BEDELI,
                     tutar=-bakiyeden,
-                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:anahakedis:bakiye",
+                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:anahakedis:bakiye",
                     aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad}",
                     basvuru=basvuru_kilitli,
                     kural=kural,
@@ -249,7 +281,7 @@ def ana_hakedisi_isle(basvuru, *, olusturan=None):
                     cuzdan=cuzdan,
                     tip=HareketTipi.BORC_EKLE,
                     tutar=borctan,
-                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:anahakedis:borc",
+                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:anahakedis:borc",
                     aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad} (borç)",
                     basvuru=basvuru_kilitli,
                     kural=kural,
@@ -266,7 +298,12 @@ def ana_hakedisi_isle(basvuru, *, olusturan=None):
 
 
 def basvuru_parasini_geri_al(basvuru, *, olusturan=None):
-    """Başvuru olumsuz bir duruma döndüğünde işlenmiş parayı ters kayıtla iptal eder."""
+    """Başvuru para tetikleyen durumdan çıktığında işlenmiş parayı ters kayıtla iptal eder.
+
+    Yalnızca iptal için değil: yanlış başvuru onaylandığında da durum geri
+    alınır ve para buradan döner. Defter değişmezdir, satır silinmez; her
+    hareketin karşısına ters kaydı yazılır.
+    """
     with transaction.atomic():
         basvuru_kilitli = type(basvuru).objects.select_for_update().get(pk=basvuru.pk)
 
@@ -309,10 +346,14 @@ def basvuru_parasini_geri_al(basvuru, *, olusturan=None):
         basvuru_kilitli.ana_hakedis = SIFIR
         basvuru_kilitli.para_islendi = False
         basvuru_kilitli.ana_hakedis_islendi = False
+        # Sonraki işleme yeni anahtarlarla yazsın: aynı başvuru düzeltilip
+        # yeniden onaylandığında para gerçekten hareket etsin.
+        basvuru_kilitli.para_surumu = basvuru_kilitli.para_surumu + 1
         basvuru_kilitli.save(
             update_fields=[
                 "tahsil_edilen", "hakedis", "ana_hakedis",
-                "para_islendi", "ana_hakedis_islendi", "guncelleme_tarihi",
+                "para_islendi", "ana_hakedis_islendi", "para_surumu",
+                "guncelleme_tarihi",
             ]
         )
         return basvuru_kilitli

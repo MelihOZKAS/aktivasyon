@@ -91,6 +91,10 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
         type(instance).objects.filter(pk=instance.pk).update(
             sonuclanma_tarihi=instance.sonuclanma_tarihi
         )
+    elif not instance.sonuclandi_mi and instance.sonuclanma_tarihi is not None:
+        # Yanlış onay geri alındı: başvuru "sonuçlandı" damgasını taşımasın.
+        instance.sonuclanma_tarihi = None
+        type(instance).objects.filter(pk=instance.pk).update(sonuclanma_tarihi=None)
 
     if durum.olumsuz_sonuc:
         # Operatörden iptal gelince kart fiziksel olarak bayide kalıyor;
@@ -105,7 +109,14 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     if durum.hakedis_tetikler and not instance.para_islendi:
         guncel = basvuru_parasini_isle(instance)
         guncel = ana_hakedisi_isle(guncel)
-    elif durum.olumsuz_sonuc and (instance.para_islendi or instance.ana_hakedis_islendi):
+    elif not durum.hakedis_tetikler and (
+        instance.para_islendi or instance.ana_hakedis_islendi
+    ):
+        # Para, tetikleyen durumda *olmaya* bağlıdır. İptal kadar "yanlış
+        # başvuruyu onayladım" da buradan çıkar: durum tetikleyici olmaktan
+        # çıktığı anda hareketler ters kayıtla iptal edilir. Yalnızca olumsuz
+        # duruma bakmak, İşlemde'ye geri alınan başvurunun parasını bayide
+        # bırakıyordu.
         guncel = basvuru_parasini_geri_al(instance)
     else:
         return
@@ -116,3 +127,4 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     instance.ana_hakedis = guncel.ana_hakedis
     instance.para_islendi = guncel.para_islendi
     instance.ana_hakedis_islendi = guncel.ana_hakedis_islendi
+    instance.para_surumu = guncel.para_surumu

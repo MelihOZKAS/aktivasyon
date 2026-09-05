@@ -179,6 +179,102 @@ class ParaMotoruTestleri(TestCase):
         self.assertFalse(basvuru.para_islendi)
         self.assertEqual(basvuru.hakedis, TL("0.00"))
 
+    def test_yanlis_onay_geri_alinca_para_doner(self):
+        """Yanlış başvuru onaylandığında iptal etmek şart değil.
+
+        Durum tetikleyici olmaktan çıktığı an para geri döner; İşlemde'ye
+        çekmek de yeter. Yalnızca olumsuz duruma bakıldığı sürece geri alınan
+        başvurunun parası bayide kalıyordu.
+        """
+        islemde = BasvuruDurumu.objects.create(ad="İşlemde", slug="islemde", sira=20)
+        self._kural(KuralYonu.TAHSILAT, "25.00", kategori=self.kategori)
+        self._kural(KuralYonu.HAKEDIS, "150.00", kategori=self.kategori)
+
+        basvuru = self._basvuru_olustur()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        basvuru.durum = islemde
+        basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        basvuru.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("1000.00"))
+        self.assertFalse(basvuru.para_islendi)
+        self.assertEqual(basvuru.hakedis, TL("0.00"))
+        # "Sonuçlandı" damgası da kalkar: başvuru yeniden kuyrukta.
+        self.assertIsNone(basvuru.sonuclanma_tarihi)
+
+    def test_geri_alinan_basvuru_yeniden_onaylanabilir(self):
+        """Düzeltilip yeniden onaylanan başvuruda para gerçekten hareket eder.
+
+        Tekillik anahtarı sürüm içermeseydi ikinci onay defterde sessizce
+        yutulur, başvuru "150 hakediş ödendi" derken cüzdanda karşılığı
+        olmazdı. Sessiz para tutarsızlığının regresyon testi.
+        """
+        self._kural(KuralYonu.HAKEDIS, "150.00", kategori=self.kategori)
+
+        basvuru = self._basvuru_olustur()
+        for durum in (self.aktif, self.iptal, self.aktif):
+            basvuru.durum = durum
+            basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        basvuru.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("1150.00"))
+        self.assertEqual(basvuru.hakedis, TL("150.00"))
+        self.assertTrue(basvuru.para_islendi)
+        self.assertEqual(
+            CuzdanHareketi.objects.filter(tip=HareketTipi.HAKEDIS).count(), 2
+        )
+
+    def test_hakedis_once_borcu_kapatir(self):
+        """100 borcu olan bayiye 250 hakediş: borç kapanır, 150 bakiyeye geçer."""
+        self.cuzdan.bakiye = TL("0.00")
+        self.cuzdan.borc = TL("100.00")
+        self.cuzdan.save()
+        self._kural(KuralYonu.HAKEDIS, "250.00", kategori=self.kategori)
+
+        basvuru = self._basvuru_olustur()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        basvuru.refresh_from_db()
+        self.assertEqual(self.cuzdan.borc, TL("0.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("150.00"))
+        # Bayinin hakedişi yine 250; borç mahsubu cüzdan tarafındadır.
+        self.assertEqual(basvuru.hakedis, TL("250.00"))
+
+    def test_hakedis_borcu_kapatmaya_yetmezse_tamami_borctan_duser(self):
+        self.cuzdan.bakiye = TL("0.00")
+        self.cuzdan.borc = TL("500.00")
+        self.cuzdan.save()
+        self._kural(KuralYonu.HAKEDIS, "150.00", kategori=self.kategori)
+
+        basvuru = self._basvuru_olustur()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.borc, TL("350.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+
+    def test_borctan_dusulen_hakedis_iptalde_borca_geri_yazilir(self):
+        self.cuzdan.bakiye = TL("0.00")
+        self.cuzdan.borc = TL("100.00")
+        self.cuzdan.save()
+        self._kural(KuralYonu.HAKEDIS, "250.00", kategori=self.kategori)
+
+        basvuru = self._basvuru_olustur()
+        basvuru.durum = self.aktif
+        basvuru.save()
+        basvuru.durum = self.iptal
+        basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.borc, TL("100.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
 
     def test_durum_gecmisi_kaydedilir(self):
         basvuru = self._basvuru_olustur()

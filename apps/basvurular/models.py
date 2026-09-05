@@ -211,6 +211,16 @@ class Basvuru(ZamanDamgali):
     ana_hakedis_islendi = models.BooleanField(
         "Ana Hakediş İşlendi", default=False, editable=False
     )
+    para_surumu = models.PositiveIntegerField(
+        "Para İşlem Sürümü",
+        default=0,
+        editable=False,
+        help_text=(
+            "Para her geri alındığında artar. Defterdeki tekillik anahtarı bu "
+            "sayıyı içerir; yanlışlıkla onaylanan başvuru geri alınıp yeniden "
+            "işlenebilsin diye."
+        ),
+    )
 
     # --- SIM karşılığı (operatörden alınacak yeni kart) ---
     sim_karsiligi_alindi = models.BooleanField(
