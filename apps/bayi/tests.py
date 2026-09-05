@@ -473,6 +473,12 @@ class TarifeSayfasiTestleri(TestCase):
         self.assertEqual(yanit.status_code, 302)
         self.assertIn("/giris-yap/", yanit["Location"])
 
+    def test_gorsel_baglanti_degildir(self):
+        """Telefonda yanlışlıkla dokunmak dosyayı indiriyordu."""
+        icerik = self.client.get(self.url).content.decode()
+
+        self.assertNotIn('target="_blank"', icerik)
+
     def test_tarife_ve_aciklama_gorunur(self):
         yanit = self.client.get(self.url)
         self.assertContains(yanit, "Platinum 30 GB")

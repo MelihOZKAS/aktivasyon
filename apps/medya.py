@@ -41,6 +41,10 @@ def acik_gorsel(request, yol):
     yanit = serve(request, temiz, document_root=settings.MEDIA_ROOT)
     yanit["Cache-Control"] = ONBELLEK
     yanit["X-Content-Type-Options"] = "nosniff"
+    # Adres doğrudan açılırsa da görüntülensin, inmesin. Telefon tarayıcıları
+    # WebP'yi kendiliğinden indirmeye alabiliyor; bu başlık niyeti açıkça
+    # söyler. `nosniff` ile birlikte tür yine sunucunun dediğidir.
+    yanit["Content-Disposition"] = "inline"
     return yanit
 
 

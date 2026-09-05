@@ -526,6 +526,12 @@ class AcikGorselSunumu(TestCase):
         self.assertEqual(yanit.status_code, 200)
         self.assertIn("public", yanit["Cache-Control"])
 
+    def test_gorsel_indirilmez_goruntulenir(self):
+        """Telefon tarayıcıları WebP'yi kendiliğinden indirmeye alabiliyor."""
+        yanit = self.client.get(self.tarife.gorsel.url)
+
+        self.assertEqual(yanit["Content-Disposition"], "inline")
+
     def test_kimlik_klasoru_medya_yolundan_acilmaz(self):
         """Kişisel veri yalnızca izin kontrollü belge görünümünden gelir."""
         yanit = self.client.get("/media/basvuru/2026/09/kimlik.webp")

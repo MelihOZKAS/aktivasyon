@@ -59,12 +59,17 @@
         </p>
         {% endif %}
 
+        {% comment %}
+          Görsel bağlantı değildir. Bağlantıyken telefonda yanlışlıkla
+          dokunmak dosyayı indiriyordu: tarayıcı WebP'yi sayfada açmak
+          yerine indirmeye alıyor. Bayinin burada yapacağı iş bakmak,
+          dosyayı açmak değil.
+        {% endcomment %}
         {% if tarife.gorsel %}
-        <a href="{{ tarife.gorsel.url }}" target="_blank" rel="noopener"
-           class="block overflow-hidden rounded-lg border border-cizgi bg-yuzey">
+        <div class="overflow-hidden rounded-lg border border-cizgi bg-yuzey">
           <img src="{{ tarife.gorsel.url }}" alt="{{ tarife.ad }} tarife görseli"
                class="w-full" loading="lazy">
-        </a>
+        </div>
         {% endif %}
 
         {% if not tarife.aciklama and not tarife.gorsel %}
