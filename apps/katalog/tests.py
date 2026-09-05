@@ -825,3 +825,58 @@ class AyniAdliTarifelerGecisiBozmaz(TestCase):
         for kategori in (tasima, yeni_hat):
             secilebilir = Tarife.objects.filter(kategoriler=kategori, aktif=True)
             self.assertEqual(list(secilebilir), [kalan])
+
+
+class BaslangicDurumuIkiyeKatlanmaz(TestCase):
+    """Yönetici başlangıç durumunu adlandırdıysa tohum ikincisini açmaz.
+
+    Başlangıç durumunun adı "Giriş" yapılıp giriş bedeli ona bağlanmıştı.
+    Açılışta çalışan başlangıç verisi "beklemede" slug'ını bulamayıp yeni bir
+    "Beklemede" açıyor ve onu da başlangıç işaretliyordu; yeni başvurular ona
+    düşüyor, giriş bedeli hiç kesilmiyordu.
+    """
+
+    def setUp(self):
+        import io
+
+        from django.core.management import call_command
+
+        call_command("baslangic_verisi", stdout=io.StringIO())
+        self.cikti = io.StringIO()
+
+    def _tekrar_calistir(self):
+        import io
+
+        from django.core.management import call_command
+
+        call_command("baslangic_verisi", stdout=io.StringIO())
+
+    def test_adi_degisen_baslangic_durumu_ikinci_kez_acilmaz(self):
+        from apps.basvurular.models import BasvuruDurumu
+
+        durum = BasvuruDurumu.objects.get(baslangic_durumu=True)
+        durum.ad = "Giriş"
+        durum.slug = "giris"
+        durum.save(update_fields=["ad", "slug"])
+
+        self._tekrar_calistir()
+
+        self.assertEqual(BasvuruDurumu.objects.filter(baslangic_durumu=True).count(), 1)
+        self.assertEqual(
+            BasvuruDurumu.objects.get(baslangic_durumu=True).slug, "giris"
+        )
+
+    def test_yeni_basvuru_yoneticinin_sectigi_durumda_acilir(self):
+        from apps.basvurular.models import BasvuruDurumu
+
+        durum = BasvuruDurumu.objects.get(baslangic_durumu=True)
+        durum.ad = "Giriş"
+        durum.slug = "giris"
+        durum.save(update_fields=["ad", "slug"])
+
+        self._tekrar_calistir()
+
+        secilen = BasvuruDurumu.objects.filter(
+            baslangic_durumu=True, aktif=True
+        ).first()
+        self.assertEqual(secilen.slug, "giris")

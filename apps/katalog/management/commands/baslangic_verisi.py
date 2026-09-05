@@ -167,10 +167,19 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        # Yönetici başlangıç durumunu adlandırıp ("Giriş" gibi) para kuralını
+        # ona bağlamış olabilir. Slug'ı bulunmayan bir tohum durumu yeniden
+        # açılırken ikinci bir başlangıç durumu yaratmamalı: yeni başvurular
+        # ona düşer ve o duruma yazılmış giriş bedeli hiç kesilmezdi.
+        baslangic_var = BasvuruDurumu.objects.filter(baslangic_durumu=True).exists()
+
         for (
             ad, slug, renk, ikon, baslangic, hakedis, olumsuz, duzenle, sira,
             sinyal, bildirim, belge_sil,
         ) in DURUMLAR:
+            if baslangic and baslangic_var:
+                baslangic = False
+
             _, olusturuldu = BasvuruDurumu.objects.get_or_create(
                 slug=slug,
                 defaults={
@@ -188,6 +197,7 @@ class Command(BaseCommand):
                 },
             )
             if olusturuldu:
+                baslangic_var = baslangic_var or baslangic
                 self.stdout.write(f"  durum: {ad}")
 
         operatorler = []

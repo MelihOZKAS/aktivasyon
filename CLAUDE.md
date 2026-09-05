@@ -402,6 +402,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   istisnası). Django `.po` değil `.mo` okur; sunucuda gettext yok ve
   `compilemessages` çalışmıyor. `.po`'yu güncelleyip `.mo`'yu commit'lemezsen
   yerelde Türkçe, sunucuda İngilizce görürsün — bir kez öyle oldu.
+- **Başlangıç verisi ikinci bir başlangıç durumu açmaz.** Yönetici başlangıç
+  durumunun adını değiştirip ("Giriş") giriş bedelini ona bağlamış olabilir.
+  Tohum, slug'ını bulamadığı durumu yeniden açarken onu da başlangıç
+  işaretleseydi yeni başvurular oraya düşer ve giriş bedeli hiç kesilmezdi.
+  `baslangic_verisi` sistemde başlangıç durumu varsa yenisini başlangıç
+  yapmaz. Tohuma başka "yalnızca bir tane olmalı" türü bir bayrak eklersen
+  aynı korumayı yaz.
 - **Yan menü rozetleri "bakılacak iş" sayar, toplam kayıt değil.**
   `apps/rozetler.py`: yeni bayi başvuruları ve başlangıç durumundan çıkmamış
   başvurular. Personel durumu değiştirir değiştirmez sayıdan düşer. Hangi
