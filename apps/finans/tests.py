@@ -1562,3 +1562,91 @@ class AlisEkranlari(TestCase):
                 yon=KuralYonu.ANA_HAKEDIS, kategori=self.kategori
             ).exists()
         )
+
+
+class HareketFiltreleri(TestCase):
+    """Cüzdan hareketleri listesinin filtreleri.
+
+    "İşlemi Yapan" bütün kullanıcıları sıralıyordu; elle işlem yapan
+    personel birkaç kişi, bayiler oraya hiç girmemeli. Bayi süzgeci ise
+    yoktu — numarayı kimse ezbere bilmediği için aramalı olmalı.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.models import BayiProfili
+        from apps.finans.models import HareketTipi
+
+        self.bayi = User.objects.create_user("5435609672", password="parola12345")
+        BayiProfili.objects.create(kullanici=self.bayi, unvan="fadil deneme")
+        self.oteki = User.objects.create_user("5524144444", password="parola12345")
+        BayiProfili.objects.create(kullanici=self.oteki, unvan="Melih Paşa")
+
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi)
+        Cuzdan.objects.create(bayi=self.oteki)
+
+        self.yonetici = User.objects.create_superuser("fadil", password="Panel-2026x")
+        CuzdanHareketi.objects.create(
+            cuzdan=self.cuzdan, tip=HareketTipi.YUKLEME, tutar=TL("100.00"),
+            onceki_bakiye=TL("0.00"), sonraki_bakiye=TL("100.00"),
+            onceki_borc=TL("0.00"), sonraki_borc=TL("0.00"),
+            idempotency_anahtari="h1", olusturan=self.yonetici,
+        )
+        self.client.force_login(self.yonetici)
+
+    def _liste(self, **sorgu):
+        from django.urls import reverse
+
+        return self.client.get(
+            reverse("admin:finans_cuzdanhareketi_changelist"), sorgu
+        ).content.decode()
+
+    def _suzgec_secenekleri(self, baslik):
+        """Süzgeç panelindeki seçenekler.
+
+        Sayfa metninde aramak yanıltıcı: aynı ad sütun başlığında da geçiyor
+        ve satırlarda bayi numaraları var.
+        """
+        from django.urls import reverse
+
+        yanit = self.client.get(reverse("admin:finans_cuzdanhareketi_changelist"))
+        for suzgec in yanit.context["cl"].filter_specs:
+            if str(suzgec.title) == baslik:
+                return [str(s["display"]) for s in suzgec.choices(yanit.context["cl"])]
+        raise AssertionError(f"{baslik} süzgeci yok")
+
+    def test_islemi_yapan_suzgecinde_bayiler_yok(self):
+        """Yalnızca defterde gerçekten geçen kullanıcılar listelenir."""
+        secenekler = self._suzgec_secenekleri("İşlemi Yapan")
+
+        self.assertIn("fadil", secenekler)
+        self.assertNotIn("5435609672", secenekler)
+        self.assertNotIn("5524144444", secenekler)
+
+    def test_listede_bayinin_unvani_da_yazar(self):
+        icerik = self._liste()
+
+        self.assertIn("5435609672", icerik)
+        self.assertIn("fadil deneme", icerik)
+
+    def test_bayiye_gore_suzulur(self):
+        from apps.finans.models import HareketTipi
+
+        oteki_cuzdan = Cuzdan.objects.get(bayi=self.oteki)
+        CuzdanHareketi.objects.create(
+            cuzdan=oteki_cuzdan, tip=HareketTipi.YUKLEME, tutar=TL("900.00"),
+            onceki_bakiye=TL("0.00"), sonraki_bakiye=TL("900.00"),
+            onceki_borc=TL("0.00"), sonraki_borc=TL("0.00"),
+            idempotency_anahtari="h2", olusturan=self.yonetici,
+        )
+
+        icerik = self._liste(**{"cuzdan__bayi__id__exact": self.bayi.pk})
+
+        self.assertIn("100.00", icerik)
+        self.assertNotIn("900.00", icerik)
+
+    def test_unvanla_aranabilir(self):
+        icerik = self._liste(q="fadil deneme")
+
+        self.assertIn("5435609672", icerik)

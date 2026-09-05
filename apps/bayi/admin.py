@@ -110,6 +110,12 @@ class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
         "is_active",
     )
     list_filter = ("is_staff", "is_superuser", "is_active", "cuzdan__grup")
+    # Bayinin numarasını kimse ezbere bilmiyor; ünvanından ve adından da
+    # bulunsun. Otomatik tamamlama kutuları da bu listeden besleniyor.
+    search_fields = (
+        "username", "first_name", "last_name", "email",
+        "bayi_profili__unvan", "bayi_profili__yetkili_adi",
+    )
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("bayi_profili", "cuzdan")

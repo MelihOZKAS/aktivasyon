@@ -29,6 +29,8 @@ from apps.finans.models import (
     TedarikciAlisi,
     UcretKurali,
 )
+from unfold.contrib.filters.admin import AutocompleteSelectFilter
+
 from apps.filtreler import GunAraligiFiltresi
 from apps.finans.services import (
     cuzdan_islemi,
@@ -291,7 +293,7 @@ class CuzdanAdmin(ModelAdmin):
 class CuzdanHareketiAdmin(ModelAdmin):
     list_display = (
         "tarih",
-        "cuzdan",
+        "bayi_gosterimi",
         "tip",
         "tutar_gosterimi",
         "sonraki_bakiye",
@@ -302,15 +304,22 @@ class CuzdanHareketiAdmin(ModelAdmin):
     )
     # Tarih aralığı: yönetici "1–5 Eylül arasında bu bayiye ne işlendi"
     # sorusuna tek ekranda bakabilsin.
+    #
+    # Bayi filtresi aramalı: numarasını kimse ezbere bilmiyor, ünvanından
+    # aranır. "İşlemi Yapan" ise yalnızca defterde gerçekten geçen
+    # kullanıcıları listeler — elle işlem yapan personel birkaç kişidir,
+    # bütün bayileri sıralamak listeyi kullanılmaz hâle getiriyordu.
     list_filter = (
         "tip",
         ("tarih", GunAraligiFiltresi),
+        ("cuzdan__bayi", AutocompleteSelectFilter),
         "cuzdan__grup",
-        "olusturan",
+        ("olusturan", admin.RelatedOnlyFieldListFilter),
     )
     list_filter_submit = True
     search_fields = (
         "cuzdan__bayi__username",
+        "cuzdan__bayi__bayi_profili__unvan",
         "aciklama",
         "basvuru__referans_no",
         "idempotency_anahtari",
@@ -323,6 +332,20 @@ class CuzdanHareketiAdmin(ModelAdmin):
             super()
             .get_queryset(request)
             .select_related("cuzdan__bayi", "basvuru", "kural", "banka", "olusturan")
+        )
+
+    @display(description="Bayi", ordering="cuzdan__bayi__username")
+    def bayi_gosterimi(self, obj):
+        """Numara tek başına hangi firma olduğunu anlatmıyor; ünvanı da yaz."""
+        bayi = obj.cuzdan.bayi
+        profil = getattr(bayi, "bayi_profili", None)
+        unvan = profil.unvan if profil and profil.unvan else ""
+        if not unvan:
+            return bayi.get_username()
+        return format_html(
+            "{}<br><span style='color:#6F7B8F;font-size:.8125rem'>{}</span>",
+            bayi.get_username(),
+            unvan,
         )
 
     def has_add_permission(self, request):
