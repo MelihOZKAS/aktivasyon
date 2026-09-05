@@ -108,21 +108,47 @@
 
     {% if sayfa.object_list %}
     <div class="yuzey overflow-hidden rounded-kart">
+      {% comment %}
+        Her satır bakiyenin ve borcun o hareketten önceki ve sonraki hâlini
+        yazar. Yalnızca tutarı göstermek "benim bakiyem neden bu" sorusunu
+        cevapsız bırakıyor, bayi arayıp soruyordu. Borç satırı yalnızca
+        değiştiğinde çıkar; hiç borcu olmayan bayi sıfır kalabalığı görmesin.
+      {% endcomment %}
       {% for hareket in sayfa %}
-      <div class="flex items-center gap-4 px-5 py-4
-                  {% if not forloop.last %}border-b border-cizgi{% endif %}">
-        <div class="min-w-0 flex-1">
-          <p class="font-medium">{{ hareket.get_tip_display }}</p>
-          <p class="mt-0.5 truncate text-sm text-soluk">
-            {{ hareket.aciklama|default:"—" }}
-          </p>
+      <div class="px-5 py-4 {% if not forloop.last %}border-b border-cizgi{% endif %}">
+        <div class="flex items-center gap-4">
+          <div class="min-w-0 flex-1">
+            <p class="font-medium">{{ hareket.get_tip_display }}</p>
+            <p class="mt-0.5 truncate text-sm text-soluk">
+              {{ hareket.aciklama|default:"—" }}
+            </p>
+          </div>
+          <div class="shrink-0 text-right">
+            <p class="rakam font-semibold {% if hareket.tutar >= 0 %}text-olumlu{% else %}text-olumsuz{% endif %}">
+              {% if hareket.tutar >= 0 %}+{% endif %}{{ hareket.tutar|para }} ₺
+            </p>
+            <p class="mt-0.5 text-xs text-soluk">{{ hareket.tarih|date:"j M Y, H:i" }}</p>
+          </div>
         </div>
-        <div class="shrink-0 text-right">
-          <p class="rakam font-semibold {% if hareket.tutar >= 0 %}text-olumlu{% else %}text-olumsuz{% endif %}">
-            {% if hareket.tutar >= 0 %}+{% endif %}{{ hareket.tutar|para }} ₺
-          </p>
-          <p class="mt-0.5 text-xs text-soluk">{{ hareket.tarih|date:"j M Y, H:i" }}</p>
-        </div>
+
+        <dl class="mt-2.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-soluk">
+          <div class="flex items-baseline gap-1.5">
+            <dt>Bakiye</dt>
+            <dd class="rakam">
+              {{ hareket.onceki_bakiye|para }} →
+              <span class="font-semibold text-murekkep">{{ hareket.sonraki_bakiye|para }} ₺</span>
+            </dd>
+          </div>
+          {% if hareket.onceki_borc or hareket.sonraki_borc %}
+          <div class="flex items-baseline gap-1.5">
+            <dt>Borç</dt>
+            <dd class="rakam">
+              {{ hareket.onceki_borc|para }} →
+              <span class="font-semibold text-uyari">{{ hareket.sonraki_borc|para }} ₺</span>
+            </dd>
+          </div>
+          {% endif %}
+        </dl>
       </div>
       {% endfor %}
     </div>

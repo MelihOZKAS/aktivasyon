@@ -296,8 +296,8 @@ class CuzdanHareketiAdmin(ModelAdmin):
         "bayi_gosterimi",
         "tip",
         "tutar_gosterimi",
-        "sonraki_bakiye",
-        "sonraki_borc",
+        "bakiye_akisi",
+        "borc_akisi",
         "kaynak",
         "olusturan",
         "aciklama",
@@ -332,6 +332,30 @@ class CuzdanHareketiAdmin(ModelAdmin):
             super()
             .get_queryset(request)
             .select_related("cuzdan__bayi", "basvuru", "kural", "banka", "olusturan")
+        )
+
+    @display(description="Bakiye", ordering="sonraki_bakiye")
+    def bakiye_akisi(self, obj):
+        """Hareketten önceki ve sonraki bakiye.
+
+        Yalnızca sonrasını göstermek "bu rakam nereden çıktı" sorusunu
+        cevapsız bırakıyordu; bayi de yönetici de aramak zorunda kalıyordu.
+        """
+        return format_html(
+            "<span style='color:#6F7B8F'>{}</span> → <b>{} ₺</b>",
+            obj.onceki_bakiye,
+            obj.sonraki_bakiye,
+        )
+
+    @display(description="Borç", ordering="sonraki_borc")
+    def borc_akisi(self, obj):
+        # Borç hiç değişmediyse sıfır kalabalığı yapmasın.
+        if not obj.onceki_borc and not obj.sonraki_borc:
+            return format_html("<span style='color:#94a3b8'>—</span>")
+        return format_html(
+            "<span style='color:#6F7B8F'>{}</span> → <b style='color:#D42046'>{} ₺</b>",
+            obj.onceki_borc,
+            obj.sonraki_borc,
         )
 
     @display(description="Bayi", ordering="cuzdan__bayi__username")

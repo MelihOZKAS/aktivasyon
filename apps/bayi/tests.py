@@ -1406,3 +1406,58 @@ class SatirIslemleriGorunur(TestCase):
 
         self.assertIn(ters("admin:auth_user_yeni_parola", args=[self.bayi.pk]), icerik)
         self.assertIn(ters("admin:auth_user_cuzdan_islemi", args=[self.bayi.pk]), icerik)
+
+
+class CuzdanHareketiOncekiSonraki(TestCase):
+    """Bayi her hareketin bakiyeye ve borca etkisini görsün.
+
+    Yalnızca tutarı göstermek "benim bakiyem neden bu" sorusunu cevapsız
+    bırakıyor, bayi arayıp soruyordu.
+    """
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from apps.finans.models import CuzdanHareketi, HareketTipi
+
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=Decimal("150.00"))
+
+        CuzdanHareketi.objects.create(
+            cuzdan=self.cuzdan, tip=HareketTipi.HAKEDIS, tutar=Decimal("150.00"),
+            onceki_bakiye=Decimal("0.00"), sonraki_bakiye=Decimal("150.00"),
+            onceki_borc=Decimal("0.00"), sonraki_borc=Decimal("0.00"),
+            idempotency_anahtari="h1", aciklama="Hakediş",
+        )
+        self.client.force_login(self.bayi)
+
+    def _sayfa(self):
+        return self.client.get(reverse("bayi:cuzdan")).content.decode()
+
+    def test_bakiyenin_onceki_ve_sonraki_hali_yazar(self):
+        icerik = self._sayfa()
+
+        self.assertIn("0,00 →", icerik)
+        self.assertIn("150,00 ₺", icerik)
+
+    def test_borc_degismediyse_satir_cikmaz(self):
+        """Hiç borcu olmayan bayi sıfır kalabalığı görmesin."""
+        icerik = self._sayfa()
+
+        self.assertNotIn("Borç</dt>", icerik)
+
+    def test_borc_degistiyse_satir_cikar(self):
+        from decimal import Decimal
+
+        from apps.finans.models import CuzdanHareketi, HareketTipi
+
+        CuzdanHareketi.objects.create(
+            cuzdan=self.cuzdan, tip=HareketTipi.BORC_EKLE, tutar=Decimal("400.00"),
+            onceki_bakiye=Decimal("150.00"), sonraki_bakiye=Decimal("150.00"),
+            onceki_borc=Decimal("0.00"), sonraki_borc=Decimal("400.00"),
+            idempotency_anahtari="h2", aciklama="Borç",
+        )
+
+        icerik = self._sayfa()
+
+        self.assertIn("400,00 ₺", icerik)

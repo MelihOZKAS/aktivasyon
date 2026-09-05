@@ -1624,6 +1624,17 @@ class HareketFiltreleri(TestCase):
         self.assertNotIn("5435609672", secenekler)
         self.assertNotIn("5524144444", secenekler)
 
+    def test_listede_bakiyenin_akisi_yazar(self):
+        """Yalnızca sonrasını göstermek "bu rakam nereden çıktı" bırakıyordu."""
+        icerik = self._liste()
+
+        self.assertIn("0.00</span> → <b>100.00 ₺</b>", icerik)
+
+    def test_borc_degismediyse_tire_yazar(self):
+        icerik = self._liste()
+
+        self.assertIn("—", icerik)
+
     def test_listede_bayinin_unvani_da_yazar(self):
         icerik = self._liste()
 
