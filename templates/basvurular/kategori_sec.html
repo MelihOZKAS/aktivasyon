@@ -13,21 +13,23 @@
 
   {% comment %}
     Bedeli olan işlem parası olmayana verilmez. Karşılanamayan kategori
-    listeden gizlenmez — kapalı gösterilip sebebi yazılır; bayi neyin
-    eksik olduğunu görsün, kategori kaybolmuş sanmasın.
+    listeden gizlenmez — kapalı gösterilip sebebi yazılır; bayi neyin eksik
+    olduğunu görsün, kategori kaybolmuş sanmasın.
+
+    Fiyat listesi iki durumda da aynı: operatör başına ayrı satır. Kapalı
+    kartta yalnızca en ucuz rakamı göstermek, hangi operatöre ne kadar
+    eksiği olduğunu gizliyordu.
   {% endcomment %}
   <div class="mt-7 grid gap-3 sm:grid-cols-2">
     {% for kategori in kategoriler %}
     {% if kategori.bakiye_yetersiz %}
-    <div class="yuzey sim rounded-kart p-5 opacity-70">
+    <div class="yuzey sim rounded-kart p-5">
       <h3 class="baslik font-semibold text-soluk">{{ kategori.ad }}</h3>
       <p class="mt-1.5 text-sm text-uyari">
-        Bakiye yetersiz — bu işlem {{ kategori.gereken_bedel|para }} ₺,
-        bakiyen {{ bakiye|para }} ₺.
-      </p>
-      <p class="mt-1 text-sm text-soluk">
+        Bakiye yetersiz — bakiyen {{ bakiye|para }} ₺.
         Bakiye yüklemek için yöneticinle iletişime geç.
       </p>
+      {% include "basvurular/parca_bedeller.html" with bedeller=kategori.bedeller %}
     </div>
     {% else %}
     <a href="{% url 'basvurular:yeni' kategori.slug %}"
@@ -36,25 +38,7 @@
       {% if kategori.aciklama %}
       <p class="mt-1 text-sm text-soluk">{{ kategori.aciklama }}</p>
       {% endif %}
-      {% comment %}
-        Fiyat operatöre göre değişiyor; tek rakam göstermek yanıltıcıydı.
-        Karşılanamayan operatör soluk ve uyarı renginde durur.
-      {% endcomment %}
-      {% if kategori.bedeller %}
-      <dl class="mt-2 space-y-1 text-sm">
-        {% for satir in kategori.bedeller %}
-        <div class="flex items-baseline gap-2">
-          <dt class="flex items-center gap-1.5 text-soluk">
-            <span class="h-2 w-2 shrink-0 rounded-full" style="background: {{ satir.operator.renk }}"></span>
-            {{ satir.operator.ad }}
-          </dt>
-          <dd class="rakam ml-auto font-semibold {% if satir.yetersiz %}text-uyari{% else %}text-murekkep{% endif %}">
-            {{ satir.tutar|para }} ₺
-          </dd>
-        </div>
-        {% endfor %}
-      </dl>
-      {% endif %}
+      {% include "basvurular/parca_bedeller.html" with bedeller=kategori.bedeller %}
     </a>
     {% endif %}
     {% empty %}

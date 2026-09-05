@@ -1529,6 +1529,17 @@ class OperatorBasinaBedelVeUyari(TestCase):
 
         self.assertIn("Bakiye yetersiz", icerik)
 
+    def test_kapali_kartta_da_her_operatorun_fiyati_yazar(self):
+        """Yalnızca en ucuzu göstermek hangi operatöre ne eksiği olduğunu gizliyordu."""
+        self._bakiye("31.00")
+
+        icerik = self._kategori_ekrani()
+
+        self.assertIn("Bakiye yetersiz", icerik)
+        self.assertIn("1.150,00", icerik)
+        self.assertIn("1.000,00", icerik)
+        self.assertIn("600,00", icerik)
+
     def test_yetmeyen_operator_sunucuda_da_reddedilir(self):
         """Uyarı bilgilendirme; kapıyı sunucu doğrulaması kapatır."""
         from apps.basvurular.forms import BasvuruFormu

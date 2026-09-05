@@ -1,0 +1,21 @@
+{% load panel %}
+{% comment %}
+  Kategorinin operatör başına işlem bedeli. Hem açık hem kapalı kartta aynı
+  liste çizilir: bayi hangi operatöre ne kadar eksiği olduğunu görsün.
+  Bakiyesinin yetmediği satır uyarı renginde durur.
+{% endcomment %}
+{% if bedeller %}
+<dl class="mt-2 space-y-1 text-sm">
+  {% for satir in bedeller %}
+  <div class="flex items-baseline gap-2">
+    <dt class="flex items-center gap-1.5 text-soluk">
+      <span class="h-2 w-2 shrink-0 rounded-full" style="background: {{ satir.operator.renk }}"></span>
+      {{ satir.operator.ad }}
+    </dt>
+    <dd class="rakam ml-auto font-semibold {% if satir.yetersiz %}text-uyari{% else %}text-murekkep{% endif %}">
+      {{ satir.tutar|para }} ₺
+    </dd>
+  </div>
+  {% endfor %}
+</dl>
+{% endif %}
