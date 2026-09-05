@@ -408,6 +408,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   durumun başlangıç olduğu veridir (`BasvuruDurumu.baslangic_durumu`), koda
   gömülü değil. Yeni bir rozet eklerken aynı ilkeye uy — kuyruk uzunluğunu
   göster, arşivi değil.
+- **Tarih aralığı filtresinde bitiş günü dahildir** (`apps/filtreler.py`).
+  unfold'un hazır `RangeDateFilter`'ı seçilen tarihi olduğu gibi `__lte` ile
+  karşılaştırıyor; alan `DateTimeField` olunca "5 Eylül" gece yarısı demek
+  oluyor ve o günün hareketleri listeye girmiyordu. `GunAraligiFiltresi`
+  bitişi ertesi günün başlangıcından öncesi olarak kurar ve tarihleri zaman
+  dilimine bağlar. Yeni bir tarih aralığı filtresi eklerken bunu kullan.
 - **Rozet şablonu ezilmiştir** (`templates/unfold/helpers/app_list_badge.html`).
   unfold rozeti `badge` anahtarı dolu olduğu sürece çiziyor; geri çağırım boş
   dönünce sayı yerine geri çağırımın nokta yolunu basıyordu. Ezilmiş sürüm

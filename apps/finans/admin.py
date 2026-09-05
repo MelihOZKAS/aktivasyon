@@ -23,6 +23,7 @@ from apps.finans.models import (
     KuralYonu,
     UcretKurali,
 )
+from apps.filtreler import GunAraligiFiltresi
 from apps.finans.services import cuzdan_islemi
 
 SIFIR = Decimal("0.00")
@@ -266,7 +267,15 @@ class CuzdanHareketiAdmin(ModelAdmin):
         "olusturan",
         "aciklama",
     )
-    list_filter = ("tip", "tarih", "cuzdan__grup", "olusturan")
+    # Tarih aralığı: yönetici "1–5 Eylül arasında bu bayiye ne işlendi"
+    # sorusuna tek ekranda bakabilsin.
+    list_filter = (
+        "tip",
+        ("tarih", GunAraligiFiltresi),
+        "cuzdan__grup",
+        "olusturan",
+    )
+    list_filter_submit = True
     search_fields = (
         "cuzdan__bayi__username",
         "aciklama",

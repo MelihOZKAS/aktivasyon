@@ -894,3 +894,74 @@ class CuzdanIslemEkrani(TestCase):
 
         self.assertEqual(yanit.status_code, 302)
         self.assertTrue(Cuzdan.objects.filter(bayi=cuzdansiz).exists())
+
+
+class HareketTarihAraligiFiltresi(TestCase):
+    """Cüzdan hareketlerinde tarih aralığı filtresi.
+
+    unfold'un hazır filtresi bitiş gününü gece yarısı sayıyor ve o günün
+    hareketlerini dışarıda bırakıyordu: "1–5 Eylül" seçen yönetici 5 Eylül'ün
+    tahsilatını göremiyordu. Bitiş günü aralığa dahildir.
+    """
+
+    def setUp(self):
+        import datetime
+
+        from django.contrib.auth.models import User
+        from django.utils import timezone
+
+        from apps.finans.models import HareketTipi
+
+        bayi = User.objects.create_user("5551112233", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=bayi)
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+        def hareket(gun, saat, aciklama):
+            h = CuzdanHareketi.objects.create(
+                cuzdan=self.cuzdan, tip=HareketTipi.YUKLEME, tutar=TL("100.00"),
+                onceki_bakiye=TL("0.00"), sonraki_bakiye=TL("100.00"),
+                onceki_borc=TL("0.00"), sonraki_borc=TL("0.00"),
+                idempotency_anahtari=aciklama, aciklama=aciklama,
+            )
+            # tarih auto_now_add; testte geriye alıyoruz.
+            an = timezone.make_aware(datetime.datetime(2026, 9, gun, saat, 0))
+            CuzdanHareketi.objects.filter(pk=h.pk).update(tarih=an)
+            return h
+
+        hareket(1, 9, "eylul-1")
+        hareket(5, 23, "eylul-5-gec")
+        hareket(9, 10, "eylul-9")
+
+    def _liste(self, **sorgu):
+        from django.urls import reverse
+
+        yanit = self.client.get(
+            reverse("admin:finans_cuzdanhareketi_changelist"), sorgu
+        )
+        return yanit.content.decode()
+
+    def test_bitis_gununun_hareketleri_de_gorunur(self):
+        icerik = self._liste(tarih_from="2026-09-01", tarih_to="2026-09-05")
+
+        self.assertIn("eylul-1", icerik)
+        self.assertIn("eylul-5-gec", icerik)
+        self.assertNotIn("eylul-9", icerik)
+
+    def test_baslangic_gunu_dahildir(self):
+        icerik = self._liste(tarih_from="2026-09-05", tarih_to="2026-09-05")
+
+        self.assertIn("eylul-5-gec", icerik)
+        self.assertNotIn("eylul-1", icerik)
+
+    def test_yalnizca_baslangic_verilebilir(self):
+        icerik = self._liste(tarih_from="2026-09-05")
+
+        self.assertNotIn("eylul-1", icerik)
+        self.assertIn("eylul-9", icerik)
+
+    def test_filtre_ekranda_var(self):
+        icerik = self._liste()
+
+        self.assertIn("tarih_from", icerik)
+        self.assertIn("tarih_to", icerik)
