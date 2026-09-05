@@ -1,10 +1,10 @@
 from decimal import Decimal
+from uuid import uuid4
 
 from django import forms
 from django.contrib import admin, messages
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
-from django.utils import timezone
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import action, display
@@ -14,10 +14,11 @@ from apps.finans.models import (
     BayiGrubu,
     Cuzdan,
     CuzdanHareketi,
+    CuzdanIslemi,
     KuralYonu,
     UcretKurali,
 )
-from apps.finans.services import bakiye_yukle
+from apps.finans.services import cuzdan_islemi
 
 SIFIR = Decimal("0.00")
 
@@ -85,14 +86,26 @@ class BayiGrubuAdmin(ModelAdmin):
         return obj.cuzdanlar.count()
 
 
-class BakiyeYuklemeFormu(forms.Form):
-    """Admin'den tek bayiye bakiye yüklemek için kullanılan form."""
+class CuzdanIslemFormu(forms.Form):
+    """Yöneticinin cüzdana elle yaptığı işlem."""
 
-    tutar = forms.DecimalField(label="Tutar", max_digits=12, decimal_places=2, min_value=Decimal("0.01"))
+    tip = forms.ChoiceField(
+        label="İşlem",
+        choices=CuzdanIslemi.choices,
+        initial=CuzdanIslemi.TAHSILAT,
+        widget=forms.RadioSelect,
+    )
+    tutar = forms.DecimalField(
+        label="Tutar", max_digits=12, decimal_places=2, min_value=Decimal("0.01")
+    )
     banka = forms.ModelChoiceField(
-        label="Banka", queryset=Banka.objects.filter(aktif=True), required=False
+        label="Banka", queryset=Banka.objects.filter(aktif=True), required=False,
+        help_text="Tahsilatta paranın girdiği hesap. Bankanın bakiyesi de artar.",
     )
     aciklama = forms.CharField(label="Açıklama", max_length=255, required=False)
+    # Sayfa yenilenince aynı işlem ikinci kez yazılmasın: anahtar formda
+    # taşınır, defter aynı anahtarı ikinci kez kabul etmez.
+    islem_anahtari = forms.CharField(widget=forms.HiddenInput)
 
 
 @admin.register(Cuzdan)
@@ -150,35 +163,46 @@ class CuzdanAdmin(ModelAdmin):
         ]
 
     def bakiye_yukle_gorunumu(self, request, cuzdan_id):
-        """Tek bayiye bakiye yükleme ekranı. Borç varsa önce borçtan düşer."""
+        """Cüzdana elle işlem: kredi, borç ya da tahsilat.
+
+        Üçü de para ekler; farkları paranın hangi haneye yazıldığı.
+        Tahsilat borcu varsa önce onu kapatır. Kimin yaptığı defterde durur.
+        """
         cuzdan = self.get_object(request, cuzdan_id)
         if cuzdan is None:
             messages.error(request, "Cüzdan bulunamadı.")
             return redirect("admin:finans_cuzdan_changelist")
 
         if request.method == "POST":
-            form = BakiyeYuklemeFormu(request.POST)
+            form = CuzdanIslemFormu(request.POST)
             if form.is_valid():
                 tutar = form.cleaned_data["tutar"]
-                bakiye_yukle(
+                tip = form.cleaned_data["tip"]
+                cuzdan_islemi(
                     cuzdan,
+                    tip,
                     tutar,
                     aciklama=form.cleaned_data["aciklama"],
                     banka=form.cleaned_data["banka"],
                     olusturan=request.user,
-                    anahtar=f"admin:{request.user.pk}:{cuzdan.pk}:{timezone.now().timestamp()}",
+                    anahtar=f"admin:{form.cleaned_data['islem_anahtari']}",
                 )
+                cuzdan.refresh_from_db()
                 messages.success(
                     request,
-                    f"{cuzdan.bayi.get_username()} hesabına {tutar} ₺ işlendi.",
+                    f"{cuzdan.bayi.get_username()}: {dict(CuzdanIslemi.choices)[tip]} "
+                    f"· {tutar} ₺ işlendi. Yeni bakiye {cuzdan.bakiye} ₺, "
+                    f"borç {cuzdan.borc} ₺.",
                 )
                 return redirect("admin:finans_cuzdan_change", cuzdan.pk)
         else:
-            form = BakiyeYuklemeFormu()
+            form = CuzdanIslemFormu(
+                initial={"islem_anahtari": uuid4().hex}
+            )
 
         baglam = {
             **self.admin_site.each_context(request),
-            "title": f"Bakiye Yükle · {cuzdan.bayi.get_username()}",
+            "title": f"Cüzdan işlemi · {cuzdan.bayi.get_username()}",
             "cuzdan": cuzdan,
             "form": form,
             "opts": self.model._meta,
@@ -191,7 +215,7 @@ class CuzdanAdmin(ModelAdmin):
         return format_html(
             '<a href="{}" style="background:#4f46e5;color:#fff;padding:.3rem .7rem;'
             'border-radius:.375rem;font-size:.75rem;font-weight:600;text-decoration:none">'
-            "Bakiye Yükle</a>",
+            "Bakiye / borç</a>",
             url,
         )
 
@@ -206,9 +230,10 @@ class CuzdanHareketiAdmin(ModelAdmin):
         "sonraki_bakiye",
         "sonraki_borc",
         "kaynak",
+        "olusturan",
         "aciklama",
     )
-    list_filter = ("tip", "tarih", "cuzdan__grup")
+    list_filter = ("tip", "tarih", "cuzdan__grup", "olusturan")
     search_fields = (
         "cuzdan__bayi__username",
         "aciklama",

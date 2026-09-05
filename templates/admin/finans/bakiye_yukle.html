@@ -5,6 +5,10 @@
 <div class="max-w-xl">
   <div class="rounded-xl border border-base-200 bg-white p-6">
     <h2 class="mb-1 text-lg font-semibold">{{ cuzdan.bayi.get_username }}</h2>
+    {% if cuzdan.bayi.bayi_profili.unvan %}
+    <p class="mb-4 text-sm text-base-500">{{ cuzdan.bayi.bayi_profili.unvan }}</p>
+    {% endif %}
+
     <dl class="mb-6 grid grid-cols-2 gap-4 text-sm">
       <div>
         <dt class="text-base-500">Bakiye</dt>
@@ -14,19 +18,32 @@
         <dt class="text-base-500">Borç</dt>
         <dd class="text-base font-semibold">{{ cuzdan.borc }} ₺</dd>
       </div>
-
     </dl>
 
     <form method="post" class="space-y-4">
       {% csrf_token %}
       {{ form.as_div }}
-      <p class="text-sm text-base-500">
-        Borç varsa yüklenen tutar önce borçtan düşülür, kalanı bakiyeye yazılır.
-      </p>
+
+      {% comment %}
+        Üç işlemin de ne yaptığı burada yazılı: yönetici hangi haneye
+        yazacağını seçim kutusunun etiketinden değil, örnekten anlasın.
+      {% endcomment %}
+      <div class="rounded-md border border-base-200 p-4 text-sm text-base-500">
+        <p class="mb-2"><b>Hem borç hem bakiye ekle</b> — açık hesap. Bayinin
+        bakiyesi de borcu da artar; hemen işlem yapar, bedelini sonra ödersin
+        diye. 5.000 ₺ verirsen bakiye 5.000, borç 5.000 olur.</p>
+        <p class="mb-2"><b>Sadece borç arttır</b> — yalnızca borç hanesi artar.
+        Düzeltme içindir; bayinin işlem gücü değişmez.</p>
+        <p><b>Tahsilat</b> — bayiden para aldın. Borcu varsa önce o kapanır,
+        artan bakiyeye geçer. 600 ₺ borcu olana 1.000 ₺ girersen borç sıfırlanır,
+        bakiyeye 400 ₺ yazılır. 5.000 ₺ borcu olana 3.000 ₺ girersen borç
+        2.000 ₺'ye iner, bakiye değişmez.</p>
+      </div>
+
       <div class="flex gap-3">
         <button type="submit"
                 class="rounded-md bg-primary-600 px-4 py-2 font-medium text-white">
-          Yüklemeyi Uygula
+          İşlemi Uygula
         </button>
         <a href="{% url 'admin:finans_cuzdan_change' cuzdan.pk %}"
            class="rounded-md border border-base-200 px-4 py-2 font-medium">

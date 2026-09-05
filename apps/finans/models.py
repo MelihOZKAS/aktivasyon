@@ -107,6 +107,18 @@ class Cuzdan(ZamanDamgali):
 
 
 
+class CuzdanIslemi(models.TextChoices):
+    """Yöneticinin cüzdana elle yapabileceği işlemler.
+
+    Üçü de para *ekler*; farkları paranın nereye yazıldığında. Defterde
+    hepsinin ayrı hareket tipi ve yapan kullanıcısı durur.
+    """
+
+    KREDI = "kredi", "Hem borç hem bakiye ekle (açık hesap)"
+    BORC = "borc", "Sadece borç arttır"
+    TAHSILAT = "tahsilat", "Tahsilat — bakiyeyi arttırır, borç varsa önce onu kapatır"
+
+
 class HareketTipi(models.TextChoices):
     YUKLEME = "yukleme", "Bakiye Yükleme"
     TAHSILAT = "tahsilat", "İşlem Ücreti Tahsilatı"

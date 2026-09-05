@@ -16,7 +16,14 @@ from decimal import Decimal
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 
-from apps.finans.models import Cuzdan, CuzdanHareketi, HareketTipi, KuralYonu, UcretKurali
+from apps.finans.models import (
+    Cuzdan,
+    CuzdanHareketi,
+    CuzdanIslemi,
+    HareketTipi,
+    KuralYonu,
+    UcretKurali,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -445,6 +452,60 @@ def basvuru_parasini_geri_al(basvuru, *, olusturan=None):
             ]
         )
         return basvuru_kilitli
+
+
+def cuzdan_islemi(cuzdan, tip, tutar, *, aciklama="", banka=None, olusturan=None, anahtar=None):
+    """Yöneticinin cüzdana elle yaptığı işlem. Tek giriş noktası budur.
+
+    · **Kredi:** bayiye açık hesap verilir — bakiyesi de borcu da artar.
+      Bayi hemen işlem yapabilir, bedeli sonra tahsil edilir.
+    · **Borç:** yalnızca borç hanesi artar; düzeltme içindir.
+    · **Tahsilat:** bayiden para alındı. Borcu varsa önce o kapanır, artan
+      bakiyeye geçer — 600 borcu olana 1000 girilirse borç sıfırlanır,
+      bakiyeye 400 yazılır.
+
+    Her hareket kimin yaptığını taşır (`olusturan`); defterden okunur.
+    """
+    if tutar <= SIFIR:
+        raise ValueError("İşlem tutarı sıfırdan büyük olmalıdır.")
+
+    if tip == CuzdanIslemi.TAHSILAT:
+        return bakiye_yukle(
+            cuzdan, tutar, aciklama=aciklama, banka=banka,
+            olusturan=olusturan, anahtar=anahtar,
+        )
+
+    if tip not in {CuzdanIslemi.KREDI, CuzdanIslemi.BORC}:
+        raise ValueError(f"Bilinmeyen cüzdan işlemi: {tip}")
+
+    with transaction.atomic():
+        cuzdan = Cuzdan.objects.select_for_update().get(pk=cuzdan.pk)
+        anahtar = anahtar or f"elle:{cuzdan.pk}:{CuzdanHareketi.objects.count()}"
+
+        _hareket_yaz(
+            cuzdan=cuzdan,
+            tip=HareketTipi.BORC_EKLE,
+            tutar=tutar,
+            idempotency_anahtari=f"{anahtar}:borc",
+            aciklama=aciklama or dict(CuzdanIslemi.choices)[tip],
+            banka=banka,
+            olusturan=olusturan,
+            borca_yaz=True,
+        )
+
+        if tip == CuzdanIslemi.KREDI:
+            # Açık hesap: borç yazıldı, karşılığında bayi işlem yapabilsin.
+            _hareket_yaz(
+                cuzdan=cuzdan,
+                tip=HareketTipi.YUKLEME,
+                tutar=tutar,
+                idempotency_anahtari=f"{anahtar}:bakiye",
+                aciklama=aciklama or "Açık hesap bakiyesi",
+                banka=banka,
+                olusturan=olusturan,
+            )
+
+        return cuzdan
 
 
 def bakiye_yukle(cuzdan, tutar, *, aciklama="", banka=None, olusturan=None, anahtar=None):

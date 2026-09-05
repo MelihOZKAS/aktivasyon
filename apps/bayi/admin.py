@@ -12,7 +12,7 @@ from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationFo
 
 from django.contrib.auth import update_session_auth_hash
 from django.http import Http404
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from apps.bayi.models import (
@@ -99,8 +99,8 @@ class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
     # Parola düğmesi hem listenin her satırında hem kullanıcı sayfasının
     # üstünde durur: bayi telefonla arayıp "giremiyorum" dediğinde yönetici
     # aramadan çıkmadan halletsin.
-    actions_row = ["yeni_parola"]
-    actions_detail = ["yeni_parola"]
+    actions_row = ["yeni_parola", "cuzdan_islemi"]
+    actions_detail = ["yeni_parola", "cuzdan_islemi"]
     list_display = (
         "username",
         "unvan_gosterimi",
@@ -168,6 +168,30 @@ class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
         return render(
             request, "admin/bayi/yeni_parola.html", {**baglam, "parola": parola}
         )
+
+    @unfold_islem(
+        description="Bakiye / borç",
+        url_path="cuzdan-islemi",
+        permissions=["change"],
+        icon="account_balance_wallet",
+    )
+    def cuzdan_islemi(self, request, object_id):
+        """Kullanıcı listesinden doğrudan cüzdan işlemine götürür.
+
+        Yönetici bayiyi kullanıcı adından buluyor; para işlemi için ayrıca
+        Cüzdanlar ekranında aynı bayiyi ikinci kez aramasın. Ekran tek yerde
+        (`CuzdanAdmin`), buradan yalnızca yönlendiriliyor.
+        """
+        from apps.finans.models import Cuzdan
+
+        kullanici = self.get_object(request, object_id)
+        if kullanici is None:
+            raise Http404("Kullanıcı bulunamadı.")
+
+        # Elle açılmış kullanıcının cüzdanı olmayabilir; para ekranı için
+        # sıfır bakiyeli cüzdan açılır, yönetici boş ekranla karşılaşmaz.
+        cuzdan, _ = Cuzdan.objects.get_or_create(bayi=kullanici)
+        return redirect("admin:finans_cuzdan_bakiye_yukle", cuzdan_id=cuzdan.pk)
 
     @admin.display(description="Bakiye")
     def bakiye_gosterimi(self, obj):

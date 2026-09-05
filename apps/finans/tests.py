@@ -719,3 +719,121 @@ class TarifeParaEkraniTestleri(TestCase):
         yanit = self.client.get(f"/yonetim/katalog/tarife/{self.tarife.pk}/change/")
 
         self.assertContains(yanit, "Henüz fiyat girilmedi")
+
+
+class CuzdanIslemEkrani(TestCase):
+    """Yönetici cüzdana elle üç türlü işlem yapabilir.
+
+    Üçü de para ekler; farkları paranın hangi haneye yazıldığı. Hepsinde
+    kimin yaptığı defterde durur.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        self.bayi = User.objects.create_user("5551112233", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi)
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _adres(self):
+        from django.urls import reverse
+
+        return reverse("admin:finans_cuzdan_bakiye_yukle", args=[self.cuzdan.pk])
+
+    def _uygula(self, tip, tutar, anahtar="t1"):
+        return self.client.post(
+            self._adres(),
+            {"tip": tip, "tutar": tutar, "banka": "", "aciklama": "",
+             "islem_anahtari": anahtar},
+            follow=True,
+        )
+
+    def test_kredi_hem_borc_hem_bakiye_ekler(self):
+        from apps.finans.models import CuzdanIslemi
+
+        self._uygula(CuzdanIslemi.KREDI, "5000.00")
+        self.cuzdan.refresh_from_db()
+
+        self.assertEqual(self.cuzdan.bakiye, TL("5000.00"))
+        self.assertEqual(self.cuzdan.borc, TL("5000.00"))
+
+    def test_sadece_borc_arttirilir(self):
+        from apps.finans.models import CuzdanIslemi
+
+        self._uygula(CuzdanIslemi.BORC, "1200.00")
+        self.cuzdan.refresh_from_db()
+
+        self.assertEqual(self.cuzdan.borc, TL("1200.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+
+    def test_tahsilat_once_borcu_kapatir_kalani_bakiyeye_yazar(self):
+        """600 borcu olana 1000 girilince borç sıfırlanır, bakiyeye 400 yazılır."""
+        from apps.finans.models import CuzdanIslemi
+
+        self.cuzdan.borc = TL("600.00")
+        self.cuzdan.save(update_fields=["borc"])
+
+        self._uygula(CuzdanIslemi.TAHSILAT, "1000.00")
+        self.cuzdan.refresh_from_db()
+
+        self.assertEqual(self.cuzdan.borc, TL("0.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("400.00"))
+
+    def test_borctan_az_tahsilat_yalnizca_borcu_dusurur(self):
+        """5000 borcu olana 3000 girilince borç 2000'e iner, bakiye değişmez."""
+        from apps.finans.models import CuzdanIslemi
+
+        self.cuzdan.borc = TL("5000.00")
+        self.cuzdan.save(update_fields=["borc"])
+
+        self._uygula(CuzdanIslemi.TAHSILAT, "3000.00")
+        self.cuzdan.refresh_from_db()
+
+        self.assertEqual(self.cuzdan.borc, TL("2000.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+
+    def test_islemi_kimin_yaptigi_defterde_durur(self):
+        from apps.finans.models import CuzdanIslemi
+
+        self._uygula(CuzdanIslemi.KREDI, "1000.00")
+
+        yapanlar = set(
+            CuzdanHareketi.objects.filter(cuzdan=self.cuzdan)
+            .values_list("olusturan__username", flat=True)
+        )
+        self.assertEqual(yapanlar, {"yonetici"})
+
+    def test_sayfa_yenilemek_islemi_ikinci_kez_yazmaz(self):
+        """Anahtar formda taşınır; aynı gönderim iki kez işlenmez."""
+        from apps.finans.models import CuzdanIslemi
+
+        self._uygula(CuzdanIslemi.BORC, "500.00", anahtar="ayni")
+        self._uygula(CuzdanIslemi.BORC, "500.00", anahtar="ayni")
+        self.cuzdan.refresh_from_db()
+
+        self.assertEqual(self.cuzdan.borc, TL("500.00"))
+
+    def test_kullanici_listesinden_cuzdan_islemine_gidilir(self):
+        from django.urls import reverse
+
+        yanit = self.client.get(
+            reverse("admin:auth_user_cuzdan_islemi", args=[self.bayi.pk])
+        )
+
+        self.assertEqual(yanit.status_code, 302)
+        self.assertIn(self._adres(), yanit["Location"])
+
+    def test_cuzdani_olmayan_kullanicida_da_acilir(self):
+        from django.contrib.auth.models import User
+
+        from django.urls import reverse
+
+        cuzdansiz = User.objects.create_user("5559998877", password="parola12345")
+
+        yanit = self.client.get(
+            reverse("admin:auth_user_cuzdan_islemi", args=[cuzdansiz.pk])
+        )
+
+        self.assertEqual(yanit.status_code, 302)
+        self.assertTrue(Cuzdan.objects.filter(bayi=cuzdansiz).exists())

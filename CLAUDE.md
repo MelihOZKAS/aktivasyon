@@ -136,6 +136,16 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Bu, **borç kuralıyla çelişmez**: borcun üst sınırı yok, ama borç işlenmiş
   bir işlemin sonucudur — parası olmadan yeni bir işlem *başlatmak* ayrı
   şeydir. Tahsilat kuralı yoksa hiçbir kategori engellenmez.
+- **Cüzdana elle yapılan işlem üç türlüdür** (`CuzdanIslemi`): *hem borç hem
+  bakiye ekle* (açık hesap — bayi hemen işlem yapar, bedelini sonra öder),
+  *sadece borç arttır* (düzeltme) ve *tahsilat* (bayiden para alındı; borcu
+  varsa önce o kapanır, artan bakiyeye geçer). Tek giriş noktası
+  `apps.finans.services.cuzdan_islemi`. Ekran hem **Cüzdanlar** hem
+  **Kullanıcılar** listesinden açılır — yönetici bayiyi kullanıcı adından
+  bulup para işlemi için ikinci kez aramasın; ekranın kendisi tek yerdedir,
+  kullanıcı tarafı yalnızca yönlendirir. Her hareket kimin yaptığını taşır
+  (`olusturan`) ve hareket listesinde görünür. İşlem anahtarı formda gizli
+  alanda taşınır: sayfa yenilenince aynı işlem ikinci kez yazılmaz.
 - **Bayiye giren her kuruş önce borcu kapatır.** Hakediş de elle yapılan
   bakiye yüklemesi de aynı sırayı izler: borç varsa oradan düşülür (`BORC_TAHSIL`),
   kalanı bakiyeye yazılır. 100 borcu olan bayi 250 hakediş alınca cüzdanında
