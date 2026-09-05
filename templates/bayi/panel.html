@@ -85,9 +85,15 @@
         <span class="min-w-0 flex-1">
           <span class="baslik block truncate font-semibold">{{ kategori.ad }}</span>
           <span class="mt-1 flex items-center gap-2.5 text-sm">
+            {% comment %}
+              Bu rakam kazanılmış para değil, fiyat listesi: bu kategoriden
+              başvuru girilirse kazanılacak tutar. Cüzdan bakiyesinin hemen
+              altında durduğu için yalnızca "hakediş" yazmak "elimde 250 var"
+              diye okunuyordu; etiket bunu birim olarak söylüyor.
+            {% endcomment %}
             {% if kategori.hakedis_alt %}
-            <span class="rakam font-semibold text-olumlu">{{ kategori.hakedis_alt|para }}{% if kategori.hakedis_ust != kategori.hakedis_alt %}–{{ kategori.hakedis_ust|para }}{% endif %} ₺</span>
-            <span class="text-soluk">hakediş</span>
+            <span class="rakam shrink-0 font-semibold text-olumlu">{{ kategori.hakedis_alt|para }}{% if kategori.hakedis_ust != kategori.hakedis_alt %}–{{ kategori.hakedis_ust|para }}{% endif %} ₺</span>
+            <span class="shrink-0 text-soluk">/ başvuru</span>
             {% endif %}
             <span class="ml-auto flex shrink-0 items-center gap-1"
                   title="{% for o in kategori.gecerli %}{{ o.ad }}{% if not forloop.last %}, {% endif %}{% endfor %}">
