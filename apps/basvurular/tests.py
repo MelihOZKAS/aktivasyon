@@ -2012,3 +2012,61 @@ class AdminBasvuruGorunumu(TestCase):
         ).content.decode()
 
         self.assertIn('name="musteri_tipi"', icerik)
+
+
+class KarOzetiKartlari(TestCase):
+    """Liste üstündeki kartlar satırlarla aynı rakamı söylemeli.
+
+    "Bayilerden kesilen" yalnızca `tahsil_edilen`i topluyordu; giriş
+    bedeliyle satılan işlemde kart 0, kâr 150 yazıyor ve aynı ekrandaki iki
+    rakam birbirini tutmuyordu. Giriş bedeli de bayinin cebinden çıkar.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.finans.models import Cuzdan, KuralYonu, UcretKurali
+        from apps.katalog.models import BasvuruKategorisi, Operator
+
+        self.giris = BasvuruDurumu.objects.create(
+            ad="Giriş", slug="giris", baslangic_durumu=True
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+
+        self.bayi = User.objects.create_user("5304517888", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi, bakiye=Decimal("5000.00"))
+
+        # Bayi girişte 1150 öder (giriş bedeli), biz 1000'e alırız.
+        UcretKurali.objects.create(
+            ad="Hat ücreti", yon=KuralYonu.TAHSILAT, tutar=Decimal("1150.00"),
+            kategori=self.kategori, tetikleyici_durum=self.giris,
+        )
+        UcretKurali.objects.create(
+            ad="Turkcell alışım", yon=KuralYonu.ANA_HAKEDIS, tutar=Decimal("1000.00"),
+            kategori=self.kategori, operator=self.operator,
+            tetikleyici_durum=self.aktif,
+        )
+
+        basvuru = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            isim="deneme", soyisim="deneme", kimlik_no="1", irtibat="5551112233",
+            durum=self.giris,
+        )
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def test_giris_bedeli_kesinti_kartina_girer(self):
+        yanit = self.client.get("/yonetim/basvurular/basvuru/")
+        ozet = yanit.context_data["kar_ozeti"]
+
+        self.assertEqual(ozet["tahsilat"], Decimal("1150.00"))
+        self.assertEqual(ozet["ana_hakedis"], Decimal("1000.00"))
+        self.assertEqual(ozet["hakedis"], Decimal("0"))
+        self.assertEqual(ozet["kar"], Decimal("150.00"))

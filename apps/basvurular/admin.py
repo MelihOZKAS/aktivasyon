@@ -460,9 +460,15 @@ class BasvuruAdmin(ModelAdmin):
 
         # Alış bedeli giderdir: hattı operatörden ya da tedarikçiden alırken
         # ödediğimiz tutar. Bir süre gelir sayılıyordu ve kâr şişik çıkıyordu.
+        #
+        # "Bayilerden kesilen" giriş bedelini de içerir: ikisi de bayinin
+        # cebinden çıkan paradır ve satır sütunu (`tutar_ozeti`) zaten
+        # birlikte gösteriyor. Kart yalnızca `tahsil_edilen`i toplayınca
+        # giriş bedeliyle satılan işlemde 0 yazıyor, kâr ise 150 çıkıyordu —
+        # aynı ekranda iki rakam birbirini tutmuyordu.
         yanit.context_data["kar_ozeti"] = {
             "ana_hakedis": alis,
-            "tahsilat": kesinti,
+            "tahsilat": kesinti + giris,
             "hakedis": odenen,
             "kar": kesinti + giris - odenen - alis,
         }

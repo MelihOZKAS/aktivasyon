@@ -213,6 +213,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Başvurudaki `hakedis` alanı yine 250'dir — mahsup cüzdan tarafındadır,
   bayinin hakedişi kısılmaz. Bayiye para giren yeni bir kalem eklersen
   aynı sırayı uygula.
+- **Giriş bedeli özet rakamlarda tahsilatla birlikte sayılır.** Başvuru
+  listesinin üstündeki "Bayilerden kesilen" kartı yalnızca `tahsil_edilen`i
+  topluyordu; giriş bedeliyle satılan işlemde kart 0, kâr 150 yazıyor ve aynı
+  ekrandaki iki rakam birbirini tutmuyordu. İkisi de bayinin cebinden çıkan
+  paradır — satır sütunu (`tutar_ozeti`) zaten birlikte gösteriyordu. Bayiden
+  gelen parayı toplayan yeni bir yer eklersen `giris_bedeli`'ni de kat.
 - **Giriş bedeli ayrı bir hattır.** Bayi ürünü alırken öder: başvurunun
   **başlangıç durumuna** ("İlk giriş") yazılmış `TAHSILAT` kuralı, başvuru
   oluşturulduğu anda işler (`giris_bedelini_isle`). Aktivasyonda işleyen
