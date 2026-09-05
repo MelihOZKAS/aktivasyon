@@ -9,6 +9,7 @@ from django.db import transaction
 
 from apps.basvurular.models import BasvuruDurumu
 from apps.katalog.models import AlanTipi, BasvuruKategorisi, KategoriAlani, MusteriTipi, Operator
+from apps.katalog.varsayilan_alanlar import ORTAK_ALANLAR, TASINACAK_NUMARA
 
 DURUMLAR = [
     # (ad, slug, renk, ikon, baslangic, hakedis, olumsuz, bayi_duzenler,
@@ -28,24 +29,8 @@ OPERATORLER = [
     ("Türk Telekom", "#00a0e3"),
 ]
 
-# Her kategoriye açılan ortak müşteri alanları. Bunlar sabit değil: admin
-# yönetim panelinden çıkarabilir, sırasını ve etiketini değiştirebilir.
-# (kod, etiket, tip, zorunlu, grup, seçenekler, çekirdek alan)
-ORTAK_ALANLAR = [
-    ("kimlik_tipi", "Kimlik Tipi", AlanTipi.SECIM, True, "Müşteri", "", "kimlik_tipi"),
-    ("kimlik_no", "TC / Pasaport No", AlanTipi.METIN, True, "Müşteri", "", "kimlik_no"),
-    ("isim", "İsim", AlanTipi.METIN, True, "Müşteri", "", "isim"),
-    ("soyisim", "Soy İsim", AlanTipi.METIN, True, "Müşteri", "", "soyisim"),
-    ("dogum_tarihi", "Doğum Tarihi", AlanTipi.TARIH, False, "Müşteri", "", ""),
-    ("irtibat", "İletişim No", AlanTipi.TELEFON, True, "Müşteri", "", "irtibat"),
-    ("sehir", "Şehir", AlanTipi.METIN, False, "Adres", "", ""),
-    ("ilce", "İlçe", AlanTipi.METIN, False, "Adres", "", ""),
-    ("adres", "Adres", AlanTipi.UZUN_METIN, False, "Adres", "", "adres"),
-]
-
-TASINACAK_NUMARA = (
-    "numara", "Taşınacak No", AlanTipi.TELEFON, True, "Müşteri", "", "numara",
-)
+# Ortak müşteri alanları panelden açılan kategorilerde de kullanılıyor;
+# liste tek yerde durur (apps/katalog/varsayilan_alanlar.py).
 
 # (ad, ikon, musteri_tipi, tarife_zorunlu, sim_karsiligi, sira,
 #  kategoriye özel ek alanlar)

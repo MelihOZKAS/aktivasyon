@@ -531,3 +531,107 @@ class AcikGorselSunumu(TestCase):
         yanit = self.client.get("/media/tarife/../basvuru/2026/09/kimlik.webp")
 
         self.assertEqual(yanit.status_code, 404)
+
+
+class YeniKategoriVarsayilanAlanlari(TestCase):
+    """Panelden açılan kategori boş formla gelmez.
+
+    Alanlar açık gelir; sorulmayacak olanı yönetici "Aktif" kutusundan
+    kapatır. Kapatmak, on beş satırı elle girmekten kolaydır.
+    """
+
+    ADRES = "/yonetim/katalog/basvurukategorisi/add/"
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _kategori_ekle(self, ad, musteri_tipi="hepsi"):
+        from apps.katalog.models import BasvuruKategorisi
+
+        cevap = self.client.post(
+            self.ADRES,
+            {
+                "ad": ad,
+                "slug": "",
+                "aciklama": "",
+                "ikon": "sim_card",
+                "musteri_tipi": musteri_tipi,
+                "sira": "10",
+                "alanlar-TOTAL_FORMS": "0",
+                "alanlar-INITIAL_FORMS": "0",
+                "tarifeler-TOTAL_FORMS": "0",
+                "tarifeler-INITIAL_FORMS": "0",
+            },
+            follow=True,
+        )
+        self.assertEqual(cevap.status_code, 200)
+        return BasvuruKategorisi.objects.get(ad=ad)
+
+    def test_yeni_kategoride_butun_alanlar_acik_gelir(self):
+        """Listedeki her alan gelir ve hepsi aktiftir; istisna yok."""
+        from apps.katalog.varsayilan_alanlar import TUM_ALANLAR
+
+        kategori = self._kategori_ekle("Yeni İşlem")
+        kodlar = set(kategori.alanlar.values_list("kod", flat=True))
+
+        self.assertEqual(kodlar, {alan[0] for alan in TUM_ALANLAR})
+        self.assertTrue(all(kategori.alanlar.values_list("aktif", flat=True)))
+
+    def test_kimlik_de_pasaport_da_acik_gelir(self):
+        """Müşteri tipine göre dallanma yok: gereksizi yönetici kapatır."""
+        kategori = self._kategori_ekle("Pasaportlu İşlem", musteri_tipi="yabanci")
+        kodlar = set(kategori.alanlar.values_list("kod", flat=True))
+
+        self.assertIn("pasaport_on", kodlar)
+        self.assertIn("kimlik_on", kodlar)
+
+    def test_her_kategoriye_acilan_niste_alan_zorunlu_degil(self):
+        """Kapatmayı unutan yönetici bayiyi olmayan bilgiye mahkûm etmesin."""
+        kategori = self._kategori_ekle("Yeni İşlem")
+
+        self.assertFalse(kategori.alanlar.get(kod="numara").zorunlu)
+        self.assertFalse(kategori.alanlar.get(kod="gececegi_operator").zorunlu)
+        # Her işlemde sorulanlar zorunlu kalır.
+        self.assertTrue(kategori.alanlar.get(kod="isim").zorunlu)
+        self.assertTrue(kategori.alanlar.get(kod="kimlik_no").zorunlu)
+
+    def test_var_olan_kategori_kaydedilince_alan_cogalmaz(self):
+        kategori = self._kategori_ekle("Yeni İşlem")
+        adet = kategori.alanlar.count()
+
+        self.client.post(
+            f"/yonetim/katalog/basvurukategorisi/{kategori.pk}/change/",
+            {
+                "ad": "Yeni İşlem",
+                "slug": kategori.slug,
+                "aciklama": "",
+                "ikon": "sim_card",
+                "musteri_tipi": "hepsi",
+                "sira": "10",
+                "aktif": "on",
+                "alanlar-TOTAL_FORMS": "0",
+                "alanlar-INITIAL_FORMS": "0",
+                "tarifeler-TOTAL_FORMS": "0",
+                "tarifeler-INITIAL_FORMS": "0",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(kategori.alanlar.count(), adet)
+
+    def test_kapatilan_alan_geri_acilmaz(self):
+        """Yönetici bir alanı kapattıysa sonraki kayıtta geri gelmemeli."""
+        kategori = self._kategori_ekle("Yeni İşlem")
+        alan = kategori.alanlar.get(kod="sim_imei")
+        alan.aktif = False
+        alan.save(update_fields=["aktif"])
+
+        from apps.katalog.varsayilan_alanlar import varsayilan_alanlari_ac
+
+        varsayilan_alanlari_ac(kategori)
+        alan.refresh_from_db()
+
+        self.assertFalse(alan.aktif)

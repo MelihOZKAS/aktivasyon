@@ -15,6 +15,7 @@ from apps.katalog.models import (
     Operator,
     Tarife,
 )
+from apps.katalog.varsayilan_alanlar import varsayilan_alanlari_ac
 
 SIFIR = Decimal("0.00")
 
@@ -63,9 +64,42 @@ class BasvuruKategorisiAdmin(ModelAdmin):
     inlines = [KategoriAlaniInline, TarifeInline]
     fieldsets = (
         ("Tanım", {"fields": ("ad", "slug", "aciklama", "ikon")}),
-        ("Kapsam", {"fields": ("operatorler", "musteri_tipi", "tarife_zorunlu")}),
+        (
+            "Kapsam",
+            {
+                "fields": (
+                    "operatorler", "musteri_tipi", "tarife_zorunlu",
+                    "sim_karsiligi_gerekir",
+                ),
+            },
+        ),
         ("Görünüm", {"fields": ("sira", "aktif")}),
     )
+
+    def save_related(self, request, form, formsets, change):
+        """Yeni kategori formuyla birlikte açılır.
+
+        Kategori panelden açıldığında hiç alanı olmuyordu: bayi boş bir form
+        görüyor, yönetici on beş satırı elle giriyordu. Varsayılanlar açık
+        gelir, gerekmeyeni yönetici aşağıdaki tablodan kapatır.
+
+        `save_model` değil `save_related`: satır içi tablo o sırada
+        kaydedilmiş oluyor, yöneticinin kendi eklediği alanla aynı koddan
+        ikinci bir kayıt açılmıyor.
+        """
+        super().save_related(request, form, formsets, change)
+
+        if change:
+            return
+
+        acilan = varsayilan_alanlari_ac(form.instance)
+        if acilan:
+            self.message_user(
+                request,
+                f"{acilan} form alanı hazır geldi. Bu kategoride sorulmayacak "
+                "alanların “Aktif” kutusunu kapatın.",
+                messages.INFO,
+            )
 
     @admin.display(description="Form Alanı")
     def alan_sayisi(self, obj):
