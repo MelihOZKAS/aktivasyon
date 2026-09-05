@@ -339,6 +339,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   alanlarından topla; defter satırı tek tek doğrudur ama toplamı almak
   hareket tiplerini bilmeyi gerektirir (borç satırının işareti bakiye
   satırıyla aynı anlama gelmez).
+- **Stok ve alacak özeti tek ekranda toplanır** (`apps/ozet.py`,
+  `/yonetim/ozet/`). SIM stoğu, bayilerdeki kartlar, beklenen SIM
+  karşılıkları, tedarikçi borçları ve işlenen ana hakediş ayrı listelerde
+  duruyordu; yönetici hepsini ayrı ekranda açıp kafasında topluyordu. Her
+  satır kendi filtreli listesine gider — sayı burada, ayrıntı bir tık ötede.
+  Rakamlar hesaplanır, **saklanmaz**: kaynak yine başvurular, SIM kartlar ve
+  cüzdanlardır; ikinci bir doğruluk kaynağı yaratılmaz. Operatörden gelen ana
+  hakedişin tahsil edilip edilmediği sistemde izlenmez (operatörün cüzdanı
+  yok) — sayfa bunu açıkça yazar.
 - **Bayi hakedişini şeffaf görür.** `/hakedisler/` sayfası hangi tarifeden ne
   kazanacağını, kesintisini ve elde kalan neti gösterir. Yeni bir para kalemi
   eklerken bu sayfayı da güncelle.

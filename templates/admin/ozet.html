@@ -1,0 +1,137 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Stok ve alacak özeti. Sınıflar unfold'un derlenmiş CSS'inden gelir; bizim
+  static/app.css yönetim panelinde yüklü değildir. Her satır kendi filtreli
+  listesine gider: sayı burada, ayrıntı bir tık ötede.
+{% endcomment %}
+
+{% block content %}
+<div class="grid gap-4 lg:grid-cols-2">
+
+  <section class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
+      SIM stoğu
+    </h2>
+    <p class="mb-4 text-sm text-base-500">Kartların nerede olduğu.</p>
+    <dl class="space-y-2 text-sm">
+      {% for satir in sim_durumlari %}
+      <div class="flex items-baseline gap-3">
+        <dt class="text-base-500">{{ satir.etiket }}</dt>
+        <dd class="ml-auto font-semibold">
+          <a href="{{ satir.adres }}" class="text-primary-600">{{ satir.adet }}</a>
+        </dd>
+      </div>
+      {% endfor %}
+    </dl>
+  </section>
+
+  <section class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
+      Beklenen SIM kartlar
+    </h2>
+    <p class="mb-4 text-sm text-base-500">
+      Tamamlanan işlemlerin karşılığı; kimden kaç kart alacağız.
+    </p>
+    {% if sim_alacaklari.satirlar %}
+    <dl class="space-y-2 text-sm">
+      {% for satir in sim_alacaklari.satirlar %}
+      <div class="flex items-baseline gap-3">
+        <dt class="text-base-500">
+          {{ satir.ad }}
+          <span class="text-xs text-base-400">· {{ satir.tur }}</span>
+        </dt>
+        <dd class="ml-auto font-semibold">
+          <a href="{{ basvuru_listesi }}?sim_karsiligi_alindi__exact=0&{{ satir.filtre }}"
+             class="text-primary-600">{{ satir.adet }}</a>
+        </dd>
+      </div>
+      {% endfor %}
+      <div class="flex items-baseline gap-3 border-t border-base-200 pt-2 dark:border-base-700">
+        <dt class="font-semibold">Toplam</dt>
+        <dd class="ml-auto font-semibold">{{ sim_alacaklari.toplam }}</dd>
+      </div>
+    </dl>
+    {% else %}
+    <p class="text-sm text-base-500">Bekleyen SIM karşılığı yok.</p>
+    {% endif %}
+  </section>
+
+  <section class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
+      Bayilerdeki kartlar
+    </h2>
+    <p class="mb-4 text-sm text-base-500">Zimmetli, henüz kullanılmamış kartlar.</p>
+    {% if bayideki_kartlar %}
+    <dl class="space-y-2 text-sm">
+      {% for satir in bayideki_kartlar %}
+      <div class="flex items-baseline gap-3">
+        <dt>
+          <span class="text-font-important-light dark:text-font-important-dark">{{ satir.ad }}</span>
+          <span class="block text-xs text-base-400">{{ satir.numara }}</span>
+        </dt>
+        <dd class="ml-auto font-semibold">
+          <a href="{{ satir.adres }}" class="text-primary-600">{{ satir.adet }}</a>
+        </dd>
+      </div>
+      {% endfor %}
+    </dl>
+    {% else %}
+    <p class="text-sm text-base-500">Hiçbir bayide zimmetli kart yok.</p>
+    {% endif %}
+  </section>
+
+  <section class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
+      Tedarikçilerden alacağım
+    </h2>
+    <p class="mb-4 text-sm text-base-500">
+      Üstlendikleri işlemin bedeli cüzdanlarından düştü; bakiyeleri yetmediği
+      için borçta kalan tutar.
+    </p>
+    {% if tedarikci_borclari.satirlar %}
+    <dl class="space-y-2 text-sm">
+      {% for satir in tedarikci_borclari.satirlar %}
+      <div class="flex items-baseline gap-3">
+        <dt>
+          <span class="text-font-important-light dark:text-font-important-dark">{{ satir.ad }}</span>
+          <span class="block text-xs text-base-400">{{ satir.numara }}</span>
+        </dt>
+        <dd class="ml-auto font-semibold">
+          <a href="{{ satir.adres }}" class="text-primary-600">{{ satir.borc }} ₺</a>
+        </dd>
+      </div>
+      {% endfor %}
+      <div class="flex items-baseline gap-3 border-t border-base-200 pt-2 dark:border-base-700">
+        <dt class="font-semibold">Toplam</dt>
+        <dd class="ml-auto font-semibold">{{ tedarikci_borclari.toplam }} ₺</dd>
+      </div>
+    </dl>
+    {% else %}
+    <p class="text-sm text-base-500">Borçlu tedarikçi yok.</p>
+    {% endif %}
+  </section>
+
+  <section class="rounded-default border border-base-200 bg-white p-5 lg:col-span-2 dark:border-base-800 dark:bg-base-900">
+    <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
+      İşlenen ana hakediş
+    </h2>
+    <p class="mb-4 text-sm text-base-500">
+      Tamamlanan işlemlerden kazandığınız tutar, kaynağına göre.
+      <b>Operatörden gelen tahsil edildi mi, sistem izlemez</b> — operatörün
+      cüzdanı yoktur, tutar yalnızca başvuruya işlenir. Tedarikçiden gelen
+      cüzdandan düşer; tahsil edilmemiş kısmı yandaki borç tablosundadır.
+    </p>
+    <dl class="grid gap-4 sm:grid-cols-2 text-sm">
+      <div>
+        <dt class="text-base-500">Operatörden</dt>
+        <dd class="text-xl font-semibold">{{ ana_hakedis.operatorden }} ₺</dd>
+      </div>
+      <div>
+        <dt class="text-base-500">Tedarikçilerden</dt>
+        <dd class="text-xl font-semibold">{{ ana_hakedis.tedarikciden }} ₺</dd>
+      </div>
+    </dl>
+  </section>
+</div>
+{% endblock %}

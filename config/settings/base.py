@@ -225,6 +225,11 @@ UNFOLD = {
                 "separator": True,
                 "items": [
                     {
+                        "title": "Stok ve Alacak Özeti",
+                        "icon": "insights",
+                        "link": "/yonetim/ozet/",
+                    },
+                    {
                         "title": "Cüzdanlar",
                         "icon": "account_balance_wallet",
                         "link": "/yonetim/finans/cuzdan/",

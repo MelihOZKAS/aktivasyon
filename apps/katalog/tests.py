@@ -1059,3 +1059,114 @@ class TarifeGorunurlukSutunlari(TestCase):
         self.tarife.refresh_from_db()
         self.assertFalse(self.tarife.aktif)
         self.assertTrue(self.tarife.bayiye_gorunur)
+
+
+class StokVeAlacakOzeti(TestCase):
+    """Tek ekranda "nerede ne var".
+
+    SIM kartlar, beklenen karşılıklar ve tedarikçi borçları ayrı listelerde
+    duruyordu; yönetici üçünü ayrı ekranda açıp kafasında topluyordu.
+    """
+
+    ADRES = "/yonetim/ozet/"
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+        from apps.bayi.models import BayiProfili, SimKart, SimKartDurumu
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import BasvuruKategorisi, Operator
+
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(
+            ad="Kontörlü Yeni Hat", sim_karsiligi_gerekir=True
+        )
+
+        self.bayi = User.objects.create_user("5435609672", password="parola12345")
+        BayiProfili.objects.create(kullanici=self.bayi, unvan="fadil deneme")
+        Cuzdan.objects.create(bayi=self.bayi)
+
+        self.tedarikci = User.objects.create_user("5524144444", password="parola12345")
+        BayiProfili.objects.create(
+            kullanici=self.tedarikci, unvan="Melih Paşa", tedarikci_mi=True
+        )
+        Cuzdan.objects.create(bayi=self.tedarikci, borc=Decimal("4500.00"))
+
+        SimKart.objects.create(imei="1", operator=self.operator)
+        SimKart.objects.create(
+            imei="2", operator=self.operator, bayi=self.bayi,
+            durum=SimKartDurumu.ATANDI,
+        )
+        SimKart.objects.create(
+            imei="3", operator=self.operator, bayi=self.bayi,
+            durum=SimKartDurumu.ATANDI,
+        )
+
+        Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            isim="Ayşe", soyisim="Demir", kimlik_no="1", irtibat="5551112233",
+            durum=self.aktif, ana_hakedis=Decimal("400.00"), ana_hakedis_islendi=True,
+        )
+
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _sayfa(self):
+        return self.client.get(self.ADRES).content.decode()
+
+    def test_sim_stogu_durumlariyla_gorunur(self):
+        icerik = self._sayfa()
+
+        self.assertIn("SIM stoğu", icerik)
+        self.assertIn("Bayiye Atandı", icerik)
+
+    def test_bayideki_kartlar_unvaniyla_sayilir(self):
+        icerik = self._sayfa()
+
+        self.assertIn("fadil deneme", icerik)
+        self.assertIn("5435609672", icerik)
+
+    def test_beklenen_sim_kartlar_listelenir(self):
+        icerik = self._sayfa()
+
+        self.assertIn("Beklenen SIM kartlar", icerik)
+        self.assertIn("Turkcell", icerik)
+
+    def test_tedarikci_borcu_alacak_olarak_gorunur(self):
+        icerik = self._sayfa()
+
+        self.assertIn("Tedarikçilerden alacağım", icerik)
+        self.assertIn("Melih Paşa", icerik)
+        # Şablon Türkçe biçimde yazıyor: 4500,00
+        self.assertIn("4500,00", icerik)
+
+    def test_borcu_olmayan_bayi_alacak_listesine_girmez(self):
+        """Liste tedarikçilere ait; borçlu bayi buraya karışmaz."""
+        from decimal import Decimal
+
+        from apps.finans.models import Cuzdan
+
+        Cuzdan.objects.filter(bayi=self.bayi).update(borc=Decimal("999.00"))
+
+        icerik = self._sayfa()
+
+        self.assertNotIn("999,00", icerik)
+
+    def test_ana_hakedis_kaynagina_gore_ayrilir(self):
+        icerik = self._sayfa()
+
+        self.assertIn("İşlenen ana hakediş", icerik)
+        self.assertIn("400,00", icerik)
+
+    def test_personel_olmayan_giremez(self):
+        self.client.force_login(self.bayi)
+
+        yanit = self.client.get(self.ADRES)
+
+        self.assertEqual(yanit.status_code, 302)
