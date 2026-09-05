@@ -254,8 +254,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   çoktan çoğadır; operatör aynı paketi hem numara taşımada hem yeni hatta
   veriyorsa tarife bir kez açılır, kategoriler işaretlenir. Tekil `kategori`
   alanı varken aynı tarife iki kez açılıyor, fiyatı iki yerde güncelleniyordu.
-  Tekillik anahtarı bu yüzden `(operatör, ad)`: kategori artık anahtarın
-  parçası değil. Kategori sayfasındaki satır içi tablo bağlantı tablosu
+  **Tarifede tekillik kısıtı yoktur.** Eski kısıt (kategori, operatör, ad)
+  bir kategoride aynı tarifenin iki kez açılmasını engelliyordu; kategori
+  çoğullaşınca veritabanı karşılığı (operatör, ad) olurdu. O kısıt konunca
+  migration üretimde patladı: "İlk Turkcellim" iki kategoride ayrı ayrı
+  tanımlıydı ve kısıt onların birleştirilmesini şart koşuyordu. Her tarifenin
+  kendi para kuralları olduğu için birleştirmek hangi fiyatın kalacağına karar
+  vermektir — migration'ın vereceği bir karar değil. Yönetici isterse
+  kategorileri tek tarifede işaretleyip diğerini kapatır. Kısıtı geri ekleme. Kategori sayfasındaki satır içi tablo bağlantı tablosu
   üzerinden kurulur (`Tarife.kategoriler.through`) — oradan tarife
   eklenip çıkarılır, ayrıntısı Tarifeler ekranından girilir. Tarife
   sorgularında `kategori=` değil `kategoriler=` kullan.

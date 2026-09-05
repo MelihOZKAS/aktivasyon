@@ -777,3 +777,51 @@ class TarifeBirdenCokKategoride(TestCase):
     def test_kategori_adlari_tek_satirda_yazilir(self):
         self.assertIn("Numara Taşıma", self.tarife.kategori_adlari)
         self.assertIn("Faturalı Yeni Hat", self.tarife.kategori_adlari)
+
+
+class AyniAdliTarifelerGecisiBozmaz(TestCase):
+    """Aynı ad + operatör iki ayrı kategoride durabilir.
+
+    Kategori çoğullaşırken (operatör, ad) tekillik kısıtı konmuştu; üretimde
+    "İlk Turkcellim" iki kategoride ayrı ayrı tanımlı olduğu için migration
+    kısıtı kuramayıp container'ı açılışta öldürdü. Kısıt kaldırıldı:
+    tarifeleri birleştirmek para kuralları arasında seçim yapmak demek,
+    bu karar yöneticinindir.
+    """
+
+    def test_ayni_ad_ve_operator_iki_kez_tanimlanabilir(self):
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        operator = Operator.objects.create(ad="Turkcell")
+        tasima = BasvuruKategorisi.objects.create(ad="Numara Taşıma")
+        yeni_hat = BasvuruKategorisi.objects.create(ad="Yeni Hat")
+
+        birinci = Tarife.objects.create(operator=operator, ad="İlk Turkcellim")
+        birinci.kategoriler.add(tasima)
+        ikinci = Tarife.objects.create(operator=operator, ad="İlk Turkcellim")
+        ikinci.kategoriler.add(yeni_hat)
+
+        self.assertEqual(
+            Tarife.objects.filter(operator=operator, ad="İlk Turkcellim").count(), 2
+        )
+
+    def test_yonetici_ikisini_tek_tarifede_toplayabilir(self):
+        """Birleştirme yolu açık: kategorileri işaretle, diğerini kapat."""
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        operator = Operator.objects.create(ad="Turkcell")
+        tasima = BasvuruKategorisi.objects.create(ad="Numara Taşıma")
+        yeni_hat = BasvuruKategorisi.objects.create(ad="Yeni Hat")
+
+        kalan = Tarife.objects.create(operator=operator, ad="İlk Turkcellim")
+        kalan.kategoriler.add(tasima)
+        kapanan = Tarife.objects.create(operator=operator, ad="İlk Turkcellim")
+        kapanan.kategoriler.add(yeni_hat)
+
+        kalan.kategoriler.add(yeni_hat)
+        kapanan.aktif = False
+        kapanan.save(update_fields=["aktif"])
+
+        for kategori in (tasima, yeni_hat):
+            secilebilir = Tarife.objects.filter(kategoriler=kategori, aktif=True)
+            self.assertEqual(list(secilebilir), [kalan])

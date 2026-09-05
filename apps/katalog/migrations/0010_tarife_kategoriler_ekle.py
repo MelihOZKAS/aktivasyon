@@ -5,6 +5,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
+    """Tarifeye çoklu kategori alanı ekler, eski tekillik kısıtını düşürür.
+
+    Yerine (operatör, ad) kısıtı konmadı: aynı adı farklı kategorilerde
+    taşıyan tarifeler üretimde zaten vardı ve kısıt onların birleştirilmesini
+    şart koşuyordu. Tarifelerin kendi para kuralları olduğu için birleştirmek
+    hangi fiyatın kalacağına karar vermektir; bu karar yöneticinindir.
+    """
+
 
     dependencies = [
         ("katalog", "0009_remove_kampanya_aciklama_remove_kampanya_gorsel"),
@@ -41,12 +49,6 @@ class Migration(migrations.Migration):
                 related_name="eski_tarifeler",
                 to="katalog.basvurukategorisi",
                 verbose_name="Kategori",
-            ),
-        ),
-        migrations.AddConstraint(
-            model_name="tarife",
-            constraint=models.UniqueConstraint(
-                fields=("operator", "ad"), name="tarife_operator_ad_benzersiz"
             ),
         ),
     ]

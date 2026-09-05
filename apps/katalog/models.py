@@ -189,15 +189,17 @@ class Tarife(ZamanDamgali):
         verbose_name = "Tarife"
         verbose_name_plural = "Tarifeler"
         ordering = ["operator", "sira", "ad"]
-        constraints = [
-            # Kategori artık çoklu olduğu için anahtarın parçası olamaz:
-            # aynı ad + operatör bir tarifedir, kaç kategoride geçerli olduğu
-            # o tarifenin kendi bilgisidir.
-            models.UniqueConstraint(
-                fields=["operator", "ad"],
-                name="tarife_operator_ad_benzersiz",
-            )
-        ]
+        # Tekillik kısıtı bilinçli olarak yok.
+        #
+        # Eski kısıt (kategori, operatör, ad) bir kategoride aynı tarifenin
+        # iki kez açılmasını engelliyordu. Kategori çoğullaşınca bunun
+        # veritabanı karşılığı (operatör, ad) olurdu; ama o kısıt, aynı adı
+        # farklı kategorilerde taşıyan mevcut tarifelerin birleştirilmesini
+        # şart koşar. Tarifelerin kendi para kuralları var: birleştirmek
+        # hangi fiyatın kalacağına karar vermek demek. Bu, migration'ın
+        # vereceği bir karar değil — yönetici iki tarifeyi tek tarifede
+        # toplamak isterse kategorileri işaretleyip diğerini kendisi kapatır.
+
 
     def __str__(self):
         # Kategoriler de yazılır: seçim kutularında hangi kategoriye ait
