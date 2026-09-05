@@ -2,8 +2,16 @@
 {% if sayfa.object_list %}
 <div class="yuzey overflow-hidden rounded-kart">
   {% for basvuru in sayfa %}
+  {% comment %}
+    Sonuçlanmış başvuru satır zemininden okunur: olumsuz kırmızı, para
+    tetikleyen (işi biten) yeşil, devam eden beyaz. Hangi durumun hangisi
+    olduğuna durum kaydının bayrakları karar verir, durum adı değil.
+  {% endcomment %}
   <a href="{% url 'basvurular:detay' basvuru.referans_no %}"
-     class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-zemin
+     class="flex items-center gap-4 px-5 py-4 transition-colors
+            {% if basvuru.durum.olumsuz_sonuc %}satir-olumsuz
+            {% elif basvuru.durum.hakedis_tetikler %}satir-olumlu
+            {% else %}hover:bg-zemin{% endif %}
             {% if not forloop.last %}border-b border-cizgi{% endif %}">
     {% sinyal basvuru.durum %}
 

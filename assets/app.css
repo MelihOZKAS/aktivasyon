@@ -175,6 +175,35 @@
     border: 1px solid var(--color-cizgi);
   }
 
+  /* Sonuçlanmış başvuru satırı zeminden okunur: yeşil biten iş, kırmızı iptal.
+     Devam eden başvurular beyaz kalır — renk yalnızca sonucu anlatır, süreci
+     sinyal çubuğu anlatır. Hangi durumun hangisi olduğu veridir
+     (hakedis_tetikler / olumsuz_sonuc), durum adına bakılmaz. */
+  .satir-olumlu {
+    background: var(--color-olumlu-acik);
+  }
+
+  .satir-olumlu:hover,
+  .satir-olumlu:focus-visible {
+    background: color-mix(in srgb, var(--color-olumlu) 12%, var(--color-olumlu-acik));
+  }
+
+  .satir-olumsuz {
+    background: var(--color-olumsuz-acik);
+  }
+
+  .satir-olumsuz:hover,
+  .satir-olumsuz:focus-visible {
+    background: color-mix(in srgb, var(--color-olumsuz) 12%, var(--color-olumsuz-acik));
+  }
+
+  /* Referans etiketinin mavimsi grisi renkli zeminde yabancı duruyor;
+     tonlu satırlarda mürekkebin kendi şeffaflığına düşer. */
+  .satir-olumlu .referans,
+  .satir-olumsuz .referans {
+    background: color-mix(in srgb, var(--color-murekkep) 7%, transparent);
+  }
+
   /* Durum göstergesi: sinyal çubuğu. Hem durumu hem sıradaki ilerlemeyi taşır. */
   .sinyal {
     display: inline-flex;
