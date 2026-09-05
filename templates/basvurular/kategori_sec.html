@@ -36,10 +36,24 @@
       {% if kategori.aciklama %}
       <p class="mt-1 text-sm text-soluk">{{ kategori.aciklama }}</p>
       {% endif %}
-      {% if kategori.gereken_bedel %}
-      <p class="mt-1.5 text-sm text-soluk">
-        İşlem bedeli <span class="rakam font-semibold text-murekkep">{{ kategori.gereken_bedel|para }} ₺</span>
-      </p>
+      {% comment %}
+        Fiyat operatöre göre değişiyor; tek rakam göstermek yanıltıcıydı.
+        Karşılanamayan operatör soluk ve uyarı renginde durur.
+      {% endcomment %}
+      {% if kategori.bedeller %}
+      <dl class="mt-2 space-y-1 text-sm">
+        {% for satir in kategori.bedeller %}
+        <div class="flex items-baseline gap-2">
+          <dt class="flex items-center gap-1.5 text-soluk">
+            <span class="h-2 w-2 shrink-0 rounded-full" style="background: {{ satir.operator.renk }}"></span>
+            {{ satir.operator.ad }}
+          </dt>
+          <dd class="rakam ml-auto font-semibold {% if satir.yetersiz %}text-uyari{% else %}text-murekkep{% endif %}">
+            {{ satir.tutar|para }} ₺
+          </dd>
+        </div>
+        {% endfor %}
+      </dl>
       {% endif %}
     </a>
     {% endif %}

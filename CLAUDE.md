@@ -126,13 +126,22 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `apps/bayi/tests.py` bunu kontrol eder.
 - **Bedeli olan işlem parası olmayana verilmez.** Bayiden tahsil edilecek
   bir tutar tanımlıysa (`yon=TAHSILAT`), bayi o parayı cüzdanında
-  bulundurmadan başvuru **giremez**. Kapı üç yerde durur: kategori ekranı
+  bulundurmadan başvuru **giremez**. Kapı dört yerde durur: kategori ekranı
   karşılanamayan kategoriyi kapalı gösterir ve sebebini yazar (gizlemez —
-  bayi kategori kaybolmuş sanmasın), form açılışı geri çevirir,
-  `BasvuruFormu.clean` seçilen operatör/tarifenin gerçek tutarıyla son kez
-  denetler. Tutarı `apps.finans.services.basvuru_bedeli` verir; kategori
-  ekranı en ucuz seçeneğe bakar (`en_dusuk_basvuru_bedeli`), çünkü orada
-  operatör/tarife henüz belli değil.
+  bayi kategori kaybolmuş sanmasın), form açılışı hiçbirini karşılayamıyorsa
+  geri çevirir, karşılayamadığı **operatörler** varsa açılışta uyarı kutusu
+  çıkar, `BasvuruFormu.clean` seçilen operatör/tarifenin gerçek tutarıyla son
+  kez denetler.
+- **Fiyat operatöre göre değişir; ekranlar da öyle davranır.** Turkcell 1150,
+  Vodafone 1000 iken kategori kartında tek rakam göstermek yanıltıcıydı —
+  hangi kuralın kazandığına göre biri görünüyordu. `operator_bedelleri`
+  kategorideki her operatör için ayrı tutar verir; kart hepsini listeler,
+  karşılanamayanı uyarı renginde gösterir. Bakiye uyarısı da operatör
+  kırılımındadır: bakiyesi Vodafone'a yetip Turkcell'e yetmeyen bayi forma
+  girer ama hangisini seçemeyeceğini **baştan** öğrenir — bilgileri doldurup
+  sonunda reddedilmesin. Hepsine yetiyorsa hiçbir kutu açılmaz.
+  `basvuru_bedeli` tam tutarı, `en_dusuk_basvuru_bedeli` en ucuz seçeneği
+  verir (kategori ekranında operatör/tarife henüz belli değil).
   Bu, **borç kuralıyla çelişmez**: borcun üst sınırı yok, ama borç işlenmiş
   bir işlemin sonucudur — parası olmadan yeni bir işlem *başlatmak* ayrı
   şeydir. Tahsilat kuralı yoksa hiçbir kategori engellenmez.

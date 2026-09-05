@@ -16,13 +16,36 @@ from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
 from apps.basvurular.validators import SATIR_ICI_GOSTERILEBILIR
 from apps.bayi.yetki import bayi_gerekli
 from apps.bayi.templatetags.panel import para
-from apps.finans.services import en_dusuk_basvuru_bedeli
+from apps.finans.services import en_dusuk_basvuru_bedeli, operator_bedelleri
 from apps.katalog.models import BasvuruKategorisi, Kampanya, Tarife
 
 
 def _bakiye(kullanici):
     cuzdan = getattr(kullanici, "cuzdan", None)
     return cuzdan.bakiye if cuzdan else Decimal("0.00")
+
+
+def _turkce_liste(adlar):
+    """["Turkcell", "Vodafone"] -> "Turkcell ve Vodafone"."""
+    adlar = list(adlar)
+    if len(adlar) < 2:
+        return "".join(adlar)
+    return f"{', '.join(adlar[:-1])} ve {adlar[-1]}"
+
+
+def _karsilanamayan_operatorler(kullanici, kategori):
+    """Bayinin bakiyesinin yetmediği operatörler.
+
+    Fiyat operatöre göre değiştiği için kapı da operatör kırılımında
+    çalışır: bakiyesi Vodafone'a yetip Turkcell'e yetmeyen bayi forma
+    girebilmeli, ama hangisini seçemeyeceğini baştan bilmeli.
+    """
+    bakiye = _bakiye(kullanici)
+    return [
+        operator
+        for operator, tutar in operator_bedelleri(kullanici, kategori)
+        if tutar > bakiye
+    ]
 
 
 @login_required
@@ -34,8 +57,6 @@ def kategori_sec(request):
     kapalı gösterilir: bayi forma girip bütün alanları doldurduktan sonra
     "bakiyen yetmiyor" duvarına çarpmasın.
     """
-    from apps.finans.services import en_dusuk_basvuru_bedeli
-
     bakiye = _bakiye(request.user)
     kategoriler = list(
         BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad")
@@ -43,6 +64,12 @@ def kategori_sec(request):
     for kategori in kategoriler:
         kategori.gereken_bedel = en_dusuk_basvuru_bedeli(request.user, kategori)
         kategori.bakiye_yetersiz = kategori.gereken_bedel > bakiye
+        # Fiyat operatöre göre değişiyor; kartta hepsi ayrı ayrı yazılır.
+        kategori.bedeller = [
+            {"operator": operator, "tutar": tutar, "yetersiz": tutar > bakiye}
+            for operator, tutar in operator_bedelleri(request.user, kategori)
+            if tutar > 0
+        ]
 
     return render(
         request,
@@ -91,7 +118,19 @@ def yeni(request, kategori):
     else:
         form = BasvuruFormu(kategori=kategori, bayi=request.user)
 
-    return render(request, "basvurular/yeni.html", {"form": form, "kategori": kategori})
+    # Karşılanamayan operatör varsa bayi formu doldurmadan önce bilsin;
+    # bilgileri iki kez girmek zorunda kalmasın.
+    yetersizler = _karsilanamayan_operatorler(request.user, kategori)
+
+    return render(
+        request,
+        "basvurular/yeni.html",
+        {
+            "form": form,
+            "kategori": kategori,
+            "yetersiz_operatorler": _turkce_liste(o.ad for o in yetersizler),
+        },
+    )
 
 
 @login_required

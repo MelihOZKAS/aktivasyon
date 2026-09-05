@@ -1428,3 +1428,142 @@ class GirisBedeliIlkGiristeKesilir(TestCase):
 
         # 1150 giriş bedeli − 250 hakediş = 900
         self.assertEqual(basvuru.kar, Decimal("900.00"))
+
+
+class OperatorBasinaBedelVeUyari(TestCase):
+    """Fiyat operatöre göre değişir; kart ve kapı da öyle davranır.
+
+    Tek rakam göstermek yanıltıcıydı: Turkcell 1150, Vodafone 1000 iken
+    kartta yalnızca biri görünüyordu. Bakiye kapısı da operatör kırılımında
+    çalışır — bakiyesi Vodafone'a yetip Turkcell'e yetmeyen bayi forma
+    girebilmeli, ama hangisini seçemeyeceğini baştan bilmeli.
+    """
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.finans.models import Cuzdan, KuralYonu, UcretKurali
+        from apps.katalog.models import (
+            AlanTipi, BasvuruKategorisi, KategoriAlani, Operator, Tarife,
+        )
+
+        self.giris = BasvuruDurumu.objects.create(
+            ad="Giriş", slug="beklemede", baslangic_durumu=True
+        )
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=Decimal("1100.00"))
+
+        self.turkcell = Operator.objects.create(ad="Turkcell", sira=10)
+        self.vodafone = Operator.objects.create(ad="Vodafone", sira=20)
+        self.tt = Operator.objects.create(ad="Türk Telekom", sira=30)
+
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.kategori.operatorler.set([self.turkcell, self.vodafone, self.tt])
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="isim", etiket="İsim",
+            cekirdek_alan="isim", tip=AlanTipi.METIN, zorunlu=True, sira=1,
+        )
+        for operator, tutar in (
+            (self.turkcell, "1150.00"), (self.vodafone, "1000.00"), (self.tt, "600.00")
+        ):
+            UcretKurali.objects.create(
+                ad=f"{operator.ad} hat bedeli", yon=KuralYonu.TAHSILAT,
+                tutar=Decimal(tutar), tetikleyici_durum=self.giris,
+                kategori=self.kategori, operator=operator,
+            )
+        self.client.force_login(self.bayi)
+
+    def _bakiye(self, tutar):
+        from decimal import Decimal
+
+        self.cuzdan.bakiye = Decimal(tutar)
+        self.cuzdan.save(update_fields=["bakiye"])
+
+    def _kategori_ekrani(self):
+        from django.urls import reverse
+
+        return self.client.get(reverse("basvurular:kategori-sec")).content.decode()
+
+    def _form(self):
+        from django.urls import reverse
+
+        return self.client.get(
+            reverse("basvurular:yeni", args=[self.kategori.slug]), follow=True
+        ).content.decode()
+
+    def test_kartta_her_operatorun_fiyati_ayri_yazar(self):
+        icerik = self._kategori_ekrani()
+
+        self.assertIn("1.150,00", icerik)
+        self.assertIn("1.000,00", icerik)
+        self.assertIn("600,00", icerik)
+
+    def test_bakiye_hepsine_yetiyorsa_uyari_cikmaz(self):
+        self._bakiye("3000.00")
+
+        # Kutunun kendisi aranır; id JavaScript'te her hâlükârda geçiyor.
+        self.assertNotIn('<dialog id="bakiye-uyarisi"', self._form())
+
+    def test_yetmeyen_operatorler_uyarida_sayilir(self):
+        """1100 TL: Turkcell (1150) yetmiyor, diğerleri yetiyor."""
+        icerik = self._form()
+
+        self.assertIn('<dialog id="bakiye-uyarisi"', icerik)
+        self.assertIn("Turkcell", icerik)
+        self.assertNotIn("Turkcell, Vodafone", icerik)
+
+    def test_iki_operator_yetmiyorsa_ikisi_de_sayilir(self):
+        self._bakiye("900.00")
+
+        icerik = self._form()
+
+        self.assertIn("Turkcell ve Vodafone", icerik)
+
+    def test_hicbirine_yetmiyorsa_kategori_kapali_gelir(self):
+        self._bakiye("100.00")
+
+        icerik = self._kategori_ekrani()
+
+        self.assertIn("Bakiye yetersiz", icerik)
+
+    def test_yetmeyen_operator_sunucuda_da_reddedilir(self):
+        """Uyarı bilgilendirme; kapıyı sunucu doğrulaması kapatır."""
+        from apps.basvurular.forms import BasvuruFormu
+
+        from apps.katalog.models import Tarife
+
+        tarife = Tarife.objects.create(operator=self.turkcell, ad="Platinum")
+        tarife.kategoriler.add(self.kategori)
+
+        form = BasvuruFormu(
+            data={
+                "operator": self.turkcell.pk, "tarife": tarife.pk,
+                "musteri_tipi": "turk", "alan__isim": "Ayşe",
+            },
+            kategori=self.kategori,
+            bayi=self.bayi,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("bakiyen yetersiz", " ".join(form.errors["__all__"]))
+
+    def test_yeten_operatorle_form_gecerli(self):
+        from apps.basvurular.forms import BasvuruFormu
+        from apps.katalog.models import Tarife
+
+        tarife = Tarife.objects.create(operator=self.tt, ad="Ekonomi")
+        tarife.kategoriler.add(self.kategori)
+
+        form = BasvuruFormu(
+            data={
+                "operator": self.tt.pk, "tarife": tarife.pk,
+                "musteri_tipi": "turk", "alan__isim": "Ayşe",
+            },
+            kategori=self.kategori,
+            bayi=self.bayi,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)

@@ -227,6 +227,18 @@ def en_dusuk_basvuru_bedeli(bayi, kategori):
     return min(tutarlar) if tutarlar else SIFIR
 
 
+def operator_bedelleri(bayi, kategori):
+    """Kategorideki her operatör için bayiden alınacak tutar.
+
+    Fiyat operatöre göre değişiyor (Turkcell 1150, Vodafone 1000...); tek bir
+    rakam göstermek yanıltıcı olur. Sıra operatörün kendi sırasıdır.
+    """
+    return [
+        (operator, basvuru_bedeli(bayi, kategori, operator=operator))
+        for operator in kategori.gecerli_operatorler()
+    ]
+
+
 def basvuru_parasini_isle(basvuru, *, olusturan=None):
     """Başvuru para tetikleyen bir duruma geçtiğinde çağrılır.
 

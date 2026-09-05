@@ -149,6 +149,24 @@
     geçersiz olurdu. <dialog> kullanıldığı için perde, odak tuzağı ve Esc
     tarayıcıdan geliyor.
   {% endcomment %}
+  {% comment %}
+    Bakiye bazı operatörlere yetmiyorsa bayi bunu formu doldurmadan önce
+    öğrenir. Sunucu doğrulaması zaten reddediyor ama bilgileri ikinci kez
+    girmek zorunda kalmasın diye uyarı baştan çıkar.
+  {% endcomment %}
+  {% if yetersiz_operatorler %}
+  <dialog id="bakiye-uyarisi" class="uyari-kutusu sim" aria-labelledby="bakiye-uyari-basligi">
+    <p id="bakiye-uyari-basligi" class="baslik text-lg font-bold">Bakiyen bazı operatörlere yetmiyor</p>
+    <p class="mt-2 text-sm leading-relaxed text-murekkep-yumusak">
+      <b>{{ yetersiz_operatorler }}</b> aktivasyonu yapacaksan bakiyen yetersiz.
+      Yöneticinden bakiye aldıktan sonra sayfayı yenileyip aktivasyonu o şekilde başlat.
+    </p>
+    <form method="dialog" class="mt-6 flex justify-end">
+      <button class="dugme dugme-birincil w-full sm:w-auto" autofocus>Tamam</button>
+    </form>
+  </dialog>
+  {% endif %}
+
   <dialog id="tarife-uyarisi" class="uyari-kutusu sim" aria-labelledby="tarife-uyari-basligi">
     <p id="tarife-uyari-basligi" class="baslik text-lg font-bold">Bu tarifede dikkat</p>
     <p id="tarife-uyari-metni"
@@ -160,6 +178,14 @@
 </div>
 
 <script>
+  // Bakiye uyarısı sayfa açılır açılmaz çıkar: bayi formu doldurmaya
+  // başlamadan hangi operatörü seçemeyeceğini bilsin, bilgileri ikinci kez
+  // girmek zorunda kalmasın.
+  (function () {
+    var kutu = document.getElementById("bakiye-uyarisi");
+    if (kutu && typeof kutu.showModal === "function") kutu.showModal();
+  })();
+
   (function () {
     var kutu = document.getElementById("tarife-uyarisi");
     var metin = document.getElementById("tarife-uyari-metni");
