@@ -79,9 +79,12 @@ Kontrol listesi:
 - Dokunma hedefleri en az 44×44px
 - Gezinme telefonda çalışıyor (çekmece açılıyor, kapanıyor, arkası kilitli)
 - Tablolar/listeler dar ekranda okunur; taşan içerik kendi kutusunda kayıyor
-- Form girdileri 16px+ (iOS'ta yakınlaştırma yapmasın); görsel alanları hem
-  kamerayı hem galeriyi açıyor (`capture` **kullanılmaz** — kamerayı zorlayıp
-  galeriye girmeyi engelliyordu)
+- Form girdileri 16px+ (iOS'ta yakınlaştırma yapmasın); görsel alanında hem
+  galeri hem kamera var — **tek girdiyle ikisi birden olmuyor**: `capture`
+  varken telefon doğrudan kamerayı açıp galeriye hiç girmiyor, yokken de
+  Android 13+ ve yeni iOS foto seçiciyi açıp kamerayı hiç göstermiyor. Bu
+  yüzden kutu galeriyi açar, yanındaki "Fotoğraf çek" düğmesi tıklanınca aynı
+  girdiye `capture` ekleyip açar ve hemen geri alır
 
 **2. Mor / violet renk kullanma.** Bu aile tercih edilmiyor.
 

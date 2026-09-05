@@ -368,15 +368,38 @@ class GorselAlaniGaleriyiDeAcar(TestCase):
         )
         self.client.force_login(self.bayi)
 
-    def test_kamera_zorlanmaz_galeri_de_acilir(self):
+    def _sayfa(self):
         from django.urls import reverse
 
-        icerik = self.client.get(
+        return self.client.get(
             reverse("basvurular:yeni", args=[self.kategori.slug])
         ).content.decode()
 
+    def test_kutunun_kendisi_galeriyi_acar(self):
+        icerik = self._sayfa()
+
         self.assertIn('accept="image/*"', icerik)
+        # `capture` işaretli gelirse telefon galeriye hiç girmiyor.
         self.assertNotIn("capture=", icerik)
+
+    def test_kamera_dugmesi_ayrica_durur(self):
+        """Android 13+ ve yeni iOS `accept` ile kamerayı hiç göstermiyor."""
+        icerik = self._sayfa()
+
+        self.assertIn('data-kamera="id_alan__kimlik_on"', icerik)
+        self.assertIn("Fotoğraf çek", icerik)
+
+    def test_resim_olmayan_alanda_kamera_dugmesi_cikmaz(self):
+        from apps.katalog.models import AlanTipi, KategoriAlani
+
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="ikametgah", etiket="İkametgah",
+            tip=AlanTipi.DOSYA, grup="Belgeler", sira=2,
+        )
+
+        icerik = self._sayfa()
+
+        self.assertNotIn('data-kamera="id_alan__ikametgah"', icerik)
 
 
 class BelgeYuklemeGuvenligiTestleri(TestCase):

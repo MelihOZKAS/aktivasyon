@@ -102,12 +102,19 @@
     </section>
     {% endfor %}
 
-    {# Belgeler: mobilde doğrudan kamerayla çekilebilir #}
+    {% comment %}
+      Belgeler. Kutunun kendisi galeriyi açar; yanındaki düğme kamerayı.
+
+      Tek bir girdiyle ikisi birden olmuyordu: `capture` varken telefon
+      doğrudan kamerayı açıp galeriye hiç girmiyor, yokken de Android 13+ ve
+      yeni iOS foto seçiciyi açıp kamerayı hiç göstermiyor. Düğme, tıklanınca
+      aynı girdiye `capture` ekleyip açıyor, sonra geri alıyor.
+    {% endcomment %}
     {% if form.belge_alanlari %}
     <section class="yuzey rounded-kart p-5 sm:p-6">
       <h2 class="baslik font-semibold">Belgeler</h2>
       <p class="mt-1 text-sm text-soluk">
-        Telefondan giriyorsan belgeyi doğrudan kamerayla çekebilirsin.
+        Galeriden seçebilir ya da telefonla o an çekebilirsin.
       </p>
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
         {% for tanim, alan in form.belge_alanlari %}
@@ -117,6 +124,16 @@
             <span class="font-normal text-soluk">— zorunlu değil</span>{% endif %}
           </label>
           {{ alan }}
+          {% if tanim.tip == "resim" %}
+          <button type="button" class="dugme dugme-sessiz mt-2 w-full text-sm sm:w-auto"
+                  data-kamera="{{ alan.id_for_label }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" class="h-4 w-4" fill="none"
+                 stroke="currentColor" stroke-width="1.8">
+              <path d="M3 8h3l2-3h8l2 3h3v12H3z"/><circle cx="12" cy="13" r="3.5"/>
+            </svg>
+            Fotoğraf çek
+          </button>
+          {% endif %}
           {% for hata in alan.errors %}<p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>{% endfor %}
         </div>
         {% endfor %}
@@ -178,6 +195,24 @@
 </div>
 
 <script>
+  // "Fotoğraf çek" düğmesi kendi girdisini kamerayla açar. Öznitelik
+  // tıklamadan hemen önce eklenip sonra geri alınıyor: kutunun kendisine
+  // dokunulduğunda galeri açılmaya devam etsin.
+  (function () {
+    document.addEventListener("click", function (olay) {
+      var dugme = olay.target.closest("[data-kamera]");
+      if (!dugme) return;
+
+      var girdi = document.getElementById(dugme.dataset.kamera);
+      if (!girdi) return;
+
+      girdi.setAttribute("capture", "environment");
+      girdi.click();
+      // Dosya penceresi açıldı; öznitelik artık gerekmiyor.
+      setTimeout(function () { girdi.removeAttribute("capture"); }, 0);
+    });
+  })();
+
   // Bakiye uyarısı sayfa açılır açılmaz çıkar: bayi formu doldurmaya
   // başlamadan hangi operatörü seçemeyeceğini bilsin, bilgileri ikinci kez
   // girmek zorunda kalmasın.
