@@ -814,6 +814,63 @@ class CuzdanIslemEkrani(TestCase):
 
         self.assertEqual(self.cuzdan.borc, TL("500.00"))
 
+    def test_tutar_alani_gorunur_bir_girdi_olarak_cizilir(self):
+        """Alan hep vardı ama sınıfsız çizildiği için görünmüyordu.
+
+        unfold'un CSS'inde sınıfsız girdinin kenarlığı ve zemini yok; beyaz
+        üstünde beyaz kalıyor ve yönetici tutarı nereye yazacağını bulamıyordu.
+        """
+        import re
+
+        icerik = self.client.get(self._adres()).content.decode()
+        girdi = re.search(r'<input[^>]*name="tutar"[^>]*>', icerik).group(0)
+
+        self.assertIn("border-base-200", girdi)
+        self.assertIn("rounded-default", girdi)
+
+    def test_ucu_de_ayni_tutar_alanini_kullanir(self):
+        """Tutar tek alandır; üç işlem de onu okur."""
+        icerik = self.client.get(self._adres()).content.decode()
+
+        self.assertEqual(icerik.count('name="tip"'), 3)
+        self.assertEqual(icerik.count('name="tutar"'), 1)
+
+    def test_kredide_banka_kaydedilmez(self):
+        """Kredide kasaya para girmiyor; yazılan hesap yanıltıcı olurdu."""
+        from apps.finans.models import Banka, CuzdanIslemi
+
+        banka = Banka.objects.create(
+            banka_adi="Ziraat", hesap_sahibi="Firma", iban="TR000000000000000000000001"
+        )
+        self.client.post(
+            self._adres(),
+            {"tip": CuzdanIslemi.KREDI, "tutar": "1000.00", "banka": banka.pk,
+             "aciklama": "", "islem_anahtari": "k1"},
+            follow=True,
+        )
+
+        banka.refresh_from_db()
+        self.assertEqual(banka.bakiye, TL("0.00"))
+        self.assertFalse(
+            CuzdanHareketi.objects.filter(cuzdan=self.cuzdan, banka__isnull=False).exists()
+        )
+
+    def test_tahsilatta_banka_bakiyesi_artar(self):
+        from apps.finans.models import Banka, CuzdanIslemi
+
+        banka = Banka.objects.create(
+            banka_adi="Ziraat", hesap_sahibi="Firma", iban="TR000000000000000000000002"
+        )
+        self.client.post(
+            self._adres(),
+            {"tip": CuzdanIslemi.TAHSILAT, "tutar": "1000.00", "banka": banka.pk,
+             "aciklama": "", "islem_anahtari": "t9"},
+            follow=True,
+        )
+
+        banka.refresh_from_db()
+        self.assertEqual(banka.bakiye, TL("1000.00"))
+
     def test_kullanici_listesinden_cuzdan_islemine_gidilir(self):
         from django.urls import reverse
 

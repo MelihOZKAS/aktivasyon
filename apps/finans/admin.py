@@ -131,6 +131,15 @@ class CuzdanIslemFormu(forms.Form):
     # taşınır, defter aynı anahtarı ikinci kez kabul etmez.
     islem_anahtari = forms.CharField(widget=forms.HiddenInput)
 
+    def clean(self):
+        temiz = super().clean()
+        # Banka yalnızca tahsilatta anlamlı: kredide ve borç artırımında
+        # kasaya para girmiyor, yazılan hesap yanıltıcı olurdu. Kutu zaten
+        # gizleniyor ama kural sunucuda da durur.
+        if temiz.get("tip") != CuzdanIslemi.TAHSILAT:
+            temiz["banka"] = None
+        return temiz
+
 
 @admin.register(Cuzdan)
 class CuzdanAdmin(ModelAdmin):
