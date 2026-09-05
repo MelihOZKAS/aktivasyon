@@ -274,6 +274,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   harfleri düşürür ("Faturalı" → "fatural").
 - **Bayiye içerik gösteren alanlar admin'den girilir.** Tarife açıklaması
   ile görseli `/tarifeler/` sayfasında görünür; şablona sabit metin yazma.
+- **Kampanyanın yalnızca adı vardır.** Görseli ve açıklaması bilinçli olarak
+  yok: kampanya bayiye gösterilen bir içerik değil, başvuru girilirken yapılan
+  bir seçimdir. Bir süre ikisi de vardı ve hiçbir ekranda görünmüyordu —
+  yöneticiye her kampanyada doldurulacak iki boş kutu olarak çıkıyordu.
+  Anlatılacak bir şey varsa tarifenin açıklamasına yazılır. `kampanya/` medya
+  klasörü de bu yüzden `ACIK_KLASORLER`'de değildir.
 - **Kampanya katalogda değil, başvuru formundadır.** Kampanya bir süre
   kaldırılmıştı, geri getirildi — ama yeri değişti. `/tarifeler/` sayfası
   bayinin müşteriye anlatırken açtığı katalogdur; kampanya ise başvuru

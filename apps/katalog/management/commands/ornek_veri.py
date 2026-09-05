@@ -24,12 +24,12 @@ GRUPLAR = [
     ("Anlaşmalı Bayi", "Hacim taahhüdü veren bayiler; hakedişleri daha yüksek."),
 ]
 
-# (kategori, operatör, tarife adı, müşteri tipi, açıklama, kampanyalar)
+# (kategori, operatör, tarife adı, müşteri tipi, açıklama, kampanya adları)
 TARIFELER = [
     (
         "MNT / Numara Taşıma", "Turkcell", "Platinum 20 GB", MusteriTipi.HEPSI,
         "20 GB internet, 1000 dakika, 1000 SMS. Taahhüt 24 ay.",
-        [("İlk 3 Ay Yarı Fiyat", "Numarasını taşıyan yeni müşteriye ilk 3 ay %50 indirim.")],
+        ["İlk 3 Ay Yarı Fiyat"],
     ),
     (
         "MNT / Numara Taşıma", "Vodafone", "Uyumlu 12 GB", MusteriTipi.HEPSI,
@@ -249,16 +249,11 @@ class Command(BaseCommand):
                 f"{'oluşturuldu' if yeni else 'zaten var'}"
             )
 
-            for kampanya_sira, (kampanya_adi, kampanya_aciklama) in enumerate(
-                kampanyalar, start=1
-            ):
+            for kampanya_sira, kampanya_adi in enumerate(kampanyalar, start=1):
                 Kampanya.objects.get_or_create(
                     tarife=tarife,
                     ad=kampanya_adi,
-                    defaults={
-                        "aciklama": kampanya_aciklama,
-                        "sira": kampanya_sira * 10,
-                    },
+                    defaults={"sira": kampanya_sira * 10},
                 )
         return tarifeler
 

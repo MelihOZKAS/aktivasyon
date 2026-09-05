@@ -40,7 +40,7 @@ class TarifeInline(TabularInline):
 class KampanyaInline(TabularInline):
     model = Kampanya
     extra = 0
-    fields = ("ad", "gorsel", "baslangic_tarihi", "bitis_tarihi", "sira", "aktif")
+    fields = ("ad", "baslangic_tarihi", "bitis_tarihi", "sira", "aktif")
     show_change_link = True
 
 
@@ -262,27 +262,20 @@ class KampanyaAdmin(ModelAdmin):
     list_filter = ("aktif", "tarife__kategori", "tarife__operator")
     search_fields = ("ad", "tarife__ad")
     autocomplete_fields = ("tarife",)
-    readonly_fields = ("gorsel_onizleme",)
     fieldsets = (
-        ("Kampanya", {"fields": ("tarife", "ad")}),
         (
-            "Bayiye gösterilecek içerik",
-            {"fields": ("aciklama", "gorsel", "gorsel_onizleme")},
+            "Kampanya",
+            {
+                "fields": ("tarife", "ad"),
+                "description": (
+                    "Kampanya bayiye başvuru formunda <b>adıyla</b> listelenir; "
+                    "görseli ve açıklaması yoktur. Anlatılacak bir şey varsa "
+                    "tarifenin açıklamasına yazın."
+                ),
+            },
         ),
         ("Geçerlilik", {"fields": ("baslangic_tarihi", "bitis_tarihi", "sira", "aktif")}),
     )
-
-    @admin.display(description="Önizleme")
-    def gorsel_onizleme(self, obj):
-        if not obj.gorsel:
-            return "Henüz görsel yüklenmedi."
-        return format_html(
-            '<a href="{}" target="_blank" rel="noopener">'
-            '<img src="{}" style="max-width:22rem;border-radius:.5rem;'
-            'border:1px solid rgba(0,0,0,.1)"></a>',
-            obj.gorsel.url,
-            obj.gorsel.url,
-        )
 
     @admin.display(description="Şu An Geçerli", boolean=True)
     def gecerli_mi(self, obj):

@@ -171,7 +171,7 @@ Doğru görünüyorsa sil:
 docker exec -it app_fadil python manage.py sahipsiz_belgeler --sil
 ```
 
-Tarife ve kampanya görsellerine dokunmaz; onların kendi kayıtları var.
+Tarife ve operatör görsellerine dokunmaz; onların kendi kayıtları var.
 
 ---
 
@@ -268,7 +268,7 @@ Tasarım eski görünüyorsa statikleri yeniden topla:
 docker exec -it app_fadil python manage.py collectstatic --noinput --clear
 ```
 
-**Tarife ya da kampanya görseli 404 veriyorsa** önce dosya sunucuda duruyor mu
+**Tarife ya da operatör görseli 404 veriyorsa** önce dosya sunucuda duruyor mu
 bak — `media/` git'e girmez, container'a host klasöründen bağlanır:
 
 ```bash

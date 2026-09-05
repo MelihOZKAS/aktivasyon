@@ -53,7 +53,8 @@ Sistem bir kez kurulur, sonra kendi kendine çalışır. Sıra önemli — her a
 3. **Kategoriler** — geçerli operatörler, tarife zorunlu mu, SIM karşılığı
    takip edilecek mi
 4. **Form alanları** — her kategoride hangi bilgiler sorulacak
-5. **Tarifeler ve kampanyalar** — bayiye gösterilecek açıklama ve görselle
+5. **Tarifeler** — bayiye gösterilecek açıklama ve görselle; kampanyalar
+   tarifenin altında, yalnızca adıyla
 6. **Bayi grupları** — fiyat kademesi
 7. **Ücret ve hakediş kuralları** — bayiye hakediş, bayiden tahsilat, ana
    hakediş (operatör ya da tedarikçi bazlı)
@@ -277,9 +278,14 @@ rağmen bayi hata sayfası görüyordu.)
 
 `/tarifeler/` bayinin gördüğü tarife kataloğudur: kategori sekmeleri, operatör
 başlıkları ve akordiyon olarak açılan tarife ayrıntıları. İçeriği yönetim
-panelinden **Tarifeler** ve **Kampanyalar** ekranlarındaki "Bayiye gösterilecek
-içerik" bölümünden girersiniz — açıklama ve görsel. Süresi geçmiş kampanyalar
-kendiliğinden görünmez olur.
+panelinden **Tarifeler** ekranındaki "Bayiye gösterilecek içerik" bölümünden
+girersiniz — açıklama ve görsel.
+
+Kampanyalar bu sayfada **görünmez**: burası bayinin müşteriye anlatırken açtığı
+katalog, kampanya ise başvuru girerken yapılan bir seçim. Kampanya kutusu
+başvuru formundadır, tarife seçimine bağlı doldurulur ve kampanyanın yalnızca
+**adı** vardır — görseli ya da açıklaması yoktur. Süresi geçmiş kampanya
+listeye girmez.
 
 ## Yönetim paneli dili
 
@@ -410,7 +416,7 @@ güçlü bir parola üretilir ve bir kez ekrana yazılır.
 Üçüncü adım atlanmamalı: **veritabanını silmek diskteki dosyaları silmez.**
 Eski sistemin `media/evrak/` altındaki kimlik ve pasaport görüntüleri, onlara
 işaret eden kayıt gittiği hâlde sunucuda durmaya devam eder. `sahipsiz_belgeler`
-hem eski `evrak/` hem yeni `basvuru/` klasörünü tarar; tarife ve kampanya
+hem eski `evrak/` hem yeni `basvuru/` klasörünü tarar; tarife ve operatör
 görsellerine dokunmaz. Ne silineceğini önce `--sil` olmadan çalıştırıp
 görebilirsiniz.
 
@@ -445,7 +451,8 @@ docker compose -f docker-compose.yml up -d --build  # kurulum otomatik çalış�
 `kurulum` komutu 1-4. adımları (durumlar, operatörler, kategoriler, form
 alanları) hazır getirir. Geriye yönetim panelinden girilecekler kalır:
 
-1. **Tarifeler ve kampanyalar** — her kategori/operatör için, açıklama ve görselle
+1. **Tarifeler ve kampanyalar** — her kategori/operatör için tarife (açıklama
+   ve görselle); kampanyalar tarifenin altında, yalnızca adıyla
 2. **Bayi grupları** — fiyat kademeleri
 3. **Ücret ve hakediş kuralları** — üç yön: bayiye hakediş, bayiden tahsilat,
    ana hakediş (operatör ya da tedarikçi bazlı). Aradaki fark kârdır.

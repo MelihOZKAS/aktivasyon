@@ -461,7 +461,7 @@ class TarifeSayfasiTestleri(TestCase):
             ad="Platinum 30 GB", aciklama="Aylık 30 GB, sınırsız konuşma.",
         )
         self.kampanya = Kampanya.objects.create(
-            tarife=self.tarife, ad="İlk 3 ay yarı fiyat", aciklama="Yeni müşterilere."
+            tarife=self.tarife, ad="İlk 3 ay yarı fiyat"
         )
         self.url = reverse("bayi:tarifeler")
         self.client.force_login(self.bayi)

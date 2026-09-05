@@ -193,7 +193,12 @@ class Tarife(ZamanDamgali):
 
 
 class Kampanya(ZamanDamgali):
-    """Tarifenin altındaki alt kampanya. Tarih aralığı dolunca kendiliğinden düşer."""
+    """Tarifenin altındaki alt kampanya. Tarih aralığı dolunca kendiliğinden düşer.
+
+    Görseli ve açıklaması yoktur: kampanya bayiye gösterilen bir içerik değil,
+    başvuru girilirken yapılan bir seçimdir. Formda adıyla listelenir, o kadar.
+    Anlatılacak bir şey varsa tarifenin açıklamasına yazılır.
+    """
 
     tarife = models.ForeignKey(
         Tarife,
@@ -202,12 +207,6 @@ class Kampanya(ZamanDamgali):
         on_delete=models.CASCADE,
     )
     ad = models.CharField("Kampanya Adı", max_length=200)
-    aciklama = models.TextField(
-        "Açıklama", blank=True, help_text="Bayi tarife sayfasında görünür."
-    )
-    gorsel = models.ImageField(
-        "Görsel", upload_to="kampanya/%Y/%m/", blank=True, null=True
-    )
     baslangic_tarihi = models.DateField("Başlangıç Tarihi", null=True, blank=True)
     bitis_tarihi = models.DateField("Bitiş Tarihi", null=True, blank=True)
     sira = models.PositiveIntegerField("Sıra", default=0)
@@ -220,10 +219,6 @@ class Kampanya(ZamanDamgali):
 
     def __str__(self):
         return f"{self.tarife.ad} · {self.ad}"
-
-    def save(self, *args, **kwargs):
-        self.gorsel = kucult(self.gorsel)
-        super().save(*args, **kwargs)
 
     def clean(self):
         if (

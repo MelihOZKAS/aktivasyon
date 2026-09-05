@@ -9,8 +9,7 @@ class KatalogConfig(AppConfig):
     def ready(self):
         from apps.dosya import dosyalari_temizle
 
-        from .models import Kampanya, Operator, Tarife
+        from .models import Operator, Tarife
 
         dosyalari_temizle(Tarife, "gorsel")
-        dosyalari_temizle(Kampanya, "gorsel")
         dosyalari_temizle(Operator, "logo")

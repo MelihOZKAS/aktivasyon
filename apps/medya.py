@@ -22,7 +22,7 @@ from django.urls import re_path
 from django.views.static import serve
 
 # Yalnızca herkese açık içerik. Sıra önemsiz, ad `upload_to` ile aynı olmalı.
-ACIK_KLASORLER = ("operator", "tarife", "kampanya")
+ACIK_KLASORLER = ("operator", "tarife")
 
 # Görseller değişince dosya adı da değişiyor (yeni yükleme yeni ad alır),
 # bu yüzden bir gün önbellek güvenli.
