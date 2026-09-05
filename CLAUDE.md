@@ -225,6 +225,16 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dahil. `cekirdek_alan` doluysa değer başvurunun kendi kolonuna yazılır
   (aranabilir olur), boşsa `ek_bilgiler` JSON'una girer. Forma yeni bir sabit
   alan ekleme; kategori tanımından geçir.
+- **Çekirdek alan çoğu alanda boş kalır.** Yalnızca başvurunun kendi kolonu
+  olan bilgilerde (isim, TC no, telefon) doldurulur; o zaman değer aranabilir
+  olur. Bir kategoride aynı çekirdek alan iki kez kullanılamaz, görsel/dosya
+  alanları hiç kullanamaz. Bu yüzden **bir kategoriye istenildiği kadar görsel
+  alanı eklenebilir** (çocuk kimliği, ebeveyn kimliği…): kod farklı olsun,
+  çekirdek alan boş kalsın. Yönetici bunu bilmeyip çekirdek alanı doldurunca
+  ham veritabanı kısıtı mesajı görüyordu
+  ("kategori_cekirdek_alan_benzersiz ihlal edildi"); `KategoriAlani.clean`
+  artık çakışan alanı adıyla söyleyip ne yapılacağını yazar. Yeni bir tekillik
+  kısıtı eklersen mesajını da yaz — kısıt adı kullanıcıya bir şey anlatmaz.
 - **Yeni kategori boş formla açılmaz; bilinen bütün alanlar açık gelir.**
   Panelden kategori eklemek hiç alanı olmayan bir kategori bırakıyordu: bayi
   boş form görüyor, yönetici yirmi satırı elle giriyordu.

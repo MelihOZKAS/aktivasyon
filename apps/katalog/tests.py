@@ -886,3 +886,99 @@ class BaslangicDurumuIkiyeKatlanmaz(TestCase):
             baslangic_durumu=True, aktif=True
         ).first()
         self.assertEqual(secilen.slug, "giris")
+
+
+class KategoriAlaniHatalari(TestCase):
+    """Hata mesajı ne yapılacağını söylemeli.
+
+    Yönetici ikinci bir kimlik görseli eklemek isterken Çekirdek Alan'ı da
+    dolduruyor ve ham veritabanı kısıtı mesajıyla karşılaşıyordu:
+    "kategori_cekirdek_alan_benzersiz kısıtlaması ihlal edildi". Ne olduğu
+    da ne yapılacağı da anlaşılmıyordu.
+    """
+
+    def setUp(self):
+        from django.core.exceptions import ValidationError  # noqa: F401
+        from apps.katalog.models import (
+            AlanTipi, BasvuruKategorisi, CekirdekAlan, KategoriAlani,
+        )
+
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.mevcut = KategoriAlani.objects.create(
+            kategori=self.kategori, kod="kimlik_tipi", etiket="Kimlik Tipi",
+            tip=AlanTipi.SECIM, cekirdek_alan=CekirdekAlan.KIMLIK_TIPI, sira=1,
+        )
+
+    def _alan(self, **degisiklikler):
+        from apps.katalog.models import AlanTipi, KategoriAlani
+
+        alanlar = {
+            "kategori": self.kategori,
+            "kod": "kimlik_on_cocuk",
+            "etiket": "Kimlik Çocuk Ön",
+            "tip": AlanTipi.RESIM,
+            "sira": 2,
+        }
+        alanlar.update(degisiklikler)
+        return KategoriAlani(**alanlar)
+
+    def test_ikinci_kimlik_gorseli_eklenebilir(self):
+        """Çekirdek alan boşsa aynı kategoriye ikinci görsel girer."""
+        alan = self._alan()
+        alan.full_clean()
+        alan.save()
+
+        self.assertEqual(self.kategori.alanlar.count(), 2)
+
+    def test_ayni_cekirdek_alan_ikinci_kez_kullanilamaz(self):
+        from django.core.exceptions import ValidationError
+
+        from apps.katalog.models import AlanTipi, CekirdekAlan
+
+        alan = self._alan(tip=AlanTipi.METIN, cekirdek_alan=CekirdekAlan.KIMLIK_TIPI)
+
+        with self.assertRaises(ValidationError) as hata:
+            alan.full_clean()
+
+        mesaj = " ".join(hata.exception.message_dict["cekirdek_alan"])
+        # Çakışan alanı adıyla söyler ve ne yapılacağını yazar.
+        self.assertIn("Kimlik Tipi", mesaj)
+        self.assertIn("boş bırakın", mesaj)
+
+    def test_gorsel_alan_cekirdek_olamaz_uyarisi_yol_gosterir(self):
+        from django.core.exceptions import ValidationError
+
+        from apps.katalog.models import CekirdekAlan
+
+        alan = self._alan(cekirdek_alan=CekirdekAlan.ISIM)
+
+        with self.assertRaises(ValidationError) as hata:
+            alan.full_clean()
+
+        mesaj = " ".join(hata.exception.message_dict["cekirdek_alan"])
+        self.assertIn("boş bırakın", mesaj)
+
+    def test_ayni_kod_ikinci_kez_kullanilamaz(self):
+        from django.core.exceptions import ValidationError
+
+        alan = self._alan(kod="kimlik_tipi")
+
+        with self.assertRaises(ValidationError) as hata:
+            alan.full_clean()
+
+        self.assertIn("kod", hata.exception.message_dict)
+
+    def test_alanlarin_hepsinde_yardim_metni_var(self):
+        """Yönetici her başlığın nerede ne yaptığını okuyabilmeli."""
+        from apps.katalog.models import KategoriAlani
+
+        yardimsiz = [
+            alan.name
+            for alan in KategoriAlani._meta.get_fields()
+            if getattr(alan, "editable", False)
+            and not getattr(alan, "auto_created", False)
+            and alan.name not in {"id", "kategori", "olusturma_tarihi", "guncelleme_tarihi"}
+            and not alan.help_text
+        ]
+
+        self.assertEqual(yardimsiz, [])

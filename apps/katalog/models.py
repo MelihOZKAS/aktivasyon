@@ -317,7 +317,11 @@ class KategoriAlani(ZamanDamgali):
     kod = models.SlugField(
         "Alan Kodu",
         max_length=60,
-        help_text="Veride saklanacak anahtar. Örn: sim_imei, modem_istegi",
+        help_text=(
+            "Verinin saklanacağı anahtar; bayiye gösterilmez. Kategoride "
+            "benzersiz olmalı. Türkçe harf ve boşluk kullanmayın. "
+            "Örn: sim_imei, kimlik_on_cocuk"
+        ),
     )
     cekirdek_alan = models.CharField(
         "Çekirdek Alan",
@@ -329,30 +333,84 @@ class KategoriAlani(ZamanDamgali):
             "olur. Boş bırakılırsa alan bu kategoriye özel ek bilgi olarak saklanır."
         ),
     )
-    etiket = models.CharField("Etiket", max_length=150)
-    tip = models.CharField("Alan Tipi", max_length=20, choices=AlanTipi.choices, default=AlanTipi.METIN)
+    etiket = models.CharField(
+        "Etiket",
+        max_length=150,
+        help_text=(
+            "Bayinin formda gördüğü başlık. Başvuru detayında ve yönetim "
+            "panelinde de bu ad görünür. Örn: Kimlik Ön Yüz"
+        ),
+    )
+    tip = models.CharField(
+        "Alan Tipi",
+        max_length=20,
+        choices=AlanTipi.choices,
+        default=AlanTipi.METIN,
+        help_text=(
+            "Formda hangi kutunun çıkacağı. Resim seçilirse telefonda "
+            "doğrudan kamera açılır; SIM Kart seçilirse bayinin stoğundaki "
+            "kartlar listelenir. Resim ve Dosya alanları çekirdek alan olamaz."
+        ),
+    )
     grup = models.CharField(
         "Bölüm Başlığı",
         max_length=100,
         blank=True,
-        help_text="Aynı başlığı taşıyan alanlar formda birlikte gruplanır.",
+        help_text=(
+            "Formda başlık olarak çıkar; aynı başlığı taşıyan alanlar birlikte "
+            "gruplanır. Boş bırakılırsa alan “Başvuru detayları” altına düşer. "
+            "Kimlik görselleri için “Belgeler” yazın."
+        ),
     )
-    zorunlu = models.BooleanField("Zorunlu", default=False)
-    yardim_metni = models.CharField("Yardım Metni", max_length=255, blank=True)
-    placeholder = models.CharField("Placeholder", max_length=150, blank=True)
+    zorunlu = models.BooleanField(
+        "Zorunlu",
+        default=False,
+        help_text="Açıksa bayi bu alanı doldurmadan başvuruyu gönderemez.",
+    )
+    yardim_metni = models.CharField(
+        "Yardım Metni",
+        max_length=255,
+        blank=True,
+        help_text="Formda kutunun altında küçük gri yazı olarak görünür.",
+    )
+    placeholder = models.CharField(
+        "Placeholder",
+        max_length=150,
+        blank=True,
+        help_text=(
+            "Kutu boşken içinde soluk görünen örnek metin. Yazılınca kaybolur; "
+            "yardım metninin yerini tutmaz."
+        ),
+    )
     secenekler = models.TextField(
         "Seçenekler",
         blank=True,
-        help_text="Açılır liste için her satıra bir seçenek yazın.",
+        help_text=(
+            "Yalnızca Seçim tipinde kullanılır: her satıra bir seçenek yazın. "
+            "Bayi bunlardan birini seçer."
+        ),
     )
     dogrulama_deseni = models.CharField(
         "Doğrulama Deseni",
         max_length=255,
         blank=True,
-        help_text="Opsiyonel regex. Örn: ^[0-9]{11}$",
+        help_text=(
+            "İsteğe bağlı. Girilen değer bu kalıba uymazsa form reddedilir. "
+            "Örn: 11 hane rakam için ^[0-9]{11}$"
+        ),
     )
-    min_uzunluk = models.PositiveIntegerField("Min. Uzunluk", null=True, blank=True)
-    max_uzunluk = models.PositiveIntegerField("Maks. Uzunluk", null=True, blank=True)
+    min_uzunluk = models.PositiveIntegerField(
+        "Min. Uzunluk",
+        null=True,
+        blank=True,
+        help_text="Girilen metin bu kadar karakterden kısaysa form reddedilir.",
+    )
+    max_uzunluk = models.PositiveIntegerField(
+        "Maks. Uzunluk",
+        null=True,
+        blank=True,
+        help_text="Kutuya bu sayıdan fazla karakter yazılamaz.",
+    )
     kosul_alani = models.ForeignKey(
         "self",
         verbose_name="Koşul Alanı",
@@ -360,11 +418,31 @@ class KategoriAlani(ZamanDamgali):
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        help_text="Bu alan yalnızca seçilen alan belirli bir değerdeyse görünür.",
+        help_text=(
+            "Bu alan formda hep görünmesin, yalnızca başka bir alan belirli "
+            "bir değerdeyken çıksın istiyorsanız o alanı seçin. Boşsa alan "
+            "her zaman görünür."
+        ),
     )
-    kosul_degeri = models.CharField("Koşul Değeri", max_length=150, blank=True)
-    sira = models.PositiveIntegerField("Sıra", default=0)
-    aktif = models.BooleanField("Aktif", default=True)
+    kosul_degeri = models.CharField(
+        "Koşul Değeri",
+        max_length=150,
+        blank=True,
+        help_text="Koşul alanı bu değerdeyken bu alan görünür.",
+    )
+    sira = models.PositiveIntegerField(
+        "Sıra",
+        default=0,
+        help_text="Formdaki yeri. Küçük sayı önce gelir.",
+    )
+    aktif = models.BooleanField(
+        "Aktif",
+        default=True,
+        help_text=(
+            "Kapatılırsa alan formda hiç sorulmaz. Bu kategoride gereksiz "
+            "alanları silmek yerine kapatın; eski başvurulardaki değerleri durur."
+        ),
+    )
 
     class Meta:
         verbose_name = "Kategori Alanı"
@@ -388,8 +466,52 @@ class KategoriAlani(ZamanDamgali):
     def clean(self):
         if self.cekirdek_alan and self.dosya_mi:
             raise ValidationError(
-                {"tip": "Çekirdek alanlar dosya tipinde olamaz."}
+                {
+                    "cekirdek_alan": (
+                        "Görsel ve dosya alanları çekirdek alan olamaz; değerleri "
+                        "başvurunun kolonuna yazılamaz. İkinci bir kimlik görseli "
+                        "ekliyorsanız bu kutuyu boş bırakın."
+                    )
+                }
             )
+
+        # Ham kısıt hatası ("kategori_cekirdek_alan_benzersiz ihlal edildi")
+        # yöneticiye ne yapacağını söylemiyordu. Çakışan alanı adıyla göster.
+        if self.cekirdek_alan and self.kategori_id:
+            cakisan = (
+                KategoriAlani.objects.filter(
+                    kategori_id=self.kategori_id, cekirdek_alan=self.cekirdek_alan
+                )
+                .exclude(pk=self.pk)
+                .first()
+            )
+            if cakisan is not None:
+                raise ValidationError(
+                    {
+                        "cekirdek_alan": (
+                            f"“{self.get_cekirdek_alan_display()}” bu kategoride "
+                            f"zaten “{cakisan.etiket}” alanında kullanılıyor. Aynı "
+                            "çekirdek alan iki kez sorulamaz — bu ek bir alansa "
+                            "kutuyu boş bırakın."
+                        )
+                    }
+                )
+
+        if self.kod and self.kategori_id:
+            ayni_kod = (
+                KategoriAlani.objects.filter(kategori_id=self.kategori_id, kod=self.kod)
+                .exclude(pk=self.pk)
+                .first()
+            )
+            if ayni_kod is not None:
+                raise ValidationError(
+                    {
+                        "kod": (
+                            f"Bu kategoride “{ayni_kod.etiket}” alanı da aynı kodu "
+                            "kullanıyor. Alan kodu kategoride benzersiz olmalı."
+                        )
+                    }
+                )
 
     @property
     def cekirdek_mi(self):

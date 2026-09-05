@@ -336,9 +336,18 @@ class KategoriAlaniAdmin(ModelAdmin):
             {
                 "fields": ("kategori", "etiket", "kod", "tip", "cekirdek_alan", "grup"),
                 "description": (
-                    "“Çekirdek Alan” doldurulursa değer başvurunun kendi kolonuna "
-                    "yazılır ve aranabilir olur (isim, TC no, telefon gibi). "
-                    "Boş bırakılırsa alan bu kategoriye özel ek bilgi olarak saklanır."
+                    "Bayinin formda göreceği bir soru tanımlıyorsunuz. "
+                    "<b>Etiket</b> ekranda görünen başlık, <b>Alan Kodu</b> "
+                    "verinin saklandığı anahtar, <b>Alan Tipi</b> ise çıkacak "
+                    "kutunun türü.<br><br>"
+                    "<b>Çekirdek Alan çoğu zaman boş kalır.</b> Yalnızca "
+                    "başvurunun kendi kolonu olan bilgilerde (isim, TC no, "
+                    "telefon) doldurulur; o zaman değer aranabilir olur. Bir "
+                    "kategoride aynı çekirdek alan iki kez kullanılamaz ve "
+                    "görsel/dosya alanları çekirdek alan olamaz. "
+                    "<b>İkinci bir kimlik görseli</b> ekliyorsanız (çocuk, "
+                    "ebeveyn…) Çekirdek Alan’ı boş bırakın, Alan Tipi’ni "
+                    "<i>Resim</i>, Bölüm Başlığı’nı <i>Belgeler</i> yapın."
                 ),
             },
         ),
