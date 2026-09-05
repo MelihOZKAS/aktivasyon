@@ -238,8 +238,12 @@
   })();
 
   // "Fotoğraf çek" düğmesi kendi girdisini kamerayla açar. Öznitelik
-  // tıklamadan hemen önce eklenip sonra geri alınıyor: kutunun kendisine
-  // dokunulduğunda galeri açılmaya devam etsin.
+  // tıklamadan önce eklenir, kamera kapandıktan sonra geri alınır: kutunun
+  // kendisine dokunulduğunda galeri açılmaya devam etsin.
+  //
+  // Kaldırma işi zaman aşımıyla yapılamaz. Kamera daha açıkken özniteliği
+  // çekmek bazı telefonlarda çekilen fotoğrafın girdiye hiç düşmemesine yol
+  // açıyor; zorunlu alan boş kalınca da form sessizce gönderilmiyordu.
   (function () {
     document.addEventListener("click", function (olay) {
       var dugme = olay.target.closest("[data-kamera]");
@@ -248,10 +252,37 @@
       var girdi = document.getElementById(dugme.dataset.kamera);
       if (!girdi) return;
 
+      function geriAl() {
+        girdi.removeAttribute("capture");
+        girdi.removeEventListener("change", geriAl);
+        window.removeEventListener("focus", geriAl);
+      }
+
       girdi.setAttribute("capture", "environment");
+      // Kamera kapanınca ya dosya düşer (change) ya da sayfaya dönülür (focus).
+      girdi.addEventListener("change", geriAl);
+      window.addEventListener("focus", geriAl);
       girdi.click();
-      // Dosya penceresi açıldı; öznitelik artık gerekmiyor.
-      setTimeout(function () { girdi.removeAttribute("capture"); }, 0);
+    });
+  })();
+
+  // Tarayıcı zorunlu bir alan yüzünden göndermeyi engellerse sessiz kalmasın:
+  // telefonda uyarı balonu ekran dışında kalabiliyor ve düğme çalışmıyor gibi
+  // görünüyor. Eksik alana kaydırıp uyarıyı orada gösteriyoruz.
+  (function () {
+    var form = document.querySelector("form[enctype='multipart/form-data']");
+    if (!form) return;
+
+    form.addEventListener("submit", function (olay) {
+      if (form.checkValidity()) return;
+
+      olay.preventDefault();
+      var eksik = form.querySelector(":invalid");
+      if (!eksik) return;
+
+      eksik.scrollIntoView({ block: "center", behavior: "smooth" });
+      eksik.focus({ preventScroll: true });
+      form.reportValidity();
     });
   })();
 

@@ -389,6 +389,20 @@ class GorselAlaniGaleriyiDeAcar(TestCase):
         self.assertIn('data-kamera="id_alan__kimlik_on"', icerik)
         self.assertIn("Fotoğraf çek", icerik)
 
+    def test_kamera_ozniteligi_zaman_asimiyla_kaldirilmaz(self):
+        """Kamera açıkken özniteliği çekmek çekilen fotoğrafı düşürüyordu."""
+        icerik = self._sayfa()
+
+        self.assertIn('girdi.addEventListener("change", geriAl)', icerik)
+        self.assertNotIn("setTimeout(function () { girdi.removeAttribute", icerik)
+
+    def test_engellenen_gonderimde_eksik_alana_kaydirilir(self):
+        """Telefonda uyarı balonu ekran dışında kalıp düğme çalışmıyor gibi duruyordu."""
+        icerik = self._sayfa()
+
+        self.assertIn("form.checkValidity()", icerik)
+        self.assertIn("reportValidity", icerik)
+
     def test_resim_olmayan_alanda_kamera_dugmesi_cikmaz(self):
         from apps.katalog.models import AlanTipi, KategoriAlani
 
