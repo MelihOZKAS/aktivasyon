@@ -982,3 +982,80 @@ class KategoriAlaniHatalari(TestCase):
         ]
 
         self.assertEqual(yardimsiz, [])
+
+
+class TarifeGorunurlukSutunlari(TestCase):
+    """İki görünürlük anahtarı listede karışmamalı.
+
+    Yan yana iki tik kutusuyken hangisinin ne olduğu ancak sütun başlığı
+    okunarak anlaşılıyordu. İkisi de kendi cümlesini yazar.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        operator = Operator.objects.create(ad="Turkcell")
+        kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.tarife = Tarife.objects.create(operator=operator, ad="Platinum")
+        self.tarife.kategoriler.add(kategori)
+
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _liste(self):
+        from django.urls import reverse
+
+        return self.client.get(
+            reverse("admin:katalog_tarife_changelist")
+        ).content.decode()
+
+    def test_iki_anahtar_da_kendi_cumlesini_yazar(self):
+        icerik = self._liste()
+
+        self.assertIn("Katalogda görünür", icerik)
+        self.assertIn("Aktif", icerik)
+
+    def test_katalogda_gizli_tarife_ayri_yazar(self):
+        self.tarife.bayiye_gorunur = False
+        self.tarife.save(update_fields=["bayiye_gorunur"])
+
+        icerik = self._liste()
+
+        self.assertIn("Katalogda gizli", icerik)
+
+    def test_pasif_tarife_ayri_yazar(self):
+        self.tarife.aktif = False
+        self.tarife.save(update_fields=["aktif"])
+
+        icerik = self._liste()
+
+        self.assertIn("Pasif", icerik)
+
+    def test_toplu_islemle_katalogdan_gizlenir(self):
+        from django.urls import reverse
+
+        self.client.post(
+            reverse("admin:katalog_tarife_changelist"),
+            {"action": "bayiden_gizle", "_selected_action": [self.tarife.pk]},
+            follow=True,
+        )
+
+        self.tarife.refresh_from_db()
+        self.assertFalse(self.tarife.bayiye_gorunur)
+        # Katalogdan gizlemek tarifeyi pasifleştirmez.
+        self.assertTrue(self.tarife.aktif)
+
+    def test_toplu_islemle_pasiflestirilir(self):
+        from django.urls import reverse
+
+        self.client.post(
+            reverse("admin:katalog_tarife_changelist"),
+            {"action": "pasiflestir", "_selected_action": [self.tarife.pk]},
+            follow=True,
+        )
+
+        self.tarife.refresh_from_db()
+        self.assertFalse(self.tarife.aktif)
+        self.assertTrue(self.tarife.bayiye_gorunur)

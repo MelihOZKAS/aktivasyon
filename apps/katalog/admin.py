@@ -130,9 +130,11 @@ class BasvuruKategorisiAdmin(ModelAdmin):
 class TarifeAdmin(ModelAdmin):
     list_display = (
         "ad", "kategori_listesi", "operator", "gorsel_var_mi", "kampanya_sayisi",
-        "bayiye_gorunur", "aktif",
+        "bayi_gorunurlugu", "durum_rozeti",
     )
-    list_editable = ("bayiye_gorunur", "aktif")
+    actions = (
+        "bayiye_goster", "bayiden_gizle", "aktiflestir", "pasiflestir",
+    )
     list_filter = ("aktif", "bayiye_gorunur", "kategoriler", "operator", "musteri_tipi")
     search_fields = ("ad", "kategoriler__ad", "operator__ad")
     autocomplete_fields = ("kategoriler", "operator")
@@ -197,6 +199,66 @@ class TarifeAdmin(ModelAdmin):
     @admin.display(description="Kategoriler")
     def kategori_listesi(self, obj):
         return obj.kategori_adlari
+
+    # İki görünürlük anahtarı yan yana iki tik kutusuyken ayırt edilmiyordu;
+    # hangisinin ne olduğu ancak sütun başlığı okunarak anlaşılıyordu. Artık
+    # ikisi de kendi cümlesini yazıyor ve renkleri farklı.
+
+    @display(description="Bayide", ordering="bayiye_gorunur")
+    def bayi_gorunurlugu(self, obj):
+        if obj.bayiye_gorunur:
+            return format_html(
+                '<span style="background:#E4F0EF;color:#0E5E5B;padding:.15rem .6rem;'
+                'border-radius:999px;font-size:.75rem;font-weight:600;'
+                'white-space:nowrap">Katalogda görünür</span>'
+            )
+        return format_html(
+            '<span style="background:#F1F4F8;color:#6F7B8F;padding:.15rem .6rem;'
+            'border-radius:999px;font-size:.75rem;font-weight:600;'
+            'white-space:nowrap">Katalogda gizli</span>'
+        )
+
+    @display(description="Durum", ordering="aktif")
+    def durum_rozeti(self, obj):
+        if obj.aktif:
+            return format_html(
+                '<span style="background:#0F8A4D;color:#fff;padding:.15rem .6rem;'
+                'border-radius:999px;font-size:.75rem;font-weight:600">Aktif</span>'
+            )
+        return format_html(
+            '<span style="background:#D42046;color:#fff;padding:.15rem .6rem;'
+            'border-radius:999px;font-size:.75rem;font-weight:600">Pasif</span>'
+        )
+
+    @admin.action(description="Bayi katalogunda göster")
+    def bayiye_goster(self, request, secilenler):
+        adet = secilenler.update(bayiye_gorunur=True)
+        self.message_user(
+            request, f"{adet} tarife bayi katalogunda görünür oldu.", messages.SUCCESS
+        )
+
+    @admin.action(description="Bayi katalogundan gizle (başvuruda seçilebilir kalır)")
+    def bayiden_gizle(self, request, secilenler):
+        adet = secilenler.update(bayiye_gorunur=False)
+        self.message_user(
+            request,
+            f"{adet} tarife katalogda gizlendi; başvuruda hâlâ seçilebilir.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Aktifleştir")
+    def aktiflestir(self, request, secilenler):
+        adet = secilenler.update(aktif=True)
+        self.message_user(request, f"{adet} tarife aktifleştirildi.", messages.SUCCESS)
+
+    @admin.action(description="Pasifleştir (hiçbir yerde çıkmaz)")
+    def pasiflestir(self, request, secilenler):
+        adet = secilenler.update(aktif=False)
+        self.message_user(
+            request,
+            f"{adet} tarife pasifleştirildi; ne katalogda ne başvuruda çıkar.",
+            messages.WARNING,
+        )
 
     @admin.display(description="Bu tarifede hesap")
     def para_ozeti(self, obj):
