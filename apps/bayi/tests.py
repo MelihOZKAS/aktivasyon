@@ -840,6 +840,51 @@ class RolErisimTestleri(TestCase):
         self.assertEqual(self.client.get(reverse("bayi:panel")).status_code, 200)
 
 
+class SimKartOperatoru(TestCase):
+    """Kart eklenirken operatör seçilmeli.
+
+    Operatörsüz kart, başvuru formundaki stok kutusunda doğru operatöre
+    süzülemiyor; SIM alacağının kimden beklendiği de yazılamıyor.
+    """
+
+    ADRES = "/yonetim/bayi/simkart/add/"
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.katalog.models import Operator
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.yonetici = User.objects.create_superuser(
+            "yonetici", password="Panel-2026x"
+        )
+        self.client.force_login(self.yonetici)
+
+    def test_operatorsuz_kart_eklenemez(self):
+        from apps.bayi.models import SimKart
+
+        cevap = self.client.post(
+            self.ADRES,
+            {"imei": "1111111111111111", "durum": "beklemede", "aciklama": ""},
+        )
+
+        self.assertEqual(SimKart.objects.count(), 0)
+        self.assertIn("operator", cevap.context["adminform"].form.errors)
+
+    def test_operatorle_kart_eklenir(self):
+        from apps.bayi.models import SimKart
+
+        self.client.post(
+            self.ADRES,
+            {
+                "imei": "1111111111111111", "operator": self.operator.pk,
+                "durum": "beklemede", "aciklama": "",
+            },
+        )
+
+        self.assertEqual(SimKart.objects.get().operator, self.operator)
+
+
 class YanMenuRozetleri(TestCase):
     """Bekleyen iş sayısı yan menüde görünmeli; iş yokken rozet çizilmemeli."""
 

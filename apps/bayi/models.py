@@ -98,8 +98,13 @@ class SimKart(ZamanDamgali):
         Operator,
         verbose_name="Operatör",
         related_name="sim_kartlar",
+        # Operatör kart eklenirken zorunludur: kartın hangi şebekeye ait
+        # olduğu bilinmezse başvuru formundaki stok kutusu onu doğru
+        # operatöre süzemez ve SIM alacağı kimden beklendiği de yazılamaz.
+        # `null=True` yalnızca operatör kaydı silinirse kartlar da silinmesin
+        # diye durur (SET_NULL); form boş bırakmaya izin vermez.
         null=True,
-        blank=True,
+        blank=False,
         on_delete=models.SET_NULL,
     )
     imei = models.CharField("SIM / IMEI", max_length=40, unique=True)

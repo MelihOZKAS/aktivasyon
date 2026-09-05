@@ -481,6 +481,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   tedarikçiden alış fiyatı panelden hiç girilemiyordu. Hem kural admin'inde hem
   satır içi tabloda alan artık var; kullanıcı seçen kutuların ekle/düzenle/sil
   düğmeleri `_kullanici_kutusunu_sadelestir` ile kapatılır.
+- **SIM kart eklenirken operatör zorunludur.** Operatörsüz kart başvuru
+  formundaki stok kutusunda doğru operatöre süzülemez ve SIM alacağının
+  kimden beklendiği yazılamaz. Alan modelde `null=True` kalır — operatör
+  kaydı silinirse kartlar da silinmesin diye (`SET_NULL`) — ama `blank=False`
+  olduğu için form boş bırakmaya izin vermez.
 - **SIM kartlar bayiye zimmetlidir.** Bayi yalnızca kendisine atanmış ve
   "Bayiye Atandı" durumundaki kartlarla başvuru girebilir. Başvuru olumsuz
   sonuçlanınca kart otomatik olarak stoğa döner; kart fiziksel olarak bayide
