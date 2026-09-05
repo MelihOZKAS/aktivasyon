@@ -39,39 +39,69 @@
     {% endif %}
   </div>
 
+  {% comment %}
+    Satırlar tek yerden geliyor (detay_alanlari.detay_satirlari); ayar
+    kutusundaki seçenekler de aynı listeden. Kategoriye yeni bir form alanı
+    eklenince ikisi birden büyür, burada elle bir şey güncellenmez.
+  {% endcomment %}
   <div class="yuzey rounded-kart p-6">
-    <h3 class="baslik font-semibold">Başvuru bilgileri</h3>
+    <div class="flex items-start justify-between gap-3">
+      <h3 class="baslik font-semibold">Başvuru bilgileri</h3>
+      <button type="button" id="gorunum-ac" aria-label="Neler görünsün"
+              class="-mr-2 -mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-lg
+                     text-soluk hover:bg-zemin hover:text-murekkep">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5" fill="none"
+             stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 008 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H2a2 2 0 110-4h.09A1.65 1.65 0 004.6 8a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 3.6 1.65 1.65 0 0010 2.09V2a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 8v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+
+    {% if satirlar %}
     <dl class="mt-4 grid gap-x-8 gap-y-3.5 text-sm sm:grid-cols-2">
-      {% if basvuru.operator %}
-      <div><dt class="text-soluk">Operatör</dt>
-           <dd class="mt-0.5 font-medium">{{ basvuru.operator.ad }}</dd></div>
-      {% endif %}
-      {% if basvuru.tarife %}
-      <div><dt class="text-soluk">Tarife</dt>
-           <dd class="mt-0.5 font-medium">{{ basvuru.tarife.ad }}</dd></div>
-      {% endif %}
-      {% if basvuru.kampanya %}
-      <div><dt class="text-soluk">Kampanya</dt>
-           <dd class="mt-0.5 font-medium">{{ basvuru.kampanya.ad }}</dd></div>
-      {% endif %}
-      <div><dt class="text-soluk">{{ basvuru.get_kimlik_tipi_display }} no</dt>
-           <dd class="rakam mt-0.5 font-medium">{{ basvuru.kimlik_no }}</dd></div>
-      <div><dt class="text-soluk">İrtibat</dt>
-           <dd class="rakam mt-0.5 font-medium">{{ basvuru.irtibat }}</dd></div>
-      {% if basvuru.numara %}
-      <div><dt class="text-soluk">İşlem numarası</dt>
-           <dd class="rakam mt-0.5 font-medium">{{ basvuru.numara }}</dd></div>
-      {% endif %}
-      {% for etiket, deger in ek_satirlar %}
-      <div><dt class="text-soluk">{{ etiket }}</dt>
-           <dd class="mt-0.5 font-medium">{{ deger }}</dd></div>
+      {% for satir in satirlar %}
+      <div {% if satir.genis %}class="sm:col-span-2"{% endif %}>
+        <dt class="text-soluk">{{ satir.etiket }}</dt>
+        <dd class="mt-0.5 font-medium {% if satir.rakam %}rakam{% endif %}">{{ satir.deger }}</dd>
+      </div>
       {% endfor %}
-      {% if basvuru.adres %}
-      <div class="sm:col-span-2"><dt class="text-soluk">Adres</dt>
-           <dd class="mt-0.5 font-medium">{{ basvuru.adres }}</dd></div>
-      {% endif %}
     </dl>
+    {% else %}
+    <p class="mt-3 text-sm text-soluk">
+      Bütün alanları kapatmışsın. Dişliye dokunup istediklerini geri aç.
+    </p>
+    {% endif %}
   </div>
+
+  <dialog id="gorunum-kutusu" class="uyari-kutusu sim" aria-labelledby="gorunum-basligi">
+    <p id="gorunum-basligi" class="baslik text-lg font-bold">Neler görünsün?</p>
+    <p class="mt-1 text-sm text-soluk">
+      İşaretlediklerin bütün başvuru detaylarında görünür.
+    </p>
+
+    <form method="post" action="{% url 'basvurular:detay-gorunum' basvuru.referans_no %}">
+      {% csrf_token %}
+      <div class="mt-4 max-h-[50vh] space-y-1 overflow-y-auto">
+        {% for satir in tum_satirlar %}
+        <label class="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 hover:bg-zemin">
+          <input type="checkbox" name="alan" value="{{ satir.anahtar }}"
+                 class="h-4 w-4 shrink-0 accent-vurgu"
+                 {% if satir.anahtar not in gizli_alanlar %}checked{% endif %}>
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-medium">{{ satir.etiket }}</span>
+            <span class="block truncate text-xs text-soluk">{{ satir.deger }}</span>
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <button type="button" id="gorunum-kapat" class="dugme dugme-sessiz sm:w-auto">Vazgeç</button>
+        <button type="submit" class="dugme dugme-birincil sm:w-auto">Kaydet</button>
+      </div>
+    </form>
+  </dialog>
 
   {% if belgeler_gorunur and basvuru.belgeler_silindi %}
   <div class="yuzey rounded-kart p-6">
@@ -123,4 +153,16 @@
 
   <a href="{% url 'basvurular:liste' %}" class="dugme dugme-sessiz">Listeye dön</a>
 </div>
+
+<script>
+  (function () {
+    var kutu = document.getElementById("gorunum-kutusu");
+    var ac = document.getElementById("gorunum-ac");
+    var kapat = document.getElementById("gorunum-kapat");
+    if (!kutu || !ac || typeof kutu.showModal !== "function") return;
+
+    ac.addEventListener("click", function () { kutu.showModal(); });
+    if (kapat) kapat.addEventListener("click", function () { kutu.close(); });
+  })();
+</script>
 {% endblock %}

@@ -160,6 +160,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kullanıcı tarafı yalnızca yönlendirir. Her hareket kimin yaptığını taşır
   (`olusturan`) ve hareket listesinde görünür. İşlem anahtarı formda gizli
   alanda taşınır: sayfa yenilenince aynı işlem ikinci kez yazılmaz.
+- **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme
+  bildiriminin `durum` alanı formda düzenlenebilir; yönetici "Onaylandı"
+  seçip kaydedince bildirim onaylanmış **görünüyor** ama para hiç hareket
+  etmiyordu — bayi "bakiyem yüklenmedi" diyene kadar kimse fark etmez.
+  `OdemeBildirimiAdmin.save_model` durumu bekleyene çevirip servisi çağırır.
+  Bayi başvurusundaki onayla aynı kural; durum alanı olan yeni bir onay
+  ekranı yazarsan aynısını yap.
+- **Satır düğmesi kayda göre değişecekse unfold'un `actions_row`'u
+  kullanılmaz.** `get_actions_row` kaydı bilmiyor, düğmeler satır başına
+  süzülemiyor: sonuçlanmış bildirimde de "Onayla" duruyor ve basınca "zaten
+  sonuçlandırılmış" uyarısı çıkıyordu. Adresler `get_urls` ile tanımlanır,
+  düğme `list_display` sütununda koşullu çizilir (`karar_dugmeleri`).
 - **Ödeme bildirimi para hareketi değildir.** Bayi havaleyi yapıp hangi
   hesaba ne yatırdığını `OdemeBildirimi` ile bildirir; **onaylanana kadar
   cüzdana dokunulmaz**. Aksi hâlde gelmeyen havale bakiyeye yazılmış olurdu.

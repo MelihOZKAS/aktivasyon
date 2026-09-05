@@ -1244,6 +1244,89 @@ class OdemeBildirimiAkisi(TestCase):
 
         self.assertEqual(bekleyen_odeme_bildirimleri(None), "1")
 
+    def test_formdan_onaylamak_da_parayi_isler(self):
+        """Durum alanı formdan değiştirilince para atlanıyordu.
+
+        Bildirim "Onaylandı" görünüyor, Kararı Veren boş kalıyor ve bayinin
+        bakiyesine hiçbir şey yazılmıyordu; bayi söyleyene kadar fark
+        edilmezdi.
+        """
+        from django.urls import reverse
+
+        from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+
+        self.client.force_login(self.yonetici)
+        self.client.post(
+            reverse("admin:finans_odemebildirimi_change", args=[bildirim.pk]),
+            {
+                "bayi": self.bayi.pk, "banka": self.banka.pk, "tutar": "5000.00",
+                "gonderen_adi": "Melih Kaya", "aciklama": "Havale",
+                "durum": OdemeBildirimiDurumu.ONAYLANDI, "karar_notu": "",
+            },
+            follow=True,
+        )
+
+        self.cuzdan.refresh_from_db()
+        self.banka.refresh_from_db()
+        bildirim.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("5000.00"))
+        self.assertEqual(self.banka.bakiye, TL("5000.00"))
+        self.assertEqual(bildirim.karar_veren, self.yonetici)
+
+    def test_formdan_reddetmek_parayi_hareket_ettirmez(self):
+        from django.urls import reverse
+
+        from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+
+        self.client.force_login(self.yonetici)
+        self.client.post(
+            reverse("admin:finans_odemebildirimi_change", args=[bildirim.pk]),
+            {
+                "bayi": self.bayi.pk, "banka": self.banka.pk, "tutar": "5000.00",
+                "gonderen_adi": "Melih Kaya", "aciklama": "Havale",
+                "durum": OdemeBildirimiDurumu.REDDEDILDI,
+                "karar_notu": "Havale gelmedi",
+            },
+            follow=True,
+        )
+
+        self.cuzdan.refresh_from_db()
+        bildirim.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+        self.assertEqual(bildirim.karar_veren, self.yonetici)
+        self.assertEqual(bildirim.karar_notu, "Havale gelmedi")
+
+    def test_sonuclanmis_bildirimde_dugmeler_cikmaz(self):
+        """Basınca "zaten sonuçlandırılmış" diyen düğme hiç durmamalı."""
+        from django.urls import reverse
+
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import odeme_bildirimini_onayla
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+
+        self.client.force_login(self.yonetici)
+        liste = reverse("admin:finans_odemebildirimi_changelist")
+        onay_adresi = reverse(
+            "admin:finans_odemebildirimi_bildirim_onayla", args=[bildirim.pk]
+        )
+
+        self.assertIn(onay_adresi, self.client.get(liste).content.decode())
+
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+
+        self.assertNotIn(onay_adresi, self.client.get(liste).content.decode())
+
     def test_yonetici_satirdan_onaylayabilir(self):
         from django.urls import reverse
 

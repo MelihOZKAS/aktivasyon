@@ -1567,3 +1567,136 @@ class OperatorBasinaBedelVeUyari(TestCase):
         )
 
         self.assertTrue(form.is_valid(), form.errors)
+
+
+class DetayGorunumAyarlari(TestCase):
+    """Bayi başvuru detayında neleri göreceğini kendisi seçer.
+
+    Satırlar tek yerden üretiliyor; ayar kutusundaki seçenekler de aynı
+    listeden geliyor. Kategoriye alan eklenince ikisi birden büyür.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import (
+            AlanTipi, BasvuruKategorisi, KategoriAlani, Operator, Tarife,
+        )
+
+        durum = BasvuruDurumu.objects.create(
+            ad="Giriş", slug="beklemede", baslangic_durumu=True
+        )
+        self.bayi = User.objects.create_user("5551112233", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+
+        operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="aks", etiket="AKS Kodu",
+            tip=AlanTipi.METIN, sira=1,
+        )
+        tarife = Tarife.objects.create(operator=operator, ad="Platinum")
+        tarife.kategoriler.add(self.kategori)
+
+        self.basvuru = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=operator, tarife=tarife,
+            isim="Ayşe", soyisim="Demir", kimlik_no="12345678901",
+            irtibat="5559998877", durum=durum, ek_bilgiler={"aks": "AKS-42"},
+        )
+        self.client.force_login(self.bayi)
+
+    def _detay(self):
+        from django.urls import reverse
+
+        return self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        ).content.decode()
+
+    def _gorunen(self, basvuru=None):
+        """Ekranda çizilen satırların anahtarları.
+
+        Sayfa metninde arama yapmak yanıltıcı: ayar kutusu kapatılmış
+        alanları da listeliyor, etiketleri orada da geçiyor.
+        """
+        from django.urls import reverse
+
+        yanit = self.client.get(
+            reverse("basvurular:detay", args=[(basvuru or self.basvuru).referans_no])
+        )
+        return {satir["anahtar"] for satir in yanit.context["satirlar"]}
+
+    def _ayarla(self, acik_alanlar):
+        from django.urls import reverse
+
+        return self.client.post(
+            reverse("basvurular:detay-gorunum", args=[self.basvuru.referans_no]),
+            {"alan": acik_alanlar},
+            follow=True,
+        )
+
+    def test_varsayilan_olarak_her_sey_gorunur(self):
+        icerik = self._detay()
+
+        for beklenen in ("Müşteri tipi", "Kimlik tipi", "Referans no", "Bayi",
+                         "İrtibat", "AKS Kodu", "AKS-42"):
+            self.assertIn(beklenen, icerik)
+
+    def test_kategoriye_ozel_alan_kendi_etiketiyle_gelir(self):
+        self.assertIn("AKS Kodu", self._detay())
+
+    def test_kapatilan_alan_gorunmez(self):
+        self._ayarla(["referans_no", "kategori", "durum"])
+
+        gorunen = self._gorunen()
+        self.assertNotIn("musteri_tipi", gorunen)
+        self.assertIn("referans_no", gorunen)
+
+    def test_secim_butun_basvurularda_gecerli(self):
+        """Tercih bayiye ait; her başvuruda aynı görünüm."""
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+        from django.urls import reverse
+
+        self._ayarla(["referans_no"])
+
+        ikinci = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori,
+            isim="Veli", soyisim="Kaya", kimlik_no="98765432109",
+            irtibat="5551110000", durum=BasvuruDurumu.objects.first(),
+        )
+        self.assertNotIn("musteri_tipi", self._gorunen(ikinci))
+
+    def test_ayar_kutusunda_kapatilanlar_da_listelenir(self):
+        """Kapattığını geri açabilmeli; kutuda hepsi durur."""
+        self._ayarla(["referans_no"])
+
+        icerik = self._detay()
+        self.assertIn('value="musteri_tipi"', icerik)
+
+    def test_sonradan_eklenen_alan_kendiliginden_gorunur(self):
+        """Kapatılanlar saklanıyor; yeni alan listeye açık girer."""
+        self._ayarla(["referans_no"])
+        self.basvuru.ek_bilgiler = {"aks": "AKS-42", "not": "Yeni alan"}
+        self.basvuru.save(update_fields=["ek_bilgiler"])
+
+        self.assertIn("Yeni alan", self._detay())
+
+    def test_bos_deger_hic_listelenmez(self):
+        """Olmayan bilgi ne ekranda ne ayar kutusunda yer kaplar."""
+        self.assertNotIn("numara", self._gorunen())
+        self.assertNotIn("İşlem numarası", self._detay())
+
+    def test_baskasinin_basvurusunun_gorunumu_ayarlanamaz(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        baskasi = User.objects.create_user("5554443322", password="parola12345")
+        self.client.force_login(baskasi)
+
+        yanit = self.client.post(
+            reverse("basvurular:detay-gorunum", args=[self.basvuru.referans_no]),
+            {"alan": ["referans_no"]},
+        )
+
+        self.assertEqual(yanit.status_code, 404)

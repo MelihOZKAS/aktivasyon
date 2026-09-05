@@ -268,3 +268,27 @@ class BayiBasvurusu(ZamanDamgali):
         önce görmeli, bayi giriş ekranında öğrenmemeli.
         """
         return bool(self.parola_ozeti)
+
+
+class DetayGorunumTercihi(ZamanDamgali):
+    """Bayinin başvuru detayında hangi alanları görmek istediği.
+
+    Kapatılan alanların anahtarı saklanır, açık olanlar değil: kategoriye
+    sonradan eklenen bir alan kendiliğinden görünür olsun, bayi listeyi
+    yeniden gözden geçirmek zorunda kalmasın.
+    """
+
+    kullanici = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Kullanıcı",
+        related_name="detay_tercihi",
+        on_delete=models.CASCADE,
+    )
+    gizli_alanlar = models.JSONField("Gizlenen Alanlar", default=list, blank=True)
+
+    class Meta:
+        verbose_name = "Başvuru Detayı Görünümü"
+        verbose_name_plural = "Başvuru Detayı Görünümleri"
+
+    def __str__(self):
+        return f"{self.kullanici.get_username()} · {len(self.gizli_alanlar)} alan gizli"

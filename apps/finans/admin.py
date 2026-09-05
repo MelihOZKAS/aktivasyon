@@ -5,7 +5,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
 from django.http import Http404
 from unfold.decorators import action, display
@@ -475,6 +475,7 @@ class OdemeBildirimiAdmin(ModelAdmin):
         "gonderen_adi",
         "durum_rozeti",
         "karar_veren",
+        "karar_dugmeleri",
     )
     list_filter = (
         "durum",
@@ -488,7 +489,6 @@ class OdemeBildirimiAdmin(ModelAdmin):
     autocomplete_fields = ("bayi", "banka")
     readonly_fields = ("karar_veren", "karar_tarihi", "olusturma_tarihi")
     actions = ("onayla", "reddet")
-    actions_row = ["bildirim_onayla", "bildirim_reddet"]
     fieldsets = (
         (
             "Bildirim",
@@ -517,6 +517,47 @@ class OdemeBildirimiAdmin(ModelAdmin):
             .select_related("bayi", "banka", "karar_veren")
         )
 
+    def save_model(self, request, obj, form, change):
+        """Durum formdan değiştirilse de karar servisten geçer.
+
+        `durum` alanı formda düzenlenebilir; yönetici "Onaylandı" seçip
+        kaydedince bildirim onaylanmış **görünüyor** ama para hiç hareket
+        etmiyordu — bayi "bakiyem yüklenmedi" diyene kadar kimse fark etmez.
+        Bayi başvurusundaki onayla aynı kural: karar hangi yoldan verilirse
+        verilsin tek servisten geçer.
+        """
+        onceki = (
+            type(obj).objects.filter(pk=obj.pk).values_list("durum", flat=True).first()
+            if change
+            else None
+        )
+        kararlar = {OdemeBildirimiDurumu.ONAYLANDI, OdemeBildirimiDurumu.REDDEDILDI}
+        yeni_karar = (
+            obj.durum
+            if onceki == OdemeBildirimiDurumu.BEKLIYOR and obj.durum in kararlar
+            else None
+        )
+
+        if yeni_karar is None:
+            super().save_model(request, obj, form, change)
+            return
+
+        # Servis bekleyen bir kayıt bekliyor; kararı o versin.
+        obj.durum = OdemeBildirimiDurumu.BEKLIYOR
+        super().save_model(request, obj, form, change)
+
+        if yeni_karar == OdemeBildirimiDurumu.ONAYLANDI:
+            odeme_bildirimini_onayla(obj, olusturan=request.user)
+            self.message_user(
+                request,
+                f"{obj.bayi.get_username()} · {obj.tutar} ₺ bakiyeye işlendi.",
+                messages.SUCCESS,
+            )
+        else:
+            odeme_bildirimini_reddet(obj, olusturan=request.user, not_=obj.karar_notu)
+            self.message_user(request, "Bildirim reddedildi.", messages.WARNING)
+        obj.refresh_from_db()
+
     @display(description="Tutar", ordering="tutar")
     def tutar_gosterimi(self, obj):
         return format_html("<b>{} ₺</b>", obj.tutar)
@@ -535,11 +576,56 @@ class OdemeBildirimiAdmin(ModelAdmin):
             obj.get_durum_display(),
         )
 
-    # --- satır düğmeleri ------------------------------------------------
+    @display(description="")
+    def karar_dugmeleri(self, obj):
+        """Onayla/Reddet yalnızca bekleyen satırda çıkar.
 
-    @unfold_islem(
-        description="Onayla", url_path="onayla", permissions=["change"], icon="check"
-    )
+        unfold'un satır işlemleri satır başına süzülemiyor (`get_actions_row`
+        kaydı bilmiyor); sonuçlanmış bildirimde de düğmeler duruyor ve
+        yönetici basınca "zaten sonuçlandırılmış" uyarısı alıyordu.
+        """
+        if not obj.bekliyor:
+            return ""
+        return format_html_join(
+            " ",
+            '<a href="{}" style="border:1px solid #e3e8f0;border-radius:.375rem;'
+            'padding:.25rem .6rem;font-size:.75rem;font-weight:600;'
+            'white-space:nowrap;text-decoration:none;color:{}">{}</a>',
+            (
+                (
+                    reverse(f"admin:finans_odemebildirimi_{yol}", args=[obj.pk]),
+                    renk,
+                    etiket,
+                )
+                for yol, renk, etiket in (
+                    ("bildirim_onayla", "#0F8A4D", "Onayla"),
+                    ("bildirim_reddet", "#D42046", "Reddet"),
+                )
+            ),
+        )
+
+    # --- karar adresleri -------------------------------------------------
+    #
+    # unfold'un satır işlemleri kullanılmıyor: `get_actions_row` kaydı
+    # bilmediği için düğmeler satır başına süzülemiyor ve sonuçlanmış
+    # bildirimde de duruyorlardı. Adresleri kendimiz tanımlayıp düğmeyi
+    # `karar_dugmeleri` sütununda koşullu çiziyoruz.
+
+    def get_urls(self):
+        return [
+            path(
+                "<int:object_id>/onayla/",
+                self.admin_site.admin_view(self.bildirim_onayla),
+                name="finans_odemebildirimi_bildirim_onayla",
+            ),
+            path(
+                "<int:object_id>/reddet/",
+                self.admin_site.admin_view(self.bildirim_reddet),
+                name="finans_odemebildirimi_bildirim_reddet",
+            ),
+            *super().get_urls(),
+        ]
+
     def bildirim_onayla(self, request, object_id):
         bildirim = self.get_object(request, object_id)
         if bildirim is None:
@@ -558,9 +644,6 @@ class OdemeBildirimiAdmin(ModelAdmin):
             )
         return redirect("admin:finans_odemebildirimi_changelist")
 
-    @unfold_islem(
-        description="Reddet", url_path="reddet", permissions=["change"], icon="close"
-    )
     def bildirim_reddet(self, request, object_id):
         bildirim = self.get_object(request, object_id)
         if bildirim is None:

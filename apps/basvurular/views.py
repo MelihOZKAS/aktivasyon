@@ -12,6 +12,7 @@ from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.basvurular.forms import BasvuruFormu
+from apps.basvurular.detay_alanlari import detay_satirlari, gizli_alanlar
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
 from apps.basvurular.validators import SATIR_ICI_GOSTERILEBILIR
 from apps.bayi.yetki import bayi_gerekli
@@ -222,22 +223,56 @@ def detay(request, referans):
         referans_no=referans,
     )
 
-    etiketler = {alan.kod: alan.etiket for alan in basvuru.kategori.alanlar.all()}
-    ek_satirlar = [
-        (etiketler.get(kod, kod), deger) for kod, deger in (basvuru.ek_bilgiler or {}).items()
-    ]
+    # Satırlar tek yerde üretilir; ayar kutusundaki seçenekler de aynı
+    # listeden gelir. Kategoriye alan eklenince ikisi birden büyür.
+    tum_satirlar = detay_satirlari(basvuru)
+    gizli = gizli_alanlar(request.user)
 
     return render(
         request,
         "basvurular/detay.html",
         {
             "basvuru": basvuru,
-            "ek_satirlar": ek_satirlar,
+            "satirlar": [s for s in tum_satirlar if s["anahtar"] not in gizli],
+            "tum_satirlar": tum_satirlar,
+            "gizli_alanlar": gizli,
             # Başvuruyu getiren bayi ve işlemi üstlenen tedarikçi görebilir.
             "belgeler_gorunur": request.user.id
             in {basvuru.bayi_id, basvuru.tedarikci_id},
         },
     )
+
+
+@login_required
+def detay_gorunumu_ayarla(request, referans):
+    """Bayi detay ekranında hangi alanları göreceğini kendisi seçer.
+
+    Kapatılanlar saklanır, açık olanlar değil: kategoriye sonradan eklenen
+    bir alan kendiliğinden görünür olsun, bayi listeyi yeniden gözden
+    geçirmek zorunda kalmasın.
+    """
+    from apps.bayi.models import DetayGorunumTercihi
+
+    basvuru = get_object_or_404(
+        Basvuru.objects.select_related("kategori").filter(
+            Q(bayi=request.user) | Q(tedarikci=request.user)
+        ),
+        referans_no=referans,
+    )
+
+    if request.method == "POST":
+        acik = set(request.POST.getlist("alan"))
+        gizli = [
+            satir["anahtar"]
+            for satir in detay_satirlari(basvuru)
+            if satir["anahtar"] not in acik
+        ]
+        tercih, _ = DetayGorunumTercihi.objects.get_or_create(kullanici=request.user)
+        tercih.gizli_alanlar = gizli
+        tercih.save(update_fields=["gizli_alanlar", "guncelleme_tarihi"])
+        messages.success(request, "Görünüm ayarların kaydedildi.")
+
+    return redirect("basvurular:detay", referans=referans)
 
 
 @login_required
