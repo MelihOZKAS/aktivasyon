@@ -455,6 +455,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   "hakediş" soyut kalıyor, "Alışım (operatörden ya da tedarikçiden)" herkesin
   bildiği şey. `UcretKurali.ad` boş bırakılabilir, kapsamdan üretilir; iki
   rakam girmeye gelen yönetici bir de ad uydurmasın.
+  Kural listesinde **bayi grubu kendi sütunundadır**: aynı fiyatın kademe
+  kademe girildiği bir tabloda aranan ilk şey odur, kapsam özetinin içinde
+  bir etiket olarak okunması zordu. Kâr satırı **gelir ya da gider kalemi
+  eksikken rakam yazmaz**, eksiği adıyla söyler; alış girilmeden hesaplayınca
+  kâr şişik, tahsilat girilmeden hesaplayınca eksi görünüyordu — ikisi de
+  "kural yarım kalmış" demek.
   **Kural sayfasındaki "Bu kapsamın hesabı" motorla aynı mantıkla eşleşir**
   (`UcretKuraliAdmin._kapsam_tutarlari`). Kardeş kurallar bir süre **tam
   eşitlikle** aranıyordu: operatörden alış fiyatının bayi grubuyla işi yok,

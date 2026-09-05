@@ -226,7 +226,8 @@ class BayiProfiliAdmin(ModelAdmin):
                 "fields": (("bayi_mi", "tedarikci_mi"),),
                 "description": (
                     "Roller birbirini dışlamaz. Bayi başvuru getirir ve hakediş alır; "
-                    "tedarikçi kendisine atanan işlemleri satın alır, bedeli hesabından düşer."
+                    "tedarikçi kendisine atanan işlemin aktivasyonunu yapar, alış "
+                    "bedelini alacak olarak yazar."
                 ),
             },
         ),

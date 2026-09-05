@@ -1609,11 +1609,12 @@ class KuralSayfasindaKarTablosu(TestCase):
             reverse("admin:finans_ucretkurali_change", args=[(kural or self.hakedis).pk])
         ).content.decode()
 
-    def test_alis_girilmemisse_soyler(self):
+    def test_eksik_yonleri_soyler(self):
+        """Yarım kural rakam üretmemeli; eksiği adıyla söylemeli."""
         icerik = self._sayfa()
 
         self.assertIn("girilmedi", icerik)
-        self.assertIn("Alış girilmeden kâr hesaplanamaz", icerik)
+        self.assertIn("girilmeden kâr hesaplanamaz", icerik)
 
     def test_alis_girilince_kar_hesaplanir(self):
         """Alış giderdir; kâr bayiden tahsil ettiğimizden düşülerek çıkar."""
@@ -1649,9 +1650,10 @@ class KuralSayfasindaKarTablosu(TestCase):
 
         icerik = self._sayfa()
 
-        # 400 + 100 − 250 = 250; hem tahsilat hem kâr aynı rakam.
+        # 100 − 250 − 400 = −550: bayiden alınan, alışı ve bayiye ödeneni
+        # karşılamıyor. Yarım girilmiş fiyat listesi kârı böyle gösterir.
         self.assertIn("100.00", icerik)
-        self.assertIn("250.00", icerik)
+        self.assertIn("-550.00", icerik)
 
     def test_tarifeye_bagli_kuralda_tarife_sayfasina_baglanti_var(self):
         from django.urls import reverse
@@ -1677,7 +1679,7 @@ class KuralSayfasindaKarTablosu(TestCase):
         icerik = self._sayfa()
 
         self.assertNotIn("9999.00", icerik)
-        self.assertIn("Alış girilmeden kâr hesaplanamaz", icerik)
+        self.assertIn("girilmeden kâr hesaplanamaz", icerik)
 
 
 class AlisEkranlari(TestCase):
@@ -2043,6 +2045,25 @@ class KuralKarTablosu(TestCase):
 
         self.assertIn("500.00", self._tablo(self.hakedis))
 
+    def test_baska_kategorinin_kurali_sayilmaz(self):
+        """Faturalı Yeni Hat kuralına, Numara Taşıma alışı karışmamalı."""
+        digeri = BasvuruKategorisi.objects.create(ad="Faturalı Numara Taşıma")
+        UcretKurali.objects.create(
+            ad="Taşıma alışı", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("777.00"),
+            tetikleyici_durum=self.durum, kategori=digeri, operator=self.operator,
+        )
+
+        tablo = self._tablo(self.hakedis)
+
+        self.assertNotIn("777.00", tablo)
+
+    def test_gelir_girilmeden_kar_yazilmaz(self):
+        """Yarım kural yanıltıcı bir rakam üretmemeli."""
+        tablo = self._tablo(self.hakedis)
+
+        self.assertIn("girilmeden kâr hesaplanamaz", tablo)
+        self.assertIn("bayiden tahsilat", tablo.lower())
+
     def test_baska_grubun_kurali_sayilmaz(self):
         """Dar kapsamlı kardeş bu kapsamın karşılığı değildir."""
         from apps.finans.models import BayiGrubu
@@ -2162,6 +2183,32 @@ class KuralTetikleyiciDurumu(TestCase):
     def test_tetikleyen_durum_her_yonde_gecerlidir(self):
         for yon in (KuralYonu.ANA_HAKEDIS, KuralYonu.HAKEDIS, KuralYonu.TAHSILAT):
             self._kural(yon, self.aktif).full_clean()
+
+    def test_listede_bayi_grubu_sutunu_var(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        from apps.finans.models import BayiGrubu
+
+        grup = BayiGrubu.objects.create(ad="Parakende")
+        UcretKurali.objects.create(
+            ad="Parakende hakedişi", yon=KuralYonu.HAKEDIS, tutar=TL("250.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif, bayi_grubu=grup,
+        )
+        UcretKurali.objects.create(
+            ad="Herkese hakediş", yon=KuralYonu.HAKEDIS, tutar=TL("200.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
+        yonetici = User.objects.create_superuser("y2", password="Panel-2026x")
+        self.client.force_login(yonetici)
+
+        icerik = self.client.get(
+            reverse("admin:finans_ucretkurali_changelist")
+        ).content.decode()
+
+        self.assertIn("Bayi Grubu", icerik)
+        self.assertIn("Parakende", icerik)
+        self.assertIn("tüm gruplar", icerik)
 
     def test_liste_calismayan_kurali_isaretler(self):
         from django.contrib.auth.models import User

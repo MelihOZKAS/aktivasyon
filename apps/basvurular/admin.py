@@ -595,8 +595,8 @@ class BasvuruAdmin(ModelAdmin):
     def tedarikciye_ata(self, request, secilenler):
         """Birden çok işlemi tek seferde tedarikçiye atar.
 
-        Zaten aktif olan işlemlerde bedel atama anında tedarikçinin
-        hesabından düşer.
+        Zaten aktif olan işlemlerde alış bedeli atama anında tedarikçinin
+        cüzdanına alacak olarak yazılır.
         """
         if "uygula" in request.POST:
             form = TedarikciAtamaFormu(request.POST)

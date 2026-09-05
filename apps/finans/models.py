@@ -350,7 +350,10 @@ class UcretKurali(ZamanDamgali):
         max_digits=12,
         decimal_places=2,
         validators=[MinValueValidator(SIFIR)],
-        help_text="Bayiden alınacak ya da bayiye verilecek sabit tutar (₺).",
+        help_text=(
+            "Sabit tutar (₺). Yöne göre: bayiden alınacak, bayiye verilecek "
+            "ya da hattı alırken ödenecek."
+        ),
     )
 
     kategori = models.ForeignKey(
@@ -534,8 +537,8 @@ class OperatorAlisi(UcretKurali):
 class TedarikciAlisi(UcretKurali):
     """Tedarikçiden alış fiyatları — kendi ekranı.
 
-    Tedarikçi zorunludur: bu ekranda girilen tutar o tedarikçinin
-    hesabından düşer.
+    Tedarikçi zorunludur: bu ekranda girilen tutar ona ödeyeceğimiz
+    bedeldir, cüzdanına alacak olarak yazılır.
     """
 
     class Meta:

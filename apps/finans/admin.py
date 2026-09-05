@@ -453,6 +453,7 @@ class UcretKuraliAdmin(ModelAdmin):
         "ad",
         "yon_rozeti",
         "tutar_gosterimi",
+        "grup_gosterimi",
         "kapsam_ozeti",
         "tetikleyici_gosterimi",
         "oncelik",
@@ -500,8 +501,9 @@ class UcretKuraliAdmin(ModelAdmin):
                     "Boş bırakılan her alan “hepsi” anlamına gelir. Bir başvuruya "
                     "birden fazla kural uyarsa en dar kapsamlı olan uygulanır; "
                     "eşitlik durumunda önceliği yüksek olan kazanır.<br>"
-                    "<b>Alışım</b> kurallarında: tedarikçi boşsa tutar operatörden "
-                    "gelir, tedarikçi seçiliyse o tedarikçinin hesabından düşer."
+                    "<b>Alışım</b> giderdir: tedarikçi boşsa hattı operatörden "
+                    "alırız (cüzdan hareketi oluşmaz), tedarikçi seçiliyse bedel "
+                    "o tedarikçinin cüzdanına alacak olarak yazılır."
                 ),
             },
         ),
@@ -674,13 +676,22 @@ class UcretKuraliAdmin(ModelAdmin):
             ("Bayiye ödediğim", hucre(odenen)),
         ]
 
-        if alis is None and tahsil is None:
+        # Gelir bayiden tahsil ettiğimizdir, gider alıştır; biri eksikken
+        # rakam yazmak yanıltır. Alış girilmeden hesaplayınca kâr şişik,
+        # tahsilat girilmeden hesaplayınca eksi görünüyordu — ikisi de
+        # "kural yarım kalmış" demek.
+        eksikler = [
+            ad
+            for ad, deger in (("bayiden tahsilat", tahsil), ("alış", alis))
+            if deger is None
+        ]
+        if eksikler:
             kar_satiri = format_html(
-                '<span style="color:#B45309">Alış girilmeden kâr hesaplanamaz.</span>'
+                '<span style="color:#B45309">{} girilmeden kâr hesaplanamaz.</span>',
+                " ve ".join(eksikler).capitalize(),
             )
         else:
-            # Alış giderdir; gelir bayiden tahsil ettiğimizdir.
-            kar = (tahsil or SIFIR) - (odenen or SIFIR) - (alis or SIFIR)
+            kar = tahsil - (odenen or SIFIR) - alis
             kar_satiri = format_html(
                 '<b style="color:{}">{} ₺</b>',
                 "#0F8A4D" if kar >= SIFIR else "#D42046",
@@ -731,14 +742,27 @@ class UcretKuraliAdmin(ModelAdmin):
     def tutar_gosterimi(self, obj):
         return format_html("<b>{} ₺</b>", obj.tutar)
 
+    @display(description="Bayi Grubu", ordering="bayi_grubu")
+    def grup_gosterimi(self, obj):
+        """Fiyat kademesi kendi sütununda durur.
+
+        Kapsam özetinin içinde bir etiket olarak da geçiyordu ama listeye
+        "hangi kural hangi kademe için" diye bakan yönetici her satırın
+        metnini okumak zorunda kalıyordu. Aynı fiyatın kademe kademe
+        girildiği bir tabloda aranan ilk şey bu.
+        """
+        if obj.bayi_grubu_id:
+            return obj.bayi_grubu.ad
+        return format_html('<span style="color:#94a3b8">tüm gruplar</span>')
+
     @display(description="Kapsam")
     def kapsam_ozeti(self, obj):
+        # Bayi grubu kendi sütununda; burada ikinci kez yazılmaz.
         parcalar = [
             (obj.bayi, "Bayi"),
             (obj.tedarikci, "Tedarikçi"),
             (obj.kampanya, "Kampanya"),
             (obj.tarife, "Tarife"),
-            (obj.bayi_grubu, "Grup"),
             (obj.operator, "Operatör"),
             (obj.kategori, "Kategori"),
         ]
@@ -1117,7 +1141,7 @@ class AlisAdmin(ModelAdmin):
 
 @admin.register(OperatorAlisi)
 class OperatorAlisiAdmin(AlisAdmin):
-    """Operatörden alış: tutar operatörden gelir, cüzdan hareketi oluşmaz."""
+    """Operatörden alış: hattı operatörden alırız, cüzdan hareketi oluşmaz."""
 
     tedarikciden_mi = False
     fieldsets = (
@@ -1136,9 +1160,9 @@ class OperatorAlisiAdmin(AlisAdmin):
             {
                 "fields": ("tutar", "tetikleyici_durum"),
                 "description": (
-                    "Bu işlemden operatörden aldığınız tutar. Operatörün cüzdanı "
-                    "olmadığı için hareket yazılmaz; tutar başvuruya işlenir ve "
-                    "kâr hesabına girer."
+                    "Bu hattı almak için operatöre ödediğiniz tutar. Operatörün "
+                    "cüzdanı olmadığı için hareket yazılmaz; tutar başvuruya "
+                    "işlenir ve kârdan düşer."
                 ),
             },
         ),
@@ -1152,7 +1176,7 @@ class OperatorAlisiAdmin(AlisAdmin):
 
 @admin.register(TedarikciAlisi)
 class TedarikciAlisiAdmin(AlisAdmin):
-    """Tedarikçiden alış: tutar o tedarikçinin hesabından düşer."""
+    """Tedarikçiden alış: tutar o tedarikçinin cüzdanına alacak yazılır."""
 
     tedarikciden_mi = True
     list_filter = ("aktif", "kategori", "operator", "tedarikci", "tetikleyici_durum")
@@ -1165,8 +1189,9 @@ class TedarikciAlisiAdmin(AlisAdmin):
             {
                 "fields": ("tedarikci",),
                 "description": (
-                    "İşlemi üstlenen taraf. Girdiğiniz tutar bu tedarikçinin "
-                    "hesabından düşer; boş bırakılamaz."
+                    "Aktivasyonu üstlenen taraf. Girdiğiniz tutar ona "
+                    "ödeyeceğimiz bedeldir; cüzdanına alacak olarak yazılır. "
+                    "Boş bırakılamaz."
                 ),
             },
         ),
