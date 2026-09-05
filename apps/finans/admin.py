@@ -657,7 +657,8 @@ class UcretKuraliAdmin(ModelAdmin):
                 '<span style="color:#B45309">Alış girilmeden kâr hesaplanamaz.</span>'
             )
         else:
-            kar = (alis or SIFIR) + (tahsil or SIFIR) - (odenen or SIFIR)
+            # Alış giderdir; gelir bayiden tahsil ettiğimizdir.
+            kar = (tahsil or SIFIR) - (odenen or SIFIR) - (alis or SIFIR)
             kar_satiri = format_html(
                 '<b style="color:{}">{} ₺</b>',
                 "#0F8A4D" if kar >= SIFIR else "#D42046",

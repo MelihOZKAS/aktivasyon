@@ -213,12 +213,12 @@ class KurulumKomutu(TestCase):
         basvuru.refresh_from_db()
         bayi.cuzdan.refresh_from_db()
 
-        self.assertEqual(basvuru.tahsil_edilen, Decimal("25.00"))
-        self.assertEqual(basvuru.hakedis, Decimal("60.00"))
-        self.assertEqual(basvuru.ana_hakedis, Decimal("140.00"))
-        # Kâr = ana hakediş + tahsilat − hakediş
-        self.assertEqual(basvuru.kar, Decimal("105.00"))
-        self.assertEqual(bayi.cuzdan.bakiye, onceki_bakiye - 25 + 60)
+        self.assertEqual(basvuru.tahsil_edilen, Decimal("1150.00"))
+        self.assertEqual(basvuru.hakedis, Decimal("50.00"))
+        self.assertEqual(basvuru.ana_hakedis, Decimal("1000.00"))
+        # Kâr = bayiden tahsilat − bayiye hakediş − alış bedeli
+        self.assertEqual(basvuru.kar, Decimal("100.00"))
+        self.assertEqual(bayi.cuzdan.bakiye, onceki_bakiye - 1150 + 50)
 
     def test_ikinci_calistirma_kayitlari_cogaltmaz(self):
         from apps.finans.models import UcretKurali
@@ -1096,7 +1096,9 @@ class StokVeAlacakOzeti(TestCase):
         BayiProfili.objects.create(
             kullanici=self.tedarikci, unvan="Melih Paşa", tedarikci_mi=True
         )
-        Cuzdan.objects.create(bayi=self.tedarikci, borc=Decimal("4500.00"))
+        # Tedarikçiye borcumuz cüzdanının bakiyesinde durur: üstlendiği
+        # işlemlerin alış bedeli oraya yazılır, ödeyince düşer.
+        Cuzdan.objects.create(bayi=self.tedarikci, bakiye=Decimal("4500.00"))
 
         SimKart.objects.create(imei="1", operator=self.operator)
         SimKart.objects.create(
@@ -1138,30 +1140,30 @@ class StokVeAlacakOzeti(TestCase):
         self.assertIn("Beklenen SIM kartlar", icerik)
         self.assertIn("Turkcell", icerik)
 
-    def test_tedarikci_borcu_alacak_olarak_gorunur(self):
+    def test_tedarikciye_borcumuz_gorunur(self):
         icerik = self._sayfa()
 
-        self.assertIn("Tedarikçilerden alacağım", icerik)
+        self.assertIn("Tedarikçilere borcum", icerik)
         self.assertIn("Melih Paşa", icerik)
         # Şablon Türkçe biçimde yazıyor: 4500,00
         self.assertIn("4500,00", icerik)
 
-    def test_borcu_olmayan_bayi_alacak_listesine_girmez(self):
-        """Liste tedarikçilere ait; borçlu bayi buraya karışmaz."""
+    def test_bayi_alacak_listesine_girmez(self):
+        """Liste tedarikçilere ait; bakiyesi olan bayi buraya karışmaz."""
         from decimal import Decimal
 
         from apps.finans.models import Cuzdan
 
-        Cuzdan.objects.filter(bayi=self.bayi).update(borc=Decimal("999.00"))
+        Cuzdan.objects.filter(bayi=self.bayi).update(bakiye=Decimal("999.00"))
 
         icerik = self._sayfa()
 
         self.assertNotIn("999,00", icerik)
 
-    def test_ana_hakedis_kaynagina_gore_ayrilir(self):
+    def test_alis_bedeli_kime_odendigine_gore_ayrilir(self):
         icerik = self._sayfa()
 
-        self.assertIn("İşlenen ana hakediş", icerik)
+        self.assertIn("İşlenen alış bedeli", icerik)
         self.assertIn("400,00", icerik)
 
     def test_personel_olmayan_giremez(self):

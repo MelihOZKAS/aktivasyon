@@ -6,7 +6,7 @@
 {% block icerik %}
 <div class="mx-auto max-w-5xl space-y-9">
 
-  {# Tedarikçinin iki sorusu: hesabım ne durumda, bu ay ne harcadım. #}
+  {# Tedarikçinin iki sorusu: hesabım ne durumda, bu ay ne kazandım. #}
   <section>
     <div class="flex flex-wrap items-start gap-x-14 gap-y-6">
       <div>
@@ -16,9 +16,9 @@
         </p>
       </div>
       <div>
-        <p class="text-sm text-soluk">Bu ay alınan işlem</p>
+        <p class="text-sm text-soluk">Bu ay kazandığın</p>
         <p class="rakam mt-1.5 text-[2.5rem] font-bold leading-[0.95] sm:text-[3.25rem] lg:text-[4rem]">
-          {{ aylik_gider|para }}<span class="ml-1 text-3xl text-silik">₺</span>
+          {{ aylik_kazanc|para }}<span class="ml-1 text-3xl text-silik">₺</span>
         </p>
       </div>
     </div>
@@ -94,8 +94,8 @@
             {{ basvuru.durum.ad }}
           </p>
           {% if basvuru.ana_hakedis_islendi %}
-          <p class="rakam mt-0.5 text-xs font-semibold text-uyari">
-            −{{ basvuru.ana_hakedis|para }} ₺
+          <p class="rakam mt-0.5 text-xs font-semibold text-olumlu">
+            +{{ basvuru.ana_hakedis|para }} ₺
           </p>
           {% else %}
           <p class="mt-0.5 text-xs text-soluk">{{ basvuru.olusturma_tarihi|date:"j M Y" }}</p>

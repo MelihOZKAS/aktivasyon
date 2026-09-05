@@ -267,7 +267,7 @@ class TarifeAdmin(ModelAdmin):
         Yönetici üç kaydı ayrı ayrı açıp kafasında toplamasın. Alış iki
         kaynaktan olabilir (operatör ya da tedarikçi), bayi fiyatı gruba göre
         değişebilir; tablo ikisinin her bileşimi için kârı yazar.
-        Kâr = alışım + bayiden tahsilat − bayiye ödenen. Kampanyaya özel
+        Kâr = bayiden tahsilat − bayiye ödenen − alışım. Kampanyaya özel
         kurallar sayılmaz; onlar kampanyanın kendi hesabı.
         """
         if obj is None or obj.pk is None:
@@ -313,7 +313,9 @@ class TarifeAdmin(ModelAdmin):
             for grup, tutarlar in sorted(bayi_fiyatlari.items()):
                 odenen = tutarlar.get(KuralYonu.HAKEDIS, SIFIR)
                 tahsil = tutarlar.get(KuralYonu.TAHSILAT, SIFIR)
-                kar = alis + tahsil - odenen
+                # Alış giderdir: hattı operatörden ya da tedarikçiden alırken
+                # ödediğimiz tutar. Bir süre gelir sayılıyordu ve kâr şişikti.
+                kar = tahsil - odenen - alis
                 satirlar.append((
                     kaynak, alis, grup, odenen, tahsil,
                     "#0F8A4D" if kar >= SIFIR else "#D42046", kar,

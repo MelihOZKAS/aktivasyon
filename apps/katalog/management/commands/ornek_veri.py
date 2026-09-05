@@ -78,31 +78,38 @@ TARIFELER = [
     ),
 ]
 
-# Kategori bazlı üç yön: bayiye hakediş, bayiden tahsilat, bize gelen ana
-# hakediş. Aradaki fark kârdır ve başvuru satırında görünür.
+# Kategori bazlı üç yön: bayiden tahsilat (gelir), bayiye hakediş (gider) ve
+# alış bedeli (gider — hattı operatörden ya da tedarikçiden alırken ödediğimiz).
+# Kâr = tahsilat − hakediş − alış; her kategoride küçük ve pozitif tutuldu.
 # (kategori, ad, yön, tutar)
 KURALLAR = [
-    ("MNT / Numara Taşıma", "MNT hakedişi", KuralYonu.HAKEDIS, "95.00"),
-    ("MNT / Numara Taşıma", "MNT ana hakedişi", KuralYonu.ANA_HAKEDIS, "160.00"),
+    ("MNT / Numara Taşıma", "MNT hat ücreti", KuralYonu.TAHSILAT, "1000.00"),
+    ("MNT / Numara Taşıma", "MNT hakedişi", KuralYonu.HAKEDIS, "40.00"),
+    ("MNT / Numara Taşıma", "MNT alışım", KuralYonu.ANA_HAKEDIS, "900.00"),
 
-    ("Kontörlü Yeni Hat", "Kontörlü hat ücreti", KuralYonu.TAHSILAT, "25.00"),
-    ("Kontörlü Yeni Hat", "Kontörlü hat hakedişi", KuralYonu.HAKEDIS, "60.00"),
-    ("Kontörlü Yeni Hat", "Kontörlü hat ana hakedişi", KuralYonu.ANA_HAKEDIS, "140.00"),
+    ("Kontörlü Yeni Hat", "Kontörlü hat ücreti", KuralYonu.TAHSILAT, "1150.00"),
+    ("Kontörlü Yeni Hat", "Kontörlü hat hakedişi", KuralYonu.HAKEDIS, "50.00"),
+    ("Kontörlü Yeni Hat", "Kontörlü hat alışım", KuralYonu.ANA_HAKEDIS, "1000.00"),
 
-    ("Faturalı Yeni Hat", "Faturalı hat hakedişi", KuralYonu.HAKEDIS, "150.00"),
-    ("Faturalı Yeni Hat", "Faturalı hat ana hakedişi", KuralYonu.ANA_HAKEDIS, "260.00"),
+    ("Faturalı Yeni Hat", "Faturalı hat ücreti", KuralYonu.TAHSILAT, "1000.00"),
+    ("Faturalı Yeni Hat", "Faturalı hat hakedişi", KuralYonu.HAKEDIS, "60.00"),
+    ("Faturalı Yeni Hat", "Faturalı hat alışım", KuralYonu.ANA_HAKEDIS, "850.00"),
 
-    ("Şebeke İçi Geçiş", "Şebeke içi geçiş hakedişi", KuralYonu.HAKEDIS, "45.00"),
-    ("Şebeke İçi Geçiş", "Şebeke içi geçiş ana hakedişi", KuralYonu.ANA_HAKEDIS, "90.00"),
+    ("Şebeke İçi Geçiş", "Şebeke içi geçiş ücreti", KuralYonu.TAHSILAT, "260.00"),
+    ("Şebeke İçi Geçiş", "Şebeke içi geçiş hakedişi", KuralYonu.HAKEDIS, "20.00"),
+    ("Şebeke İçi Geçiş", "Şebeke içi geçiş alışım", KuralYonu.ANA_HAKEDIS, "200.00"),
 
-    ("ADSL / İnternet", "ADSL hakedişi", KuralYonu.HAKEDIS, "200.00"),
-    ("ADSL / İnternet", "ADSL ana hakedişi", KuralYonu.ANA_HAKEDIS, "350.00"),
+    ("ADSL / İnternet", "ADSL ücreti", KuralYonu.TAHSILAT, "850.00"),
+    ("ADSL / İnternet", "ADSL hakedişi", KuralYonu.HAKEDIS, "70.00"),
+    ("ADSL / İnternet", "ADSL alışım", KuralYonu.ANA_HAKEDIS, "700.00"),
 
-    ("Pasaportlu Numara Taşıma", "Pasaportlu taşıma hakedişi", KuralYonu.HAKEDIS, "110.00"),
-    ("Pasaportlu Numara Taşıma", "Pasaportlu taşıma ana hakedişi", KuralYonu.ANA_HAKEDIS, "190.00"),
+    ("Pasaportlu Numara Taşıma", "Pasaportlu taşıma ücreti", KuralYonu.TAHSILAT, "1100.00"),
+    ("Pasaportlu Numara Taşıma", "Pasaportlu taşıma hakedişi", KuralYonu.HAKEDIS, "50.00"),
+    ("Pasaportlu Numara Taşıma", "Pasaportlu taşıma alışım", KuralYonu.ANA_HAKEDIS, "950.00"),
 
-    ("Pasaportlu Yeni Hat", "Pasaportlu hat hakedişi", KuralYonu.HAKEDIS, "120.00"),
-    ("Pasaportlu Yeni Hat", "Pasaportlu hat ana hakedişi", KuralYonu.ANA_HAKEDIS, "210.00"),
+    ("Pasaportlu Yeni Hat", "Pasaportlu hat ücreti", KuralYonu.TAHSILAT, "1150.00"),
+    ("Pasaportlu Yeni Hat", "Pasaportlu hat hakedişi", KuralYonu.HAKEDIS, "50.00"),
+    ("Pasaportlu Yeni Hat", "Pasaportlu hat alışım", KuralYonu.ANA_HAKEDIS, "1000.00"),
 ]
 
 # Daha dar kapsamlı kural, genel kuralı ezer. İki örnek: bir bayi kademesi
@@ -115,11 +122,12 @@ GRUP_KURALLARI = [
      KuralYonu.HAKEDIS, "170.00"),
 ]
 
-# (kategori, tedarikçi kullanıcı adı, ad, tutar) — tedarikçi kendi payını
-# aldığı için bize ödediği ana hakediş operatörünkinden düşüktür.
+# (kategori, tedarikçi kullanıcı adı, ad, tutar) — aktivasyonu tedarikçi
+# yaptığında işi ondan satın alıyoruz; kendi payını da eklediği için alış
+# operatörden almaktan biraz pahalıdır.
 TEDARIKCI_KURALLARI = [
-    ("MNT / Numara Taşıma", "tedarikci.ege", "Ege Tedarik · MNT ana hakedişi", "145.00"),
-    ("Faturalı Yeni Hat", "tedarikci.ege", "Ege Tedarik · faturalı hat ana hakedişi", "235.00"),
+    ("MNT / Numara Taşıma", "tedarikci.ege", "Ege Tedarik · MNT alışım", "920.00"),
+    ("Faturalı Yeni Hat", "tedarikci.ege", "Ege Tedarik · faturalı hat alışım", "870.00"),
 ]
 
 BANKALAR = [

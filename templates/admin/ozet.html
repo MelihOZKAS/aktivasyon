@@ -83,11 +83,11 @@
 
   <section class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
     <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
-      Tedarikçilerden alacağım
+      Tedarikçilere borcum
     </h2>
     <p class="mb-4 text-sm text-base-500">
-      Üstlendikleri işlemin bedeli cüzdanlarından düştü; bakiyeleri yetmediği
-      için borçta kalan tutar.
+      Üstlendikleri işlemlerin alış bedeli cüzdanlarına yazıldı; henüz
+      ödemediğim, cüzdanlarında duran tutar.
     </p>
     {% if tedarikci_borclari.satirlar %}
     <dl class="space-y-2 text-sm">
@@ -108,27 +108,27 @@
       </div>
     </dl>
     {% else %}
-    <p class="text-sm text-base-500">Borçlu tedarikçi yok.</p>
+    <p class="text-sm text-base-500">Ödenmemiş tedarikçi alacağı yok.</p>
     {% endif %}
   </section>
 
   <section class="rounded-default border border-base-200 bg-white p-5 lg:col-span-2 dark:border-base-800 dark:bg-base-900">
     <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
-      İşlenen ana hakediş
+      İşlenen alış bedeli
     </h2>
     <p class="mb-4 text-sm text-base-500">
-      Tamamlanan işlemlerden kazandığınız tutar, kaynağına göre.
-      <b>Operatörden gelen tahsil edildi mi, sistem izlemez</b> — operatörün
-      cüzdanı yoktur, tutar yalnızca başvuruya işlenir. Tedarikçiden gelen
-      cüzdandan düşer; tahsil edilmemiş kısmı yandaki borç tablosundadır.
+      Tamamlanan işlemlerde hattı almak için ödediğiniz tutar, kime ödendiğine
+      göre. <b>Operatöre ödenen sistemde bir borç doğurmaz</b> — operatörün
+      cüzdanı yoktur, tutar yalnızca başvuruya işlenir. Tedarikçiye ödenen
+      onun cüzdanına yazılır; henüz ödemediğiniz kısmı yandaki tablodadır.
     </p>
     <dl class="grid gap-4 sm:grid-cols-2 text-sm">
       <div>
-        <dt class="text-base-500">Operatörden</dt>
+        <dt class="text-base-500">Operatöre</dt>
         <dd class="text-xl font-semibold">{{ ana_hakedis.operatorden }} ₺</dd>
       </div>
       <div>
-        <dt class="text-base-500">Tedarikçilerden</dt>
+        <dt class="text-base-500">Tedarikçilere</dt>
         <dd class="text-xl font-semibold">{{ ana_hakedis.tedarikciden }} ₺</dd>
       </div>
     </dl>

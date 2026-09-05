@@ -125,7 +125,7 @@ class HareketTipi(models.TextChoices):
     YUKLEME = "yukleme", "Bakiye Yükleme"
     TAHSILAT = "tahsilat", "İşlem Ücreti Tahsilatı"
     HAKEDIS = "hakedis", "Hakediş"
-    TEDARIKCI_BEDELI = "tedarikci_bedeli", "Tedarikçiden Tahsilat"
+    TEDARIKCI_BEDELI = "tedarikci_bedeli", "Tedarikçiye Ödeme"
     BORC_EKLE = "borc_ekle", "Borç Ekleme"
     BORC_TAHSIL = "borc_tahsil", "Borç Tahsilatı"
     IADE = "iade", "Bayiye İade / Ödeme"

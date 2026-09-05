@@ -61,10 +61,12 @@ def _bayideki_kartlar():
 
 
 def _tedarikci_borclari():
-    """Tedarikçilerin bize borcu: üstlendikleri işlemin bedeli.
+    """Tedarikçilere borcumuz: üstlendikleri işlemlerin alış bedeli.
 
-    Tedarikçiden alış, işlem aktifleşince onun cüzdanından düşer. Bakiyesi
-    yetmezse borca yazılır — bu borç bizim ondan alacağımızdır.
+    Aktivasyonu tedarikçi yapıyor, biz ondan satın alıyoruz: işlem
+    aktifleşince tutar onun cüzdanına yazılır. Cüzdanında biriken bakiye
+    bizim ona ödeyeceğimiz paradır. (Yön bir süre tersti; tutar tedarikçinin
+    hesabından düşülüyordu.)
     """
     from apps.finans.models import Cuzdan
 
@@ -76,24 +78,26 @@ def _tedarikci_borclari():
             and cuzdan.bayi.bayi_profili.unvan
             else cuzdan.bayi.get_username(),
             "numara": cuzdan.bayi.get_username(),
-            "borc": cuzdan.borc,
+            "borc": cuzdan.bakiye,
             "adres": f"{liste}{cuzdan.pk}/change/",
         }
         for cuzdan in (
-            Cuzdan.objects.filter(borc__gt=SIFIR, bayi__bayi_profili__tedarikci_mi=True)
+            Cuzdan.objects.filter(
+                bakiye__gt=SIFIR, bayi__bayi_profili__tedarikci_mi=True
+            )
             .select_related("bayi__bayi_profili")
-            .order_by("-borc")
+            .order_by("-bakiye")
         )
     ]
     return {"satirlar": satirlar, "toplam": sum(s["borc"] for s in satirlar)}
 
 
 def _ana_hakedis_ozeti():
-    """İşlenen ana hakediş, kaynağına göre.
+    """İşlenen alış bedeli, kime ödendiğine göre.
 
-    Operatörün cüzdanı olmadığı için oradan gelen tutar yalnızca başvuruya
-    işlenir; tahsil edilip edilmediği sistemde izlenmez. Tedarikçiden gelen
-    ise cüzdandan düşer, karşılığı yukarıdaki borç tablosundadır.
+    Operatörün cüzdanı olmadığı için oraya ödenen tutar yalnızca başvuruya
+    işlenir; sistemde bir borç kaydı doğurmaz. Tedarikçiye ödenen ise onun
+    cüzdanına yazılır, karşılığı yukarıdaki tablodadır.
     """
     from apps.basvurular.models import Basvuru
 

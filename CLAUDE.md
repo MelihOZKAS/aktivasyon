@@ -7,9 +7,11 @@ hakediş sistemi. Üç taraf var:
 
 | Taraf | Ne yapar | Para yönü |
 |---|---|---|
-| **Bayi** | Müşteriyi getirir, başvuruyu girer | Hakediş alır, hat ücreti öder |
-| **Tedarikçi** | Kendisine satılan işlemi üstlenir, aktivasyonu yapar | Ana hakedişi bize öder |
-| **Operatör** | Tedarikçi yoksa aktivasyon doğrudan onda yapılır | Ana hakedişi bize öder |
+| **Bayi** | Müşteriyi getirir, başvuruyu girer | Hat ücretini bize öder, hakediş alır |
+| **Tedarikçi** | Üstlendiği işlemin aktivasyonunu yapar | Alış bedelini ona **biz öderiz** |
+| **Operatör** | Tedarikçi yoksa aktivasyon doğrudan onda yapılır | Alış bedelini ona **biz öderiz** |
+
+Yani hattı alıp bayiye daha yüksek fiyattan satıyoruz; aradaki fark kârdır.
 
 Bir firma hem bayi hem tedarikçi olabilir.
 
@@ -327,7 +329,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   hesap olur ve hangisiyle gireceğini bilemez.
 - **Roller birbirini dışlamaz.** Bir firma hem bayi hem tedarikçi olabilir
   (`BayiProfili.bayi_mi` / `tedarikci_mi`). Bayi başvuru getirir ve hakediş
-  alır; tedarikçi işlemi satın alır, bedeli hesabından düşer.
+  alır; tedarikçi aktivasyonu yapar ve alış bedelini alacak olarak yazar.
 - **Kimlik görüntülerini üç taraf görür:** başvuruyu getiren bayi, işlemi
   üstlenen tedarikçi ve personel. Tedarikçi aktivasyonu fiilen kendisi
   yaptığı için bilgileri kimlikten okuyup operatör sistemine giriyor.
@@ -362,14 +364,24 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   olmayabilir; para işlenirken `_cuzdani_getir` sıfır bakiyeli cüzdan açar.
 - **Aynı kapsamda iki ücret kuralı varsa son eklenen kazanır.** Sonuç
   rastgele olmamalı; sıralama `(özgüllük, öncelik, pk)` üçlüsüne dayanır.
-- **Kâr = ana hakediş + bayiden tahsilat − bayiye hakediş.** `Basvuru.kar`
-  bunu hesaplar. **Ana hakediş iki kaynaktan gelir:** işlemi bir tedarikçi
-  üstlendiyse ondan (cüzdanından düşer), üstlenilmemişse operatörden
-  (operatörün cüzdanı yoktur, hareket yazılmaz; tutar yalnızca başvuruya
-  işlenir). Tutar `UcretKurali`'nda `yon=ANA_HAKEDIS` ile tanımlanır ve
-  `operator` ya da `tedarikci` kapsamıyla daraltılır. Tedarikçi sonradan da
-  atanabildiği için kendi tekillik anahtarıyla ayrı işlenir
-  (`ana_hakedisi_isle`).
+- **Kâr = bayiden tahsilat + giriş bedeli − bayiye hakediş − alış bedeli.**
+  `Basvuru.kar` bunu hesaplar. **Alış bedeli giderdir:** hattı kimden
+  alıyorsak ona ödediğimiz tutar. İşlemi bir tedarikçi üstlendiyse bedel
+  **onun cüzdanına alacak olarak yazılır** (bayiye giren para gibi önce
+  borcunu kapatır, kalanı bakiyeye geçer); üstlenilmemişse doğrudan
+  operatöre ödenir — operatörün cüzdanı yoktur, hareket yazılmaz, tutar
+  yalnızca başvuruya işlenir. Tutar `UcretKurali`'nda `yon=ANA_HAKEDIS` ile
+  tanımlanır ve `operator` ya da `tedarikci` kapsamıyla daraltılır.
+  Tedarikçi sonradan da atanabildiği için kendi tekillik anahtarıyla ayrı
+  işlenir (`ana_hakedisi_isle`).
+  **Yön bir süre tersti.** Alan "ana hakediş" adıyla, "operatör bize prim
+  öder" varsayımıyla yazılmıştı: tutar gelir sayılıyor ve tedarikçinin
+  hesabından **düşülüyordu**. Ekranların dili ise alış diliydi ("Operatörden
+  Alışlarım", "Alış fiyatım"). 1000'e alıp bayiye 1150'ye satan yönetici
+  kârını 2150 görüyordu — iki gelir toplanıyor, maliyet hiç düşülmüyordu.
+  Model kodda hâlâ `ana_hakedis` adını taşır (kolon adı değişmedi); kullanıcı
+  gören her yerde **alış bedeli** denir. Bu alana dokunan yeni bir ekran
+  yazarken gider olduğunu unutma.
 - **Özet rakamlar defter satırlarından değil başvurudan okunur.** Panelin
   "Bu ay hakediş" değeri bir süre yalnızca `HAKEDIS` tipli cüzdan
   hareketlerini topluyordu; iki yerde yanlıştı. İptalin ters kaydı (`IPTAL`)
@@ -386,9 +398,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   duruyordu; yönetici hepsini ayrı ekranda açıp kafasında topluyordu. Her
   satır kendi filtreli listesine gider — sayı burada, ayrıntı bir tık ötede.
   Rakamlar hesaplanır, **saklanmaz**: kaynak yine başvurular, SIM kartlar ve
-  cüzdanlardır; ikinci bir doğruluk kaynağı yaratılmaz. Operatörden gelen ana
-  hakedişin tahsil edilip edilmediği sistemde izlenmez (operatörün cüzdanı
-  yok) — sayfa bunu açıkça yazar.
+  cüzdanlardır; ikinci bir doğruluk kaynağı yaratılmaz. Operatöre ödenen alış
+  bedeli sistemde bir borç kaydı doğurmaz (operatörün cüzdanı yok) — sayfa
+  bunu açıkça yazar. Tedarikçiye borcumuz onun cüzdanının **bakiyesinde**
+  durur.
 - **Bayi hakedişini şeffaf görür.** `/hakedisler/` sayfası hangi tarifeden ne
   kazanacağını, kesintisini ve elde kalan neti gösterir. Yeni bir para kalemi
   eklerken bu sayfayı da güncelle.

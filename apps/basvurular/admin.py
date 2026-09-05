@@ -282,13 +282,14 @@ class BasvuruAdmin(ModelAdmin):
             },
         ),
         (
-            "Ana hakediş",
+            "Alış bedeli",
             {
                 "fields": ("tedarikci", "ana_hakedis", "ana_hakedis_islendi"),
                 "description": (
-                    "Ana hakediş operatörden ya da işlemi üstlenen tedarikçiden "
-                    "gelir. Tedarikçi atanmışsa tutar onun hesabından düşer; "
-                    "atanmamışsa operatörden alınır ve yalnızca kâr hesabına yazılır."
+                    "Hattı kimden aldıysak ona ödediğimiz tutar. Tedarikçi "
+                    "atanmışsa bedel onun cüzdanına alacak olarak yazılır; "
+                    "atanmamışsa doğrudan operatöre ödenir ve yalnızca kâr "
+                    "hesabından düşer (operatörün cüzdanı yoktur)."
                 ),
             },
         ),
@@ -447,19 +448,23 @@ class BasvuruAdmin(ModelAdmin):
             return yanit
 
         toplam = sorgu.aggregate(
-            gelir=Sum("ana_hakedis"),
+            alis=Sum("ana_hakedis"),
             kesinti=Sum("tahsil_edilen"),
             odenen=Sum("hakedis"),
+            giris=Sum("giris_bedeli"),
         )
-        gelir = toplam["gelir"] or Decimal("0")
+        alis = toplam["alis"] or Decimal("0")
         kesinti = toplam["kesinti"] or Decimal("0")
         odenen = toplam["odenen"] or Decimal("0")
+        giris = toplam["giris"] or Decimal("0")
 
+        # Alış bedeli giderdir: hattı operatörden ya da tedarikçiden alırken
+        # ödediğimiz tutar. Bir süre gelir sayılıyordu ve kâr şişik çıkıyordu.
         yanit.context_data["kar_ozeti"] = {
-            "ana_hakedis": gelir,
+            "ana_hakedis": alis,
             "tahsilat": kesinti,
             "hakedis": odenen,
-            "kar": gelir + kesinti - odenen,
+            "kar": kesinti + giris - odenen - alis,
         }
         # Kimden kaç SIM kart alacağımız: tedarikçiye satılmışsa ondan,
         # değilse operatörden.
@@ -488,7 +493,7 @@ class BasvuruAdmin(ModelAdmin):
 
     @display(description="Kâr", ordering="ana_hakedis")
     def kar_gosterimi(self, obj):
-        """Tedarikçiden aldığımız + bayiden kestiğimiz − bayiye ödediğimiz."""
+        """Bayiden kestiğimiz − bayiye ödediğimiz − alış bedeli."""
         if not (obj.para_islendi or obj.ana_hakedis_islendi or obj.giris_bedeli_islendi):
             return format_html('<span style="color:#94a3b8">—</span>')
         kar = obj.kar
@@ -500,9 +505,9 @@ class BasvuruAdmin(ModelAdmin):
         if not obj.pk:
             return "—"
         satirlar = [
-            (f"Ana hakediş ({obj.ana_hakedis_kaynagi})", obj.ana_hakedis, "#0F8A4D"),
-            ("Giriş bedeli (başvuru girilirken)", obj.giris_bedeli, "#0F8A4D"),
             ("Bayiden kesilen", obj.tahsil_edilen, "#0F8A4D"),
+            ("Giriş bedeli (başvuru girilirken)", obj.giris_bedeli, "#0F8A4D"),
+            (f"Alış bedeli ({obj.ana_hakedis_kaynagi})", -obj.ana_hakedis, "#D42046"),
             ("Bayiye ödenen", -obj.hakedis, "#D42046"),
         ]
         # format_html_join gerekli: "".join(...) düz str döndürür ve dıştaki

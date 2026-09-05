@@ -409,15 +409,20 @@ def giris_bedelini_isle(basvuru, *, olusturan=None):
 
 
 def ana_hakedisi_isle(basvuru, *, olusturan=None):
-    """İşlemden bize giren ana hakedişi kaydeder.
+    """İşlemin alış bedelini kaydeder: hattı kimden alıyorsak ona ödenen.
 
     Kaynak iki türlü olabilir:
 
-    · **Tedarikçi:** işlemi bir tedarikçi üstlendiyse bedel onun hesabından
-      düşer; cüzdan hareketi oluşur.
-    · **Operatör:** işlem üstlenilmemişse tutar doğrudan operatörden gelir.
-      Operatörün sistemde cüzdanı yok, bu yüzden hareket yazılmaz; tutar
-      yalnızca başvuruya işlenir ve kâr hesabına girer.
+    · **Tedarikçi:** aktivasyonu o yaptıysa bedel onun **alacağıdır**;
+      cüzdanına yazılır. Bayiye giren para gibi burada da önce borcu kapatır,
+      kalanı bakiyeye geçer.
+    · **Operatör:** işlem üstlenilmemişse hattı doğrudan operatörden
+      alıyoruz. Operatörün sistemde cüzdanı yok, bu yüzden hareket yazılmaz;
+      tutar yalnızca başvuruya işlenir ve kâr hesabından düşer.
+
+    Yön bir süre tersti: tutar tedarikçinin hesabından **düşülüyor**, kâr
+    hesabında da gelir sayılıyordu. 1000'e alıp 1150'ye satan yönetici kârını
+    2150 görüyordu.
 
     Tedarikçi sonradan da atanabildiği için bayi tarafındaki paradan ayrı,
     kendi tekillik anahtarıyla işlenir.
@@ -438,31 +443,35 @@ def ana_hakedisi_isle(basvuru, *, olusturan=None):
 
         if basvuru_kilitli.tedarikci_id:
             cuzdan = _cuzdani_getir(basvuru_kilitli.tedarikci_id)
-            bakiyeden = min(tutar, max(cuzdan.bakiye, SIFIR))
-            borctan = tutar - bakiyeden
+            # Aktivasyonu tedarikçi yaptı, biz ondan satın aldık: tutar onun
+            # alacağı. Cüzdana giren her kuruş gibi önce borcu kapatır,
+            # kalanı bakiyeye geçer — yoksa aynı anda hem çekilebilir bakiye
+            # hem borç durur.
+            borctan_dusulen = min(tutar, cuzdan.borc)
+            bakiyeye_yazilan = tutar - borctan_dusulen
 
-            if bakiyeden > SIFIR:
+            if borctan_dusulen > SIFIR:
+                _hareket_yaz(
+                    cuzdan=cuzdan,
+                    tip=HareketTipi.BORC_TAHSIL,
+                    tutar=-borctan_dusulen,
+                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:anahakedis:borc",
+                    aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad} (borçtan düşüldü)",
+                    basvuru=basvuru_kilitli,
+                    kural=kural,
+                    olusturan=olusturan,
+                    borca_yaz=True,
+                )
+            if bakiyeye_yazilan > SIFIR:
                 _hareket_yaz(
                     cuzdan=cuzdan,
                     tip=HareketTipi.TEDARIKCI_BEDELI,
-                    tutar=-bakiyeden,
+                    tutar=bakiyeye_yazilan,
                     idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:anahakedis:bakiye",
                     aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad}",
                     basvuru=basvuru_kilitli,
                     kural=kural,
                     olusturan=olusturan,
-                )
-            if borctan > SIFIR:
-                _hareket_yaz(
-                    cuzdan=cuzdan,
-                    tip=HareketTipi.BORC_EKLE,
-                    tutar=borctan,
-                    idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:anahakedis:borc",
-                    aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad} (borç)",
-                    basvuru=basvuru_kilitli,
-                    kural=kural,
-                    olusturan=olusturan,
-                    borca_yaz=True,
                 )
 
         basvuru_kilitli.ana_hakedis = tutar

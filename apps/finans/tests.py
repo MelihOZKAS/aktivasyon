@@ -349,7 +349,7 @@ class BakiyeYuklemeTestleri(TestCase):
 
 
 class TedarikciTestleri(TestCase):
-    """İşlemi tedarikçiye satıyoruz; aradaki fark kârımız."""
+    """Aktivasyonu tedarikçiden alıyoruz; bayiye sattığımız fiyatla farkı kârımız."""
 
     def setUp(self):
         from apps.bayi.models import BayiProfili
@@ -388,17 +388,24 @@ class TedarikciTestleri(TestCase):
         )
 
     def _kurallari_kur(self):
+        # Bayi 250 ödüyor, 95 hakediş alıyor; tedarikçiye 140 ödüyoruz.
+        # Kâr = 250 − 95 − 140 = 15.
+        UcretKurali.objects.create(
+            ad="Bayiden tahsilat", yon=KuralYonu.TAHSILAT, tutar=TL("250.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
         UcretKurali.objects.create(
             ad="Bayi hakedişi", yon=KuralYonu.HAKEDIS, tutar=TL("95.00"),
             kategori=self.kategori, tetikleyici_durum=self.aktif,
         )
         UcretKurali.objects.create(
-            ad="Tedarikçi X fiyatı", yon=KuralYonu.ANA_HAKEDIS,
+            ad="Tedarikçi X alışı", yon=KuralYonu.ANA_HAKEDIS,
             tutar=TL("140.00"), kategori=self.kategori,
             tedarikci=self.tedarikci, tetikleyici_durum=self.aktif,
         )
 
-    def test_aktif_olunca_tedarikciden_tahsil_edilir(self):
+    def test_aktif_olunca_tedarikciye_odenir(self):
+        """Aktivasyonu o yaptı: alış bedeli onun cüzdanına yazılır."""
         self._kurallari_kur()
         basvuru = self._basvuru(tedarikci=self.tedarikci)
         basvuru.durum = self.aktif
@@ -408,13 +415,30 @@ class TedarikciTestleri(TestCase):
         self.cuzdan.refresh_from_db()
         self.tedarikci_cuzdan.refresh_from_db()
 
-        self.assertEqual(self.cuzdan.bakiye, TL("1095.00"))
-        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("4860.00"))
+        # Bayi: 1000 − 250 + 95
+        self.assertEqual(self.cuzdan.bakiye, TL("845.00"))
+        # Tedarikçi: 5000 + 140 (bizim ona borcumuz)
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("5140.00"))
         self.assertEqual(basvuru.ana_hakedis, TL("140.00"))
-        self.assertEqual(basvuru.kar, TL("45.00"))
+        self.assertEqual(basvuru.kar, TL("15.00"))
+
+    def test_tedarikciye_odenen_once_borcunu_kapatir(self):
+        """Cüzdana giren her kuruş gibi: önce borç, kalanı bakiye."""
+        self.tedarikci_cuzdan.bakiye = TL("0.00")
+        self.tedarikci_cuzdan.borc = TL("100.00")
+        self.tedarikci_cuzdan.save(update_fields=["bakiye", "borc"])
+
+        self._kurallari_kur()
+        basvuru = self._basvuru(tedarikci=self.tedarikci)
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        self.tedarikci_cuzdan.refresh_from_db()
+        self.assertEqual(self.tedarikci_cuzdan.borc, TL("0.00"))
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("40.00"))
 
     def test_tedarikci_sonradan_atanabilir(self):
-        """İşlem aktifleştikten sonra da satılabilir."""
+        """İşlem aktifleştikten sonra da bir tedarikçiye devredilebilir."""
         self._kurallari_kur()
         basvuru = self._basvuru()
         basvuru.durum = self.aktif
@@ -422,7 +446,8 @@ class TedarikciTestleri(TestCase):
 
         basvuru.refresh_from_db()
         self.assertEqual(basvuru.ana_hakedis, TL("0.00"))
-        self.assertEqual(basvuru.kar, TL("-95.00"))
+        # Henüz alış yok: 250 − 95
+        self.assertEqual(basvuru.kar, TL("155.00"))
 
         basvuru.tedarikci = self.tedarikci
         basvuru.save()
@@ -430,8 +455,8 @@ class TedarikciTestleri(TestCase):
         basvuru.refresh_from_db()
         self.tedarikci_cuzdan.refresh_from_db()
         self.assertEqual(basvuru.ana_hakedis, TL("140.00"))
-        self.assertEqual(basvuru.kar, TL("45.00"))
-        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("4860.00"))
+        self.assertEqual(basvuru.kar, TL("15.00"))
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("5140.00"))
 
     def test_tedarikci_fiyati_tedarikciye_gore_degisir(self):
         digeri = User.objects.create_user("tedarikci2", password="parola123")
@@ -465,15 +490,19 @@ class TedarikciTestleri(TestCase):
         self.assertEqual(basvuru.ana_hakedis, TL("0.00"))
         self.assertFalse(basvuru.ana_hakedis_islendi)
 
-    def test_operatorden_gelen_ana_hakedis_kaydedilir(self):
-        """Tedarikçi yoksa tutar operatörden gelir; cüzdan hareketi olmaz
-        ama kâr hesabına girer."""
+    def test_operatore_odenen_alis_kaydedilir(self):
+        """Tedarikçi yoksa hattı operatörden alırız; cüzdan hareketi olmaz
+        ama kâr hesabından düşer."""
+        UcretKurali.objects.create(
+            ad="Bayiden tahsilat", yon=KuralYonu.TAHSILAT, tutar=TL("300.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
         UcretKurali.objects.create(
             ad="Bayi hakedişi", yon=KuralYonu.HAKEDIS, tutar=TL("95.00"),
             kategori=self.kategori, tetikleyici_durum=self.aktif,
         )
         UcretKurali.objects.create(
-            ad="Turkcell ana hakediş", yon=KuralYonu.ANA_HAKEDIS,
+            ad="Turkcell alışım", yon=KuralYonu.ANA_HAKEDIS,
             tutar=TL("160.00"), kategori=self.kategori, operator=self.operator,
             tetikleyici_durum=self.aktif,
         )
@@ -484,7 +513,8 @@ class TedarikciTestleri(TestCase):
 
         basvuru.refresh_from_db()
         self.assertEqual(basvuru.ana_hakedis, TL("160.00"))
-        self.assertEqual(basvuru.kar, TL("65.00"))
+        # 300 − 95 − 160
+        self.assertEqual(basvuru.kar, TL("45.00"))
         self.assertEqual(basvuru.ana_hakedis_kaynagi, self.operator.ad)
         # Operatörün cüzdanı yok: hareket yazılmamalı.
         self.assertFalse(
@@ -520,7 +550,7 @@ class TedarikciTestleri(TestCase):
         ana_hakedisi_isle(basvuru)
 
         self.tedarikci_cuzdan.refresh_from_db()
-        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("4860.00"))
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("5140.00"))
 
     def test_bir_kullanici_hem_bayi_hem_tedarikci_olabilir(self):
         from apps.bayi.models import BayiProfili
@@ -593,16 +623,20 @@ class KenarDurumTestleri(TestCase):
         self.assertEqual(basvuru.hakedis, TL("120.00"))
 
     def test_ayni_kullanici_hem_bayi_hem_tedarikci(self):
-        """Tek cüzdanda iki hareket: hakediş girer, tedarikçi bedeli çıkar."""
+        """Tek cüzdanda üç hareket: tahsilat çıkar, hakediş ve alış girer."""
         ikili = User.objects.create_user("ikili", password="parola123")
         cuzdan = Cuzdan.objects.create(bayi=ikili, bakiye=TL("1000.00"))
 
+        UcretKurali.objects.create(
+            ad="Tahsilat", yon=KuralYonu.TAHSILAT, tutar=TL("300.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
         UcretKurali.objects.create(
             ad="Hakediş", yon=KuralYonu.HAKEDIS, tutar=TL("100.00"),
             kategori=self.kategori, tetikleyici_durum=self.aktif,
         )
         UcretKurali.objects.create(
-            ad="Tedarikçi bedeli", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("130.00"),
+            ad="Tedarikçi alışı", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("130.00"),
             kategori=self.kategori, tedarikci=ikili, tetikleyici_durum=self.aktif,
         )
 
@@ -612,8 +646,10 @@ class KenarDurumTestleri(TestCase):
 
         cuzdan.refresh_from_db()
         basvuru.refresh_from_db()
-        self.assertEqual(cuzdan.bakiye, TL("970.00"))
-        self.assertEqual(basvuru.kar, TL("30.00"))
+        # 1000 − 300 + 100 + 130
+        self.assertEqual(cuzdan.bakiye, TL("930.00"))
+        # 300 − 100 − 130
+        self.assertEqual(basvuru.kar, TL("70.00"))
 
 
 class TarifeParaEkraniTestleri(TestCase):
@@ -1580,8 +1616,14 @@ class KuralSayfasindaKarTablosu(TestCase):
         self.assertIn("Alış girilmeden kâr hesaplanamaz", icerik)
 
     def test_alis_girilince_kar_hesaplanir(self):
+        """Alış giderdir; kâr bayiden tahsil ettiğimizden düşülerek çıkar."""
         UcretKurali.objects.create(
             ad="Operatörden alış", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("400.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+            operator=self.operator, tarife=self.tarife,
+        )
+        UcretKurali.objects.create(
+            ad="Bayiden tahsilat", yon=KuralYonu.TAHSILAT, tutar=TL("700.00"),
             tetikleyici_durum=self.aktif, kategori=self.kategori,
             operator=self.operator, tarife=self.tarife,
         )
@@ -1590,8 +1632,8 @@ class KuralSayfasindaKarTablosu(TestCase):
 
         self.assertIn("400.00", icerik)
         self.assertIn("250.00", icerik)
-        # 400 − 250 = 150
-        self.assertIn("150.00", icerik)
+        # 700 − 250 − 400 = 50
+        self.assertIn("50.00", icerik)
 
     def test_tahsilat_da_kara_girer(self):
         UcretKurali.objects.create(
@@ -2024,3 +2066,50 @@ class KuralKarTablosu(TestCase):
         )
 
         self.assertIn("250.00", self._tablo(self.hakedis))
+
+
+class AlisBedeliGiderdir(TestCase):
+    """1000'e alıp 1150'ye satan yönetici 150 kâr görmeli, 2150 değil.
+
+    Alış bedeli bir süre gelir sayılıyordu ("ana hakediş": operatör bize
+    prim öder varsayımı). Ekranın dili alış diliydi, matematik gelir
+    sayıyordu; iki gelir toplanıyor, maliyet hiç düşülmüyordu.
+    """
+
+    def setUp(self):
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+
+        self.bayi = User.objects.create_user("bayi", password="parola123")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=TL("5000.00"))
+
+        UcretKurali.objects.create(
+            ad="Turkcell alışım", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("1000.00"),
+            kategori=self.kategori, operator=self.operator,
+            tetikleyici_durum=self.aktif,
+        )
+        UcretKurali.objects.create(
+            ad="Bayiden tahsilat", yon=KuralYonu.TAHSILAT, tutar=TL("1150.00"),
+            kategori=self.kategori, operator=self.operator,
+            tetikleyici_durum=self.aktif,
+        )
+
+    def test_kar_alis_ile_satis_arasindaki_farktir(self):
+        basvuru = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            isim="Ayşe", soyisim="Demir", kimlik_no="1", irtibat="5551112233",
+            durum=self.beklemede,
+        )
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        basvuru.refresh_from_db()
+        self.assertEqual(basvuru.tahsil_edilen, TL("1150.00"))
+        self.assertEqual(basvuru.ana_hakedis, TL("1000.00"))
+        self.assertEqual(basvuru.kar, TL("150.00"))

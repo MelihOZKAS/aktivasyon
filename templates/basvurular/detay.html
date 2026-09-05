@@ -27,7 +27,7 @@
 
     {% comment %}
       Herkes kendi hesabını görür: bayi kesintisini ve hakedişini, tedarikçi
-      bu işlem için ödediğini. Tedarikçiye bayinin hakedişi gösterilmez.
+      bu işlemden kazandığını. Tedarikçiye bayinin hakedişi gösterilmez.
     {% endcomment %}
     {% if bayi_gorunumu and basvuru.para_islendi %}
     <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-t border-cizgi pt-4 text-sm">
@@ -45,8 +45,8 @@
     {% if tedarikci_gorunumu and basvuru.ana_hakedis_islendi %}
     <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-t border-cizgi pt-4 text-sm">
       <div class="flex items-baseline gap-2">
-        <dt class="text-soluk">Bu işlem için ödediğin</dt>
-        <dd class="rakam font-semibold text-olumsuz">{{ basvuru.ana_hakedis|para }} ₺</dd>
+        <dt class="text-soluk">Bu işlemden kazandığın</dt>
+        <dd class="rakam font-semibold text-olumlu">{{ basvuru.ana_hakedis|para }} ₺</dd>
       </div>
     </dl>
     {% endif %}

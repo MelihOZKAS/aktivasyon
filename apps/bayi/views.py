@@ -513,8 +513,10 @@ def tedarikci_panel(request):
             | Q(numara__icontains=arama)
         )
 
+    # Aktivasyonu tedarikçi yapıyor, biz ondan satın alıyoruz: alış bedeli
+    # onun kazancıdır, cüzdanına yazılır.
     ayin_basi = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    aylik_gider = (
+    aylik_kazanc = (
         Basvuru.objects.filter(
             tedarikci=request.user,
             ana_hakedis_islendi=True,
@@ -531,7 +533,7 @@ def tedarikci_panel(request):
         {
             "sayfa": sayfalayici.get_page(request.GET.get("sayfa")),
             "toplam": sayfalayici.count,
-            "aylik_gider": aylik_gider,
+            "aylik_kazanc": aylik_kazanc,
             "durumlar": BasvuruDurumu.objects.filter(aktif=True).order_by("sira"),
             "secili_durum": secili_durum,
             "arama": arama,

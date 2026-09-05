@@ -218,11 +218,14 @@ class Basvuru(ZamanDamgali):
         "Bayiye Hakediş", max_digits=12, decimal_places=2, default=SIFIR
     )
     ana_hakedis = models.DecimalField(
-        "Ana Hakediş",
+        "Alış Bedeli",
         max_digits=12,
         decimal_places=2,
         default=SIFIR,
-        help_text="Operatörden ya da işlemi üstlenen tedarikçiden aldığımız tutar.",
+        help_text=(
+            "Bu işlem için operatöre ya da işlemi üstlenen tedarikçiye "
+            "ödediğimiz tutar. Kâr hesabında giderdir."
+        ),
     )
     giris_bedeli = models.DecimalField(
         "Giriş Bedeli",
@@ -329,15 +332,21 @@ class Basvuru(ZamanDamgali):
     def kar(self):
         """Firmanın bu işlemden kazancı.
 
-        Ana hakediş (operatörden ya da tedarikçiden), başvuru girilirken
-        alınan giriş bedeli ve bayiden kestiğimiz ücret gelirdir; bayiye
-        ödediğimiz hakediş giderdir.
+        Gelir iki kalemdir: bayiden kestiğimiz ücret ve başvuru girilirken
+        alınan giriş bedeli. Gider de iki kalemdir: bayiye ödediğimiz
+        hakediş ve **alış bedeli** — hattı operatörden alırken ya da işlemi
+        üstlenen tedarikçiye ödediğimiz tutar.
+
+        Alış bedeli bir süre gelir sayılıyordu ("ana hakediş": operatör bize
+        prim öder varsayımı). 1000'e alıp bayiye 1150'ye satan yönetici
+        kârını 2150 görüyordu; iki gelir toplanıyor, maliyet hiç
+        düşülmüyordu.
         """
-        return self.ana_hakedis + self.tahsil_edilen + self.giris_bedeli - self.hakedis
+        return self.tahsil_edilen + self.giris_bedeli - self.hakedis - self.ana_hakedis
 
     @property
     def ana_hakedis_kaynagi(self):
-        """Ana hakedişi kimden alıyoruz?"""
+        """Alış bedelini kime ödüyoruz?"""
         if self.tedarikci_id:
             profil = getattr(self.tedarikci, "bayi_profili", None)
             return profil.unvan if profil and profil.unvan else self.tedarikci.get_username()
