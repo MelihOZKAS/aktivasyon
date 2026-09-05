@@ -76,3 +76,45 @@ def gizli_alanlar(kullanici):
     """Bayinin kapattığı alan anahtarları."""
     tercih = getattr(kullanici, "detay_tercihi", None)
     return set(tercih.gizli_alanlar or []) if tercih else set()
+
+
+def admin_gizli_alanlar(kullanici):
+    """Yönetim panelinde bu kullanıcıya gösterilmeyecek alanlar."""
+    tercih = getattr(kullanici, "detay_tercihi", None)
+    return set(tercih.admin_gizli_alanlar or []) if tercih else set()
+
+
+def fieldset_alanlari(fieldsets):
+    """Fieldset tanımındaki bütün alan adları, sırasıyla.
+
+    `fields` içinde tek alan da olabiliyor, satır oluşturan demet de;
+    ikisi de düzleştirilir.
+    """
+    adlar = []
+    for _, ayar in fieldsets:
+        for alan in ayar.get("fields", ()):
+            if isinstance(alan, (list, tuple)):
+                adlar.extend(alan)
+            else:
+                adlar.append(alan)
+    return adlar
+
+
+def fieldsetleri_suz(fieldsets, gizli):
+    """Gizlenen alanları çıkarır; boşalan bölüm hiç çizilmez."""
+    if not gizli:
+        return fieldsets
+
+    suzulmus = []
+    for baslik, ayar in fieldsets:
+        alanlar = []
+        for alan in ayar.get("fields", ()):
+            if isinstance(alan, (list, tuple)):
+                satir = tuple(a for a in alan if a not in gizli)
+                if satir:
+                    alanlar.append(satir if len(satir) > 1 else satir[0])
+            elif alan not in gizli:
+                alanlar.append(alan)
+        if alanlar:
+            suzulmus.append((baslik, {**ayar, "fields": tuple(alanlar)}))
+    return tuple(suzulmus)

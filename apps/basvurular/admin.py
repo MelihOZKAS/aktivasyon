@@ -3,12 +3,21 @@ from decimal import Decimal
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth.models import User
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db.models import Sum
-from django.shortcuts import render
+from django.http import Http404
+from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
+from unfold.decorators import action as unfold_islem
 from unfold.decorators import display
 
+from apps.basvurular.detay_alanlari import (
+    admin_gizli_alanlar,
+    fieldset_alanlari,
+    fieldsetleri_suz,
+)
 from apps.basvurular.raporlar import sim_alacaklari
 from apps.katalog.models import Kampanya, Tarife
 from apps.basvurular.models import (
@@ -130,6 +139,49 @@ class TedarikciAtamaFormu(forms.Form):
     )
 
 
+class BasvuruAdminFormu(forms.ModelForm):
+    """Görünümden kapatılan alana yazılan hata formu çökertmesin.
+
+    Model doğrulaması hatayı alan adıyla veriyor (`{"tarife": ...}`).
+    Kullanıcı o alanı kapattıysa alan formda yok ve Django `add_error`
+    çağrısında `ValueError` atıyor — kayıt hiç kaydedilemez hâle geliyordu.
+    Karşılığı olmayan hata, alan adıyla birlikte genel hataya düşer.
+    """
+
+    class Meta:
+        model = Basvuru
+        fields = "__all__"
+
+    def _update_errors(self, errors):
+        # Model doğrulamasından gelen hatalar buradan geçiyor; Django alanı
+        # formda bulamazsa `add_error`a hiç varmadan ValueError atıyor.
+        if hasattr(errors, "error_dict"):
+            errors = ValidationError(self._hatalari_yerlestir(errors.error_dict))
+        super()._update_errors(errors)
+
+    def _hatalari_yerlestir(self, hata_sozlugu):
+        """Formda karşılığı olmayan hatayı genel hataya taşır."""
+        yerinde = {}
+        genel = []
+        for alan, hatalar in hata_sozlugu.items():
+            if alan == NON_FIELD_ERRORS or alan in self.fields:
+                yerinde.setdefault(alan, []).extend(hatalar)
+                continue
+            for hata in hatalar:
+                genel.extend(f"{alan}: {mesaj}" for mesaj in hata.messages)
+
+        if genel:
+            yerinde.setdefault(NON_FIELD_ERRORS, []).append(ValidationError(genel))
+        return yerinde
+
+    def add_error(self, field, error):
+        if field is not None and field not in self.fields:
+            mesajlar = getattr(error, "messages", None) or [str(error)]
+            error = ValidationError([f"{field}: {mesaj}" for mesaj in mesajlar])
+            field = None
+        super().add_error(field, error)
+
+
 @admin.register(Basvuru)
 class BasvuruAdmin(ModelAdmin):
     list_display = (
@@ -191,6 +243,8 @@ class BasvuruAdmin(ModelAdmin):
         "sim_karsiligi_alindi_isaretle",
         "sim_karsiligi_geri_al",
     )
+    form = BasvuruAdminFormu
+    actions_detail = ["gorunum_ayarla"]
     fieldsets = (
         (
             "Başvuru",
@@ -259,6 +313,79 @@ class BasvuruAdmin(ModelAdmin):
             },
         ),
     )
+
+    def get_fieldsets(self, request, obj=None):
+        """Kullanıcının kapattığı alanlar çizilmez.
+
+        Başvuru detayı uzun; herkes hepsiyle ilgilenmiyor. Kapatmak yalnızca
+        görünümü etkiler — alan formdan çıktığı için değeri olduğu gibi
+        kalır, kaydetmek onu bozmaz.
+
+        Ekleme ekranında süzme yapılmaz: yeni kayıt açarken zorunlu bir alan
+        gizli kalırsa kayıt hiç açılamaz.
+        """
+        fieldsets = super().get_fieldsets(request, obj)
+        if obj is None:
+            return fieldsets
+        return fieldsetleri_suz(fieldsets, admin_gizli_alanlar(request.user))
+
+    @unfold_islem(
+        description="Görünüm",
+        url_path="gorunum",
+        permissions=["change"],
+        icon="tune",
+    )
+    def gorunum_ayarla(self, request, object_id):
+        """Bu ekranda hangi alanların görüneceğini kullanıcı kendisi seçer."""
+        from apps.bayi.models import DetayGorunumTercihi
+
+        basvuru = self.get_object(request, object_id)
+        if basvuru is None:
+            raise Http404("Başvuru bulunamadı.")
+
+        # Süzülmemiş liste: kapatılan alan da kutuda dursun, geri açılabilsin.
+        tumu = fieldset_alanlari(super().get_fieldsets(request, basvuru))
+        etiketler = self._alan_etiketleri(request, basvuru, tumu)
+
+        if request.method == "POST":
+            acik = set(request.POST.getlist("alan"))
+            tercih, _ = DetayGorunumTercihi.objects.get_or_create(kullanici=request.user)
+            tercih.admin_gizli_alanlar = [a for a in tumu if a not in acik]
+            tercih.save(update_fields=["admin_gizli_alanlar", "guncelleme_tarihi"])
+            self.message_user(request, "Görünüm ayarların kaydedildi.", messages.SUCCESS)
+            return redirect("admin:basvurular_basvuru_change", basvuru.pk)
+
+        gizli = admin_gizli_alanlar(request.user)
+        return render(
+            request,
+            "admin/basvurular/gorunum.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "Neler görünsün?",
+                "opts": self.model._meta,
+                "basvuru": basvuru,
+                "satirlar": [
+                    {"ad": ad, "etiket": etiketler.get(ad, ad), "acik": ad not in gizli}
+                    for ad in tumu
+                ],
+                "geri_adresi": reverse(
+                    "admin:basvurular_basvuru_change", args=[basvuru.pk]
+                ),
+            },
+        )
+
+    def _alan_etiketleri(self, request, obj, adlar):
+        """Alan adlarını ekranda görünen başlıklarına çevirir."""
+        etiketler = {}
+        for ad in adlar:
+            try:
+                etiketler[ad] = self.model._meta.get_field(ad).verbose_name
+            except Exception:
+                # Hesaplanan alanlar (kar_ozeti gibi) modelde yok; admin
+                # metodunun kendi başlığını kullan.
+                metot = getattr(self, ad, None)
+                etiketler[ad] = getattr(metot, "short_description", ad)
+        return etiketler
 
     def get_queryset(self, request):
         return (

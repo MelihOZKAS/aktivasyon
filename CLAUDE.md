@@ -591,6 +591,19 @@ gösterdiği veritabanının şemasını düşürür.
   diskten silmez; `apps/dosya.py` bunu kapatır — kayıt silinince ve dosya
   değişince eskisi commit sonrasında silinir. Yeni bir dosya/görsel alanı
   eklerken ilgili `AppConfig.ready()` içinde `dosyalari_temizle`'ye kaydet.
+- **Başvuru detayında hangi alanların görüneceğini kullanıcı seçer.** Ekran
+  uzun; herkes her alanla ilgilenmiyor. Yönetim panelinde detay sayfasının
+  üstündeki **Görünüm** düğmesi (`BasvuruAdmin.gorunum_ayarla`), bayi
+  tarafında "Başvuru bilgileri" başlığının yanındaki aynı adlı düğme. Tercih
+  kullanıcıya özeldir (`DetayGorunumTercihi`), kapatılanlar saklanır — yeni
+  eklenen alan kendiliğinden görünür olur.
+  Kapatmak yalnızca görünümü etkiler: alan formdan çıkar, **değeri korunur**.
+  Ama model doğrulaması hatayı alan adıyla veriyor; alan formda yoksa Django
+  `add_error`a hiç varmadan `ValueError` atıp kaydı imkânsız hâle
+  getiriyordu. `BasvuruAdminFormu._update_errors` karşılığı olmayan hatayı
+  alan adıyla birlikte genel hataya taşır. Alan gizlenebilen yeni bir admin
+  ekranı yazarsan aynısını yap. Ekleme ekranında süzme yapılmaz: zorunlu bir
+  alan gizli kalırsa yeni kayıt hiç açılamaz.
 - **Seçim kutuları geçersiz seçenek göstermemeli.** Başvuru admin'inde
   tarife ve kampanya, başvurunun kategorisine göre daraltılır. Bu yüzden
   ikisi bilinçli olarak `autocomplete_fields` değil: autocomplete kutusu

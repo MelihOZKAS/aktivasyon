@@ -285,6 +285,15 @@ class DetayGorunumTercihi(ZamanDamgali):
         on_delete=models.CASCADE,
     )
     gizli_alanlar = models.JSONField("Gizlenen Alanlar", default=list, blank=True)
+    admin_gizli_alanlar = models.JSONField(
+        "Yönetim Panelinde Gizlenen Alanlar",
+        default=list,
+        blank=True,
+        help_text=(
+            "Başvuru detayında bu kullanıcıya gösterilmeyecek alanlar. "
+            "Yalnızca görünümü etkiler; gizlenen alanın değeri korunur."
+        ),
+    )
 
     class Meta:
         verbose_name = "Başvuru Detayı Görünümü"

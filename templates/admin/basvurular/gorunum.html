@@ -1,0 +1,44 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Başvuru detayında hangi alanların görüneceğini kullanıcı kendisi seçer.
+  Kapatmak yalnızca görünümü etkiler: alan formdan çıkar ama değeri korunur.
+  Sınıflar unfold'un derlenmiş CSS'inden gelir.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-default border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <p class="mb-4 text-sm text-base-500">
+      İşaretlediklerin başvuru detayında görünür. Kapattığın alanın değeri
+      silinmez, yalnızca ekranda gösterilmez — ayar sana özeldir, başka
+      kullanıcıları etkilemez.
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="max-h-[60vh] space-y-1 overflow-y-auto">
+        {% for satir in satirlar %}
+        <label class="flex cursor-pointer items-center gap-3 rounded-default px-2 py-2 hover:bg-base-100 dark:hover:bg-base-800">
+          <input type="checkbox" name="alan" value="{{ satir.ad }}"
+                 class="h-4 w-4 shrink-0" {% if satir.acik %}checked{% endif %}>
+          <span class="text-sm text-font-important-light dark:text-font-important-dark">
+            {{ satir.etiket }}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+
+      <div class="mt-6 flex flex-wrap gap-3">
+        <button type="submit" class="rounded-default bg-primary-600 px-4 py-2 font-medium text-white">
+          Kaydet
+        </button>
+        <a href="{{ geri_adresi }}"
+           class="rounded-default border border-base-200 px-4 py-2 font-medium hover:bg-base-100 dark:border-base-700">
+          Vazgeç
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

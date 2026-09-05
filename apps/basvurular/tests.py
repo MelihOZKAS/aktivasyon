@@ -1895,3 +1895,120 @@ class SimKartOperatoreBagli(TestCase):
 
         self.assertFalse(form.is_valid())
         self.assertIn("zimmetli değil", " ".join(form.errors["alan__sim_imei"]))
+
+
+class AdminBasvuruGorunumu(TestCase):
+    """Yönetici başvuru detayında neleri göreceğini kendisi seçer.
+
+    Ekran uzun; herkes her alanla ilgilenmiyor. Kapatmak yalnızca görünümü
+    etkiler — alan formdan çıktığı için değeri olduğu gibi kalır.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import BasvuruKategorisi, Operator
+
+        durum = BasvuruDurumu.objects.create(
+            ad="Giriş", slug="beklemede", baslangic_durumu=True
+        )
+        bayi = User.objects.create_user("5551112233", password="parola12345")
+        Cuzdan.objects.create(bayi=bayi)
+
+        self.basvuru = Basvuru.objects.create(
+            bayi=bayi, kategori=BasvuruKategorisi.objects.create(ad="Kontörlü"),
+            operator=Operator.objects.create(ad="Turkcell"),
+            isim="Ayşe", soyisim="Demir", kimlik_no="12345678901",
+            irtibat="5559998877", durum=durum,
+        )
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _adres(self):
+        from django.urls import reverse
+
+        return reverse("admin:basvurular_basvuru_change", args=[self.basvuru.pk])
+
+    def _ayar_adresi(self):
+        from django.urls import reverse
+
+        return reverse("admin:basvurular_basvuru_gorunum_ayarla", args=[self.basvuru.pk])
+
+    def _detay(self):
+        return self.client.get(self._adres()).content.decode()
+
+    def test_varsayilan_olarak_her_sey_gorunur(self):
+        icerik = self._detay()
+
+        self.assertIn('name="musteri_tipi"', icerik)
+        self.assertIn('name="kimlik_no"', icerik)
+
+    def test_gorunum_dugmesi_ekranda(self):
+        self.assertIn(self._ayar_adresi(), self._detay())
+
+    def test_kapatilan_alan_formda_cizilmez(self):
+        self.client.post(self._ayar_adresi(), {"alan": ["kimlik_no", "durum"]}, follow=True)
+
+        icerik = self._detay()
+        self.assertNotIn('name="musteri_tipi"', icerik)
+        self.assertIn('name="kimlik_no"', icerik)
+
+    def test_kapatilan_alanin_degeri_korunur(self):
+        """Alan formdan çıkıyor; kaydetmek onu bozmamalı."""
+        self.client.post(self._ayar_adresi(), {"alan": ["kimlik_no"]}, follow=True)
+
+        self.client.post(self._adres(), {"kimlik_no": "12345678901"}, follow=True)
+
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.basvuru.musteri_tipi, "turk")
+        self.assertEqual(self.basvuru.isim, "Ayşe")
+
+    def test_ayar_kutusunda_kapatilanlar_da_listelenir(self):
+        self.client.post(self._ayar_adresi(), {"alan": ["kimlik_no"]}, follow=True)
+
+        icerik = self.client.get(self._ayar_adresi()).content.decode()
+        self.assertIn('value="musteri_tipi"', icerik)
+
+    def test_ayar_kullaniciya_ozeldir(self):
+        from django.contrib.auth.models import User
+
+        self.client.post(self._ayar_adresi(), {"alan": ["kimlik_no"]}, follow=True)
+
+        digeri = User.objects.create_superuser("digeri", password="Panel-2026x")
+        self.client.force_login(digeri)
+
+        self.assertIn('name="musteri_tipi"', self._detay())
+
+    def test_gizli_alanin_dogrulama_hatasi_formu_cokertmez(self):
+        """Model hatası gizli alana yazılırsa Django ValueError atıyordu."""
+        from apps.katalog.models import BasvuruKategorisi
+
+        tarifeli = BasvuruKategorisi.objects.create(
+            ad="Tarifesi zorunlu", tarife_zorunlu=True
+        )
+        self.basvuru.kategori = tarifeli
+        self.basvuru.save(update_fields=["kategori"])
+
+        self.client.post(self._ayar_adresi(), {"alan": ["kimlik_no"]}, follow=True)
+
+        yanit = self.client.post(
+            self._adres(), {"kimlik_no": "12345678901"}, follow=True
+        )
+
+        # Çökmüyor; hata genel hata olarak, alan adıyla birlikte yazılıyor.
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn("tarife:", yanit.content.decode())
+
+    def test_ekleme_ekraninda_suzulmez(self):
+        """Zorunlu alan gizli kalırsa yeni kayıt hiç açılamazdı."""
+        from django.urls import reverse
+
+        self.client.post(self._ayar_adresi(), {"alan": ["kimlik_no"]}, follow=True)
+
+        icerik = self.client.get(
+            reverse("admin:basvurular_basvuru_add")
+        ).content.decode()
+
+        self.assertIn('name="musteri_tipi"', icerik)
