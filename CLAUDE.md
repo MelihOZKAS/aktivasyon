@@ -399,6 +399,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   değeri önce çözer, boşsa hiç çizmez. Rozet sınıfları unfold'un derlenmiş
   CSS'inden gelir — bizim `static/app.css` yönetim panelinde yüklü değildir,
   oraya yeni sınıf uyduramazsın.
+- **Satır işlemleri açılır menüde saklanmaz**
+  (`templates/unfold/helpers/actions_row.html` ezilmiştir). unfold bunları
+  "..." düğmesinin arkasına koyuyordu; yönetici her bayi için önce menüyü
+  açmak zorundaydı. Günlük iş bu düğmelere basmak — parola vermek, bakiye
+  işlemek — ikinci bir tıklama arkasına saklanmamalı. `actions_row` ekleyen
+  yeni bir admin yazarsan düğme adını kısa tut, satırda yan yana duruyorlar.
+- **Admin form ekranlarında unfold'un kendi bileşenleri kullanılır**
+  (`unfold.widgets.UnfoldAdmin*Widget`). Yönetim panelinde bizim
+  `static/app.css` yüklü değildir; `form.as_div` çıplak HTML basıyor,
+  uydurulan sınıf da çalışmıyor. Sınıf gerekiyorsa unfold'un derlenmiş
+  CSS'inde var olduğunu doğrula (`peer-checked` gibi bazıları yok); yoksa
+  satır içi stil yaz.
 - Ekleme düğmesi `templates/unfold/helpers/add_link.html` ile ezilmiştir:
   unfold'un ikon-only yuvarlak düğmesi ne yaptığını anlatmıyordu. unfold
   yükseltmelerinde bu şablonu gözden geçir.

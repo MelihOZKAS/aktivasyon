@@ -8,6 +8,11 @@ from django.urls import path, reverse
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import action, display
+from unfold.widgets import (
+    UnfoldAdminDecimalFieldWidget,
+    UnfoldAdminSelectWidget,
+    UnfoldAdminTextInputWidget,
+)
 
 from apps.finans.models import (
     Banka,
@@ -93,16 +98,35 @@ class CuzdanIslemFormu(forms.Form):
         label="İşlem",
         choices=CuzdanIslemi.choices,
         initial=CuzdanIslemi.TAHSILAT,
+        # Şablonda kart olarak elle çizilir; unfold'un varsayılan radyosu
+        # üç seçeneği de tek satıra diziyor ve hangisinin ne yaptığı
+        # okunmuyordu.
         widget=forms.RadioSelect,
     )
+    # Girdiler unfold'un kendi bileşenlerini kullanır: yönetim panelinde
+    # bizim static/app.css yüklü değil, sınıf uydurulamaz.
     tutar = forms.DecimalField(
-        label="Tutar", max_digits=12, decimal_places=2, min_value=Decimal("0.01")
+        label="Tutar",
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        widget=UnfoldAdminDecimalFieldWidget(attrs={"placeholder": "0,00"}),
     )
     banka = forms.ModelChoiceField(
-        label="Banka", queryset=Banka.objects.filter(aktif=True), required=False,
+        label="Banka",
+        queryset=Banka.objects.filter(aktif=True),
+        required=False,
         help_text="Tahsilatta paranın girdiği hesap. Bankanın bakiyesi de artar.",
+        widget=UnfoldAdminSelectWidget,
     )
-    aciklama = forms.CharField(label="Açıklama", max_length=255, required=False)
+    aciklama = forms.CharField(
+        label="Açıklama",
+        max_length=255,
+        required=False,
+        widget=UnfoldAdminTextInputWidget(
+            attrs={"placeholder": "Defterde bu hareketin yanında görünür"}
+        ),
+    )
     # Sayfa yenilenince aynı işlem ikinci kez yazılmasın: anahtar formda
     # taşınır, defter aynı anahtarı ikinci kez kabul etmez.
     islem_anahtari = forms.CharField(widget=forms.HiddenInput)

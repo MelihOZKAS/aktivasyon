@@ -1354,3 +1354,32 @@ class PaneldeAylikHakedis(TestCase):
         self.assertEqual(self.cuzdan.borc, 0)
         # Cüzdana 150 girdi ama bayinin bu aydaki hakedişi 250'dir.
         self.assertEqual(self._panel_hakedisi(), Decimal("250.00"))
+
+
+class SatirIslemleriGorunur(TestCase):
+    """Kullanıcı listesindeki işlem düğmeleri açılır menüde saklanmaz.
+
+    unfold bunları "..." arkasına koyuyordu; yönetici her bayi için önce
+    menüyü açmak zorundaydı. Günlük iş bu düğmelere basmak.
+    """
+
+    def setUp(self):
+        self.bayi = User.objects.create_user("5551112233", password="parola12345")
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def test_dugmeler_listede_dogrudan_gorunur(self):
+        icerik = self.client.get(reverse("admin:auth_user_changelist")).content.decode()
+
+        self.assertIn("Yeni parola", icerik)
+        self.assertIn("Bakiye / borç", icerik)
+        # Açılır menünün üç noktası kalmadı.
+        self.assertNotIn("more_horiz", icerik)
+
+    def test_dugmeler_dogru_adrese_gider(self):
+        from django.urls import reverse as ters
+
+        icerik = self.client.get(reverse("admin:auth_user_changelist")).content.decode()
+
+        self.assertIn(ters("admin:auth_user_yeni_parola", args=[self.bayi.pk]), icerik)
+        self.assertIn(ters("admin:auth_user_cuzdan_islemi", args=[self.bayi.pk]), icerik)

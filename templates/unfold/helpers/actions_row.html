@@ -1,0 +1,28 @@
+{% load i18n %}
+
+{% comment %}
+  Satır işlemleri açılır menüde değil, doğrudan satırda durur.
+
+  unfold bunları "..." düğmesinin arkasına gizliyordu; yönetici her bayi için
+  önce menüyü açmak zorundaydı. Günlük iş bu düğmelere basmak — parola vermek,
+  bakiye işlemek — ikinci bir tıklama arkasına saklanmamalı.
+
+  Sınıflar unfold'un derlenmiş CSS'inden gelir; buraya yeni sınıf uydurulamaz.
+{% endcomment %}
+
+{% if actions %}
+    <td data-label="{% trans "More actions" %}"
+        class="field-actions_holder align-middle flex border-t border-base-200 font-normal px-3 py-2 text-left text-sm lg:py-3 lg:table-cell dark:border-base-800 lg:w-px before:flex before:capitalize before:content-[attr(data-label)] before:items-center before:font-semibold before:text-font-important-light before:mr-auto first:border-t-0 lg:before:hidden lg:first:border-t dark:before:text-font-important-dark">
+        <div class="flex flex-wrap items-center gap-2">
+            {% for action in actions %}
+                <a href="{% url action.raw_path instance_pk %}"
+                   class="flex items-center gap-1 whitespace-nowrap rounded-default border border-base-200 px-3 py-1 text-sm text-font-important-light hover:bg-base-100 hover:border-base-300 dark:border-base-700 dark:text-font-important-dark dark:hover:bg-base-800"{% for attr_name, attr_value in action.attrs.items %} {{ attr_name }}="{{ attr_value }}"{% endfor %}>
+                    {% if action.icon %}
+                        <span class="material-symbols-outlined md-18">{{ action.icon }}</span>
+                    {% endif %}
+                    {{ action.title }}
+                </a>
+            {% endfor %}
+        </div>
+    </td>
+{% endif %}
