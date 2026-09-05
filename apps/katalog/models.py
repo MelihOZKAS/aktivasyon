@@ -182,8 +182,26 @@ class Tarife(ZamanDamgali):
         null=True,
         help_text="Operatörün tarife görseli. Bayi tarife sayfasında gösterilir.",
     )
-    sira = models.PositiveIntegerField("Sıra", default=0)
-    aktif = models.BooleanField("Aktif", default=True)
+    bayiye_gorunur = models.BooleanField(
+        "Bayiye Görünür",
+        default=True,
+        help_text=(
+            "Kapalıysa tarife bayinin Tarifeler kataloğunda listelenmez ama "
+            "başvuruda hâlâ seçilebilir. Bayinin hiç seçememesi gerekiyorsa "
+            "“Aktif”i kapatın."
+        ),
+    )
+    sira = models.PositiveIntegerField(
+        "Sıra", default=0, help_text="Listedeki yeri. Küçük sayı önce gelir."
+    )
+    aktif = models.BooleanField(
+        "Aktif",
+        default=True,
+        help_text=(
+            "Kapatılırsa tarife hiçbir yerde çıkmaz: ne katalogda ne başvuru "
+            "formunda. Eski başvurular ve fiyat kuralları yerinde kalır."
+        ),
+    )
 
     class Meta:
         verbose_name = "Tarife"

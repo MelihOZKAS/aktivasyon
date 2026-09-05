@@ -270,6 +270,9 @@ def tarifeler(request):
     Kampanyalar burada **görünmez**: bu sayfa bayinin müşteriye anlatırken
     açtığı katalog, kampanya ise başvuru girerken yapılan bir seçim.
     Kampanya kutusu başvuru formundadır.
+
+    "Bayiye Görünür" kapalı tarifeler de listelenmez; katalogda duyurulmayan
+    ama başvuruda seçilebilen tarifeler için.
     """
     # Bayi müşteriye anlatırken önce operatörü seçiyor; sekmeler ona göre.
     operatorler = (
@@ -290,7 +293,7 @@ def tarifeler(request):
         # Tarife birden çok kategoride geçerli olabildiği için kategoriye
         # göre sıralanamaz; aynı tarife listede iki kez çıkardı.
         tarifeler_listesi = (
-            Tarife.objects.filter(operator=secili, aktif=True)
+            Tarife.objects.filter(operator=secili, aktif=True, bayiye_gorunur=True)
             .prefetch_related("kategoriler")
             .order_by("sira", "ad")
         )

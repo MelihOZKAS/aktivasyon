@@ -496,6 +496,23 @@ class TarifeSayfasiTestleri(TestCase):
         self.assertContains(yanit, "Platinum 30 GB")
         self.assertNotContains(yanit, "İlk 3 ay yarı fiyat")
 
+    def test_bayiye_gorunur_kapaliysa_katalogda_listelenmez(self):
+        self.tarife.bayiye_gorunur = False
+        self.tarife.save(update_fields=["bayiye_gorunur"])
+
+        self.assertNotContains(self.client.get(self.url), "Platinum 30 GB")
+
+    def test_katalogda_gizli_tarife_basvuruda_hala_secilebilir(self):
+        """Aktif olan tarife duyurulmasa da satılabilir; kapatmak Aktif'in işi."""
+        from apps.basvurular.forms import BasvuruFormu
+
+        self.tarife.bayiye_gorunur = False
+        self.tarife.save(update_fields=["bayiye_gorunur"])
+
+        form = BasvuruFormu(kategori=self.kategori, bayi=self.bayi)
+
+        self.assertIn(self.tarife, form.fields["tarife"].queryset)
+
     def test_pasif_tarife_gorunmez(self):
         self.tarife.aktif = False
         self.tarife.save()

@@ -129,9 +129,11 @@ class BasvuruKategorisiAdmin(ModelAdmin):
 @admin.register(Tarife)
 class TarifeAdmin(ModelAdmin):
     list_display = (
-        "ad", "kategori_listesi", "operator", "gorsel_var_mi", "kampanya_sayisi", "aktif"
+        "ad", "kategori_listesi", "operator", "gorsel_var_mi", "kampanya_sayisi",
+        "bayiye_gorunur", "aktif",
     )
-    list_filter = ("aktif", "kategoriler", "operator", "musteri_tipi")
+    list_editable = ("bayiye_gorunur", "aktif")
+    list_filter = ("aktif", "bayiye_gorunur", "kategoriler", "operator", "musteri_tipi")
     search_fields = ("ad", "kategoriler__ad", "operator__ad")
     autocomplete_fields = ("kategoriler", "operator")
     inlines = [TarifeParaKuraliInline, KampanyaInline]
@@ -171,7 +173,17 @@ class TarifeAdmin(ModelAdmin):
                 ),
             },
         ),
-        ("Görünüm", {"fields": ("sira", "aktif")}),
+        (
+            "Görünüm",
+            {
+                "fields": ("sira", "bayiye_gorunur", "aktif"),
+                "description": (
+                    "<b>Bayiye Görünür</b> kapalıysa tarife bayinin Tarifeler "
+                    "kataloğunda listelenmez ama başvuruda hâlâ seçilebilir. "
+                    "Bayinin hiç seçememesi gerekiyorsa <b>Aktif</b>’i kapatın."
+                ),
+            },
+        ),
     )
 
     def get_queryset(self, request):

@@ -401,6 +401,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   yöneticiye her kampanyada doldurulacak iki boş kutu olarak çıkıyordu.
   Anlatılacak bir şey varsa tarifenin açıklamasına yazılır. `kampanya/` medya
   klasörü de bu yüzden `ACIK_KLASORLER`'de değildir.
+- **Tarifede iki ayrı görünürlük anahtarı vardır.** `bayiye_gorunur` kapalı
+  tarife `/tarifeler/` kataloğunda listelenmez ama başvuruda **hâlâ
+  seçilebilir** — duyurulmayan ama satılabilen tarifeler için (`Banka`'daki
+  anahtarın aynısı). Bayinin hiç seçememesi gerekiyorsa `aktif` kapatılır: o
+  zaman ne katalogda ne formda çıkar, eski başvurular ve fiyat kuralları
+  yerinde kalır.
 - **Kampanya katalogda değil, başvuru formundadır.** Kampanya bir süre
   kaldırılmıştı, geri getirildi — ama yeri değişti. `/tarifeler/` sayfası
   bayinin müşteriye anlatırken açtığı katalogdur; kampanya ise başvuru
