@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from django import forms
 from django.contrib import admin, messages
+from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils.html import format_html, format_html_join
@@ -581,6 +582,45 @@ class UcretKuraliAdmin(ModelAdmin):
                 messages.SUCCESS,
             )
 
+    @staticmethod
+    def _kapsam_tutarlari(kural):
+        """Bu kuralın kapsamına uyan diğer yönlerin tutarları.
+
+        Kapsam alanı boş olan kural "hepsi" demektir; motor da böyle
+        eşleştirir (`uygun_kurallari_bul`). Kardeşleri **tam eşitlikle**
+        aramak yanıltıcıydı: operatörden alış fiyatının bayi grubuyla işi
+        yoktur, o kural gruba bağlanmaz — ama bayiye ödenen kural bir gruba
+        bağlanınca alış "girilmedi" görünüyor ve kâr hesaplanamıyordu.
+        Yönetici grubu kaldırınca hesap düzeliyor, sebebini kimse anlamıyordu.
+
+        Daha **dar** kapsamlı kurallar sayılmaz: onlar bu kapsamın yalnızca
+        bir kısmına uyar, bu kuralın karşılığı değildir.
+        """
+        adaylar = UcretKurali.objects.filter(aktif=True).exclude(pk=kural.pk)
+        for alan, deger in (
+            ("kategori_id", kural.kategori_id),
+            ("operator_id", kural.operator_id),
+            ("tarife_id", kural.tarife_id),
+            ("kampanya_id", kural.kampanya_id),
+            ("bayi_grubu_id", kural.bayi_grubu_id),
+            ("bayi_id", kural.bayi_id),
+            ("tedarikci_id", kural.tedarikci_id),
+        ):
+            adaylar = adaylar.filter(
+                Q(**{f"{alan}__isnull": True}) | Q(**{alan: deger})
+            )
+
+        # Aynı yönde birden çok aday varsa motorun seçtiği kazanır:
+        # en dar kapsam, eşitlikte yüksek öncelik, sonra son eklenen.
+        secilen = {}
+        for aday in adaylar:
+            mevcut = secilen.get(aday.yon)
+            if mevcut is None or (aday.ozgulluk, aday.oncelik, aday.pk) > (
+                mevcut.ozgulluk, mevcut.oncelik, mevcut.pk
+            ):
+                secilen[aday.yon] = aday
+        return {yon: aday.tutar for yon, aday in secilen.items()}
+
     @admin.display(description="Alışım, bayiye ödediğim ve kâr")
     def kar_tablosu(self, obj):
         """Aynı kapsamdaki üç yönü ve kârı tek yerde gösterir.
@@ -593,21 +633,9 @@ class UcretKuraliAdmin(ModelAdmin):
         if obj is None or obj.pk is None:
             return "Kural kaydedildikten sonra hesap burada görünür."
 
-        kardesler = UcretKurali.objects.filter(
-            aktif=True,
-            kategori=obj.kategori,
-            operator=obj.operator,
-            tarife=obj.tarife,
-            kampanya=obj.kampanya,
-            bayi_grubu=obj.bayi_grubu,
-            bayi=obj.bayi,
-        )
-
-        tutarlar = {}
-        for kural in kardesler:
-            # Aynı yönde birden çok kural varsa en yükseği yazmak yanıltıcı
-            # olur; motorun seçtiği gibi en son eklenen kazanır.
-            tutarlar[kural.yon] = kural.tutar
+        tutarlar = self._kapsam_tutarlari(obj)
+        # Kuralın kendi sayfası kendi tutarını gösterir.
+        tutarlar[obj.yon] = obj.tutar
 
         alis = tutarlar.get(KuralYonu.ANA_HAKEDIS)
         odenen = tutarlar.get(KuralYonu.HAKEDIS)

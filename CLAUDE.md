@@ -426,6 +426,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   "hakediş" soyut kalıyor, "Alışım (operatörden ya da tedarikçiden)" herkesin
   bildiği şey. `UcretKurali.ad` boş bırakılabilir, kapsamdan üretilir; iki
   rakam girmeye gelen yönetici bir de ad uydurmasın.
+  **Kural sayfasındaki "Bu kapsamın hesabı" motorla aynı mantıkla eşleşir**
+  (`UcretKuraliAdmin._kapsam_tutarlari`). Kardeş kurallar bir süre **tam
+  eşitlikle** aranıyordu: operatörden alış fiyatının bayi grubuyla işi yok,
+  o kural gruba bağlanmaz — ama bayiye ödenen kurala bir grup seçilince alış
+  "girilmedi" görünüyor, kâr hesaplanamıyordu. Yönetici grubu kaldırınca
+  hesap düzeliyor, sebebi görünmüyordu. Artık kapsam alanı boş olan kural
+  "hepsi" sayılır (motordaki `kapsam()` ile aynı) ve aynı yönde birden çok
+  aday varsa (özgüllük, öncelik, pk) kazanır. Daha **dar** kapsamlı kurallar
+  sayılmaz: onlar bu kapsamın yalnızca bir kısmına uyar.
   **Kural eklerken kategori çoklu seçilir** (`UcretKuraliEklemeFormu`): aynı
   fiyat çoğu zaman birkaç kategoride birden geçerli, her biri için formu
   baştan doldurmak gerekiyordu. Motor değişmedi — kural yine tek kategoriye

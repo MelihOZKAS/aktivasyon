@@ -1946,3 +1946,81 @@ class KuralEklemedeCokluKategori(TestCase):
 
         self.assertIn('name="kategori"', icerik)
         self.assertNotIn('name="kategoriler"', icerik)
+
+
+class KuralKarTablosu(TestCase):
+    """Kural sayfasındaki "Bu kapsamın hesabı" motorla aynı mantıkla eşleşir.
+
+    Kardeş kurallar tam eşitlikle aranıyordu: operatörden alış fiyatının
+    bayi grubuyla işi olmadığı için o kural gruba bağlanmaz, ama bayiye
+    ödenen kural bir gruba bağlanınca alış "girilmedi" görünüyor ve kâr
+    hesaplanamıyordu. Grubu kaldırınca düzeliyordu; sebebi görünmüyordu.
+    """
+
+    def setUp(self):
+        from apps.finans.models import BayiGrubu
+
+        self.durum = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.grup = BayiGrubu.objects.create(ad="Parakende")
+
+        # Operatörden alış: bayi grubuyla ilgisi yok, gruba bağlanmaz.
+        UcretKurali.objects.create(
+            ad="Turkcell alış", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("500.00"),
+            tetikleyici_durum=self.durum, kategori=self.kategori,
+            operator=self.operator,
+        )
+        # Bayiye ödenen: fiyat kademesine bağlı.
+        self.hakedis = UcretKurali.objects.create(
+            ad="Turkcell Faturalı Primi", yon=KuralYonu.HAKEDIS, tutar=TL("250.00"),
+            tetikleyici_durum=self.durum, kategori=self.kategori,
+            operator=self.operator, bayi_grubu=self.grup,
+        )
+
+    def _tablo(self, kural):
+        from django.contrib import admin
+
+        from apps.finans.admin import UcretKuraliAdmin
+
+        return str(UcretKuraliAdmin(UcretKurali, admin.site).kar_tablosu(kural))
+
+    def test_gruba_bagli_kuralda_da_alis_gorunur(self):
+        tablo = self._tablo(self.hakedis)
+
+        self.assertIn("500.00", tablo)
+        self.assertIn("250.00", tablo)
+        self.assertNotIn("Alış girilmeden", tablo)
+
+    def test_grupsuz_kuralda_hesap_aynidir(self):
+        """Grup kaldırılınca sonuç değişmemeli; eskiden yalnızca böyle çalışıyordu."""
+        self.hakedis.bayi_grubu = None
+        self.hakedis.save(update_fields=["bayi_grubu"])
+
+        self.assertIn("500.00", self._tablo(self.hakedis))
+
+    def test_baska_grubun_kurali_sayilmaz(self):
+        """Dar kapsamlı kardeş bu kapsamın karşılığı değildir."""
+        from apps.finans.models import BayiGrubu
+
+        toptan = BayiGrubu.objects.create(ad="Toptan")
+        UcretKurali.objects.create(
+            ad="Toptan tahsilat", yon=KuralYonu.TAHSILAT, tutar=TL("90.00"),
+            tetikleyici_durum=self.durum, kategori=self.kategori,
+            operator=self.operator, bayi_grubu=toptan,
+        )
+
+        tablo = self._tablo(self.hakedis)
+
+        self.assertNotIn("90.00", tablo)
+
+    def test_kendi_tutarini_gosterir(self):
+        """Kuralın kendi sayfasında kendi rakamı yazar."""
+        UcretKurali.objects.create(
+            ad="Genel hakediş", yon=KuralYonu.HAKEDIS, tutar=TL("10.00"),
+            tetikleyici_durum=self.durum,
+        )
+
+        self.assertIn("250.00", self._tablo(self.hakedis))
