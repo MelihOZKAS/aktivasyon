@@ -228,6 +228,16 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   (İşlemde gibi) çekilirse giriş bedeli yerinde kalır ama İlk giriş'e
   dönülmedikçe ikinci kez de kesilmez. Akış İlk giriş → Aktif / İptal
   olduğu sürece bu yola girilmez.
+- **Hiç işlemeyecek ücret kuralı kaydedilemez.** Para, `hakedis_tetikler`
+  işaretli duruma geçilince işler; kural başka bir duruma bağlanmışsa
+  hiçbir zaman çalışmaz. Alış kuralını "Giriş" durumuna bağlayan yönetici
+  maliyeti hiç düşülmeyen bir kâr görüyordu (1000'e alıp 1150'ye satarken
+  kâr 1150) ve sistem tek kelime etmiyordu. `UcretKurali.clean` artık bunu
+  alan adıyla reddeder; tek istisna **giriş bedelidir** — başlangıç
+  durumuna yazılmış `TAHSILAT`, başvuru oluşturulduğu anda kesilir
+  (`giris_bedelini_isle`). Kural listesindeki tetikleyici durum sütunu eski
+  kayıtları "hiç işlemez" diye işaretler; doğrulama yalnızca yeni kaydı
+  tutar, var olanı düzeltmez.
 - **Para, tetikleyen durumda *olmaya* bağlıdır.** `hakedis_tetikler` bir
   duruma geçilince işlenir; o durumdan **herhangi bir** duruma çıkılınca ters
   kayıtla geri alınır. Yalnızca `olumsuz_sonuc` durumunda geri almak sessiz

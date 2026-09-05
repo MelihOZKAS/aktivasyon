@@ -475,6 +475,30 @@ class UcretKurali(ZamanDamgali):
                 {"kampanya": "Seçilen kampanya, seçilen tarifeye ait değil."}
             )
 
+        # Hiç işlemeyecek kural sessizce kaydedilmesin. Para, "Para Hareketini
+        # Tetikler" işaretli duruma **geçilince** işler; oraya bağlanmamış bir
+        # kural hiçbir zaman çalışmaz ve bu ancak kâr yanlış görününce fark
+        # edilir. Tek istisna giriş bedelidir: başlangıç durumuna yazılmış
+        # tahsilat, başvuru oluşturulduğu anda kesilir.
+        durum = self.tetikleyici_durum
+        if durum is not None and not durum.hakedis_tetikler:
+            giris_bedeli_mi = (
+                self.yon == KuralYonu.TAHSILAT and durum.baslangic_durumu
+            )
+            if not giris_bedeli_mi:
+                raise ValidationError(
+                    {
+                        "tetikleyici_durum": (
+                            f"“{durum.ad}” durumu para hareketini tetiklemiyor; bu "
+                            "kural hiçbir zaman işlemez. Başvuru Durumları ekranında "
+                            "“Para Hareketini Tetikler” işaretli olan durumu seçin "
+                            "(genellikle “Aktif”). Yalnızca bayiden tahsilat, "
+                            "başlangıç durumuna bağlanarak giriş bedeli olarak "
+                            "kesilebilir."
+                        )
+                    }
+                )
+
     @property
     def ozgulluk(self):
         """Kural ne kadar dar kapsamlı? Yüksek olan daha spesifiktir."""

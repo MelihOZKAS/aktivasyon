@@ -454,7 +454,7 @@ class UcretKuraliAdmin(ModelAdmin):
         "yon_rozeti",
         "tutar_gosterimi",
         "kapsam_ozeti",
-        "tetikleyici_durum",
+        "tetikleyici_gosterimi",
         "oncelik",
         "aktif",
     )
@@ -581,6 +581,28 @@ class UcretKuraliAdmin(ModelAdmin):
                 + ", ".join(k.ad for k in kategoriler),
                 messages.SUCCESS,
             )
+
+    @display(description="Tetikleyici Durum", ordering="tetikleyici_durum")
+    def tetikleyici_gosterimi(self, obj):
+        """Hiç işlemeyecek kuralı listede söyler.
+
+        Para, "Para Hareketini Tetikler" işaretli duruma geçilince işler.
+        Kural başka bir duruma bağlanmışsa hiçbir zaman çalışmaz; bu ancak
+        kâr yanlış görününce fark ediliyordu. Yeni kayıtları `clean()`
+        engelliyor, eskiler burada görünür.
+        """
+        durum = obj.tetikleyici_durum
+        if durum is None:
+            return "—"
+        calisir = durum.hakedis_tetikler or (
+            obj.yon == KuralYonu.TAHSILAT and durum.baslangic_durumu
+        )
+        if calisir:
+            return durum.ad
+        return format_html(
+            '{} <span style="color:#D42046;font-weight:600">· hiç işlemez</span>',
+            durum.ad,
+        )
 
     @staticmethod
     def _kapsam_tutarlari(kural):

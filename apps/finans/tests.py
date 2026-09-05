@@ -2113,3 +2113,70 @@ class AlisBedeliGiderdir(TestCase):
         self.assertEqual(basvuru.tahsil_edilen, TL("1150.00"))
         self.assertEqual(basvuru.ana_hakedis, TL("1000.00"))
         self.assertEqual(basvuru.kar, TL("150.00"))
+
+
+class KuralTetikleyiciDurumu(TestCase):
+    """Hiç işlemeyecek kural sessizce kaydedilmesin.
+
+    Para, "Para Hareketini Tetikler" işaretli duruma geçilince işler. Alış
+    kuralı "Giriş" durumuna bağlanınca hiç çalışmıyor, maliyet düşülmediği
+    için kâr olduğundan yüksek görünüyordu — ve bunu ancak rakama bakan
+    fark ediyordu.
+    """
+
+    def setUp(self):
+        self.giris = BasvuruDurumu.objects.create(
+            ad="Giriş", slug="giris", baslangic_durumu=True
+        )
+        self.islemde = BasvuruDurumu.objects.create(ad="İşlemde", slug="islemde")
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+
+    def _kural(self, yon, durum):
+        return UcretKurali(
+            ad="Deneme", yon=yon, tutar=TL("1000.00"),
+            kategori=self.kategori, tetikleyici_durum=durum,
+        )
+
+    def test_tetiklemeyen_duruma_bagli_alis_reddedilir(self):
+        from django.core.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError) as hata:
+            self._kural(KuralYonu.ANA_HAKEDIS, self.giris).full_clean()
+
+        self.assertIn("tetikleyici_durum", hata.exception.message_dict)
+        self.assertIn("hiçbir zaman işlemez", str(hata.exception))
+
+    def test_tetiklemeyen_duruma_bagli_hakedis_reddedilir(self):
+        from django.core.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError):
+            self._kural(KuralYonu.HAKEDIS, self.islemde).full_clean()
+
+    def test_baslangic_durumundaki_tahsilat_giris_bedelidir(self):
+        """Tek istisna: giriş bedeli başvuru girilirken kesilir."""
+        self._kural(KuralYonu.TAHSILAT, self.giris).full_clean()
+
+    def test_tetikleyen_durum_her_yonde_gecerlidir(self):
+        for yon in (KuralYonu.ANA_HAKEDIS, KuralYonu.HAKEDIS, KuralYonu.TAHSILAT):
+            self._kural(yon, self.aktif).full_clean()
+
+    def test_liste_calismayan_kurali_isaretler(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        # Kural doğrulamadan geçmiyor; eski kayıtları temsilen doğrudan yazılır.
+        UcretKurali.objects.create(
+            ad="Eski alış kuralı", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("1000.00"),
+            kategori=self.kategori, tetikleyici_durum=self.giris,
+        )
+        yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(yonetici)
+
+        icerik = self.client.get(
+            reverse("admin:finans_ucretkurali_changelist")
+        ).content.decode()
+
+        self.assertIn("hiç işlemez", icerik)
