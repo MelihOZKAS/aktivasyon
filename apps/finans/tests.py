@@ -1066,3 +1066,198 @@ class BakiyeDusurmeIadesi(TestCase):
         self.banka.refresh_from_db()
         self.assertEqual(self.cuzdan.bakiye, TL("9000.00"))
         self.assertEqual(self.banka.bakiye, TL("49000.00"))
+
+
+class OdemeBildirimiAkisi(TestCase):
+    """Bayi havaleyi bildirir, yönetici onaylayınca para işlenir.
+
+    Bildirim para hareketi değildir: onaylanana kadar cüzdana dokunulmaz,
+    yoksa gelmeyen havale bakiyeye yazılmış olurdu.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.finans.models import Banka
+
+        self.bayi = User.objects.create_user("5551112233", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi)
+        self.banka = Banka.objects.create(
+            banka_adi="Ziraat", hesap_sahibi="Firma",
+            iban="TR000000000000000000000011", bakiye=TL("0.00"),
+        )
+        self.gizli = Banka.objects.create(
+            banka_adi="Gizli Hesap", hesap_sahibi="Firma",
+            iban="TR000000000000000000000012", bayiye_gorunur=False,
+        )
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+
+    def _bayi_girisi(self):
+        self.client.force_login(self.bayi)
+
+    def _bildir(self, tutar="5000.00", banka=None):
+        from django.urls import reverse
+
+        return self.client.post(
+            reverse("bayi:odeme-bildirimi"),
+            {"banka": (banka or self.banka).pk, "tutar": tutar,
+             "gonderen_adi": "Melih Kaya", "aciklama": "Havale"},
+            follow=True,
+        )
+
+    def test_bayi_bildirim_gonderir_ama_bakiye_degismez(self):
+        from apps.finans.models import OdemeBildirimi
+
+        self._bayi_girisi()
+        self._bildir()
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+        self.assertEqual(OdemeBildirimi.objects.count(), 1)
+        self.assertTrue(OdemeBildirimi.objects.get().bekliyor)
+
+    def test_bayi_yalnizca_gorunur_hesaplari_secebilir(self):
+        from apps.finans.models import OdemeBildirimi
+
+        self._bayi_girisi()
+        self._bildir(banka=self.gizli)
+
+        self.assertEqual(OdemeBildirimi.objects.count(), 0)
+
+    def test_gorunmeyen_hesap_cuzdan_sayfasinda_listelenmez(self):
+        from django.urls import reverse
+
+        self._bayi_girisi()
+        icerik = self.client.get(reverse("bayi:cuzdan")).content.decode()
+
+        self.assertIn("TR000000000000000000000011", icerik)
+        self.assertNotIn("TR000000000000000000000012", icerik)
+
+    def test_onay_bakiyeye_ve_bankaya_islenir(self):
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import odeme_bildirimini_onayla
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+
+        self.cuzdan.refresh_from_db()
+        self.banka.refresh_from_db()
+        bildirim.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("5000.00"))
+        self.assertEqual(self.banka.bakiye, TL("5000.00"))
+        self.assertEqual(bildirim.durum, "onaylandi")
+        self.assertEqual(bildirim.karar_veren, self.yonetici)
+
+    def test_onayda_once_borc_kapanir(self):
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import odeme_bildirimini_onayla
+
+        self.cuzdan.borc = TL("2000.00")
+        self.cuzdan.save(update_fields=["borc"])
+
+        self._bayi_girisi()
+        self._bildir()
+        odeme_bildirimini_onayla(OdemeBildirimi.objects.get(), olusturan=self.yonetici)
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.borc, TL("0.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("3000.00"))
+
+    def test_iki_kez_onaylamak_parayi_iki_kez_yazmaz(self):
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import odeme_bildirimini_onayla
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("5000.00"))
+
+    def test_red_parayi_hic_hareket_ettirmez(self):
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import odeme_bildirimini_reddet
+
+        self._bayi_girisi()
+        self._bildir()
+
+        odeme_bildirimini_reddet(
+            OdemeBildirimi.objects.get(), olusturan=self.yonetici, not_="Havale gelmedi"
+        )
+
+        self.cuzdan.refresh_from_db()
+        bildirim = OdemeBildirimi.objects.get()
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+        self.assertEqual(bildirim.durum, "reddedildi")
+        self.assertEqual(bildirim.karar_notu, "Havale gelmedi")
+
+    def test_reddedilen_bildirim_sonradan_onaylanmaz(self):
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import (
+            odeme_bildirimini_onayla, odeme_bildirimini_reddet,
+        )
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+
+        odeme_bildirimini_reddet(bildirim, olusturan=self.yonetici)
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+
+    def test_bayi_kendi_bildirimlerini_gorur(self):
+        from django.urls import reverse
+
+        self._bayi_girisi()
+        self._bildir()
+
+        icerik = self.client.get(reverse("bayi:cuzdan")).content.decode()
+        self.assertIn("5.000,00", icerik)
+        self.assertIn("Bekliyor", icerik)
+
+    def test_onaylanan_hareket_cuzdan_gecmisinde_gorunur(self):
+        from django.urls import reverse
+
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import odeme_bildirimini_onayla
+
+        self._bayi_girisi()
+        self._bildir()
+        odeme_bildirimini_onayla(OdemeBildirimi.objects.get(), olusturan=self.yonetici)
+
+        icerik = self.client.get(reverse("bayi:cuzdan")).content.decode()
+        self.assertIn("Melih Kaya", icerik)
+
+    def test_yan_menu_rozeti_bekleyenleri_sayar(self):
+        from apps.rozetler import bekleyen_odeme_bildirimleri
+
+        self._bayi_girisi()
+        self._bildir()
+
+        self.assertEqual(bekleyen_odeme_bildirimleri(None), "1")
+
+    def test_yonetici_satirdan_onaylayabilir(self):
+        from django.urls import reverse
+
+        from apps.finans.models import OdemeBildirimi
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+
+        self.client.force_login(self.yonetici)
+        self.client.get(
+            reverse("admin:finans_odemebildirimi_bildirim_onayla", args=[bildirim.pk]),
+            follow=True,
+        )
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("5000.00"))

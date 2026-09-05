@@ -235,6 +235,12 @@ UNFOLD = {
                         "link": "/yonetim/finans/cuzdanhareketi/",
                     },
                     {
+                        "title": "Ödeme Bildirimleri",
+                        "icon": "receipt_long",
+                        "link": "/yonetim/finans/odemebildirimi/",
+                        "badge": "apps.rozetler.bekleyen_odeme_bildirimleri",
+                    },
+                    {
                         "title": "Ücret ve Hakediş Kuralları",
                         "icon": "rule",
                         "link": "/yonetim/finans/ucretkurali/",

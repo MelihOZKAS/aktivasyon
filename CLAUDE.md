@@ -160,6 +160,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kullanıcı tarafı yalnızca yönlendirir. Her hareket kimin yaptığını taşır
   (`olusturan`) ve hareket listesinde görünür. İşlem anahtarı formda gizli
   alanda taşınır: sayfa yenilenince aynı işlem ikinci kez yazılmaz.
+- **Ödeme bildirimi para hareketi değildir.** Bayi havaleyi yapıp hangi
+  hesaba ne yatırdığını `OdemeBildirimi` ile bildirir; **onaylanana kadar
+  cüzdana dokunulmaz**. Aksi hâlde gelmeyen havale bakiyeye yazılmış olurdu.
+  Onay tahsilat gibi işler (borç varsa önce o kapanır, bankanın bakiyesi de
+  artar) ve tekillik anahtarı bildirimin kendisine bağlıdır: iki kez
+  onaylamak parayı iki kez yazmaz. Red parayı hiç hareket ettirmez; karar
+  notu bayinin cüzdan sayfasında görünür. Sonuçlanmış bildirim yeniden
+  karara açılmaz. Bekleyenler yan menüde rozetle sayılır.
+- **Bayi yalnızca kendisine açılmış banka hesaplarını görür ve seçebilir**
+  (`Banka.aktif` + `bayiye_gorunur`). Kısıt formun `queryset`'inde durur:
+  gizli bir hesabın id'si elle gönderilse de bildirim kaydedilmez.
 - **Bayiye giren her kuruş önce borcu kapatır.** Hakediş de elle yapılan
   bakiye yüklemesi de aynı sırayı izler: borç varsa oradan düşülür (`BORC_TAHSIL`),
   kalanı bakiyeye yazılır. 100 borcu olan bayi 250 hakediş alınca cüzdanında

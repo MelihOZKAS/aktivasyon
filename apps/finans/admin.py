@@ -7,7 +7,9 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
+from django.http import Http404
 from unfold.decorators import action, display
+from unfold.decorators import action as unfold_islem
 from unfold.widgets import (
     UnfoldAdminDecimalFieldWidget,
     UnfoldAdminSelectWidget,
@@ -21,10 +23,16 @@ from apps.finans.models import (
     CuzdanHareketi,
     CuzdanIslemi,
     KuralYonu,
+    OdemeBildirimi,
+    OdemeBildirimiDurumu,
     UcretKurali,
 )
 from apps.filtreler import GunAraligiFiltresi
-from apps.finans.services import cuzdan_islemi
+from apps.finans.services import (
+    cuzdan_islemi,
+    odeme_bildirimini_onayla,
+    odeme_bildirimini_reddet,
+)
 
 SIFIR = Decimal("0.00")
 
@@ -448,3 +456,148 @@ class BankaAdmin(ModelAdmin):
     search_fields = ("banka_adi", "hesap_sahibi", "iban")
     list_filter = ("aktif", "bayiye_gorunur")
     readonly_fields = ("bakiye",)
+
+
+@admin.register(OdemeBildirimi)
+class OdemeBildirimiAdmin(ModelAdmin):
+    """Bayinin "parayı gönderdim" bildirimleri.
+
+    Bildirim para hareketi değildir: onaylanana kadar cüzdana dokunulmaz.
+    Onay tutarı tahsilat gibi işler — borç varsa önce o kapanır, artan
+    bakiyeye geçer, bankanın bakiyesi de artar.
+    """
+
+    list_display = (
+        "olusturma_tarihi",
+        "bayi",
+        "tutar_gosterimi",
+        "banka",
+        "gonderen_adi",
+        "durum_rozeti",
+        "karar_veren",
+    )
+    list_filter = (
+        "durum",
+        ("olusturma_tarihi", GunAraligiFiltresi),
+        "banka",
+    )
+    list_filter_submit = True
+    search_fields = (
+        "bayi__username", "gonderen_adi", "aciklama", "banka__banka_adi"
+    )
+    autocomplete_fields = ("bayi", "banka")
+    readonly_fields = ("karar_veren", "karar_tarihi", "olusturma_tarihi")
+    actions = ("onayla", "reddet")
+    actions_row = ["bildirim_onayla", "bildirim_reddet"]
+    fieldsets = (
+        (
+            "Bildirim",
+            {
+                "fields": ("bayi", "banka", "tutar", "gonderen_adi", "aciklama",
+                           "olusturma_tarihi"),
+                "description": "Bu bilgileri bayi girdi.",
+            },
+        ),
+        (
+            "Karar",
+            {
+                "fields": ("durum", "karar_notu", "karar_veren", "karar_tarihi"),
+                "description": (
+                    "Onaylandığında tutar bakiyeye işlenir; borç varsa önce o "
+                    "kapanır. Reddedilirse para hiç hareket etmez — sebebini "
+                    "yazarsanız bayi cüzdan sayfasında görür."
+                ),
+            },
+        ),
+    )
+
+    def get_queryset(self, request):
+        return (
+            super().get_queryset(request)
+            .select_related("bayi", "banka", "karar_veren")
+        )
+
+    @display(description="Tutar", ordering="tutar")
+    def tutar_gosterimi(self, obj):
+        return format_html("<b>{} ₺</b>", obj.tutar)
+
+    @display(description="Durum", ordering="durum")
+    def durum_rozeti(self, obj):
+        renkler = {
+            OdemeBildirimiDurumu.BEKLIYOR: "#B45309",
+            OdemeBildirimiDurumu.ONAYLANDI: "#0F8A4D",
+            OdemeBildirimiDurumu.REDDEDILDI: "#D42046",
+        }
+        return format_html(
+            '<span style="background:{};color:#fff;padding:.15rem .6rem;'
+            'border-radius:999px;font-size:.75rem;font-weight:600">{}</span>',
+            renkler.get(obj.durum, "#6F7B8F"),
+            obj.get_durum_display(),
+        )
+
+    # --- satır düğmeleri ------------------------------------------------
+
+    @unfold_islem(
+        description="Onayla", url_path="onayla", permissions=["change"], icon="check"
+    )
+    def bildirim_onayla(self, request, object_id):
+        bildirim = self.get_object(request, object_id)
+        if bildirim is None:
+            raise Http404("Bildirim bulunamadı.")
+
+        if not bildirim.bekliyor:
+            self.message_user(
+                request, "Bu bildirim zaten sonuçlandırılmış.", messages.INFO
+            )
+        else:
+            odeme_bildirimini_onayla(bildirim, olusturan=request.user)
+            self.message_user(
+                request,
+                f"{bildirim.bayi.get_username()} · {bildirim.tutar} ₺ bakiyeye işlendi.",
+                messages.SUCCESS,
+            )
+        return redirect("admin:finans_odemebildirimi_changelist")
+
+    @unfold_islem(
+        description="Reddet", url_path="reddet", permissions=["change"], icon="close"
+    )
+    def bildirim_reddet(self, request, object_id):
+        bildirim = self.get_object(request, object_id)
+        if bildirim is None:
+            raise Http404("Bildirim bulunamadı.")
+
+        if not bildirim.bekliyor:
+            self.message_user(
+                request, "Bu bildirim zaten sonuçlandırılmış.", messages.INFO
+            )
+        else:
+            odeme_bildirimini_reddet(bildirim, olusturan=request.user)
+            self.message_user(
+                request,
+                f"Bildirim reddedildi. Sebebini yazmak için kaydı açıp "
+                f"“Karar Notu” alanını doldurabilirsiniz.",
+                messages.WARNING,
+            )
+        return redirect("admin:finans_odemebildirimi_changelist")
+
+    # --- toplu işlemler -------------------------------------------------
+
+    @admin.action(description="Seçili bildirimleri onayla")
+    def onayla(self, request, secilenler):
+        islenen = 0
+        for bildirim in secilenler:
+            if bildirim.bekliyor:
+                odeme_bildirimini_onayla(bildirim, olusturan=request.user)
+                islenen += 1
+        self.message_user(
+            request, f"{islenen} bildirim onaylandı ve bakiyeye işlendi.", messages.SUCCESS
+        )
+
+    @admin.action(description="Seçili bildirimleri reddet")
+    def reddet(self, request, secilenler):
+        islenen = 0
+        for bildirim in secilenler:
+            if bildirim.bekliyor:
+                odeme_bildirimini_reddet(bildirim, olusturan=request.user)
+                islenen += 1
+        self.message_user(request, f"{islenen} bildirim reddedildi.", messages.WARNING)

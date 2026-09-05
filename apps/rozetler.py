@@ -36,3 +36,12 @@ def _sayi(sorgu):
     if not adet:
         return ""
     return f"{UST_SINIR}+" if adet > UST_SINIR else str(adet)
+
+
+def bekleyen_odeme_bildirimleri(request):
+    """Bayinin bildirdiği, henüz onaylanmamış havaleler."""
+    from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+
+    return _sayi(
+        OdemeBildirimi.objects.filter(durum=OdemeBildirimiDurumu.BEKLIYOR)
+    )

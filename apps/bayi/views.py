@@ -307,7 +307,34 @@ def tarifeler(request):
 
 
 @login_required
-def cuzdan_gorunumu(request):
+def odeme_bildirimi(request):
+    """Bayi havaleyi yaptığını bildirir; para yönetici onaylayınca işlenir."""
+    from apps.bayi.forms import OdemeBildirimiFormu
+
+    if request.method != "POST":
+        return redirect("bayi:cuzdan")
+
+    form = OdemeBildirimiFormu(request.POST)
+    if form.is_valid():
+        bildirim = form.save(commit=False)
+        bildirim.bayi = request.user
+        bildirim.save()
+        messages.success(
+            request,
+            "Ödeme bildirimin alındı. Yönetici havaleyi gördüğünde bakiyene "
+            "işlenecek; bu sayfadan durumunu takip edebilirsin.",
+        )
+        return redirect("bayi:cuzdan")
+
+    # Hatalı formda sayfa yeniden çizilir; girilenler kaybolmasın.
+    return cuzdan_gorunumu(request, bildirim_formu=form)
+
+
+@login_required
+def cuzdan_gorunumu(request, bildirim_formu=None):
+    from apps.bayi.forms import OdemeBildirimiFormu
+    from apps.finans.models import OdemeBildirimi
+
     cuzdan = getattr(request.user, "cuzdan", None)
 
     hareketler = CuzdanHareketi.objects.none()
@@ -337,6 +364,11 @@ def cuzdan_gorunumu(request):
             "bankalar": Banka.objects.filter(aktif=True, bayiye_gorunur=True),
             "hareket_tipleri": hareket_tipleri,
             "secili_tip": tip,
+            "bildirim_formu": bildirim_formu or OdemeBildirimiFormu(),
+            "bildirimler": (
+                OdemeBildirimi.objects.filter(bayi=request.user)
+                .select_related("banka")[:5]
+            ),
         },
     )
 

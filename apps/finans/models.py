@@ -133,6 +133,82 @@ class HareketTipi(models.TextChoices):
     IPTAL = "iptal", "İptal / Ters Kayıt"
 
 
+class OdemeBildirimiDurumu(models.TextChoices):
+    BEKLIYOR = "bekliyor", "Bekliyor"
+    ONAYLANDI = "onaylandi", "Onaylandı"
+    REDDEDILDI = "reddedildi", "Reddedildi"
+
+
+class OdemeBildirimi(ZamanDamgali):
+    """Bayinin "parayı gönderdim" bildirimi.
+
+    Bayi havaleyi yapıp hangi hesaba ne kadar yatırdığını buraya yazar;
+    para gerçekten geldiyse yönetici onaylar ve bakiye o anda işlenir.
+    Bildirimin kendisi para hareketi **değildir**: onaylanana kadar cüzdana
+    dokunulmaz. Aksi hâlde gelmeyen havale bakiyeye yazılmış olurdu.
+    """
+
+    bayi = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Bayi",
+        related_name="odeme_bildirimleri",
+        on_delete=models.PROTECT,
+    )
+    banka = models.ForeignKey(
+        Banka,
+        verbose_name="Yatırılan Hesap",
+        related_name="odeme_bildirimleri",
+        on_delete=models.PROTECT,
+    )
+    tutar = models.DecimalField(
+        "Tutar",
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    gonderen_adi = models.CharField(
+        "Gönderen Adı",
+        max_length=150,
+        help_text="Havaleyi yapan kişi ya da firma; hesap ekstresinde bu adla görünür.",
+    )
+    aciklama = models.CharField("Açıklama", max_length=255, blank=True)
+    durum = models.CharField(
+        "Durum",
+        max_length=20,
+        choices=OdemeBildirimiDurumu.choices,
+        default=OdemeBildirimiDurumu.BEKLIYOR,
+    )
+    karar_veren = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Kararı Veren",
+        related_name="karar_verdigi_odeme_bildirimleri",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        editable=False,
+    )
+    karar_tarihi = models.DateTimeField("Karar Tarihi", null=True, blank=True, editable=False)
+    karar_notu = models.CharField(
+        "Karar Notu",
+        max_length=255,
+        blank=True,
+        help_text="Reddedildiyse sebebi. Bayiye gösterilir.",
+    )
+
+    class Meta:
+        verbose_name = "Ödeme Bildirimi"
+        verbose_name_plural = "Ödeme Bildirimleri"
+        ordering = ["-olusturma_tarihi"]
+        indexes = [models.Index(fields=["durum", "-olusturma_tarihi"])]
+
+    def __str__(self):
+        return f"{self.bayi.get_username()} · {self.tutar} ₺"
+
+    @property
+    def bekliyor(self):
+        return self.durum == OdemeBildirimiDurumu.BEKLIYOR
+
+
 class CuzdanHareketi(models.Model):
     """Değişmez defter kaydı. Oluşturulduktan sonra düzenlenmez.
 

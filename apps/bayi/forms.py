@@ -126,3 +126,40 @@ class GirisFormu(AuthenticationForm):
 
     def clean_username(self):
         return normalize(self.cleaned_data["username"])
+
+
+class OdemeBildirimiFormu(forms.ModelForm):
+    """Bayinin "parayı gönderdim" bildirimi.
+
+    Bildirim para hareketi değildir: yönetici onaylayana kadar cüzdana
+    dokunulmaz. Gelmeyen havale bakiyeye yazılmasın.
+    """
+
+    class Meta:
+        from apps.finans.models import OdemeBildirimi
+
+        model = OdemeBildirimi
+        fields = ("banka", "tutar", "gonderen_adi", "aciklama")
+        widgets = {
+            "banka": forms.Select(attrs={"class": "girdi"}),
+            "tutar": forms.NumberInput(
+                attrs={"class": "girdi", "step": "0.01", "min": "0.01",
+                       "inputmode": "decimal", "placeholder": "0,00"}
+            ),
+            "gonderen_adi": forms.TextInput(
+                attrs={"class": "girdi", "placeholder": "Havaleyi yapan kişi ya da firma"}
+            ),
+            "aciklama": forms.TextInput(
+                attrs={"class": "girdi", "placeholder": "Dekont açıklaması, işlem no…"}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        from apps.finans.models import Banka
+
+        super().__init__(*args, **kwargs)
+        # Bayi yalnızca kendisine açılmış hesapları görür ve seçebilir.
+        self.fields["banka"].queryset = Banka.objects.filter(
+            aktif=True, bayiye_gorunur=True
+        )
+        self.fields["banka"].empty_label = "Hangi hesaba yatırdın?"

@@ -14,6 +14,7 @@ import logging
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from django.db.models import Q
 
 from apps.finans.models import (
@@ -549,6 +550,59 @@ def basvuru_parasini_geri_al(basvuru, *, olusturan=None, giris_bedeli_dahil=Fals
         basvuru_kilitli.para_surumu = basvuru_kilitli.para_surumu + 1
         basvuru_kilitli.save(update_fields=alanlar)
         return basvuru_kilitli
+
+
+def odeme_bildirimini_onayla(bildirim, *, olusturan=None):
+    """Bayinin ödeme bildirimini onaylar ve tutarı bakiyeye işler.
+
+    Para tahsilat gibi işlenir: borç varsa önce o kapanır, artan bakiyeye
+    geçer; bankanın bakiyesi de artar. Tekillik anahtarı bildirimin kendisine
+    bağlı olduğu için iki kez onaylamak parayı iki kez yazmaz.
+    """
+    from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+
+    with transaction.atomic():
+        kilitli = OdemeBildirimi.objects.select_for_update().get(pk=bildirim.pk)
+        if kilitli.durum != OdemeBildirimiDurumu.BEKLIYOR:
+            return kilitli
+
+        cuzdan = _cuzdani_getir(kilitli.bayi_id)
+        bakiye_yukle(
+            cuzdan,
+            kilitli.tutar,
+            aciklama=f"Ödeme bildirimi · {kilitli.gonderen_adi}",
+            banka=kilitli.banka,
+            olusturan=olusturan,
+            anahtar=f"bildirim:{kilitli.pk}",
+        )
+
+        kilitli.durum = OdemeBildirimiDurumu.ONAYLANDI
+        kilitli.karar_veren = olusturan
+        kilitli.karar_tarihi = timezone.now()
+        kilitli.save(update_fields=["durum", "karar_veren", "karar_tarihi", "guncelleme_tarihi"])
+        return kilitli
+
+
+def odeme_bildirimini_reddet(bildirim, *, olusturan=None, not_=""):
+    """Bildirimi reddeder. Para hiç işlenmediği için geri alınacak bir şey yok."""
+    from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+
+    with transaction.atomic():
+        kilitli = OdemeBildirimi.objects.select_for_update().get(pk=bildirim.pk)
+        if kilitli.durum != OdemeBildirimiDurumu.BEKLIYOR:
+            return kilitli
+
+        kilitli.durum = OdemeBildirimiDurumu.REDDEDILDI
+        kilitli.karar_veren = olusturan
+        kilitli.karar_tarihi = timezone.now()
+        kilitli.karar_notu = not_ or kilitli.karar_notu
+        kilitli.save(
+            update_fields=[
+                "durum", "karar_veren", "karar_tarihi", "karar_notu",
+                "guncelleme_tarihi",
+            ]
+        )
+        return kilitli
 
 
 def cuzdan_islemi(cuzdan, tip, tutar, *, aciklama="", banka=None, olusturan=None, anahtar=None):

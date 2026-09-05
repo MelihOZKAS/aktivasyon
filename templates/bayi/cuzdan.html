@@ -38,6 +38,58 @@
       </div>
       {% endfor %}
     </div>
+
+    {% comment %}
+      Havaleyi yapan bayi bildirir; para yönetici onaylayınca işlenir.
+      Bildirim para hareketi değildir — gelmeyen havale bakiyeye yazılmasın.
+    {% endcomment %}
+    <div class="yuzey mt-4 rounded-kart p-5 sm:p-6">
+      <h3 class="baslik font-semibold">Havale yaptım, bildir</h3>
+      <p class="mt-1 text-sm text-soluk">
+        Bilgileri gir; yönetici havaleyi gördüğünde bakiyene işlenecek.
+      </p>
+
+      <form method="post" action="{% url 'bayi:odeme-bildirimi' %}"
+            class="mt-4 grid gap-4 sm:grid-cols-2">
+        {% csrf_token %}
+        {% for alan in bildirim_formu %}
+        <div {% if alan.name == 'aciklama' %}class="sm:col-span-2"{% endif %}>
+          <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5 block">
+            {{ alan.label }}
+          </label>
+          {{ alan }}
+          {% for hata in alan.errors %}
+          <p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>
+          {% endfor %}
+        </div>
+        {% endfor %}
+        <div class="sm:col-span-2 flex justify-end">
+          <button type="submit" class="dugme dugme-birincil sm:w-auto">Bildirimi gönder</button>
+        </div>
+      </form>
+    </div>
+
+    {% if bildirimler %}
+    <div class="yuzey mt-4 overflow-hidden rounded-kart">
+      {% for bildirim in bildirimler %}
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3.5
+                  {% if not forloop.last %}border-b border-cizgi{% endif %}">
+        <span class="rakam font-semibold">{{ bildirim.tutar|para }} ₺</span>
+        <span class="text-sm text-soluk">{{ bildirim.banka.banka_adi }}</span>
+        <span class="ml-auto text-sm font-semibold
+                     {% if bildirim.durum == 'onaylandi' %}text-olumlu
+                     {% elif bildirim.durum == 'reddedildi' %}text-olumsuz
+                     {% else %}text-uyari{% endif %}">
+          {{ bildirim.get_durum_display }}
+        </span>
+        <span class="w-full text-xs text-soluk">
+          {{ bildirim.olusturma_tarihi|date:"j M Y, H:i" }}
+          {% if bildirim.karar_notu %}· {{ bildirim.karar_notu }}{% endif %}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </section>
   {% endif %}
 
