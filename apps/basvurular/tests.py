@@ -1177,3 +1177,116 @@ class BakiyeYetmezseBasvuruGirilemez(TestCase):
         yanit = self.client.get(reverse("basvurular:yeni", args=[bedava.slug]))
 
         self.assertEqual(yanit.status_code, 200)
+
+
+class HatBedeliIptaldeGeriYuklenir(TestCase):
+    """Bayiden kesilen hat bedeli, başvuru iptal olunca cüzdana geri döner.
+
+    Bayi ürünün parasını peşin veriyor; işlem yürümezse para onda kalmaz.
+    Defterden satır silinmez, karşısına ters kayıt yazılır.
+    """
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.finans.models import Cuzdan, KuralYonu, UcretKurali
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        self.beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.iptal = BasvuruDurumu.objects.create(
+            ad="İptal", slug="iptal", olumsuz_sonuc=True
+        )
+
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=Decimal("1150.00"))
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.tarife = Tarife.objects.create(operator=self.operator, ad="Platinum")
+        self.tarife.kategoriler.add(self.kategori)
+
+        UcretKurali.objects.create(
+            ad="Hat bedeli", yon=KuralYonu.TAHSILAT, tutar=Decimal("1150.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+        )
+        UcretKurali.objects.create(
+            ad="Bayi hakedişi", yon=KuralYonu.HAKEDIS, tutar=Decimal("250.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+        )
+
+    def _basvuru(self):
+        from apps.basvurular.models import Basvuru
+
+        return Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            tarife=self.tarife, isim="Ayşe", soyisim="Demir", kimlik_no="1",
+            irtibat="5551112233", durum=self.beklemede,
+        )
+
+    def test_aktifte_kesilir_iptalde_geri_yuklenir(self):
+        from decimal import Decimal
+
+        basvuru = self._basvuru()
+
+        basvuru.durum = self.aktif
+        basvuru.save()
+        self.cuzdan.refresh_from_db()
+        # 1150 kesildi, 250 hakediş yattı.
+        self.assertEqual(self.cuzdan.bakiye, Decimal("250.00"))
+
+        basvuru.durum = self.iptal
+        basvuru.save()
+        self.cuzdan.refresh_from_db()
+        basvuru.refresh_from_db()
+
+        self.assertEqual(self.cuzdan.bakiye, Decimal("1150.00"))
+        self.assertEqual(self.cuzdan.borc, Decimal("0.00"))
+        self.assertEqual(basvuru.tahsil_edilen, Decimal("0.00"))
+        self.assertEqual(basvuru.hakedis, Decimal("0.00"))
+
+    def test_bakiye_yetmedigi_icin_borca_yazilan_bedel_de_geri_alinir(self):
+        """Bakiye arada harcanmışsa bedel borca yazılır; iptal borcu da siler."""
+        from decimal import Decimal
+
+        basvuru = self._basvuru()
+        self.cuzdan.bakiye = Decimal("0.00")
+        self.cuzdan.save(update_fields=["bakiye"])
+
+        basvuru.durum = self.aktif
+        basvuru.save()
+        self.cuzdan.refresh_from_db()
+        # 1150 borca yazıldı, 250 hakediş borcu kapatmaya gitti.
+        self.assertEqual(self.cuzdan.borc, Decimal("900.00"))
+        self.assertEqual(self.cuzdan.bakiye, Decimal("0.00"))
+
+        basvuru.durum = self.iptal
+        basvuru.save()
+        self.cuzdan.refresh_from_db()
+
+        self.assertEqual(self.cuzdan.borc, Decimal("0.00"))
+        self.assertEqual(self.cuzdan.bakiye, Decimal("0.00"))
+
+    def test_defterde_ters_kayit_durur(self):
+        """Satır silinmez; kesinti ve iadesi ikisi de görünür."""
+        from apps.finans.models import CuzdanHareketi, HareketTipi
+
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+        basvuru.durum = self.iptal
+        basvuru.save()
+
+        tipler = list(
+            CuzdanHareketi.objects.filter(basvuru=basvuru).values_list("tip", flat=True)
+        )
+
+        self.assertIn(HareketTipi.TAHSILAT, tipler)
+        self.assertEqual(tipler.count(HareketTipi.IPTAL), 2)
