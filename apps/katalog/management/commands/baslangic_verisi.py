@@ -6,10 +6,31 @@ Komut tekrar çalıştırılabilir; var olan kayıtları bozmaz.
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import Q
 
 from apps.basvurular.models import BasvuruDurumu
 from apps.katalog.models import AlanTipi, BasvuruKategorisi, KategoriAlani, MusteriTipi, Operator
+from apps.katalog.utils import turkce_slug
 from apps.katalog.varsayilan_alanlar import ORTAK_ALANLAR, TASINACAK_NUMARA
+
+
+def _getir_ya_da_ac(model, ad, defaults):
+    """Kaydı adından **ya da** slug'ından bulur; yoksa açar.
+
+    `get_or_create(ad=...)` yetmiyordu: yönetici panelden kategorinin adını
+    değiştirdiğinde slug eskisi gibi kalıyor, komut kaydı bulamayıp yeniden
+    açmaya çalışıyor ve tekil slug kısıtına çarpıyordu. Kurulum her container
+    açılışında çalıştığı için sonuç, tek bir yeniden adlandırmayla ayağa
+    kalkmayan bir sunucuydu.
+
+    Adı da slug'ı da tekil olduğu için ikisine birden bakılır. Bulunan kayda
+    dokunulmaz: panelde yapılan düzenleme kurulumla geri alınmaz.
+    """
+    slug = turkce_slug(ad)
+    mevcut = model.objects.filter(Q(slug=slug) | Q(ad=ad)).first()
+    if mevcut is not None:
+        return mevcut, False
+    return model.objects.create(ad=ad, slug=slug, **defaults), True
 
 DURUMLAR = [
     # (ad, slug, renk, ikon, baslangic, hakedis, olumsuz, bayi_duzenler,
@@ -171,8 +192,8 @@ class Command(BaseCommand):
 
         operatorler = []
         for sira, (ad, renk) in enumerate(OPERATORLER, start=1):
-            operator, olusturuldu = Operator.objects.get_or_create(
-                ad=ad, defaults={"renk": renk, "sira": sira * 10}
+            operator, olusturuldu = _getir_ya_da_ac(
+                Operator, ad, {"renk": renk, "sira": sira * 10}
             )
             operatorler.append(operator)
             if olusturuldu:
@@ -181,9 +202,10 @@ class Command(BaseCommand):
         for (
             ad, ikon, musteri_tipi, tarife_zorunlu, sim_karsiligi, sira, alanlar
         ) in KATEGORILER:
-            kategori, olusturuldu = BasvuruKategorisi.objects.get_or_create(
-                ad=ad,
-                defaults={
+            kategori, olusturuldu = _getir_ya_da_ac(
+                BasvuruKategorisi,
+                ad,
+                {
                     "ikon": ikon,
                     "musteri_tipi": musteri_tipi,
                     "tarife_zorunlu": tarife_zorunlu,

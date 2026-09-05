@@ -14,7 +14,7 @@ import secrets
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
-from django.db import DEFAULT_DB_ALIAS, connections
+from django.db import DEFAULT_DB_ALIAS, IntegrityError, connections
 from django.db.migrations.exceptions import InconsistentMigrationHistory
 
 
@@ -90,7 +90,21 @@ class Command(BaseCommand):
 
         adim += 1
         self._baslik(adim, "Başlangıç verisi (durumlar, operatörler, kategoriler)")
-        call_command("baslangic_verisi", stdout=self.stdout, stderr=self.stderr)
+        try:
+            call_command("baslangic_verisi", stdout=self.stdout, stderr=self.stderr)
+        except IntegrityError as hata:
+            # Panelde yapılan bir düzenleme başlangıç verisiyle çakıştı.
+            # Kurulum her açılışta çalıştığı için bu, ayağa kalkmayan bir
+            # sunucu demek; traceback yerine çıkış yolunu göster.
+            raise CommandError(
+                f"Başlangıç verisi var olan bir kayıtla çakıştı:\n  {hata}\n\n"
+                "Panelde bir operatörün ya da kategorinin adı veya kısa adı "
+                "(slug) elle değiştirilmiş olabilir. Çakışan kaydın kısa adını "
+                "eski hâline getirin ya da kaydı silin.\n"
+                "Container açılmıyorsa açılış betiğini atlayarak bakın:\n"
+                "  docker compose run --rm --entrypoint python app_fadil \\\n"
+                "    manage.py shell"
+            ) from hata
 
         if secenekler["ornek"]:
             zorla = secenekler["zorla"] or not settings.DEBUG

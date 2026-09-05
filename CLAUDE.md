@@ -359,9 +359,19 @@ açılış betiğini atlamaktan geçer:
 docker compose run --rm --entrypoint python app_fadil manage.py kurulum --sifirla --evet
 ```
 
-`kurulum` komutu `InconsistentMigrationHistory` hatasını yakalayıp bu
-komutu ekrana yazar; başka bir açılış hatası eklersen aynısını yap —
-traceback değil, çıkış yolu göster.
+`kurulum` komutu `InconsistentMigrationHistory` ve `IntegrityError`
+hatalarını yakalayıp ne yapılacağını ekrana yazar; başka bir açılış hatası
+eklersen aynısını yap — traceback değil, çıkış yolu göster.
+
+**Başlangıç verisi kayıtları adından *ve* slug'ından aranır.** İkisi de
+tekil olduğu için `get_or_create(ad=...)` yetmiyordu: yönetici panelden bir
+kategorinin adını değiştirdiğinde slug eskisi gibi kalıyor, komut kaydı
+bulamayıp yeniden açmaya çalışıyor ve tekil slug kısıtına çarpıyordu.
+Kurulum her container açılışında çalıştığı için sonuç, tek bir yeniden
+adlandırmayla ayağa kalkmayan bir sunucuydu. `_getir_ya_da_ac` ikisine
+birden bakar ve bulduğu kayda dokunmaz — panelde yapılan düzenleme
+kurulumla geri alınmaz. Başlangıç verisine yeni bir model eklersen aynı
+yoldan geçir.
 
 **Statikler her açılışta `--clear` ile toplanır.** Tasarım değiştiğinde eski
 dosyalar `STATIC_ROOT`'ta birikmesin diye.

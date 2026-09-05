@@ -635,3 +635,70 @@ class YeniKategoriVarsayilanAlanlari(TestCase):
         alan.refresh_from_db()
 
         self.assertFalse(alan.aktif)
+
+
+class PaneldeAdiDegisenKayit(TestCase):
+    """Kurulum her container açılışında çalışır; panel düzenlemesi onu kırmamalı.
+
+    Yönetici kategorinin adını değiştirdiğinde slug eskisi gibi kalıyordu.
+    `get_or_create(ad=...)` kaydı bulamayıp yeniden açmaya çalışıyor, tekil
+    slug kısıtına çarpıyor ve container açılışta ölüyordu — sunucu tek bir
+    yeniden adlandırmayla ayağa kalkmaz olmuştu.
+    """
+
+    def setUp(self):
+        from django.core.management import call_command
+
+        call_command("baslangic_verisi", stdout=self._cikti())
+
+    @staticmethod
+    def _cikti():
+        import io
+
+        return io.StringIO()
+
+    def test_kategori_adi_degistirilse_de_kurulum_tekrar_calisir(self):
+        from django.core.management import call_command
+
+        from apps.katalog.models import BasvuruKategorisi
+
+        kategori = BasvuruKategorisi.objects.get(slug="mnt-numara-tasima")
+        kategori.ad = "Numara Taşıma (MNT)"
+        kategori.save(update_fields=["ad"])
+        adet = BasvuruKategorisi.objects.count()
+
+        call_command("baslangic_verisi", stdout=self._cikti())
+
+        kategori.refresh_from_db()
+        self.assertEqual(BasvuruKategorisi.objects.count(), adet)
+        # Panelde verilen ad kurulumla geri alınmaz.
+        self.assertEqual(kategori.ad, "Numara Taşıma (MNT)")
+
+    def test_operator_adi_degistirilse_de_kurulum_tekrar_calisir(self):
+        from django.core.management import call_command
+
+        from apps.katalog.models import Operator
+
+        operator = Operator.objects.get(slug="turkcell")
+        operator.ad = "Turkcell A.Ş."
+        operator.save(update_fields=["ad"])
+        adet = Operator.objects.count()
+
+        call_command("baslangic_verisi", stdout=self._cikti())
+
+        self.assertEqual(Operator.objects.count(), adet)
+
+    def test_slug_degistirilse_de_kurulum_tekrar_calisir(self):
+        """Kısa adı değişen kayıt adından bulunur."""
+        from django.core.management import call_command
+
+        from apps.katalog.models import BasvuruKategorisi
+
+        kategori = BasvuruKategorisi.objects.get(slug="mnt-numara-tasima")
+        kategori.slug = "numara-tasima"
+        kategori.save(update_fields=["slug"])
+        adet = BasvuruKategorisi.objects.count()
+
+        call_command("baslangic_verisi", stdout=self._cikti())
+
+        self.assertEqual(BasvuruKategorisi.objects.count(), adet)
