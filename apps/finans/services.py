@@ -552,12 +552,25 @@ def basvuru_parasini_geri_al(basvuru, *, olusturan=None, giris_bedeli_dahil=Fals
         return basvuru_kilitli
 
 
+def _bildirim_anahtarlari(bildirim):
+    """Bu bildirimin onayında yazılmış defter satırlarının anahtarları.
+
+    Sürüm eklenmeden önce onaylanmış kayıtlar `bildirim:{pk}:...` biçiminde
+    duruyor; eski satırlar da bulunabilsin diye ikisine birden bakılır.
+    """
+    kokler = [f"bildirim:{bildirim.pk}", f"bildirim:{bildirim.pk}:v{bildirim.para_surumu}"]
+    return [f"{kok}:{ek}" for kok in kokler for ek in ("borc", "bakiye")]
+
+
 def odeme_bildirimini_onayla(bildirim, *, olusturan=None):
     """Bayinin ödeme bildirimini onaylar ve tutarı bakiyeye işler.
 
     Para tahsilat gibi işlenir: borç varsa önce o kapanır, artan bakiyeye
     geçer; bankanın bakiyesi de artar. Tekillik anahtarı bildirimin kendisine
     bağlı olduğu için iki kez onaylamak parayı iki kez yazmaz.
+
+    Anahtar `para_surumu` içerir: geri alınıp yeniden onaylanan bildirimin
+    ikinci hareketi aynı anahtara çarpıp sessizce yutulmasın.
     """
     from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
 
@@ -573,7 +586,7 @@ def odeme_bildirimini_onayla(bildirim, *, olusturan=None):
             aciklama=f"Ödeme bildirimi · {kilitli.gonderen_adi}",
             banka=kilitli.banka,
             olusturan=olusturan,
-            anahtar=f"bildirim:{kilitli.pk}",
+            anahtar=f"bildirim:{kilitli.pk}:v{kilitli.para_surumu}",
         )
 
         kilitli.durum = OdemeBildirimiDurumu.ONAYLANDI
@@ -601,6 +614,85 @@ def odeme_bildirimini_reddet(bildirim, *, olusturan=None, not_=""):
                 "durum", "karar_veren", "karar_tarihi", "karar_notu",
                 "guncelleme_tarihi",
             ]
+        )
+        return kilitli
+
+
+def odeme_bildirimini_geri_al(bildirim, *, olusturan=None):
+    """Yanlış onaylanmış bildirimin parasını ters kayıtla geri alır.
+
+    Sonuçlanmış bildirim yeniden **karara** açılmaz — ama yanlış onay
+    düzeltilebilmeli. Durumu formdan "Reddedildi" yapmak kaydı yalancı
+    hâle getiriyordu: bildirim reddedilmiş görünüyor, yüklenen para bayinin
+    cüzdanında duruyordu. Düzeltme tek yoldan geçer ve **parayı da geri
+    alır**; başvurudaki yanlış onayın düzeltmesiyle aynı kural.
+
+    Defter değişmezdir, satır silinmez: onayda yazılan her hareketin
+    karşısına ters kaydı yazılır. Borcu kapatan kısım borca geri döner,
+    bakiyeye yazılan kısım bakiyeden düşer, bankanın bakiyesi de azalır —
+    para onaya girerken iki yeri birden etkilediği için çıkarken de öyle.
+
+    Bildirim yeniden **Bekliyor**'a döner: karar verilmemiş bir bildirimdir
+    artık, yönetici sebebini yazıp reddedebilir ya da tutarı düzeltip
+    yeniden onaylayabilir. `para_surumu` artar; ikinci onayın defter kaydı
+    ilkinin anahtarına çarpmaz.
+    """
+    from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+
+    with transaction.atomic():
+        kilitli = OdemeBildirimi.objects.select_for_update().get(pk=bildirim.pk)
+        if kilitli.durum != OdemeBildirimiDurumu.ONAYLANDI:
+            return kilitli
+
+        cuzdan = _cuzdani_getir(kilitli.bayi_id)
+        hareketler = list(
+            CuzdanHareketi.objects.filter(
+                cuzdan=cuzdan,
+                idempotency_anahtari__in=_bildirim_anahtarlari(kilitli),
+                ters_kayit__isnull=True,
+            ).exclude(tip=HareketTipi.IPTAL)
+        )
+
+        for hareket in hareketler:
+            borca_yaziliyordu = hareket.tip in {
+                HareketTipi.BORC_EKLE,
+                HareketTipi.BORC_TAHSIL,
+            }
+            ters = _hareket_yaz(
+                cuzdan=cuzdan,
+                tip=HareketTipi.IPTAL,
+                tutar=-hareket.tutar,
+                idempotency_anahtari=f"iptal:{hareket.pk}",
+                aciklama=f"Ödeme bildirimi · onay geri alındı ({hareket.get_tip_display()})",
+                banka=hareket.banka,
+                olusturan=olusturan,
+                borca_yaz=borca_yaziliyordu,
+            )
+            if ters:
+                hareket.ters_kayit = ters
+                hareket.save(update_fields=["ters_kayit"])
+
+        # Banka onayda bildirimin tam tutarı kadar artmıştı; aynısı geri iner.
+        # Ters kayıt yazılmadıysa (ikinci kez geri alma) bankaya dokunulmaz.
+        if hareketler and kilitli.banka_id:
+            banka = kilitli.banka
+            banka.bakiye = banka.bakiye - kilitli.tutar
+            banka.save(update_fields=["bakiye", "guncelleme_tarihi"])
+
+        kilitli.durum = OdemeBildirimiDurumu.BEKLIYOR
+        kilitli.karar_veren = None
+        kilitli.karar_tarihi = None
+        kilitli.para_surumu = kilitli.para_surumu + 1
+        kilitli.save(
+            update_fields=[
+                "durum", "karar_veren", "karar_tarihi", "para_surumu",
+                "guncelleme_tarihi",
+            ]
+        )
+        logger.info(
+            "Ödeme bildirimi %s onayı geri alındı, %s hareket ters kayıtla iptal edildi.",
+            kilitli.pk,
+            len(hareketler),
         )
         return kilitli
 

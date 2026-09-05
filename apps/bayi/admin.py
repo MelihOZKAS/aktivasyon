@@ -374,9 +374,40 @@ class DuyuruAdmin(ModelAdmin):
     date_hierarchy = "olusturma_tarihi"
 
 
+class BayiBasvurusuAdminFormu(forms.ModelForm):
+    """Fiyat kademesi seçilmeden onay kaydedilemez.
+
+    Servis de kapıyı tutuyor (`bayi_hesabi_ac`) ama orada durdurmak kaydı
+    "Onaylandı" bırakıp hesabı açmamak demek: yönetici onayladığını sanır,
+    bayi giriş ekranında öğrenir. Formda durdurunca kayıt o duruma hiç
+    geçmez ve hata alanın yanında çıkar.
+
+    Hesabı zaten açılmış eski kayıtlar serbesttir: kademe artık cüzdanda
+    yaşıyor, başvurudaki alan geçmiş bilgisidir.
+    """
+
+    class Meta:
+        model = BayiBasvurusu
+        fields = "__all__"
+
+    def clean(self):
+        temiz = super().clean()
+        onay = temiz.get("durum") == BayiBasvuruDurumu.ONAYLANDI
+        if onay and not temiz.get("bayi_grubu") and not self.instance.olusturulan_kullanici_id:
+            self.add_error(
+                "bayi_grubu",
+                "Onaylamadan önce fiyat kademesini seçin. Kademesiz cüzdanda "
+                "bayi grubuna bağlı hakediş kuralları işlemez; bayi başvuru "
+                "girer, karşılığında hiçbir şey almaz.",
+            )
+        return temiz
+
+
 @admin.register(BayiBasvurusu)
 class BayiBasvurusuAdmin(ModelAdmin):
     """Bayi olmak isteyenlerin bıraktığı talepler."""
+
+    form = BayiBasvurusuAdminFormu
 
     list_display = (
         "ad_soyad", "irtibat_baglantisi", "durum_rozeti", "parola_secildi",
@@ -404,9 +435,9 @@ class BayiBasvurusuAdmin(ModelAdmin):
                     "Durumu “Onaylandı” yapıp kaydetmek hesabı da açar; "
                     "listeden “Seçili başvurular için bayi hesabı aç” işlemi "
                     "de aynı işi yapar. Kullanıcı adı telefon numarası olur, "
-                    "parola başvuranın kendi seçtiğidir. Fiyat kademesini "
-                    "burada seçin: cüzdana onayla birlikte yazılır, ayrıca "
-                    "cüzdan ekranına gitmek gerekmez."
+                    "parola başvuranın kendi seçtiğidir. Fiyat kademesi "
+                    "onay için zorunludur: cüzdana onayla birlikte yazılır, "
+                    "ayrıca cüzdan ekranına gitmek gerekmez."
                 ),
             },
         ),
@@ -516,25 +547,8 @@ class BayiBasvurusuAdmin(ModelAdmin):
             messages.SUCCESS,
         )
 
-        # Kademesiz cüzdana bayi grubuna bağlı hakediş kuralı işlemez: bayi
-        # işlem yapar, karşılığında hiçbir şey almaz. Sessiz kalırsa bu ancak
-        # bayi "hakedişim yatmadı" dediğinde fark edilir.
-        kademesiz = [
-            k.get_username()
-            for k in kullanicilar
-            if getattr(getattr(k, "cuzdan", None), "grup_id", None) is None
-        ]
-        if kademesiz:
-            self.message_user(
-                request,
-                format_html(
-                    "{} hesabının fiyat kademesi seçilmedi. Bayi grubuna bağlı "
-                    "hakediş kuralları bu bayide işlemez; başvurudaki "
-                    "“Fiyat Kademesi” alanını doldurun ya da cüzdanından seçin.",
-                    ", ".join(kademesiz),
-                ),
-                messages.WARNING,
-            )
+        # Kademesiz hesap artık hiç açılmıyor (`bayi_hesabi_ac` kapıda
+        # durduruyor); burada ayrıca uyarılacak bir şey kalmadı.
 
         # Parolasız açılan hesap girişe kapalıdır. Bunu yöneticiye burada
         # söylemezsek kimse fark etmez; bayi giriş ekranında öğrenir.

@@ -46,6 +46,11 @@ def bayi_hesabi_ac(basvuru):
     Eski başvurularda parola olmayabilir; o hâlde hesap kullanılamaz parolayla
     açılır ve yönetici panelden parola belirler.
 
+    **Fiyat kademesi olmadan hesap açılmaz.** Kademesiz cüzdanda bayi grubuna
+    bağlı hakediş kuralları işlemez: bayi başvuru girer, karşılığında hiçbir
+    şey almaz ve bu ancak "hakedişim yatmadı" dediğinde fark edilir. Uyarı
+    yetmiyordu — uyarı okunmayabilir, eksik kademe kapıda durur.
+
     Aynı başvuru için iki kez çağrılırsa ikinci çağrı hiçbir şey yapmaz.
     """
     from django.contrib.auth.hashers import make_password
@@ -57,6 +62,13 @@ def bayi_hesabi_ac(basvuru):
 
     if basvuru.olusturulan_kullanici_id:
         return basvuru.olusturulan_kullanici, False
+
+    if basvuru.bayi_grubu_id is None:
+        raise HesapAcilamadi(
+            f"{basvuru.ad_soyad}: fiyat kademesi seçilmeden hesap açılmaz. "
+            "Başvuruyu açıp “Fiyat Kademesi” alanını doldurun; kademesiz "
+            "cüzdanda hakediş kuralları işlemez."
+        )
 
     kullanici_adi = basvuru.kullanici_adi
     if User.objects.filter(username=kullanici_adi).exists():
@@ -83,8 +95,8 @@ def bayi_hesabi_ac(basvuru):
             telefon=basvuru.irtibat,
             bayi_mi=True,
         )
-        # Fiyat kademesi başvuruda seçildiyse cüzdana da o anda yazılır;
-        # yönetici hesabı açtıktan sonra bir de cüzdan ekranına gitmesin.
+        # Fiyat kademesi cüzdana o anda yazılır; yönetici hesabı açtıktan
+        # sonra bir de cüzdan ekranına gitmesin.
         Cuzdan.objects.create(bayi=kullanici, grup=basvuru.bayi_grubu)
 
         basvuru.olusturulan_kullanici = kullanici

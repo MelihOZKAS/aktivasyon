@@ -1304,6 +1304,196 @@ class OdemeBildirimiAkisi(TestCase):
         self.assertEqual(bildirim.karar_veren, self.yonetici)
         self.assertEqual(bildirim.karar_notu, "Havale gelmedi")
 
+    def test_onaylanan_bildirim_formdan_reddedilemez(self):
+        """Kayıt yalancı hâle gelmemeli.
+
+        Onaylandıktan sonra durum formdan "Reddedildi" yapılabiliyordu:
+        bildirim reddedilmiş görünüyor, yüklenen para bayinin cüzdanında
+        duruyordu. Defterle karşılaştıran olmadıkça fark edilmez.
+        """
+        from django.urls import reverse
+
+        from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+        from apps.finans.services import odeme_bildirimini_onayla
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+
+        self.client.force_login(self.yonetici)
+        self.client.post(
+            reverse("admin:finans_odemebildirimi_change", args=[bildirim.pk]),
+            {
+                "bayi": self.bayi.pk, "banka": self.banka.pk, "tutar": "5000.00",
+                "gonderen_adi": "Melih Kaya", "aciklama": "Havale",
+                "durum": OdemeBildirimiDurumu.REDDEDILDI,
+                "karar_notu": "yanlış onayladım",
+            },
+            follow=True,
+        )
+
+        bildirim.refresh_from_db()
+        self.cuzdan.refresh_from_db()
+        # Durum değişmedi; para da yerinde. İkisi birbiriyle tutarlı.
+        self.assertEqual(bildirim.durum, OdemeBildirimiDurumu.ONAYLANDI)
+        self.assertEqual(self.cuzdan.bakiye, TL("5000.00"))
+
+    def test_onayi_geri_almak_parayi_da_geri_alir(self):
+        from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+        from apps.finans.services import (
+            odeme_bildirimini_geri_al, odeme_bildirimini_onayla,
+        )
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+
+        odeme_bildirimini_geri_al(bildirim, olusturan=self.yonetici)
+
+        self.cuzdan.refresh_from_db()
+        self.banka.refresh_from_db()
+        bildirim.refresh_from_db()
+        # Bakiye de banka da onaydan önceki hâline döner.
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+        self.assertEqual(self.banka.bakiye, TL("0.00"))
+        # Karar verilmemiş bildirimdir artık; yönetici sebebini yazıp reddeder.
+        self.assertEqual(bildirim.durum, OdemeBildirimiDurumu.BEKLIYOR)
+        self.assertIsNone(bildirim.karar_veren)
+
+    def test_geri_almak_kapanan_borcu_geri_yazar(self):
+        """Onay borcu kapatmışsa geri alma borcu geri getirir."""
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import (
+            odeme_bildirimini_geri_al, odeme_bildirimini_onayla,
+        )
+
+        self.cuzdan.borc = TL("2000.00")
+        self.cuzdan.save(update_fields=["borc"])
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.borc, TL("0.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("3000.00"))
+
+        odeme_bildirimini_geri_al(bildirim, olusturan=self.yonetici)
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.borc, TL("2000.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+
+    def test_defter_satiri_silinmez_ters_kayit_yazilir(self):
+        from apps.finans.models import CuzdanHareketi, HareketTipi, OdemeBildirimi
+        from apps.finans.services import (
+            odeme_bildirimini_geri_al, odeme_bildirimini_onayla,
+        )
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+        odeme_bildirimini_geri_al(bildirim, olusturan=self.yonetici)
+
+        yukleme = CuzdanHareketi.objects.get(tip=HareketTipi.YUKLEME)
+        self.assertIsNotNone(yukleme.ters_kayit)
+        self.assertEqual(yukleme.ters_kayit.tutar, TL("-5000.00"))
+        self.assertEqual(CuzdanHareketi.objects.filter(tip=HareketTipi.IPTAL).count(), 1)
+
+    def test_iki_kez_geri_almak_parayi_iki_kez_dusurmez(self):
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import (
+            odeme_bildirimini_geri_al, odeme_bildirimini_onayla,
+        )
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+        odeme_bildirimini_geri_al(bildirim, olusturan=self.yonetici)
+        odeme_bildirimini_geri_al(bildirim, olusturan=self.yonetici)
+
+        self.cuzdan.refresh_from_db()
+        self.banka.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+        self.assertEqual(self.banka.bakiye, TL("0.00"))
+
+    def test_geri_alinan_bildirim_yeniden_onaylanabilir(self):
+        """Sürümsüz anahtar ikinci onayı sessizce yutardı."""
+        from apps.finans.models import OdemeBildirimi
+        from apps.finans.services import (
+            odeme_bildirimini_geri_al, odeme_bildirimini_onayla,
+        )
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+        odeme_bildirimini_geri_al(bildirim, olusturan=self.yonetici)
+
+        bildirim.refresh_from_db()
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+
+        self.cuzdan.refresh_from_db()
+        self.banka.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("5000.00"))
+        self.assertEqual(self.banka.bakiye, TL("5000.00"))
+
+    def test_reddedilen_bildirimin_onayi_geri_alinmaz(self):
+        from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+        from apps.finans.services import (
+            odeme_bildirimini_geri_al, odeme_bildirimini_reddet,
+        )
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+        odeme_bildirimini_reddet(bildirim, olusturan=self.yonetici)
+
+        odeme_bildirimini_geri_al(bildirim, olusturan=self.yonetici)
+
+        bildirim.refresh_from_db()
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(bildirim.durum, OdemeBildirimiDurumu.REDDEDILDI)
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+
+    def test_geri_alma_ekrani_get_ile_para_oynatmaz(self):
+        """Düz bağlantı yalnızca onay ekranını açar; para POST ile hareket eder."""
+        from django.urls import reverse
+
+        from apps.finans.models import OdemeBildirimi, OdemeBildirimiDurumu
+        from apps.finans.services import odeme_bildirimini_onayla
+
+        self._bayi_girisi()
+        self._bildir()
+        bildirim = OdemeBildirimi.objects.get()
+        odeme_bildirimini_onayla(bildirim, olusturan=self.yonetici)
+
+        adres = reverse(
+            "admin:finans_odemebildirimi_bildirim_geri_al", args=[bildirim.pk]
+        )
+        self.client.force_login(self.yonetici)
+
+        # Satırda düğme duruyor.
+        liste = reverse("admin:finans_odemebildirimi_changelist")
+        self.assertIn(adres, self.client.get(liste).content.decode())
+
+        # GET yalnızca soruyor.
+        self.assertEqual(self.client.get(adres).status_code, 200)
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("5000.00"))
+
+        # POST işi yapıyor.
+        self.client.post(adres, follow=True)
+        self.cuzdan.refresh_from_db()
+        bildirim.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+        self.assertEqual(bildirim.durum, OdemeBildirimiDurumu.BEKLIYOR)
+
     def test_sonuclanmis_bildirimde_dugmeler_cikmaz(self):
         """Basınca "zaten sonuçlandırılmış" diyen düğme hiç durmamalı."""
         from django.urls import reverse
@@ -1661,3 +1851,98 @@ class HareketFiltreleri(TestCase):
         icerik = self._liste(q="fadil deneme")
 
         self.assertIn("5435609672", icerik)
+
+
+class KuralEklemedeCokluKategori(TestCase):
+    """Aynı fiyat birkaç kategoride geçerliyse form bir kez doldurulur.
+
+    Kayıtlar yine tekildir: seçilen her kategori için ayrı bir kural açılır,
+    biri sonradan tek başına düzenlenebilir. Motor değişmedi.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.katalog.models import BasvuruKategorisi
+
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+        self.mnt = BasvuruKategorisi.objects.create(ad="MNT")
+        self.yeni_hat = BasvuruKategorisi.objects.create(ad="Yeni Hat")
+        self.aktif_durum = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+
+    def _ekle(self, veri):
+        from django.urls import reverse
+
+        temel = {
+            "ad": "", "yon": KuralYonu.HAKEDIS, "tutar": "175.00",
+            "tetikleyici_durum": self.aktif_durum.pk,
+            "operator": "", "tarife": "", "kampanya": "",
+            "bayi_grubu": "", "bayi": "", "tedarikci": "",
+            "baslangic_tarihi": "", "bitis_tarihi": "", "oncelik": "0",
+            "aktif": "on",
+        }
+        return self.client.post(
+            reverse("admin:finans_ucretkurali_add"), {**temel, **veri}, follow=True
+        )
+
+    def test_secilen_her_kategori_icin_ayri_kural_acilir(self):
+        self._ekle({"kategoriler": [self.mnt.pk, self.yeni_hat.pk]})
+
+        kurallar = UcretKurali.objects.order_by("kategori__ad")
+        self.assertEqual(kurallar.count(), 2)
+        self.assertEqual(
+            list(kurallar.values_list("kategori__ad", flat=True)), ["MNT", "Yeni Hat"]
+        )
+        # Tutar ve yön her kopyada aynı.
+        self.assertEqual({k.tutar for k in kurallar}, {TL("175.00")})
+
+    def test_tek_kategori_tek_kural_acar(self):
+        self._ekle({"kategoriler": [self.mnt.pk]})
+
+        kural = UcretKurali.objects.get()
+        self.assertEqual(kural.kategori, self.mnt)
+
+    def test_kategorisiz_kural_hepsi_demektir(self):
+        self._ekle({"kategoriler": []})
+
+        kural = UcretKurali.objects.get()
+        self.assertIsNone(kural.kategori)
+
+    def test_ad_girilmediyse_her_kural_kendi_adini_uretir(self):
+        self._ekle({"kategoriler": [self.mnt.pk, self.yeni_hat.pk]})
+
+        adlar = set(UcretKurali.objects.values_list("ad", flat=True))
+        self.assertEqual(len(adlar), 2)
+        self.assertTrue(any("MNT" in ad for ad in adlar))
+
+    def test_tarifeye_uymayan_kategori_reddedilir(self):
+        """Tarife seçiliyse kategorilerin hepsinde geçerli olmalı."""
+        from apps.katalog.models import Operator, Tarife
+
+        operator = Operator.objects.create(ad="Turkcell")
+        tarife = Tarife.objects.create(ad="Paket", operator=operator)
+        tarife.kategoriler.add(self.mnt)
+
+        cevap = self._ekle(
+            {"kategoriler": [self.mnt.pk, self.yeni_hat.pk], "tarife": tarife.pk}
+        )
+
+        self.assertContains(cevap, "geçerli değil")
+        self.assertEqual(UcretKurali.objects.count(), 0)
+
+    def test_duzenleme_ekraninda_kategori_tekil_kalir(self):
+        from django.urls import reverse
+
+        kural = UcretKurali.objects.create(
+            yon=KuralYonu.HAKEDIS, tutar=TL("100.00"), kategori=self.mnt,
+            tetikleyici_durum=self.aktif_durum,
+        )
+        icerik = self.client.get(
+            reverse("admin:finans_ucretkurali_change", args=[kural.pk])
+        ).content.decode()
+
+        self.assertIn('name="kategori"', icerik)
+        self.assertNotIn('name="kategoriler"', icerik)

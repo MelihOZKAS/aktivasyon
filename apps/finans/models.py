@@ -194,6 +194,16 @@ class OdemeBildirimi(ZamanDamgali):
         blank=True,
         help_text="Reddedildiyse sebebi. Bayiye gösterilir.",
     )
+    para_surumu = models.PositiveIntegerField(
+        "Para İşlem Sürümü",
+        default=0,
+        editable=False,
+        help_text=(
+            "Onay her geri alındığında artar. Defterdeki tekillik anahtarı bu "
+            "sayıyı içerir; geri alınıp yeniden onaylanan bildirimin ikinci "
+            "hareketi aynı anahtara çarpıp sessizce yutulmasın."
+        ),
+    )
 
     class Meta:
         verbose_name = "Ödeme Bildirimi"

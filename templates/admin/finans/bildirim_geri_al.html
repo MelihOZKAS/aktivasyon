@@ -1,0 +1,39 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Onayı geri almak para hareketi doğurur: bakiye ve banka birlikte iner,
+  borcu kapatan kısım borca geri döner. Bu yüzden düz bağlantıyla değil,
+  ne olacağını yazan bir onay ekranından POST ile yapılır.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-xl border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <p class="mb-4 text-sm text-base-500">
+      <b>{{ bildirim.bayi.get_username }}</b> adına onaylanan
+      <b>{{ bildirim.tutar }} ₺</b> tutarındaki bildirimin onayı geri alınacak.
+    </p>
+
+    <ul class="mb-6 space-y-1.5 text-sm">
+      <li>Onayda yazılan defter satırlarının karşısına ters kayıtları yazılır; satır silinmez.</li>
+      <li>Borcu kapatan kısım varsa borca geri döner, bakiyeye yazılan kısım bakiyeden iner.</li>
+      <li><b>{{ bildirim.banka }}</b> hesabının bakiyesi de {{ bildirim.tutar }} ₺ azalır.</li>
+      <li>Bildirim yeniden <b>Bekliyor</b> durumuna döner; sebebini yazıp reddedebilir ya da düzeltip yeniden onaylayabilirsiniz.</li>
+    </ul>
+
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+      <div class="flex gap-3 pt-2">
+        <button type="submit"
+                class="rounded-md bg-primary-600 px-4 py-2 font-medium text-white">
+          Onayı geri al
+        </button>
+        <a href="{% url 'admin:finans_odemebildirimi_changelist' %}"
+           class="rounded-md border border-base-200 px-4 py-2 font-medium dark:border-base-700">
+          Vazgeç
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

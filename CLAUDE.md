@@ -183,8 +183,24 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Onay tahsilat gibi işler (borç varsa önce o kapanır, bankanın bakiyesi de
   artar) ve tekillik anahtarı bildirimin kendisine bağlıdır: iki kez
   onaylamak parayı iki kez yazmaz. Red parayı hiç hareket ettirmez; karar
-  notu bayinin cüzdan sayfasında görünür. Sonuçlanmış bildirim yeniden
-  karara açılmaz. Bekleyenler yan menüde rozetle sayılır.
+  notu bayinin cüzdan sayfasında görünür. Bekleyenler yan menüde rozetle
+  sayılır.
+- **Sonuçlanmış bildirimin durumu formdan değiştirilemez; yanlış onay
+  parasıyla birlikte geri alınır.** Durum alanı serbestken yönetici
+  onayladığı bildirimi "Reddedildi" yapabiliyordu: kayıt reddedilmiş
+  görünüyor, yüklenen para bayinin cüzdanında duruyordu — defterle
+  karşılaştıran olmadıkça fark edilmez. Alan artık sonuçlanmış kayıtta salt
+  okunur (`OdemeBildirimiAdmin.get_readonly_fields`) ve `save_model` elle
+  gönderilen isteği de geri çevirir. Düzeltmenin tek yolu satırdaki
+  **"Onayı geri al"**: `odeme_bildirimini_geri_al` onayda yazılan her defter
+  satırının karşısına ters kaydını yazar (satır silinmez), borcu kapatan
+  kısım borca geri döner, bankanın bakiyesi de iner ve bildirim yeniden
+  **Bekliyor**'a düşer — yönetici sebebini yazıp reddeder ya da düzeltip
+  yeniden onaylar. Başvurudaki "yanlış onayı geri alma" kuralının aynısı.
+  `OdemeBildirimi.para_surumu` her geri almada artar ve defter anahtarına
+  girer; sürümsüz anahtarla ikinci onayın hareketi `IntegrityError`'a takılıp
+  sessizce yutulurdu. Geri alma para oynattığı için düğme doğrudan çalışmaz,
+  ne olacağını yazan onay ekranını açar ve iş POST ile yapılır.
 - **Bayi yalnızca kendisine açılmış banka hesaplarını görür ve seçebilir**
   (`Banka.aktif` + `bayiye_gorunur`). Kısıt formun `queryset`'inde durur:
   gizli bir hesabın id'si elle gönderilse de bildirim kaydedilmez.
@@ -280,13 +296,21 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   yöneticinin açtığı herhangi bir sayfa bayinin parolasını sıfırlatabilirdi.
   Parola log'a, mesaja, bildirime girmez — sistem yalnızca özetini saklar,
   bu yüzden "eski parolası neydi" diye bakılamaz.
-- **Bayi başvurusunda fiyat kademesi de seçilir.** `BayiBasvurusu.bayi_grubu`
+- **Bayi başvurusunda fiyat kademesi zorunludur.** `BayiBasvurusu.bayi_grubu`
   onay ekranında durur ve hesap açılırken cüzdana yazılır
   (`bayi_hesabi_ac`); yönetici onaydan sonra bir de cüzdan ekranına gitmiyor.
-  Boş bırakılırsa hesap yine açılır ama panel uyarır: bayi grubuna bağlı
-  hakediş kuralları kademesiz cüzdanda işlemez, bayi işlem yapar karşılığında
-  hiçbir şey almaz. Kademe başvurana sorulmaz — kamuya açık formun alan
-  listesi sabittir (`fields`), yönetimin fiyat kararı oraya sızmaz.
+  Bir süre yalnızca uyarı vardı: hesap kademesiz açılıyor, uyarı okunmayınca
+  bayi ne fiyat görüyor ne hakediş alıyordu. Kural motoru grup kapsamını
+  `bayi_grubu__isnull=True | bayi_grubu=grup_id` diye süzdüğü için kademesiz
+  cüzdana **yalnızca gruba bağlı olmayan** kurallar uyar; fiyatlar grup
+  başına tanımlıysa bayi kategori ekranında hiçbir rakam görmez ve
+  `basvuru_bedeli` sıfır döner. Kapı iki yerde durur: `bayi_hesabi_ac`
+  kademesiz başvurudan hesap açmaz (`HesapAcilamadi`) ve
+  `BayiBasvurusuAdminFormu` onayı kaydettirmez — servis tarafında durdurmak
+  kaydı "Onaylandı" bırakıp hesabı açmamak olurdu. Hesabı zaten açılmış eski
+  kayıtlar serbesttir; kademe artık cüzdanda yaşar. Kademe başvurana sorulmaz —
+  kamuya açık formun alan listesi sabittir (`fields`), yönetimin fiyat kararı
+  oraya sızmaz.
 - **Kullanıcı seçtiren kutularda ekle/düzenle/sil düğmeleri kapatılır.**
   Başvurudaki "Açılan Hesap" kutusunun yanındaki kırmızı çöp kutusu seçimi
   değil, seçili kullanıcının kendisini siler; yanlış hesap seçilince ilk
@@ -402,6 +426,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   "hakediş" soyut kalıyor, "Alışım (operatörden ya da tedarikçiden)" herkesin
   bildiği şey. `UcretKurali.ad` boş bırakılabilir, kapsamdan üretilir; iki
   rakam girmeye gelen yönetici bir de ad uydurmasın.
+  **Kural eklerken kategori çoklu seçilir** (`UcretKuraliEklemeFormu`): aynı
+  fiyat çoğu zaman birkaç kategoride birden geçerli, her biri için formu
+  baştan doldurmak gerekiyordu. Motor değişmedi — kural yine tek kategoriye
+  bağlı tek kayıt; seçilen her kategori için ayrı kural açılır, biri sonradan
+  tek başına düzenlenebilir. Düzenleme ekranında alan tekildir. Tarife
+  seçiliyse form her kategoride geçerli olduğunu doğrular; modelin kendi
+  `clean`'i tekil alana baktığı için eklemede o kontrol devreye girmezdi.
   **Tedarikçi kapsamı bir süre yalnızca motorda vardı**, formda alanı yoktu:
   tedarikçiden alış fiyatı panelden hiç girilemiyordu. Hem kural admin'inde hem
   satır içi tabloda alan artık var; kullanıcı seçen kutuların ekle/düzenle/sil

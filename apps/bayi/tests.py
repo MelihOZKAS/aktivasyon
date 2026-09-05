@@ -1000,6 +1000,7 @@ class BayiBasvurusundaParola(TestCase):
 class BasvurudanHesapAcma(TestCase):
     def setUp(self):
         from apps.bayi.models import BayiBasvurusu
+        from apps.finans.models import BayiGrubu
 
         self.client.post(
             "/bayi-basvurusu/",
@@ -1013,6 +1014,10 @@ class BasvurudanHesapAcma(TestCase):
             },
         )
         self.basvuru = BayiBasvurusu.objects.get()
+        # Fiyat kademesi olmadan hesap açılmaz; yönetimin onayda seçtiği alan.
+        self.grup = BayiGrubu.objects.create(ad="Standart Bayi")
+        self.basvuru.bayi_grubu = self.grup
+        self.basvuru.save(update_fields=["bayi_grubu"])
 
     def test_secilen_parolayla_giris_yapilir(self):
         from apps.bayi.services import bayi_hesabi_ac
@@ -1034,8 +1039,7 @@ class BasvurudanHesapAcma(TestCase):
         self.assertTrue(kullanici.bayi_profili.bayi_mi)
         self.assertEqual(kullanici.bayi_profili.telefon, "5551234567")
         self.assertEqual(kullanici.cuzdan.bakiye, 0)
-        # Başvuruda seçilmediyse kademe boş kalır; yönetici uyarı görür.
-        self.assertIsNone(kullanici.cuzdan.grup)
+        self.assertEqual(kullanici.cuzdan.grup, self.grup)
 
     def test_basvuruda_secilen_fiyat_kademesi_cuzdana_gecer(self):
         """Onayda seçilen grup cüzdana yazılır: iki ekranda iki kez uğraşılmaz."""
@@ -1049,6 +1053,25 @@ class BasvurudanHesapAcma(TestCase):
         kullanici, _ = bayi_hesabi_ac(self.basvuru)
 
         self.assertEqual(kullanici.cuzdan.grup, grup)
+
+    def test_kademesiz_basvurudan_hesap_acilmaz(self):
+        """Kademesiz cüzdanda hakediş kuralları işlemez; kapı orada durur.
+
+        Bir süre yalnızca uyarı vardı: hesap açılıyor, yönetici uyarıyı
+        okumayınca bayi işlem yapıyor ve karşılığında hiçbir şey almıyordu.
+        """
+        from apps.bayi.models import BayiBasvuruDurumu, BayiBasvurusu
+        from apps.bayi.services import HesapAcilamadi, bayi_hesabi_ac
+
+        self.basvuru.bayi_grubu = None
+        self.basvuru.save(update_fields=["bayi_grubu"])
+
+        with self.assertRaises(HesapAcilamadi):
+            bayi_hesabi_ac(self.basvuru)
+
+        self.basvuru.refresh_from_db()
+        self.assertIsNone(self.basvuru.olusturulan_kullanici)
+        self.assertNotEqual(self.basvuru.durum, BayiBasvuruDurumu.ONAYLANDI)
 
     def test_basvuru_onaylandi_olur_ve_hesaba_baglanir(self):
         from apps.bayi.models import BayiBasvuruDurumu
@@ -1145,11 +1168,40 @@ class YonetimdenOnaylama(TestCase):
         self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
         self.client.force_login(self.yonetici)
 
-    def _onayla(self):
+        from apps.finans.models import BayiGrubu
+
+        self.grup = BayiGrubu.objects.create(ad="Standart Bayi")
+
+    def _onayla(self, bayi_grubu=None):
+        """Kademe verilmezse varsayılan grup seçilir; "" kademesiz onay demek."""
         return self.client.post(
             self.ADRES.format(self.basvuru.pk),
-            {"durum": "onaylandi", "notlar": "", "olusturulan_kullanici": ""},
+            {
+                "durum": "onaylandi",
+                "bayi_grubu": self.grup.pk if bayi_grubu is None else bayi_grubu,
+                "notlar": "",
+                "olusturulan_kullanici": "",
+            },
             follow=True,
+        )
+
+    def test_kademesiz_onay_kaydedilmez(self):
+        """Kayıt "Onaylandı" görünüp hesabın açılmaması sessiz tuzaktı."""
+        from apps.bayi.models import BayiBasvuruDurumu
+
+        cevap = self._onayla(bayi_grubu="")
+        self.basvuru.refresh_from_db()
+
+        self.assertContains(cevap, "fiyat kademesini seçin")
+        self.assertNotEqual(self.basvuru.durum, BayiBasvuruDurumu.ONAYLANDI)
+        self.assertIsNone(self.basvuru.olusturulan_kullanici)
+
+    def test_onayda_secilen_kademe_cuzdana_yazilir(self):
+        self._onayla()
+        self.basvuru.refresh_from_db()
+
+        self.assertEqual(
+            self.basvuru.olusturulan_kullanici.cuzdan.grup, self.grup
         )
 
     def test_durum_onaylandi_yapilinca_hesap_acilir(self):

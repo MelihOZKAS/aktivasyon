@@ -12,6 +12,7 @@ from unfold.decorators import action, display
 from unfold.decorators import action as unfold_islem
 from unfold.widgets import (
     UnfoldAdminDecimalFieldWidget,
+    UnfoldAdminSelectMultipleWidget,
     UnfoldAdminSelectWidget,
     UnfoldAdminTextInputWidget,
 )
@@ -32,8 +33,10 @@ from apps.finans.models import (
 from unfold.contrib.filters.admin import AutocompleteSelectFilter
 
 from apps.filtreler import GunAraligiFiltresi
+from apps.katalog.models import BasvuruKategorisi
 from apps.finans.services import (
     cuzdan_islemi,
+    odeme_bildirimini_geri_al,
     odeme_bildirimini_onayla,
     odeme_bildirimini_reddet,
 )
@@ -396,6 +399,53 @@ class CuzdanHareketiAdmin(ModelAdmin):
         return "—"
 
 
+class UcretKuraliEklemeFormu(forms.ModelForm):
+    """Kural eklerken kategori çoklu seçilir.
+
+    Aynı fiyat çoğu zaman birkaç kategoride birden geçerli; her biri için
+    aynı formu baştan doldurmak gerekiyordu. Motor tarafı değişmedi —
+    kural yine tek kategoriye bağlı tek kayıt; çoğalan yalnızca giriş
+    ekranı: seçilen her kategori için ayrı bir kural açılır. Böylece
+    sonradan biri tek başına düzenlenebilir ya da kapatılabilir.
+
+    Düzenleme ekranında alan yine tekildir: orada tek bir kural var.
+    """
+
+    kategoriler = forms.ModelMultipleChoiceField(
+        label="Kategoriler",
+        queryset=BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad"),
+        required=False,
+        widget=UnfoldAdminSelectMultipleWidget,
+        help_text=(
+            "Boş bırakılırsa kural bütün kategorilerde geçerli olur. Birden "
+            "fazla seçerseniz her kategori için ayrı bir kural açılır."
+        ),
+    )
+
+    class Meta:
+        model = UcretKurali
+        fields = "__all__"
+
+    def clean(self):
+        temiz = super().clean()
+        tarife = temiz.get("tarife")
+        kategoriler = temiz.get("kategoriler")
+        # Modelin kendi denetimi tekil `kategori` alanına bakıyor; eklemede
+        # o alan formda olmadığı için kontrolü burada yapıyoruz.
+        if tarife and kategoriler:
+            uymayan = [
+                k.ad for k in kategoriler
+                if not tarife.kategoriler.filter(pk=k.pk).exists()
+            ]
+            if uymayan:
+                self.add_error(
+                    "kategoriler",
+                    f"“{tarife}” tarifesi şu kategorilerde geçerli değil: "
+                    f"{', '.join(uymayan)}.",
+                )
+        return temiz
+
+
 @admin.register(UcretKurali)
 class UcretKuraliAdmin(ModelAdmin):
     list_display = (
@@ -469,6 +519,67 @@ class UcretKuraliAdmin(ModelAdmin):
                 "bayi", "tedarikci", "tetikleyici_durum",
             )
         )
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Ekleme ekranında çoklu kategori formu kullanılır."""
+        if obj is None:
+            kwargs["form"] = UcretKuraliEklemeFormu
+        return super().get_form(request, obj, **kwargs)
+
+    def get_fieldsets(self, request, obj=None):
+        """Eklemede tekil “Kategori” yerine çoklu “Kategoriler” gösterilir."""
+        fieldsets = super().get_fieldsets(request, obj)
+        if obj is not None:
+            return fieldsets
+        return tuple(
+            (
+                baslik,
+                {
+                    **ayar,
+                    "fields": tuple(
+                        "kategoriler" if alan == "kategori" else alan
+                        for alan in ayar.get("fields", ())
+                    ),
+                },
+            )
+            for baslik, ayar in fieldsets
+        )
+
+    def save_model(self, request, obj, form, change):
+        """Seçilen her kategori için ayrı bir kural yazar.
+
+        Kayıtlar birbirinden bağımsızdır: biri sonradan tek başına
+        düzenlenebilir, kapatılabilir ya da silinebilir. Motor yine tek
+        kategoriye bakan tek kaydı okur.
+        """
+        kategoriler = (
+            list(form.cleaned_data.get("kategoriler") or []) if not change else []
+        )
+        if change or not kategoriler:
+            super().save_model(request, obj, form, change)
+            return
+
+        obj.kategori = kategoriler[0]
+        super().save_model(request, obj, form, change)
+
+        for kategori in kategoriler[1:]:
+            kopya = UcretKurali.objects.get(pk=obj.pk)
+            kopya.pk = None
+            kopya._state.adding = True
+            kopya.kategori = kategori
+            # Ad girilmediyse her kural kendi kapsamından adını üretsin;
+            # aksi hâlde listede beş satır aynı adı taşır.
+            if not form.cleaned_data.get("ad"):
+                kopya.ad = ""
+            kopya.save()
+
+        if len(kategoriler) > 1:
+            self.message_user(
+                request,
+                f"{len(kategoriler)} kategori için ayrı kural açıldı: "
+                + ", ".join(k.ad for k in kategoriler),
+                messages.SUCCESS,
+            )
 
     @admin.display(description="Alışım, bayiye ödediğim ve kâr")
     def kar_tablosu(self, obj):
@@ -656,6 +767,20 @@ class OdemeBildirimiAdmin(ModelAdmin):
             .select_related("bayi", "banka", "karar_veren")
         )
 
+    def get_readonly_fields(self, request, obj=None):
+        """Sonuçlanmış bildirimin durumu formdan değiştirilemez.
+
+        Onaylanmış bir bildirimi formdan "Reddedildi" yapmak kaydı yalancı
+        hâle getiriyordu: bildirim reddedilmiş görünüyor, yüklenen para
+        bayinin cüzdanında duruyordu — kimse defterle karşılaştırmadıkça
+        fark edilmez. Karar geri alınacaksa parasıyla birlikte geri alınır
+        (“Onayı geri al”); bildirim o zaman yeniden Bekliyor'a döner.
+        """
+        alanlar = super().get_readonly_fields(request, obj)
+        if obj is not None and not obj.bekliyor:
+            return (*alanlar, "durum")
+        return alanlar
+
     def save_model(self, request, obj, form, change):
         """Durum formdan değiştirilse de karar servisten geçer.
 
@@ -671,6 +796,21 @@ class OdemeBildirimiAdmin(ModelAdmin):
             else None
         )
         kararlar = {OdemeBildirimiDurumu.ONAYLANDI, OdemeBildirimiDurumu.REDDEDILDI}
+
+        # Sonuçlanmış bildirim yeniden karara açılmaz. Alan zaten salt okunur
+        # (`get_readonly_fields`); bu, elle gönderilen bir isteğe karşı ikinci
+        # katman: yanlış onayın düzeltmesi "Onayı geri al"dan geçer, çünkü
+        # yalnızca o parayı da geri alır.
+        if onceki in kararlar and obj.durum != onceki:
+            obj.durum = onceki
+            self.message_user(
+                request,
+                "Sonuçlanmış bildirimin durumu buradan değiştirilmez. Yanlış "
+                "onaylandıysa satırdaki “Onayı geri al” düğmesini kullanın; "
+                "para da geri döner.",
+                messages.WARNING,
+            )
+
         yeni_karar = (
             obj.durum
             if onceki == OdemeBildirimiDurumu.BEKLIYOR and obj.durum in kararlar
@@ -723,8 +863,17 @@ class OdemeBildirimiAdmin(ModelAdmin):
         kaydı bilmiyor); sonuçlanmış bildirimde de düğmeler duruyor ve
         yönetici basınca "zaten sonuçlandırılmış" uyarısı alıyordu.
         """
-        if not obj.bekliyor:
+        if obj.bekliyor:
+            dugmeler = (
+                ("bildirim_onayla", "#0F8A4D", "Onayla"),
+                ("bildirim_reddet", "#D42046", "Reddet"),
+            )
+        elif obj.durum == OdemeBildirimiDurumu.ONAYLANDI:
+            # Yanlış onayın tek düzeltme yolu: para da geri döner.
+            dugmeler = (("bildirim_geri_al", "#B45309", "Onayı geri al"),)
+        else:
             return ""
+
         return format_html_join(
             " ",
             '<a href="{}" style="border:1px solid #e3e8f0;border-radius:.375rem;'
@@ -736,10 +885,7 @@ class OdemeBildirimiAdmin(ModelAdmin):
                     renk,
                     etiket,
                 )
-                for yol, renk, etiket in (
-                    ("bildirim_onayla", "#0F8A4D", "Onayla"),
-                    ("bildirim_reddet", "#D42046", "Reddet"),
-                )
+                for yol, renk, etiket in dugmeler
             ),
         )
 
@@ -761,6 +907,11 @@ class OdemeBildirimiAdmin(ModelAdmin):
                 "<int:object_id>/reddet/",
                 self.admin_site.admin_view(self.bildirim_reddet),
                 name="finans_odemebildirimi_bildirim_reddet",
+            ),
+            path(
+                "<int:object_id>/onayi-geri-al/",
+                self.admin_site.admin_view(self.bildirim_geri_al),
+                name="finans_odemebildirimi_bildirim_geri_al",
             ),
             *super().get_urls(),
         ]
@@ -801,6 +952,46 @@ class OdemeBildirimiAdmin(ModelAdmin):
                 messages.WARNING,
             )
         return redirect("admin:finans_odemebildirimi_changelist")
+
+    def bildirim_geri_al(self, request, object_id):
+        """Yanlış onayı parasıyla birlikte geri alır.
+
+        Düz bağlantı yalnızca ne olacağını yazan onay ekranını açar; para
+        POST ile hareket eder. Yöneticinin açtığı bir sayfa ya da bir
+        önizleme isteği kimsenin bakiyesini oynatmamalı.
+        """
+        bildirim = self.get_object(request, object_id)
+        if bildirim is None:
+            raise Http404("Bildirim bulunamadı.")
+
+        if bildirim.durum != OdemeBildirimiDurumu.ONAYLANDI:
+            self.message_user(
+                request,
+                "Yalnızca onaylanmış bildirimin onayı geri alınabilir.",
+                messages.INFO,
+            )
+            return redirect("admin:finans_odemebildirimi_changelist")
+
+        if request.method == "POST":
+            odeme_bildirimini_geri_al(bildirim, olusturan=request.user)
+            self.message_user(
+                request,
+                f"{bildirim.bayi.get_username()} · {bildirim.tutar} ₺ geri alındı; "
+                "bildirim yeniden bekliyor.",
+                messages.WARNING,
+            )
+            return redirect("admin:finans_odemebildirimi_changelist")
+
+        return render(
+            request,
+            "admin/finans/bildirim_geri_al.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "Onayı geri al",
+                "bildirim": bildirim,
+                "opts": self.model._meta,
+            },
+        )
 
     # --- toplu işlemler -------------------------------------------------
 
