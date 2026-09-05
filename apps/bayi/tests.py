@@ -867,8 +867,21 @@ class BasvurudanHesapAcma(TestCase):
         self.assertTrue(kullanici.bayi_profili.bayi_mi)
         self.assertEqual(kullanici.bayi_profili.telefon, "5551234567")
         self.assertEqual(kullanici.cuzdan.bakiye, 0)
-        # Fiyat kademesini yönetici seçer.
+        # Başvuruda seçilmediyse kademe boş kalır; yönetici uyarı görür.
         self.assertIsNone(kullanici.cuzdan.grup)
+
+    def test_basvuruda_secilen_fiyat_kademesi_cuzdana_gecer(self):
+        """Onayda seçilen grup cüzdana yazılır: iki ekranda iki kez uğraşılmaz."""
+        from apps.bayi.services import bayi_hesabi_ac
+        from apps.finans.models import BayiGrubu
+
+        grup = BayiGrubu.objects.create(ad="Altın Bayi")
+        self.basvuru.bayi_grubu = grup
+        self.basvuru.save(update_fields=["bayi_grubu"])
+
+        kullanici, _ = bayi_hesabi_ac(self.basvuru)
+
+        self.assertEqual(kullanici.cuzdan.grup, grup)
 
     def test_basvuru_onaylandi_olur_ve_hesaba_baglanir(self):
         from apps.bayi.models import BayiBasvuruDurumu

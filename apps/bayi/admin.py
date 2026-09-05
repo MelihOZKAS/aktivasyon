@@ -5,7 +5,7 @@ from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as TemelGrupAdmin
 from django.contrib.auth.admin import UserAdmin as TemelKullaniciAdmin
 from django.contrib.auth.models import Group, User
-from django.utils.html import format_html
+from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, StackedInline
 from unfold.decorators import action as unfold_islem
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
@@ -350,9 +350,9 @@ class BayiBasvurusuAdmin(ModelAdmin):
 
     list_display = (
         "ad_soyad", "irtibat_baglantisi", "durum_rozeti", "parola_secildi",
-        "olusturulan_kullanici", "olusturma_tarihi",
+        "bayi_grubu", "olusturulan_kullanici", "olusturma_tarihi",
     )
-    list_filter = ("durum", "olusturma_tarihi")
+    list_filter = ("durum", "bayi_grubu", "olusturma_tarihi")
     search_fields = ("isim", "soyisim", "irtibat")
     date_hierarchy = "olusturma_tarihi"
     readonly_fields = ("isim", "soyisim", "irtibat", "olusturma_tarihi")
@@ -369,19 +369,25 @@ class BayiBasvurusuAdmin(ModelAdmin):
         (
             "Değerlendirme",
             {
-                "fields": ("durum", "notlar", "olusturulan_kullanici"),
+                "fields": ("durum", "bayi_grubu", "notlar", "olusturulan_kullanici"),
                 "description": (
                     "Durumu “Onaylandı” yapıp kaydetmek hesabı da açar; "
                     "listeden “Seçili başvurular için bayi hesabı aç” işlemi "
                     "de aynı işi yapar. Kullanıcı adı telefon numarası olur, "
-                    "parola başvuranın kendi seçtiğidir."
+                    "parola başvuranın kendi seçtiğidir. Fiyat kademesini "
+                    "burada seçin: cüzdana onayla birlikte yazılır, ayrıca "
+                    "cüzdan ekranına gitmek gerekmez."
                 ),
             },
         ),
     )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("olusturulan_kullanici")
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("olusturulan_kullanici", "bayi_grubu")
+        )
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         """“Açılan Hesap” kutusunun yanındaki ekle/düzenle/sil düğmelerini kaldırır.
@@ -393,8 +399,18 @@ class BayiBasvurusuAdmin(ModelAdmin):
         ve silmek Kullanıcılar ekranının işi.
         """
         alan = super().formfield_for_foreignkey(db_field, request, **kwargs)
-        if db_field.name == "olusturulan_kullanici" and hasattr(alan, "widget"):
+        if not hasattr(alan, "widget"):
+            return alan
+
+        if db_field.name == "olusturulan_kullanici":
             alan.widget.can_add_related = False
+            alan.widget.can_change_related = False
+            alan.widget.can_delete_related = False
+        elif db_field.name == "bayi_grubu":
+            # Yeni bir kademe açmak buradan makul; var olanı düzenlemek ya da
+            # silmek değil. Grup silinince o gruptaki bütün cüzdanların fiyat
+            # kademesi sessizce boşalır — tek bir başvuru ekranından
+            # verilebilecek bir karar değil.
             alan.widget.can_change_related = False
             alan.widget.can_delete_related = False
         return alan
@@ -452,18 +468,43 @@ class BayiBasvurusuAdmin(ModelAdmin):
         self._acilanlari_bildir(request, [kullanici])
 
     def _acilanlari_bildir(self, request, kullanicilar):
-        """Açılan hesapları bildirir; parolasız açılanı ayrıca uyarır."""
+        """Açılan hesapları bildirir; eksik kalanları ayrıca uyarır."""
         self.message_user(
             request,
             format_html(
                 "{} hesap açıldı: {}. Kullanıcı adı telefon numarasıdır; "
-                "parolayı başvuran kendisi seçti. Cüzdan grubunu (fiyat "
-                "kademesi) belirlemeyi unutmayın.",
+                "parolayı başvuran kendisi seçti.",
                 len(kullanicilar),
-                ", ".join(k.get_username() for k in kullanicilar),
+                format_html_join(
+                    ", ", "{} ({})",
+                    (
+                        (k.get_username(), self._kademe_adi(k))
+                        for k in kullanicilar
+                    ),
+                ),
             ),
             messages.SUCCESS,
         )
+
+        # Kademesiz cüzdana bayi grubuna bağlı hakediş kuralı işlemez: bayi
+        # işlem yapar, karşılığında hiçbir şey almaz. Sessiz kalırsa bu ancak
+        # bayi "hakedişim yatmadı" dediğinde fark edilir.
+        kademesiz = [
+            k.get_username()
+            for k in kullanicilar
+            if getattr(getattr(k, "cuzdan", None), "grup_id", None) is None
+        ]
+        if kademesiz:
+            self.message_user(
+                request,
+                format_html(
+                    "{} hesabının fiyat kademesi seçilmedi. Bayi grubuna bağlı "
+                    "hakediş kuralları bu bayide işlemez; başvurudaki "
+                    "“Fiyat Kademesi” alanını doldurun ya da cüzdanından seçin.",
+                    ", ".join(kademesiz),
+                ),
+                messages.WARNING,
+            )
 
         # Parolasız açılan hesap girişe kapalıdır. Bunu yöneticiye burada
         # söylemezsek kimse fark etmez; bayi giriş ekranında öğrenir.
@@ -481,6 +522,12 @@ class BayiBasvurusuAdmin(ModelAdmin):
                 ),
                 messages.WARNING,
             )
+
+    @staticmethod
+    def _kademe_adi(kullanici):
+        cuzdan = getattr(kullanici, "cuzdan", None)
+        grup = getattr(cuzdan, "grup", None)
+        return grup.ad if grup else "kademesiz"
 
     @admin.action(description="Seçili başvurular için bayi hesabı aç")
     def hesap_ac(self, request, secilenler):

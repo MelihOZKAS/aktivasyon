@@ -206,6 +206,18 @@ class BayiBasvurusu(ZamanDamgali):
         ),
     )
     notlar = models.TextField("Notlar", blank=True, help_text="Başvurana gösterilmez.")
+    bayi_grubu = models.ForeignKey(
+        "finans.BayiGrubu",
+        verbose_name="Fiyat Kademesi",
+        related_name="bayi_basvurulari",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text=(
+            "Hesap açılırken cüzdana yazılır. Bayinin hangi fiyat listesinden "
+            "hakediş alacağını bu belirler; başvurana sorulmaz, yönetim seçer."
+        ),
+    )
     olusturulan_kullanici = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name="Açılan Hesap",

@@ -83,8 +83,9 @@ def bayi_hesabi_ac(basvuru):
             telefon=basvuru.irtibat,
             bayi_mi=True,
         )
-        # Grup bilinçli olarak boş: fiyat kademesini yönetici seçer.
-        Cuzdan.objects.create(bayi=kullanici)
+        # Fiyat kademesi başvuruda seçildiyse cüzdana da o anda yazılır;
+        # yönetici hesabı açtıktan sonra bir de cüzdan ekranına gitmesin.
+        Cuzdan.objects.create(bayi=kullanici, grup=basvuru.bayi_grubu)
 
         basvuru.olusturulan_kullanici = kullanici
         basvuru.durum = BayiBasvuruDurumu.ONAYLANDI
