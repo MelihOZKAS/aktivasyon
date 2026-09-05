@@ -1344,3 +1344,105 @@ class OdemeBildirimiAkisi(TestCase):
 
         self.cuzdan.refresh_from_db()
         self.assertEqual(self.cuzdan.bakiye, TL("5000.00"))
+
+
+class KuralSayfasindaKarTablosu(TestCase):
+    """Kural sayfası tek yön tutuyor; kapsamın hesabı yine de görünmeli.
+
+    Yönetici bayiye ödediğini girip "alışımı nereden gireceğim" diye
+    soruyordu. Alış aynı kapsamda ikinci bir kuraldır; burada okunur,
+    eksikse söylenir.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.tarife = Tarife.objects.create(operator=self.operator, ad="Platinum")
+        self.tarife.kategoriler.add(self.kategori)
+
+        self.hakedis = UcretKurali.objects.create(
+            ad="Bayiye hakediş", yon=KuralYonu.HAKEDIS, tutar=TL("250.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+            operator=self.operator, tarife=self.tarife,
+        )
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _sayfa(self, kural=None):
+        from django.urls import reverse
+
+        return self.client.get(
+            reverse("admin:finans_ucretkurali_change", args=[(kural or self.hakedis).pk])
+        ).content.decode()
+
+    def test_alis_girilmemisse_soyler(self):
+        icerik = self._sayfa()
+
+        self.assertIn("girilmedi", icerik)
+        self.assertIn("Alış girilmeden kâr hesaplanamaz", icerik)
+
+    def test_alis_girilince_kar_hesaplanir(self):
+        UcretKurali.objects.create(
+            ad="Operatörden alış", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("400.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+            operator=self.operator, tarife=self.tarife,
+        )
+
+        icerik = self._sayfa()
+
+        self.assertIn("400.00", icerik)
+        self.assertIn("250.00", icerik)
+        # 400 − 250 = 150
+        self.assertIn("150.00", icerik)
+
+    def test_tahsilat_da_kara_girer(self):
+        UcretKurali.objects.create(
+            ad="Operatörden alış", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("400.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+            operator=self.operator, tarife=self.tarife,
+        )
+        UcretKurali.objects.create(
+            ad="Hat bedeli", yon=KuralYonu.TAHSILAT, tutar=TL("100.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+            operator=self.operator, tarife=self.tarife,
+        )
+
+        icerik = self._sayfa()
+
+        # 400 + 100 − 250 = 250; hem tahsilat hem kâr aynı rakam.
+        self.assertIn("100.00", icerik)
+        self.assertIn("250.00", icerik)
+
+    def test_tarifeye_bagli_kuralda_tarife_sayfasina_baglanti_var(self):
+        from django.urls import reverse
+
+        icerik = self._sayfa()
+
+        self.assertIn(
+            reverse("admin:katalog_tarife_change", args=[self.tarife.pk]), icerik
+        )
+
+    def test_baska_kapsamin_kurali_hesaba_karismaz(self):
+        from apps.katalog.models import Operator, Tarife
+
+        vodafone = Operator.objects.create(ad="Vodafone")
+        baska = Tarife.objects.create(operator=vodafone, ad="Red")
+        baska.kategoriler.add(self.kategori)
+        UcretKurali.objects.create(
+            ad="Başka tarifenin alışı", yon=KuralYonu.ANA_HAKEDIS,
+            tutar=TL("9999.00"), tetikleyici_durum=self.aktif,
+            kategori=self.kategori, operator=vodafone, tarife=baska,
+        )
+
+        icerik = self._sayfa()
+
+        self.assertNotIn("9999.00", icerik)
+        self.assertIn("Alış girilmeden kâr hesaplanamaz", icerik)

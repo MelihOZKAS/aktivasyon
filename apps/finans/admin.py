@@ -371,8 +371,19 @@ class UcretKuraliAdmin(ModelAdmin):
         "tedarikci",
         "tetikleyici_durum",
     )
+    readonly_fields = ("kar_tablosu",)
     fieldsets = (
         ("Kural", {"fields": ("ad", "yon", "tutar", "tetikleyici_durum")}),
+        (
+            "Bu kapsamın hesabı",
+            {
+                "fields": ("kar_tablosu",),
+                "description": (
+                    "Bu kural tek bir yönü tutar. Aynı kapsamdaki diğer yönler "
+                    "aşağıda listelenir; eksik olan varsa yazar."
+                ),
+            },
+        ),
         (
             "Kapsam",
             {
@@ -408,6 +419,85 @@ class UcretKuraliAdmin(ModelAdmin):
                 "kategori", "operator", "tarife", "kampanya", "bayi_grubu",
                 "bayi", "tedarikci", "tetikleyici_durum",
             )
+        )
+
+    @admin.display(description="Alışım, bayiye ödediğim ve kâr")
+    def kar_tablosu(self, obj):
+        """Aynı kapsamdaki üç yönü ve kârı tek yerde gösterir.
+
+        Kural sayfası tek yön tutuyor: yönetici bayiye ödediğini girip
+        "alışımı nereden gireceğim" diye soruyordu. Alış da aynı kapsamda
+        ikinci bir kuraldır; burada okunur, eksikse söylenir. Girme yeri
+        tarifenin kendi sayfasıdır — üçü orada yan yana durur.
+        """
+        if obj is None or obj.pk is None:
+            return "Kural kaydedildikten sonra hesap burada görünür."
+
+        kardesler = UcretKurali.objects.filter(
+            aktif=True,
+            kategori=obj.kategori,
+            operator=obj.operator,
+            tarife=obj.tarife,
+            kampanya=obj.kampanya,
+            bayi_grubu=obj.bayi_grubu,
+            bayi=obj.bayi,
+        )
+
+        tutarlar = {}
+        for kural in kardesler:
+            # Aynı yönde birden çok kural varsa en yükseği yazmak yanıltıcı
+            # olur; motorun seçtiği gibi en son eklenen kazanır.
+            tutarlar[kural.yon] = kural.tutar
+
+        alis = tutarlar.get(KuralYonu.ANA_HAKEDIS)
+        odenen = tutarlar.get(KuralYonu.HAKEDIS)
+        tahsil = tutarlar.get(KuralYonu.TAHSILAT)
+
+        def hucre(deger):
+            if deger is None:
+                return format_html('<span style="color:#B45309">girilmedi</span>')
+            return format_html("<b>{} ₺</b>", deger)
+
+        satirlar = [
+            ("Alışım (operatör ya da tedarikçiden)", hucre(alis)),
+            ("Bayiden tahsilat", hucre(tahsil)),
+            ("Bayiye ödediğim", hucre(odenen)),
+        ]
+
+        if alis is None and tahsil is None:
+            kar_satiri = format_html(
+                '<span style="color:#B45309">Alış girilmeden kâr hesaplanamaz.</span>'
+            )
+        else:
+            kar = (alis or SIFIR) + (tahsil or SIFIR) - (odenen or SIFIR)
+            kar_satiri = format_html(
+                '<b style="color:{}">{} ₺</b>',
+                "#0F8A4D" if kar >= SIFIR else "#D42046",
+                kar,
+            )
+        satirlar.append(("Kâr", kar_satiri))
+
+        govde = format_html_join(
+            "",
+            "<tr><td style='padding:.25rem 1.5rem .25rem 0'>{}</td><td>{}</td></tr>",
+            satirlar,
+        )
+        tablo = format_html("<table style='font-size:.875rem'>{}</table>", govde)
+
+        if obj.tarife_id:
+            return format_html(
+                '{}<p style="margin-top:.75rem;font-size:.8125rem;color:#6F7B8F">'
+                'Üçünü aynı ekranda girmek için: '
+                '<a href="{}" style="font-weight:600">{} · tarifenin parası</a></p>',
+                tablo,
+                reverse("admin:katalog_tarife_change", args=[obj.tarife_id]),
+                obj.tarife.ad,
+            )
+        return format_html(
+            '{}<p style="margin-top:.75rem;font-size:.8125rem;color:#6F7B8F">'
+            "Eksik yönü aynı kapsamda ikinci bir kural açarak girersiniz; "
+            "tarifeye bağlı fiyatlarda tarifenin kendi sayfası daha kolaydır.</p>",
+            tablo,
         )
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
