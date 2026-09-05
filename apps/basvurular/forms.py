@@ -10,6 +10,7 @@ kolonuna yazılır (aranabilir olur); boşsa `ek_bilgiler` içinde saklanır.
 """
 
 import re
+from decimal import Decimal
 
 from django import forms
 from django.core.exceptions import ValidationError
@@ -17,6 +18,7 @@ from django.core.exceptions import ValidationError
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu, KimlikTipi
 from apps.basvurular.gorsel import gorseli_kucult
 from apps.basvurular.validators import belge_dogrula
+from apps.bayi.templatetags.panel import para
 from apps.katalog.models import AlanTipi, Kampanya, MusteriTipi, Tarife
 
 GIRDI_SINIFI = "girdi"
@@ -242,6 +244,28 @@ class BasvuruFormu(forms.Form):
         operator = temiz.get("operator")
         if tarife and operator and tarife.operator_id != operator.pk:
             self.add_error("tarife", "Seçilen tarife bu operatöre ait değil.")
+
+        # Bedeli olan işlem parası olmayana verilmez. Kategori ekranı en ucuz
+        # seçeneğe göre eliyor; burada seçilen operatör ve tarifenin gerçek
+        # tutarı denetlenir. Sunucu doğrulaması kapıyı son kez kapatır.
+        if self.bayi is not None:
+            from apps.finans.services import basvuru_bedeli
+
+            bedel = basvuru_bedeli(
+                self.bayi,
+                self.kategori,
+                operator=temiz.get("operator"),
+                tarife=tarife,
+            )
+            cuzdan = getattr(self.bayi, "cuzdan", None)
+            bakiye = cuzdan.bakiye if cuzdan else Decimal("0.00")
+            if bedel > bakiye:
+                self.add_error(
+                    None,
+                    f"Bu başvuru için bakiyen yetersiz. Gereken {para(bedel)} ₺, "
+                    f"bakiyen {para(bakiye)} ₺. Bakiye yüklemek için yöneticinle "
+                    "iletişime geç.",
+                )
 
         kampanya = temiz.get("kampanya")
         if kampanya:

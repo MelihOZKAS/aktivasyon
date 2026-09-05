@@ -1,6 +1,7 @@
 """Bayi tarafındaki başvuru akışı: yeni başvuru, liste, detay."""
 
 import mimetypes
+from decimal import Decimal
 from pathlib import Path
 
 from django.contrib import messages
@@ -14,17 +15,39 @@ from apps.basvurular.forms import BasvuruFormu
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
 from apps.basvurular.validators import SATIR_ICI_GOSTERILEBILIR
 from apps.bayi.yetki import bayi_gerekli
+from apps.bayi.templatetags.panel import para
+from apps.finans.services import en_dusuk_basvuru_bedeli
 from apps.katalog.models import BasvuruKategorisi, Kampanya, Tarife
+
+
+def _bakiye(kullanici):
+    cuzdan = getattr(kullanici, "cuzdan", None)
+    return cuzdan.bakiye if cuzdan else Decimal("0.00")
 
 
 @login_required
 @bayi_gerekli
 def kategori_sec(request):
-    """Hangi başvuru tipinin girileceğini seçtiren ekran."""
+    """Hangi başvuru tipinin girileceğini seçtiren ekran.
+
+    Bayiden tahsil edilen bir bedeli olan kategoriler, bakiye yetmiyorsa
+    kapalı gösterilir: bayi forma girip bütün alanları doldurduktan sonra
+    "bakiyen yetmiyor" duvarına çarpmasın.
+    """
+    from apps.finans.services import en_dusuk_basvuru_bedeli
+
+    bakiye = _bakiye(request.user)
+    kategoriler = list(
+        BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad")
+    )
+    for kategori in kategoriler:
+        kategori.gereken_bedel = en_dusuk_basvuru_bedeli(request.user, kategori)
+        kategori.bakiye_yetersiz = kategori.gereken_bedel > bakiye
+
     return render(
         request,
         "basvurular/kategori_sec.html",
-        {"kategoriler": BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad")},
+        {"kategoriler": kategoriler, "bakiye": bakiye},
     )
 
 
@@ -43,6 +66,19 @@ def yeni(request, kategori):
             "Hesabın şu an başvuru girişine kapalı. Bayi temsilcinle görüşmen gerekiyor.",
         )
         return redirect("bayi:panel")
+
+    # Bedeli olan bir işlem, parası olmayana verilmez. Kategorinin en ucuz
+    # seçeneğini bile karşılayamıyorsa form hiç açılmaz; formu doldurup
+    # sonunda duvara çarpmak en can sıkıcı yol.
+    gereken = en_dusuk_basvuru_bedeli(request.user, kategori)
+    if gereken > _bakiye(request.user):
+        messages.error(
+            request,
+            f"“{kategori.ad}” için bakiyen yetersiz. Gereken {para(gereken)} ₺, "
+            f"bakiyen {para(_bakiye(request.user))} ₺. "
+            "Bakiye yüklemek için yöneticinle iletişime geç.",
+        )
+        return redirect("basvurular:kategori-sec")
 
     if request.method == "POST":
         form = BasvuruFormu(request.POST, request.FILES, kategori=kategori, bayi=request.user)

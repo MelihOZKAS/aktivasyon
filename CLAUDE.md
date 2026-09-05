@@ -124,6 +124,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Bayiyi tamamen durdurmak gerekirse cüzdandaki `islem_yapabilir` kapatılır.
   Bayi panelinde "borç limiti" ya da "kullanılabilir tutar" gösterilmez;
   `apps/bayi/tests.py` bunu kontrol eder.
+- **Bedeli olan işlem parası olmayana verilmez.** Bayiden tahsil edilecek
+  bir tutar tanımlıysa (`yon=TAHSILAT`), bayi o parayı cüzdanında
+  bulundurmadan başvuru **giremez**. Kapı üç yerde durur: kategori ekranı
+  karşılanamayan kategoriyi kapalı gösterir ve sebebini yazar (gizlemez —
+  bayi kategori kaybolmuş sanmasın), form açılışı geri çevirir,
+  `BasvuruFormu.clean` seçilen operatör/tarifenin gerçek tutarıyla son kez
+  denetler. Tutarı `apps.finans.services.basvuru_bedeli` verir; kategori
+  ekranı en ucuz seçeneğe bakar (`en_dusuk_basvuru_bedeli`), çünkü orada
+  operatör/tarife henüz belli değil.
+  Bu, **borç kuralıyla çelişmez**: borcun üst sınırı yok, ama borç işlenmiş
+  bir işlemin sonucudur — parası olmadan yeni bir işlem *başlatmak* ayrı
+  şeydir. Tahsilat kuralı yoksa hiçbir kategori engellenmez.
 - **Bayiye giren her kuruş önce borcu kapatır.** Hakediş de elle yapılan
   bakiye yüklemesi de aynı sırayı izler: borç varsa oradan düşülür (`BORC_TAHSIL`),
   kalanı bakiyeye yazılır. 100 borcu olan bayi 250 hakediş alınca cüzdanında
@@ -220,6 +232,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   yaptığı için bilgileri kimlikten okuyup operatör sistemine giriyor.
   İlgisiz kullanıcı 404 alır. Kural iki yerde: `basvurular.views.belge`
   (dosya erişimi) ve `detay` (`belgeler_gorunur`) — birlikte güncellenir.
+- **Bayi menüsünün sırası bilinçlidir:** Panel, Tarifeler, Yeni başvuru,
+  Başvurularım, Hakedişler, Cüzdan. Bayi müşteriyle önce tarifeye bakıyor,
+  sonra başvuruyu giriyor; menü bu sırayı izler.
 - **Rol ekranları karışmaz.** Bayi görünümleri `@bayi_gerekli`, tedarikçi
   görünümleri `@tedarikci_gerekli` ile korunur (`apps/bayi/yetki.py`).
   Yeni bir ekran eklerken hangi role ait olduğunu belirt; profili olmayan

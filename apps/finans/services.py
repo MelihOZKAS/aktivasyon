@@ -131,6 +131,93 @@ def uygun_kurallari_bul(basvuru, durum):
     return secilen
 
 
+def _tahsilat_adaylari(bayi, kategori):
+    """Bu bayi ve kategori için geçerli olabilecek tahsilat kuralları.
+
+    `uygun_kurallari_bul` bir başvuru **ve** bir tetikleyici durum ister;
+    burada henüz başvuru yok. Tetikleyici duruma da bakılmaz: soru "bu
+    başvuru bayiye kaça mal olacak", "ne zaman tahsil edilecek" değil.
+    """
+    cuzdan = getattr(bayi, "cuzdan", None)
+    grup_id = cuzdan.grup_id if cuzdan else None
+
+    def kapsam(alan, deger):
+        return Q(**{f"{alan}__isnull": True}) | Q(**{alan: deger})
+
+    return (
+        UcretKurali.objects.filter(aktif=True, yon=KuralYonu.TAHSILAT)
+        .filter(kapsam("kategori_id", kategori.pk))
+        .filter(kapsam("bayi_grubu_id", grup_id))
+        .filter(kapsam("bayi_id", bayi.pk))
+        .filter(tedarikci__isnull=True)
+    )
+
+
+def _en_spesifik(kurallar):
+    """Aday kurallar arasından uygulanacak olanı seçer."""
+    secilen = None
+    for kural in kurallar:
+        if secilen is None or (kural.ozgulluk, kural.oncelik, kural.pk) > (
+            secilen.ozgulluk, secilen.oncelik, secilen.pk
+        ):
+            secilen = kural
+    return secilen
+
+
+def basvuru_bedeli(bayi, kategori, *, operator=None, tarife=None):
+    """Bu başvurunun bayiye maliyeti: bayiden tahsil edilecek tutar.
+
+    Operatör ve tarife biliniyorsa tam tutar, bilinmiyorsa kapsamı onlara
+    bağlı olmayan kuralların tutarı döner. Kural yoksa sıfır.
+    """
+    adaylar = _tahsilat_adaylari(bayi, kategori)
+    if operator is not None:
+        adaylar = adaylar.filter(Q(operator__isnull=True) | Q(operator=operator))
+    else:
+        adaylar = adaylar.filter(operator__isnull=True)
+    if tarife is not None:
+        adaylar = adaylar.filter(Q(tarife__isnull=True) | Q(tarife=tarife))
+    else:
+        adaylar = adaylar.filter(tarife__isnull=True)
+
+    kural = _en_spesifik(adaylar)
+    return kural.tutar if kural else SIFIR
+
+
+def en_dusuk_basvuru_bedeli(bayi, kategori):
+    """Bu kategoride bayiden istenebilecek **en düşük** tutar.
+
+    Kategori ekranında ve form açılışında operatör/tarife henüz belli değil.
+    Bayi kategorideki en ucuz seçeneği bile karşılayamıyorsa forma hiç
+    girmemeli; karşılayabiliyorsa forma girer ve tam tutar seçim yapılınca
+    denetlenir.
+    """
+    adaylar = list(_tahsilat_adaylari(bayi, kategori))
+    if not adaylar:
+        return SIFIR
+
+    # Her (operatör, tarife) bileşimi için ayrı bir kural kazanır; en ucuz
+    # bileşim bayinin girebileceği en düşük bedeldir.
+    gruplar = {}
+    for kural in adaylar:
+        gruplar.setdefault((kural.operator_id, kural.tarife_id), []).append(kural)
+
+    tutarlar = []
+    for anahtar, grup in gruplar.items():
+        # Bu bileşime, kapsamı daha geniş olan kurallar da uyar.
+        operator_id, tarife_id = anahtar
+        uyanlar = [
+            k
+            for k in adaylar
+            if k.operator_id in (None, operator_id) and k.tarife_id in (None, tarife_id)
+        ]
+        kazanan = _en_spesifik(uyanlar)
+        if kazanan is not None:
+            tutarlar.append(kazanan.tutar)
+
+    return min(tutarlar) if tutarlar else SIFIR
+
+
 def basvuru_parasini_isle(basvuru, *, olusturan=None):
     """Başvuru para tetikleyen bir duruma geçtiğinde çağrılır.
 

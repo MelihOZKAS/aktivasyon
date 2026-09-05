@@ -1053,3 +1053,127 @@ class TarifeKisaAciklamaUyarisi(TestCase):
         )
 
         self.assertIn("taahhüt 24 ay", yanit.content.decode())
+
+
+class BakiyeYetmezseBasvuruGirilemez(TestCase):
+    """Bedeli olan işlem parası olmayana verilmez.
+
+    Bayiden tahsil edilen bir tutar tanımlıysa bayi o parayı cüzdanında
+    bulundurmadan başvuru giremez. Kapı üç yerde: kategori ekranı kategoriyi
+    kapalı gösterir, form açılışı geri çevirir, gönderim sunucuda reddedilir.
+    """
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.finans.models import Cuzdan, KuralYonu, UcretKurali
+        from apps.katalog.models import (
+            AlanTipi, BasvuruKategorisi, KategoriAlani, Operator, Tarife,
+        )
+
+        self.beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=Decimal("0.00"))
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="isim", etiket="İsim",
+            cekirdek_alan="isim", tip=AlanTipi.METIN, zorunlu=True, sira=1,
+        )
+        self.tarife = Tarife.objects.create(operator=self.operator, ad="Platinum")
+        self.tarife.kategoriler.add(self.kategori)
+
+        UcretKurali.objects.create(
+            ad="Hat bedeli", yon=KuralYonu.TAHSILAT, tutar=Decimal("1150.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+        )
+        self.client.force_login(self.bayi)
+
+    def _bakiye_yukle(self, tutar):
+        from decimal import Decimal
+
+        self.cuzdan.bakiye = Decimal(tutar)
+        self.cuzdan.save(update_fields=["bakiye"])
+
+    def _form_adresi(self):
+        from django.urls import reverse
+
+        return reverse("basvurular:yeni", args=[self.kategori.slug])
+
+    def test_kategori_ekraninda_kapali_gorunur(self):
+        from django.urls import reverse
+
+        yanit = self.client.get(reverse("basvurular:kategori-sec"))
+        icerik = yanit.content.decode()
+
+        self.assertIn("Bakiye yetersiz", icerik)
+        self.assertIn("1.150,00", icerik)
+        # Kategori gizlenmez, kapalı gösterilir.
+        self.assertIn("Kontörlü Yeni Hat", icerik)
+        self.assertNotIn(self._form_adresi(), icerik)
+
+    def test_form_acilmaz_ve_uyari_verilir(self):
+        yanit = self.client.get(self._form_adresi(), follow=True)
+        icerik = yanit.content.decode()
+
+        self.assertIn("bakiyen yetersiz", icerik)
+        self.assertIn("yöneticinle iletişime geç", icerik)
+
+    def test_bakiye_yetince_form_acilir(self):
+        self._bakiye_yukle("1150.00")
+
+        yanit = self.client.get(self._form_adresi())
+
+        self.assertEqual(yanit.status_code, 200)
+        self.assertContains(yanit, "İsim")
+
+    def test_bakiye_yetince_kategori_secilebilir(self):
+        from django.urls import reverse
+
+        self._bakiye_yukle("1150.00")
+
+        icerik = self.client.get(reverse("basvurular:kategori-sec")).content.decode()
+
+        self.assertIn(self._form_adresi(), icerik)
+        self.assertNotIn("Bakiye yetersiz", icerik)
+        # Bedel bilgisi görünür: bayi ne ödeyeceğini bilerek girsin.
+        self.assertIn("1.150,00", icerik)
+
+    def test_gonderim_sunucuda_reddedilir(self):
+        """Kapı formda da durur: doğrudan POST atmak işe yaramaz."""
+        from apps.basvurular.forms import BasvuruFormu
+
+        form = BasvuruFormu(
+            data={
+                "operator": self.operator.pk,
+                "tarife": self.tarife.pk,
+                "musteri_tipi": "turk",
+                "alan__isim": "Ayşe",
+            },
+            kategori=self.kategori,
+            bayi=self.bayi,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("bakiyen yetersiz", " ".join(form.errors["__all__"]))
+
+    def test_bedeli_olmayan_kategori_engellenmez(self):
+        from apps.katalog.models import BasvuruKategorisi
+
+        bedava = BasvuruKategorisi.objects.create(ad="Şebeke İçi Geçiş")
+
+        from django.urls import reverse
+
+        yanit = self.client.get(reverse("basvurular:yeni", args=[bedava.slug]))
+
+        self.assertEqual(yanit.status_code, 200)

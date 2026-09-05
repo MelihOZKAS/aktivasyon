@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load panel %}
 
 {% block baslik %}Yeni başvuru · Aktivasyon{% endblock %}
 {% block sayfa_basligi %}Yeni başvuru{% endblock %}
@@ -10,15 +11,38 @@
     Kategoriyi seç, form kendini ona göre kursun.
   </p>
 
+  {% comment %}
+    Bedeli olan işlem parası olmayana verilmez. Karşılanamayan kategori
+    listeden gizlenmez — kapalı gösterilip sebebi yazılır; bayi neyin
+    eksik olduğunu görsün, kategori kaybolmuş sanmasın.
+  {% endcomment %}
   <div class="mt-7 grid gap-3 sm:grid-cols-2">
     {% for kategori in kategoriler %}
+    {% if kategori.bakiye_yetersiz %}
+    <div class="yuzey sim rounded-kart p-5 opacity-70">
+      <h3 class="baslik font-semibold text-soluk">{{ kategori.ad }}</h3>
+      <p class="mt-1.5 text-sm text-uyari">
+        Bakiye yetersiz — bu işlem {{ kategori.gereken_bedel|para }} ₺,
+        bakiyen {{ bakiye|para }} ₺.
+      </p>
+      <p class="mt-1 text-sm text-soluk">
+        Bakiye yüklemek için yöneticinle iletişime geç.
+      </p>
+    </div>
+    {% else %}
     <a href="{% url 'basvurular:yeni' kategori.slug %}"
        class="yuzey sim kart-secim rounded-kart p-5">
       <h3 class="baslik font-semibold">{{ kategori.ad }}</h3>
       {% if kategori.aciklama %}
       <p class="mt-1 text-sm text-soluk">{{ kategori.aciklama }}</p>
       {% endif %}
+      {% if kategori.gereken_bedel %}
+      <p class="mt-1.5 text-sm text-soluk">
+        İşlem bedeli <span class="rakam font-semibold text-murekkep">{{ kategori.gereken_bedel|para }} ₺</span>
+      </p>
+      {% endif %}
     </a>
+    {% endif %}
     {% empty %}
     <p class="text-sm text-soluk">Henüz kategori tanımlanmamış.</p>
     {% endfor %}

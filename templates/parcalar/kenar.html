@@ -56,6 +56,13 @@
         Panel
       </a>
 
+      <a href="{{ u_tarifeler }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path == u_tarifeler %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h8M18 15l2 2-2 2"/></svg>
+        Tarifeler
+      </a>
+
       <a href="{{ u_yeni }}"
          class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
                 {% if request.path == u_yeni %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
@@ -68,13 +75,6 @@
                 {% if request.path == u_liste %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
         <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
         Başvurularım
-      </a>
-
-      <a href="{{ u_tarifeler }}"
-         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path == u_tarifeler %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
-        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h8M18 15l2 2-2 2"/></svg>
-        Tarifeler
       </a>
 
       <a href="{{ u_hakedisler }}"
