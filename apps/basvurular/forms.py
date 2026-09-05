@@ -70,6 +70,31 @@ def _widget_uret(tanim):
     return forms.TextInput(attrs=ortak)
 
 
+class SimKartSecici(forms.Select):
+    """SIM kart kutusu; her seçenek kendi operatörünü `data-operator` taşır.
+
+    Operatör seçilince tarayıcı listeyi buna göre daraltır — sunucuya ikinci
+    bir tur atılmaz. Kural sunucuda da denetlenir (`_sim_dogrula`).
+
+    Operatör haritası `choices`ın içinde değil ayrı tutulur: Django seçenek
+    listesini normalleştirirken ikili demet bekliyor, üçlü demet oraya
+    sığmıyor.
+    """
+
+    def __init__(self, *args, operatorler=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.operatorler = operatorler or {}
+
+    def optgroups(self, name, value, attrs=None):
+        gruplar = super().optgroups(name, value, attrs)
+        for _, secenekler, _ in gruplar:
+            for secenek in secenekler:
+                secenek["attrs"]["data-operator"] = self.operatorler.get(
+                    str(secenek["value"]), ""
+                )
+        return gruplar
+
+
 class BasvuruFormu(forms.Form):
     """Hat seçimi sabit, geri kalan her şey kategori tanımından gelir."""
 
@@ -139,7 +164,12 @@ class BasvuruFormu(forms.Form):
 
     def _sim_secenekleri(self):
         """Bayinin stoğundaki kartlar. Aynı formda iki SIM alanı olabilir,
-        sorgu bir kez çalışır."""
+        sorgu bir kez çalışır.
+
+        Her seçenek kendi operatörünü de taşır (`data-operator`): operatör
+        seçilince liste ona göre daralır. Vodafone kartıyla Turkcell
+        aktivasyonu yapılamaz — hatlar BTK'da IMEI bazında lisanslı.
+        """
         from apps.bayi.models import SimKart
 
         if hasattr(self, "_sim_stogu"):
@@ -147,6 +177,7 @@ class BasvuruFormu(forms.Form):
 
         if self.bayi is None:
             self._sim_stogu = [("", "SIM kart seçin")]
+            self._sim_operatorleri = {}
             return self._sim_stogu
 
         kartlar = (
@@ -158,6 +189,9 @@ class BasvuruFormu(forms.Form):
             (k.imei, f"{k.imei} · {k.operator.ad}" if k.operator_id else k.imei)
             for k in kartlar
         ]
+        self._sim_operatorleri = {
+            k.imei: str(k.operator_id or "") for k in kartlar
+        }
         # Stok boşsa sebebini söyle: boş bir kutu "bir şey bozuldu" gibi durur.
         self._sim_stogu = (
             [("", "SIM kart seçin"), *secenekler]
@@ -199,13 +233,15 @@ class BasvuruFormu(forms.Form):
                 # yerel seçiciyi açar, 16 hane yazarken yapılan hatayı da keser.
                 # Değer yine sunucuda doğrulanır (`_sim_dogrula`).
                 alan_sinifi = forms.CharField
-                argumanlar["widget"] = forms.Select(
+                argumanlar["widget"] = SimKartSecici(
                     choices=self._sim_secenekleri(),
-                    attrs={"class": GIRDI_SINIFI},
+                    operatorler=self._sim_operatorleri,
+                    attrs={"class": GIRDI_SINIFI, "data-sim-kutusu": "1"},
                 )
                 argumanlar["help_text"] = (
                     tanim.yardim_metni
-                    or "Listede yalnızca size zimmetli, henüz kullanılmamış kartlar var."
+                    or "Listede yalnızca size zimmetli, seçtiğin operatöre ait "
+                    "kullanılmamış kartlar var."
                 )
 
             if tanim.dosya_mi:
@@ -294,8 +330,30 @@ class BasvuruFormu(forms.Form):
             self.add_error(
                 anahtar, f"Bu SIM kart kullanılamaz: {kart.get_durum_display()}."
             )
+        elif not self._sim_operatore_uyuyor(kart):
+            # Operatörler birbirinin kartını kullanamaz; hatlar BTK'da IMEI
+            # bazında lisanslı. Kutu zaten daraltılıyor ama kural burada durur:
+            # aksi hâlde ucuz kartı seçip pahalı işlem girmek mümkün olurdu.
+            secilen = self.cleaned_data.get("operator")
+            self.add_error(
+                anahtar,
+                f"Bu SIM kart {kart.operator.ad} kartı; "
+                f"{secilen.ad if secilen else 'seçtiğiniz operatör'} "
+                "aktivasyonunda kullanılamaz.",
+            )
         else:
             self.cleaned_data[f"_sim_{tanim.kod}"] = kart
+
+    def _sim_operatore_uyuyor(self, kart):
+        """Kartın operatörü, başvurunun operatörüyle aynı mı?
+
+        Kartın operatörü girilmemişse (eski kayıt) engellenmez; yönetici
+        stoğu tamamlayana kadar iş durmasın.
+        """
+        secilen = self.cleaned_data.get("operator")
+        if secilen is None or kart.operator_id is None:
+            return True
+        return kart.operator_id == secilen.pk
 
     # -- şablon yardımcıları ----------------------------------------------
 

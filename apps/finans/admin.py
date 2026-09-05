@@ -25,6 +25,8 @@ from apps.finans.models import (
     KuralYonu,
     OdemeBildirimi,
     OdemeBildirimiDurumu,
+    OperatorAlisi,
+    TedarikciAlisi,
     UcretKurali,
 )
 from apps.filtreler import GunAraligiFiltresi
@@ -774,3 +776,132 @@ class OdemeBildirimiAdmin(ModelAdmin):
                 odeme_bildirimini_reddet(bildirim, olusturan=request.user)
                 islenen += 1
         self.message_user(request, f"{islenen} bildirim reddedildi.", messages.WARNING)
+
+
+class AlisAdmin(ModelAdmin):
+    """Alış ekranlarının ortak iskeleti.
+
+    "Alışım nereye giriliyor" sorusunun cevabı yön kutusunun içinde saklı
+    kalmasın diye her alış türü kendi sayfasında durur. Kayıt yine
+    `UcretKurali`: motor tek kaynaktan okumaya devam eder, yalnızca giriş
+    yeri ayrıldı.
+    """
+
+    yon = KuralYonu.ANA_HAKEDIS
+    tedarikciden_mi = False
+
+    list_display = ("kapsam_yazisi", "kaynak", "tutar_gosterimi", "tetikleyici_durum", "aktif")
+    list_filter = ("aktif", "kategori", "operator", "tetikleyici_durum")
+    search_fields = ("ad", "tarife__ad", "kategori__ad")
+    autocomplete_fields = ("kategori", "operator", "tarife", "tetikleyici_durum")
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .filter(yon=self.yon, tedarikci__isnull=not self.tedarikciden_mi)
+            .select_related("kategori", "operator", "tarife", "tedarikci", "tetikleyici_durum")
+        )
+
+    def get_changeform_initial_data(self, request):
+        # Yön bu ekranda sabit; yönetici her kayıtta yeniden seçmesin.
+        return {"yon": self.yon}
+
+    def save_model(self, request, obj, form, change):
+        obj.yon = self.yon
+        super().save_model(request, obj, form, change)
+
+    @display(description="Neyin alışı")
+    def kapsam_yazisi(self, obj):
+        parcalar = [
+            p for p in (
+                obj.tarife.ad if obj.tarife_id else "",
+                obj.kategori.ad if obj.kategori_id else "",
+            ) if p
+        ]
+        return " · ".join(parcalar) or "Tüm işlemler"
+
+    @display(description="Tutar", ordering="tutar")
+    def tutar_gosterimi(self, obj):
+        return format_html("<b>{} ₺</b>", obj.tutar)
+
+
+@admin.register(OperatorAlisi)
+class OperatorAlisiAdmin(AlisAdmin):
+    """Operatörden alış: tutar operatörden gelir, cüzdan hareketi oluşmaz."""
+
+    tedarikciden_mi = False
+    fieldsets = (
+        (
+            "Neyin alışı",
+            {
+                "fields": ("kategori", "operator", "tarife"),
+                "description": (
+                    "Boş bırakılan alan “hepsi” demektir. En dar kapsamlı kural "
+                    "uygulanır."
+                ),
+            },
+        ),
+        (
+            "Alış fiyatım",
+            {
+                "fields": ("tutar", "tetikleyici_durum"),
+                "description": (
+                    "Bu işlemden operatörden aldığınız tutar. Operatörün cüzdanı "
+                    "olmadığı için hareket yazılmaz; tutar başvuruya işlenir ve "
+                    "kâr hesabına girer."
+                ),
+            },
+        ),
+        ("Geçerlilik", {"fields": ("ad", "baslangic_tarihi", "bitis_tarihi", "oncelik", "aktif")}),
+    )
+
+    @display(description="Kaynak")
+    def kaynak(self, obj):
+        return obj.operator.ad if obj.operator_id else "Tüm operatörler"
+
+
+@admin.register(TedarikciAlisi)
+class TedarikciAlisiAdmin(AlisAdmin):
+    """Tedarikçiden alış: tutar o tedarikçinin hesabından düşer."""
+
+    tedarikciden_mi = True
+    list_filter = ("aktif", "kategori", "operator", "tedarikci", "tetikleyici_durum")
+    autocomplete_fields = (
+        "kategori", "operator", "tarife", "tedarikci", "tetikleyici_durum",
+    )
+    fieldsets = (
+        (
+            "Tedarikçi",
+            {
+                "fields": ("tedarikci",),
+                "description": (
+                    "İşlemi üstlenen taraf. Girdiğiniz tutar bu tedarikçinin "
+                    "hesabından düşer; boş bırakılamaz."
+                ),
+            },
+        ),
+        (
+            "Neyin alışı",
+            {
+                "fields": ("kategori", "operator", "tarife"),
+                "description": "Boş bırakılan alan “hepsi” demektir.",
+            },
+        ),
+        ("Alış fiyatım", {"fields": ("tutar", "tetikleyici_durum")}),
+        ("Geçerlilik", {"fields": ("ad", "baslangic_tarihi", "bitis_tarihi", "oncelik", "aktif")}),
+    )
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if "tedarikci" in form.base_fields:
+            form.base_fields["tedarikci"].required = True
+            _kullanici_kutusunu_sadelestir(form.base_fields["tedarikci"])
+        return form
+
+    @display(description="Kaynak")
+    def kaynak(self, obj):
+        if not obj.tedarikci_id:
+            return "—"
+        profil = getattr(obj.tedarikci, "bayi_profili", None)
+        return profil.unvan if profil and profil.unvan else obj.tedarikci.get_username()

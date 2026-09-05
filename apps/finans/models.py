@@ -481,3 +481,30 @@ class UcretKurali(ZamanDamgali):
             )
             if alan_id is not None
         )
+
+
+class OperatorAlisi(UcretKurali):
+    """Operatörden alış fiyatları — kendi ekranı.
+
+    Kayıt yine `UcretKurali`; yalnızca giriş yeri ayrı. "Alışım nereye
+    giriliyor" sorusunun cevabı yön kutusunun içinde saklı kalmasın diye
+    her alış türü kendi sayfasında durur.
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = "Operatörden Alış"
+        verbose_name_plural = "Operatörden Alışlarım"
+
+
+class TedarikciAlisi(UcretKurali):
+    """Tedarikçiden alış fiyatları — kendi ekranı.
+
+    Tedarikçi zorunludur: bu ekranda girilen tutar o tedarikçinin
+    hesabından düşer.
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = "Tedarikçiden Alış"
+        verbose_name_plural = "Tedarikçiden Alışlarım"

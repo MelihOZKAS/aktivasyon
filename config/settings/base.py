@@ -246,6 +246,16 @@ UNFOLD = {
                         "link": "/yonetim/finans/ucretkurali/",
                     },
                     {
+                        "title": "Operatörden Alışlarım",
+                        "icon": "south_west",
+                        "link": "/yonetim/finans/operatoralisi/",
+                    },
+                    {
+                        "title": "Tedarikçiden Alışlarım",
+                        "icon": "handshake",
+                        "link": "/yonetim/finans/tedarikcialisi/",
+                    },
+                    {
                         "title": "Bayi Grupları",
                         "icon": "groups",
                         "link": "/yonetim/finans/bayigrubu/",

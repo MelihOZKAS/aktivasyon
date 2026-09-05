@@ -1772,3 +1772,112 @@ class DetayGorunumAyarlari(TestCase):
         )
 
         self.assertEqual(yanit.status_code, 404)
+
+
+class SimKartOperatoreBagli(TestCase):
+    """Vodafone kartıyla Turkcell aktivasyonu yapılamaz.
+
+    Hatlar BTK'da IMEI bazında lisanslı; operatörler birbirinin kartını
+    kullanamıyor. Liste daraltılmasa bayi ucuz kartı seçip pahalı işlem
+    girebilirdi.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.bayi.models import SimKart, SimKartDurumu
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import (
+            AlanTipi, BasvuruKategorisi, KategoriAlani, Operator,
+        )
+
+        BasvuruDurumu.objects.create(
+            ad="Giriş", slug="beklemede", baslangic_durumu=True
+        )
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+
+        self.turkcell = Operator.objects.create(ad="Turkcell")
+        self.vodafone = Operator.objects.create(ad="Vodafone")
+        self.kategori = BasvuruKategorisi.objects.create(
+            ad="Kontörlü Yeni Hat", tarife_zorunlu=False
+        )
+        self.kategori.operatorler.set([self.turkcell, self.vodafone])
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="sim_imei", etiket="SIM / IMEI",
+            tip=AlanTipi.SIM_KART, zorunlu=True, sira=1,
+        )
+
+        self.turkcell_kart = SimKart.objects.create(
+            imei="8990011112222333344", operator=self.turkcell,
+            bayi=self.bayi, durum=SimKartDurumu.ATANDI,
+        )
+        self.vodafone_kart = SimKart.objects.create(
+            imei="8990055556666777788", operator=self.vodafone,
+            bayi=self.bayi, durum=SimKartDurumu.ATANDI,
+        )
+        self.client.force_login(self.bayi)
+
+    def _form(self, **veri):
+        from apps.basvurular.forms import BasvuruFormu
+
+        alanlar = {"musteri_tipi": "turk"}
+        alanlar.update(veri)
+        return BasvuruFormu(data=alanlar, kategori=self.kategori, bayi=self.bayi)
+
+    def test_secenekler_operatorunu_tasir(self):
+        from django.urls import reverse
+
+        icerik = self.client.get(
+            reverse("basvurular:yeni", args=[self.kategori.slug])
+        ).content.decode()
+
+        self.assertIn("data-sim-kutusu", icerik)
+        self.assertIn(f'data-operator="{self.turkcell.pk}"', icerik)
+        self.assertIn(f'data-operator="{self.vodafone.pk}"', icerik)
+
+    def test_baska_operatorun_karti_reddedilir(self):
+        form = self._form(
+            operator=self.turkcell.pk, alan__sim_imei=self.vodafone_kart.imei
+        )
+
+        self.assertFalse(form.is_valid())
+        mesaj = " ".join(form.errors["alan__sim_imei"])
+        self.assertIn("Vodafone", mesaj)
+        self.assertIn("Turkcell", mesaj)
+
+    def test_kendi_operatorunun_karti_gecerli(self):
+        form = self._form(
+            operator=self.turkcell.pk, alan__sim_imei=self.turkcell_kart.imei
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_operatorsuz_kart_engellenmez(self):
+        """Eski kayıtta operatör boş olabilir; iş durmasın."""
+        from apps.bayi.models import SimKart, SimKartDurumu
+
+        kart = SimKart.objects.create(
+            imei="8990099998888777766", bayi=self.bayi, durum=SimKartDurumu.ATANDI
+        )
+
+        form = self._form(operator=self.turkcell.pk, alan__sim_imei=kart.imei)
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_baska_bayinin_karti_yine_reddedilir(self):
+        from django.contrib.auth.models import User
+
+        from apps.bayi.models import SimKart, SimKartDurumu
+
+        baskasi = User.objects.create_user("baska", password="parola12345")
+        kart = SimKart.objects.create(
+            imei="8990044443333222211", operator=self.turkcell,
+            bayi=baskasi, durum=SimKartDurumu.ATANDI,
+        )
+
+        form = self._form(operator=self.turkcell.pk, alan__sim_imei=kart.imei)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("zimmetli değil", " ".join(form.errors["alan__sim_imei"]))

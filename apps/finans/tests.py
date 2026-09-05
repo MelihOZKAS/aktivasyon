@@ -1446,3 +1446,119 @@ class KuralSayfasindaKarTablosu(TestCase):
 
         self.assertNotIn("9999.00", icerik)
         self.assertIn("Alış girilmeden kâr hesaplanamaz", icerik)
+
+
+class AlisEkranlari(TestCase):
+    """Alış fiyatları kendi sayfalarında girilir.
+
+    "Alışım nereye giriliyor" sorusunun cevabı yön kutusunun içinde saklı
+    kalıyordu. Kayıt yine UcretKurali; yalnızca giriş yeri ayrıldı.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.katalog.models import BasvuruKategorisi, Operator
+
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.tedarikci = User.objects.create_user("tedarikci", password="parola12345")
+
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _kural(self, **degisiklikler):
+        alanlar = {
+            "ad": "Alış", "yon": KuralYonu.ANA_HAKEDIS, "tutar": TL("400.00"),
+            "tetikleyici_durum": self.aktif, "kategori": self.kategori,
+        }
+        alanlar.update(degisiklikler)
+        return UcretKurali.objects.create(**alanlar)
+
+    def _liste(self, ad):
+        from django.urls import reverse
+
+        return self.client.get(reverse(f"admin:finans_{ad}_changelist")).content.decode()
+
+    def test_operator_ekraninda_yalnizca_operator_alislari(self):
+        self._kural(operator=self.operator)
+        self._kural(tedarikci=self.tedarikci, tutar=TL("900.00"))
+        self._kural(yon=KuralYonu.HAKEDIS, tutar=TL("250.00"))
+
+        icerik = self._liste("operatoralisi")
+
+        self.assertIn("400.00", icerik)
+        self.assertNotIn("900.00", icerik)
+        self.assertNotIn("250.00", icerik)
+
+    def test_tedarikci_ekraninda_yalnizca_tedarikci_alislari(self):
+        self._kural(operator=self.operator)
+        self._kural(tedarikci=self.tedarikci, tutar=TL("900.00"))
+
+        icerik = self._liste("tedarikcialisi")
+
+        self.assertIn("900.00", icerik)
+        self.assertNotIn("400.00", icerik)
+
+    def test_ekrandan_girilen_kayit_ana_hakedis_olur(self):
+        """Yön kutusu ekranda yok; kayıt yine de doğru yönle açılır."""
+        from django.urls import reverse
+
+        self.client.post(
+            reverse("admin:finans_operatoralisi_add"),
+            {
+                "ad": "Turkcell alışı", "tutar": "400.00",
+                "tetikleyici_durum": self.aktif.pk, "kategori": self.kategori.pk,
+                "operator": self.operator.pk, "tarife": "",
+                "baslangic_tarihi": "", "bitis_tarihi": "",
+                "oncelik": "0", "aktif": "on",
+            },
+            follow=True,
+        )
+
+        kural = UcretKurali.objects.get(ad="Turkcell alışı")
+        self.assertEqual(kural.yon, KuralYonu.ANA_HAKEDIS)
+        self.assertIsNone(kural.tedarikci_id)
+
+    def test_tedarikci_ekraninda_tedarikci_zorunlu(self):
+        from django.urls import reverse
+
+        yanit = self.client.post(
+            reverse("admin:finans_tedarikcialisi_add"),
+            {
+                "ad": "Tedarikçi alışı", "tutar": "900.00",
+                "tetikleyici_durum": self.aktif.pk, "kategori": self.kategori.pk,
+                "operator": "", "tarife": "", "tedarikci": "",
+                "baslangic_tarihi": "", "bitis_tarihi": "",
+                "oncelik": "0", "aktif": "on",
+            },
+        )
+
+        self.assertFalse(UcretKurali.objects.filter(ad="Tedarikçi alışı").exists())
+        self.assertContains(yanit, "Bu alan zorunludur")
+
+    def test_motor_ekrandan_girileni_kullanir(self):
+        """Giriş yeri değişti, motorun okuduğu kaynak değişmedi."""
+        from django.urls import reverse
+
+        self.client.post(
+            reverse("admin:finans_operatoralisi_add"),
+            {
+                "ad": "Turkcell alışı", "tutar": "400.00",
+                "tetikleyici_durum": self.aktif.pk, "kategori": self.kategori.pk,
+                "operator": self.operator.pk, "tarife": "",
+                "baslangic_tarihi": "", "bitis_tarihi": "",
+                "oncelik": "0", "aktif": "on",
+            },
+            follow=True,
+        )
+
+        self.assertTrue(
+            UcretKurali.objects.filter(
+                yon=KuralYonu.ANA_HAKEDIS, kategori=self.kategori
+            ).exists()
+        )

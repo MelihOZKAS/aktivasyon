@@ -195,6 +195,48 @@
 </div>
 
 <script>
+  // SIM kutusu seçilen operatöre göre daralır. Vodafone kartıyla Turkcell
+  // aktivasyonu yapılamaz; hatlar BTK'da IMEI bazında lisanslı. Liste
+  // daraltılmasa bayi ucuz kartı seçip pahalı işlem girebilirdi. Kural
+  // sunucuda da denetleniyor.
+  (function () {
+    function daralt() {
+      var operator = document.getElementById("id_operator");
+      var secilen = operator ? operator.value : "";
+
+      document.querySelectorAll("[data-sim-kutusu]").forEach(function (kutu) {
+        var uyanVar = false;
+
+        kutu.querySelectorAll("option").forEach(function (secenek) {
+          var kartOperatoru = secenek.dataset.operator || "";
+          // Boş seçenek ve operatörü girilmemiş kart her zaman kalır.
+          var uyar = !secenek.value || !kartOperatoru || !secilen
+                     || kartOperatoru === secilen;
+          secenek.hidden = !uyar;
+          secenek.disabled = !uyar;
+          if (uyar && secenek.value) uyanVar = true;
+        });
+
+        // Gizlenen bir kart seçili kalmasın.
+        var seciliSecenek = kutu.selectedOptions[0];
+        if (seciliSecenek && seciliSecenek.hidden) kutu.value = "";
+
+        var bos = kutu.querySelector("option[value='']");
+        if (bos) {
+          bos.textContent = uyanVar
+            ? "SIM kart seçin"
+            : (secilen ? "Bu operatörde kullanılabilir kartın yok"
+                       : "Önce operatör seç");
+        }
+      });
+    }
+
+    document.addEventListener("change", function (olay) {
+      if (olay.target.id === "id_operator") daralt();
+    });
+    daralt();
+  })();
+
   // "Fotoğraf çek" düğmesi kendi girdisini kamerayla açar. Öznitelik
   // tıklamadan hemen önce eklenip sonra geri alınıyor: kutunun kendisine
   // dokunulduğunda galeri açılmaya devam etsin.
