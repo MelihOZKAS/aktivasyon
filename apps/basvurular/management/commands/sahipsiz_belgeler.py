@@ -17,7 +17,7 @@ from django.core.management.base import BaseCommand
 
 from apps.basvurular.models import BasvuruBelgesi
 
-# Yalnızca başvuru belgesi klasörleri taranır. Tarife/operatör
+# Yalnızca başvuru belgesi klasörleri taranır. Tarife/kampanya/operatör
 # görselleri kendi modellerine bağlıdır, buraya girmemeli.
 KLASORLER = ["basvuru", "evrak"]
 

@@ -10,7 +10,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 
 from apps.basvurular.raporlar import sim_alacaklari
-from apps.katalog.models import Tarife
+from apps.katalog.models import Kampanya, Tarife
 from apps.basvurular.models import (
     Basvuru,
     BasvuruBelgesi,
@@ -164,7 +164,7 @@ class BasvuruAdmin(ModelAdmin):
         "irtibat",
         "bayi__username",
     )
-    # tarife bilinçli olarak autocomplete değil: autocomplete
+    # tarife/kampanya bilinçli olarak autocomplete değil: autocomplete
     # kutusu bağlı olduğu admin'in tüm kayıtlarını gösterir ve kategoriye
     # göre daraltılamaz. Düz seçim kutusu kategoriye göre filtreleniyor.
     autocomplete_fields = ("bayi", "tedarikci", "kategori", "operator", "durum")
@@ -194,7 +194,7 @@ class BasvuruAdmin(ModelAdmin):
     fieldsets = (
         (
             "Başvuru",
-            {"fields": ("referans_no", "bayi", "kategori", "operator", "tarife")},
+            {"fields": ("referans_no", "bayi", "kategori", "operator", "tarife", "kampanya")},
         ),
         (
             "Müşteri Bilgileri",
@@ -274,7 +274,7 @@ class BasvuruAdmin(ModelAdmin):
         return form
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        """Tarife seçeneklerini başvurunun kategorisiyle sınırlar.
+        """Tarife ve kampanya seçeneklerini başvurunun kategorisiyle sınırlar.
 
         Kutu tüm tarifeleri gösterdiği için başka kategorinin tarifesi
         seçilip kaydetmede reddediliyordu; artık yanlış seçenek hiç
@@ -287,6 +287,12 @@ class BasvuruAdmin(ModelAdmin):
                 Tarife.objects.filter(kategori_id=kategori_id, aktif=True)
                 .select_related("operator")
                 .order_by("operator__ad", "sira", "ad")
+            )
+        elif db_field.name == "kampanya" and kategori_id:
+            kwargs["queryset"] = (
+                Kampanya.objects.filter(tarife__kategori_id=kategori_id, aktif=True)
+                .select_related("tarife")
+                .order_by("tarife__ad", "sira", "ad")
             )
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 

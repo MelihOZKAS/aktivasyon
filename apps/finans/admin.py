@@ -38,7 +38,7 @@ def _kullanici_kutusunu_sadelestir(alan):
 class TarifeParaKuraliInline(TabularInline):
     """Tarifenin parası tarifenin sayfasında girilir.
 
-    Kural motoru genel: bayi grubuna, tek bayiye, tarih aralığına
+    Kural motoru genel: kampanyaya, bayi grubuna, tek bayiye, tarih aralığına
     göre kural yazılabiliyor. Ama günlük iş bu değil — günlük iş "bu tarifede
     bayiye ne veriyorum, ben ne alıyorum" sorusu. O iki rakamı ayrı bir ekranda,
     kapsam alanlarını doldurarak aramak gereksiz; tarifeyi açan burada görür ve
@@ -267,6 +267,7 @@ class UcretKuraliAdmin(ModelAdmin):
         "kategori",
         "operator",
         "tarife",
+        "kampanya",
         "bayi_grubu",
         "bayi",
         "tedarikci",
@@ -281,6 +282,7 @@ class UcretKuraliAdmin(ModelAdmin):
                     "kategori",
                     "operator",
                     "tarife",
+                    "kampanya",
                     "bayi_grubu",
                     "bayi",
                     "tedarikci",
@@ -305,7 +307,7 @@ class UcretKuraliAdmin(ModelAdmin):
             super()
             .get_queryset(request)
             .select_related(
-                "kategori", "operator", "tarife", "bayi_grubu",
+                "kategori", "operator", "tarife", "kampanya", "bayi_grubu",
                 "bayi", "tedarikci", "tetikleyici_durum",
             )
         )
@@ -335,6 +337,7 @@ class UcretKuraliAdmin(ModelAdmin):
         parcalar = [
             (obj.bayi, "Bayi"),
             (obj.tedarikci, "Tedarikçi"),
+            (obj.kampanya, "Kampanya"),
             (obj.tarife, "Tarife"),
             (obj.bayi_grubu, "Grup"),
             (obj.operator, "Operatör"),

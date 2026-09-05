@@ -91,6 +91,7 @@ class DinamikFormTestleri(TestCase):
         veri = {
             "operator": self.operator.pk,
             "tarife": self.tarife.pk,
+            "kampanya": "",
             "musteri_tipi": "turk",
             "bayi_aciklamasi": "",
             "alan__isim": "Ayşe",
@@ -328,7 +329,7 @@ class BelgeErisimTestleri(TestCase):
     def test_uretimde_dogrudan_medya_yolu_acilmaz(self):
         """Kimlik klasörü hiçbir URL desenine düşmez.
 
-        Tarife ve operatör görselleri `/media/` altından sunulur
+        Tarife, kampanya ve operatör görselleri `/media/` altından sunulur
         (`apps.medya`); `basvuru/` bilinçli olarak o listenin dışındadır.
         """
         from django.urls import Resolver404, resolve
@@ -367,7 +368,7 @@ class BelgeYuklemeGuvenligiTestleri(TestCase):
 
     def _gonderi(self, dosya):
         return {
-            "operator": self.operator.pk, "tarife": "",
+            "operator": self.operator.pk, "tarife": "", "kampanya": "",
             "musteri_tipi": "turk", "bayi_aciklamasi": "",
             "alan__ikametgah": dosya,
         }
@@ -772,7 +773,7 @@ class AdminTarifeSecimiTestleri(TestCase):
 
     def setUp(self):
         from apps.finans.models import Cuzdan
-        from apps.katalog.models import Operator, Tarife
+        from apps.katalog.models import Kampanya, Operator, Tarife
 
         BasvuruDurumu.objects.create(
             ad="Beklemede", slug="beklemede", baslangic_durumu=True
@@ -786,6 +787,10 @@ class AdminTarifeSecimiTestleri(TestCase):
         )
         self.yanlis = Tarife.objects.create(
             kategori=self.mnt, operator=self.operator, ad="Uyumlu 12 GB"
+        )
+        self.kampanya = Kampanya.objects.create(tarife=self.dogru, ad="İlk 3 ay")
+        self.yanlis_kampanya = Kampanya.objects.create(
+            tarife=self.yanlis, ad="Taşıma kampanyası"
         )
 
         bayi = User.objects.create_user("bayi", password="parola12345")
@@ -815,6 +820,11 @@ class AdminTarifeSecimiTestleri(TestCase):
         self.assertIn("Gençlik", secim)
         self.assertNotIn("Uyumlu 12 GB", secim)
 
+    def test_baska_kategorinin_kampanyasi_listelenmez(self):
+        secim = self._secenekler("kampanya")
+        self.assertIn("İlk 3 ay", secim)
+        self.assertNotIn("Taşıma kampanyası", secim)
+
     def test_tarife_adinda_kategori_gorunur(self):
         """Seçim kutusunda hangi kategoriye ait olduğu okunabilmeli."""
         self.assertEqual(
@@ -828,3 +838,132 @@ class AdminTarifeSecimiTestleri(TestCase):
         self.basvuru.tarife = self.yanlis
         with self.assertRaises(ValidationError):
             self.basvuru.full_clean(exclude=["referans_no"])
+
+
+class BasvurudaKampanyaSecimi(TestCase):
+    """Kampanya başvuru formunda seçilir; tarife kataloğunda görünmez.
+
+    Kutuya yalnızca seçili tarifenin geçerli kampanyaları girer — SIM kart
+    kutusundaki kuralın aynısı: listeye yalnızca seçilebilecek olan girer.
+    """
+
+    def setUp(self):
+        import datetime
+
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import (
+            AlanTipi, BasvuruKategorisi, Kampanya, KategoriAlani, Operator, Tarife,
+        )
+
+        BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="isim", etiket="İsim",
+            cekirdek_alan="isim", tip=AlanTipi.METIN, zorunlu=True, sira=1,
+        )
+
+        self.tarife = Tarife.objects.create(
+            kategori=self.kategori, operator=self.operator, ad="Platinum 30 GB"
+        )
+        self.oteki_tarife = Tarife.objects.create(
+            kategori=self.kategori, operator=self.operator, ad="Ekonomi 5 GB"
+        )
+        self.kampanya = Kampanya.objects.create(
+            tarife=self.tarife, ad="İlk 3 ay yarı fiyat"
+        )
+        self.oteki_kampanya = Kampanya.objects.create(
+            tarife=self.oteki_tarife, ad="Ekonomiye özel hediye"
+        )
+        self.gecmis = Kampanya.objects.create(
+            tarife=self.tarife, ad="Geçen yılki kampanya",
+            bitis_tarihi=datetime.date(2020, 1, 1),
+        )
+        self.client.force_login(self.bayi)
+
+    def _kutu(self, veri=None):
+        import re
+
+        from django.urls import reverse
+
+        adres = reverse("basvurular:yeni", args=[self.kategori.slug])
+        yanit = self.client.post(adres, veri) if veri else self.client.get(adres)
+        blok = re.search(
+            r'<select[^>]*name="kampanya".*?</select>', yanit.content.decode(), re.S
+        )
+        return blok.group(0) if blok else ""
+
+    def test_tarife_secilmeden_kampanya_listelenmez(self):
+        """Kategorinin bütün kampanyaları dökülüyordu; artık önce tarife."""
+        kutu = self._kutu()
+
+        self.assertIn("Önce tarife seç", kutu)
+        self.assertNotIn("İlk 3 ay yarı fiyat", kutu)
+
+    def test_secili_tarifenin_kampanyasi_listelenir(self):
+        kutu = self._kutu({"operator": self.operator.pk, "tarife": self.tarife.pk})
+
+        self.assertIn("İlk 3 ay yarı fiyat", kutu)
+        self.assertNotIn("Ekonomiye özel hediye", kutu)
+
+    def test_suresi_gecmis_kampanya_listelenmez(self):
+        kutu = self._kutu({"operator": self.operator.pk, "tarife": self.tarife.pk})
+
+        self.assertNotIn("Geçen yılki kampanya", kutu)
+
+    def test_htmx_kutusu_tarifeye_gore_gelir(self):
+        from django.urls import reverse
+
+        yanit = self.client.get(
+            reverse("basvurular:kampanyalar"), {"tarife": self.tarife.pk}
+        )
+        icerik = yanit.content.decode()
+
+        self.assertIn("İlk 3 ay yarı fiyat", icerik)
+        self.assertNotIn("Ekonomiye özel hediye", icerik)
+        self.assertNotIn("Geçen yılki kampanya", icerik)
+
+    def test_baska_tarifenin_kampanyasi_sunucuda_reddedilir(self):
+        """Kutu daraltıldı ama sunucu doğrulaması da yerinde durmalı."""
+        from apps.basvurular.forms import BasvuruFormu
+
+        form = BasvuruFormu(
+            data={
+                "operator": self.operator.pk,
+                "tarife": self.tarife.pk,
+                "kampanya": self.oteki_kampanya.pk,
+                "musteri_tipi": "turk",
+                "alan__isim": "Ayşe",
+            },
+            kategori=self.kategori,
+            bayi=self.bayi,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("kampanya", form.errors)
+
+    def test_suresi_gecmis_kampanya_sunucuda_reddedilir(self):
+        from apps.basvurular.forms import BasvuruFormu
+
+        form = BasvuruFormu(
+            data={
+                "operator": self.operator.pk,
+                "tarife": self.tarife.pk,
+                "kampanya": self.gecmis.pk,
+                "musteri_tipi": "turk",
+                "alan__isim": "Ayşe",
+            },
+            kategori=self.kategori,
+            bayi=self.bayi,
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("kampanya", form.errors)

@@ -171,7 +171,7 @@ Doğru görünüyorsa sil:
 docker exec -it app_fadil python manage.py sahipsiz_belgeler --sil
 ```
 
-Tarife görsellerine dokunmaz; onun kendi kaydı var.
+Tarife ve kampanya görsellerine dokunmaz; onların kendi kayıtları var.
 
 ---
 
@@ -211,7 +211,7 @@ kalan dördü panelden girilir — **sıra önemli**, her adım öncekine dayan�
 
 | # | Nerede | Ne girilecek |
 |---|---|---|
-| 5 | Tarifeler | Her kategori + operatör için tarife; açıklama ve görselle |
+| 5 | Tarifeler | Her kategori + operatör için tarife; açıklama ve görselle. Kampanyalar tarifenin altına |
 | 6 | Bayi Grupları | Fiyat kademeleri (ör. Standart, Anlaşmalı) |
 | 7 | Tarifeler → *Bu tarifenin parası* | Her tarifede üç rakam: operatörden alışın, tedarikçiden alışın, bayiye ödeyeceğin. Aradaki fark kârın; tablonun üstünde hesaplanmış durur |
 | 8 | Kullanıcılar | Her bayi için hesap; cüzdan ve profil satır içi doldurulur |
@@ -268,7 +268,7 @@ Tasarım eski görünüyorsa statikleri yeniden topla:
 docker exec -it app_fadil python manage.py collectstatic --noinput --clear
 ```
 
-**Tarife görseli 404 veriyorsa** önce dosya sunucuda duruyor mu
+**Tarife ya da kampanya görseli 404 veriyorsa** önce dosya sunucuda duruyor mu
 bak — `media/` git'e girmez, container'a host klasöründen bağlanır:
 
 ```bash

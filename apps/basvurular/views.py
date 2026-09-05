@@ -14,7 +14,7 @@ from apps.basvurular.forms import BasvuruFormu
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
 from apps.basvurular.validators import SATIR_ICI_GOSTERILEBILIR
 from apps.bayi.yetki import bayi_gerekli
-from apps.katalog.models import BasvuruKategorisi, Tarife
+from apps.katalog.models import BasvuruKategorisi, Kampanya, Tarife
 
 
 @login_required
@@ -74,6 +74,28 @@ def tarife_secenekleri(request):
 
 
 @login_required
+def kampanya_secenekleri(request):
+    """HTMX: tarife seçilince o tarifenin geçerli kampanyalarını döndürür."""
+    tarife_id = request.GET.get("tarife")
+
+    kampanyalar = []
+    if tarife_id:
+        kampanyalar = [
+            k
+            for k in Kampanya.objects.filter(tarife_id=tarife_id, aktif=True).order_by(
+                "sira", "ad"
+            )
+            if k.su_an_gecerli
+        ]
+
+    return render(
+        request,
+        "basvurular/parca_kampanya.html",
+        {"kampanyalar": kampanyalar, "tarife_secildi": bool(tarife_id)},
+    )
+
+
+@login_required
 @bayi_gerekli
 def liste(request):
     """Bayinin kendi başvuruları; durum ve arama ile filtrelenir."""
@@ -119,7 +141,7 @@ def liste(request):
 def detay(request, referans):
     # Başvuruyu getiren bayi ve işlemi üstlenen tedarikçi görebilir.
     basvuru = get_object_or_404(
-        Basvuru.objects.select_related("kategori", "operator", "tarife", "durum")
+        Basvuru.objects.select_related("kategori", "operator", "tarife", "kampanya", "durum")
         .prefetch_related("belgeler", "durum_gecmisi__yeni_durum", "kategori__alanlar")
         .filter(Q(bayi=request.user) | Q(tedarikci=request.user)),
         referans_no=referans,

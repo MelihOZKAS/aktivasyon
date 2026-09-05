@@ -55,7 +55,7 @@ ADIMLAR = [
 OZELLIKLER = [
     {
         "baslik": "Esnek başvuru tipleri",
-        "metin": "Kategori ve tarife birer kayıt. Yeni bir hat tipi "
+        "metin": "Kategori, tarife ve kampanya birer kayıt. Yeni bir hat tipi "
                  "eklemek için yazılım güncellemesi beklemezsin.",
     },
     {
@@ -165,6 +165,7 @@ def _kategori_hakedisleri(kullanici):
             yon=KuralYonu.HAKEDIS,
             kategori__isnull=False,
             tarife__isnull=True,
+            kampanya__isnull=True,
         )
         .filter(Q(bayi__isnull=True) | Q(bayi=kullanici))
         .filter(Q(bayi_grubu__isnull=True) | Q(bayi_grubu_id=grup_id))
@@ -256,6 +257,10 @@ def tarifeler(request):
 
     Operatör başlıkları altında akordiyon olarak açılır; her tarifenin
     altında yönetimin girdiği açıklama ve görsel görünür.
+
+    Kampanyalar burada **görünmez**: bu sayfa bayinin müşteriye anlatırken
+    açtığı katalog, kampanya ise başvuru girerken yapılan bir seçim.
+    Kampanya kutusu başvuru formundadır.
     """
     # Bayi müşteriye anlatırken önce operatörü seçiyor; sekmeler ona göre.
     operatorler = (
@@ -363,7 +368,7 @@ def hakedisler(request):
         .filter(Q(bayi__isnull=True) | Q(bayi=request.user))
         .filter(Q(bayi_grubu__isnull=True) | Q(bayi_grubu_id=grup_id))
         .filter(tedarikci__isnull=True)
-        .select_related("kategori", "operator", "tarife")
+        .select_related("kategori", "operator", "tarife", "kampanya")
     )
 
     def en_uygun(yon, kategori, operator=None, tarife=None):

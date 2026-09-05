@@ -5,13 +5,13 @@ sistemi. Django 5.2 + Tailwind + HTMX.
 
 ## Temel fikir
 
-Başvuru tipleri, tarifeler, durumlar ve para kuralları **veridir, kod değil**.
+Başvuru tipleri, tarifeler, kampanyalar, durumlar ve para kuralları **veridir, kod değil**.
 Yeni bir başvuru tipi eklemek için yönetim panelinden kategori açıp form alanlarını
 tanımlamak yeterlidir; yazılım güncellemesi gerekmez.
 
 | Katman | Uygulama | Ne yapar |
 |---|---|---|
-| Katalog | `apps/katalog` | Operatör, kategori, tarife, dinamik form alanları |
+| Katalog | `apps/katalog` | Operatör, kategori, tarife, kampanya, dinamik form alanları |
 | Başvuru | `apps/basvurular` | Tek `Basvuru` modeli, belgeler, durum geçmişi |
 | Finans | `apps/finans` | Cüzdan, değişmez defter, ücret/hakediş kuralları |
 | Bayi | `apps/bayi` | Bayi profili, SIM stoğu, duyurular, panel |
@@ -53,7 +53,7 @@ Sistem bir kez kurulur, sonra kendi kendine çalışır. Sıra önemli — her a
 3. **Kategoriler** — geçerli operatörler, tarife zorunlu mu, SIM karşılığı
    takip edilecek mi
 4. **Form alanları** — her kategoride hangi bilgiler sorulacak
-5. **Tarifeler** — bayiye gösterilecek açıklama ve görselle
+5. **Tarifeler ve kampanyalar** — bayiye gösterilecek açıklama ve görselle
 6. **Bayi grupları** — fiyat kademesi
 7. **Ücret ve hakediş kuralları** — bayiye hakediş, bayiden tahsilat, ana
    hakediş (operatör ya da tedarikçi bazlı)
@@ -77,7 +77,7 @@ manage.py kurulum --sifirla --ornek   # önce her şeyi siler, sıfırdan kurar
 | Bayrak | Ne yapar |
 |---|---|
 | _(yok)_ | Migration'ları uygular, durum/operatör/kategori/form alanlarını açar. Var olan kayıtlara dokunmaz; her açılışta güvenle çalışır. |
-| `--ornek` | Tarife, bayi grubu, ücret kuralı, banka, duyuru, SIM stoğu ve deneme hesapları ekler. Yalnızca geliştirme için; üretimde `--zorla` ister. |
+| `--ornek` | Tarife, kampanya, bayi grubu, ücret kuralı, banka, duyuru, SIM stoğu ve deneme hesapları ekler. Yalnızca geliştirme için; üretimde `--zorla` ister. |
 | `--yonetici AD` | Yönetici hesabı açar. Parolayı `--parola` ile verirsiniz; vermezseniz üretilip bir kez ekrana yazılır. Hesap zaten varsa parolası değiştirilmez — `--parolayi-yenile` ile değiştirilir. |
 | `--sifirla` | Bu projenin veritabanındaki her şeyi siler. Silmeden önce hangi veritabanına bağlı olduğunu yazar ve adını yazmanızı ister; `--evet` onayı atlar. |
 
@@ -277,8 +277,9 @@ rağmen bayi hata sayfası görüyordu.)
 
 `/tarifeler/` bayinin gördüğü tarife kataloğudur: kategori sekmeleri, operatör
 başlıkları ve akordiyon olarak açılan tarife ayrıntıları. İçeriği yönetim
-panelinden **Tarifeler** ekranındaki "Bayiye gösterilecek içerik"
-bölümünden girersiniz — açıklama ve görsel.
+panelinden **Tarifeler** ve **Kampanyalar** ekranlarındaki "Bayiye gösterilecek
+içerik" bölümünden girersiniz — açıklama ve görsel. Süresi geçmiş kampanyalar
+kendiliğinden görünmez olur.
 
 ## Yönetim paneli dili
 
@@ -409,7 +410,7 @@ güçlü bir parola üretilir ve bir kez ekrana yazılır.
 Üçüncü adım atlanmamalı: **veritabanını silmek diskteki dosyaları silmez.**
 Eski sistemin `media/evrak/` altındaki kimlik ve pasaport görüntüleri, onlara
 işaret eden kayıt gittiği hâlde sunucuda durmaya devam eder. `sahipsiz_belgeler`
-hem eski `evrak/` hem yeni `basvuru/` klasörünü tarar; tarife
+hem eski `evrak/` hem yeni `basvuru/` klasörünü tarar; tarife ve kampanya
 görsellerine dokunmaz. Ne silineceğini önce `--sil` olmadan çalıştırıp
 görebilirsiniz.
 
@@ -444,7 +445,7 @@ docker compose -f docker-compose.yml up -d --build  # kurulum otomatik çalış�
 `kurulum` komutu 1-4. adımları (durumlar, operatörler, kategoriler, form
 alanları) hazır getirir. Geriye yönetim panelinden girilecekler kalır:
 
-1. **Tarifeler** — her kategori/operatör için, açıklama ve görselle
+1. **Tarifeler ve kampanyalar** — her kategori/operatör için, açıklama ve görselle
 2. **Bayi grupları** — fiyat kademeleri
 3. **Ücret ve hakediş kuralları** — üç yön: bayiye hakediş, bayiden tahsilat,
    ana hakediş (operatör ya da tedarikçi bazlı). Aradaki fark kârdır.

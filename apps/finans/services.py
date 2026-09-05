@@ -112,10 +112,11 @@ def uygun_kurallari_bul(basvuru, durum):
         .filter(kapsam("kategori_id", basvuru.kategori_id))
         .filter(kapsam("operator_id", basvuru.operator_id))
         .filter(kapsam("tarife_id", basvuru.tarife_id))
+        .filter(kapsam("kampanya_id", basvuru.kampanya_id))
         .filter(kapsam("bayi_grubu_id", grup_id))
         .filter(kapsam("bayi_id", basvuru.bayi_id))
         .filter(kapsam("tedarikci_id", basvuru.tedarikci_id))
-        .select_related("kategori", "operator", "tarife")
+        .select_related("kategori", "operator", "tarife", "kampanya")
     )
 
     secilen = {}

@@ -17,7 +17,7 @@ from django.core.exceptions import ValidationError
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu, KimlikTipi
 from apps.basvurular.gorsel import gorseli_kucult
 from apps.basvurular.validators import belge_dogrula
-from apps.katalog.models import AlanTipi, MusteriTipi, Tarife
+from apps.katalog.models import AlanTipi, Kampanya, MusteriTipi, Tarife
 
 GIRDI_SINIFI = "girdi"
 ALAN_ONEKI = "alan__"
@@ -72,6 +72,7 @@ class BasvuruFormu(forms.Form):
 
     operator = forms.ModelChoiceField(label="Operatör", queryset=None)
     tarife = forms.ModelChoiceField(label="Tarife", queryset=None, required=False)
+    kampanya = forms.ModelChoiceField(label="Kampanya", queryset=None, required=False)
     musteri_tipi = forms.ChoiceField(label="Müşteri tipi", choices=MusteriTipi.choices)
     bayi_aciklamasi = forms.CharField(
         label="Operasyona iletmek istediğin bir şey var mı?",
@@ -97,14 +98,41 @@ class BasvuruFormu(forms.Form):
         self.fields["tarife"].queryset = Tarife.objects.filter(
             kategori=self.kategori, aktif=True
         ).select_related("operator")
+        self.fields["kampanya"].queryset = Kampanya.objects.filter(
+            tarife__kategori=self.kategori, aktif=True
+        ).select_related("tarife")
         self.fields["tarife"].required = self.kategori.tarife_zorunlu
 
-        for ad in ("operator", "tarife", "musteri_tipi"):
+        for ad in ("operator", "tarife", "kampanya", "musteri_tipi"):
             self.fields[ad].widget.attrs.setdefault("class", GIRDI_SINIFI)
 
         if self.kategori.musteri_tipi != MusteriTipi.HEPSI:
             self.fields["musteri_tipi"].initial = self.kategori.musteri_tipi
             self.fields["musteri_tipi"].widget = forms.HiddenInput()
+
+    @property
+    def secili_tarife_id(self):
+        """Formda o an seçili tarife (POST'ta gönderilen, GET'te yok)."""
+        return self.data.get("tarife") if self.is_bound else self.initial.get("tarife")
+
+    @property
+    def gecerli_kampanyalar(self):
+        """Kutuda gösterilecek kampanyalar: yalnızca seçili tarifeninkiler.
+
+        Tarife seçilmeden bütün kategorinin kampanyaları listeleniyordu;
+        bayi başka tarifenin kampanyasını seçebiliyor, hatayı ancak formu
+        gönderince görüyordu. SIM kart kutusundaki kuralın aynısı: listeye
+        yalnızca seçilebilecek olan girer. Sunucu doğrulaması yerinde durur.
+        """
+        tarife_id = self.secili_tarife_id
+        if not tarife_id:
+            return []
+        return [
+            kampanya
+            for kampanya in self.fields["kampanya"].queryset.filter(tarife_id=tarife_id)
+            .order_by("sira", "ad")
+            if kampanya.su_an_gecerli
+        ]
 
     def _sim_secenekleri(self):
         """Bayinin stoğundaki kartlar. Aynı formda iki SIM alanı olabilir,
@@ -215,6 +243,12 @@ class BasvuruFormu(forms.Form):
         if tarife and operator and tarife.operator_id != operator.pk:
             self.add_error("tarife", "Seçilen tarife bu operatöre ait değil.")
 
+        kampanya = temiz.get("kampanya")
+        if kampanya:
+            if tarife and kampanya.tarife_id != tarife.pk:
+                self.add_error("kampanya", "Seçilen kampanya bu tarifeye ait değil.")
+            elif not kampanya.su_an_gecerli:
+                self.add_error("kampanya", "Bu kampanya şu an geçerli değil.")
 
         return temiz
 
@@ -275,6 +309,7 @@ class BasvuruFormu(forms.Form):
             durum=durum,
             operator=self.cleaned_data["operator"],
             tarife=self.cleaned_data.get("tarife"),
+            kampanya=self.cleaned_data.get("kampanya"),
             musteri_tipi=self.cleaned_data.get("musteri_tipi") or self.kategori.musteri_tipi,
             bayi_aciklamasi=self.cleaned_data.get("bayi_aciklamasi", ""),
         )

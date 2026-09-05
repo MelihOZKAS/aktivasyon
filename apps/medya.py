@@ -1,6 +1,6 @@
 """Bayiye gösterilen görselleri üretimde de sunar.
 
-Tarife ve operatör görselleri admin'den yüklenir ve diske yazılır.
+Tarife, kampanya ve operatör görselleri admin'den yüklenir ve diske yazılır.
 Django'nun `static()` yardımcısı yalnızca DEBUG açıkken URL üretir, WhiteNoise
 ise açılışta taradığı `STATIC_ROOT`'u sunar — sonradan yüklenen bir görsel
 ikisine de girmez. Yerelde görünüp üretimde 404 veren fark buradan geliyordu;
@@ -22,7 +22,7 @@ from django.urls import re_path
 from django.views.static import serve
 
 # Yalnızca herkese açık içerik. Sıra önemsiz, ad `upload_to` ile aynı olmalı.
-ACIK_KLASORLER = ("operator", "tarife")
+ACIK_KLASORLER = ("operator", "tarife", "kampanya")
 
 # Görseller değişince dosya adı da değişiyor (yeni yükleme yeni ad alır),
 # bu yüzden bir gün önbellek güvenli.

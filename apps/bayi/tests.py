@@ -199,7 +199,7 @@ class SimKartTestleri(TestCase):
 
     def _gonderi(self, imei):
         return {
-            "operator": self.operator.pk, "tarife": "",
+            "operator": self.operator.pk, "tarife": "", "kampanya": "",
             "musteri_tipi": "turk", "bayi_aciklamasi": "", "alan__sim": imei,
         }
 
@@ -450,7 +450,7 @@ class TarifeSayfasiTestleri(TestCase):
     """Bayinin göreceği tarife kataloğu."""
 
     def setUp(self):
-        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+        from apps.katalog.models import BasvuruKategorisi, Kampanya, Operator, Tarife
 
         self.bayi = User.objects.create_user("bayi", password="parola12345")
         Cuzdan.objects.create(bayi=self.bayi)
@@ -459,6 +459,9 @@ class TarifeSayfasiTestleri(TestCase):
         self.tarife = Tarife.objects.create(
             kategori=self.kategori, operator=self.operator,
             ad="Platinum 30 GB", aciklama="Aylık 30 GB, sınırsız konuşma.",
+        )
+        self.kampanya = Kampanya.objects.create(
+            tarife=self.tarife, ad="İlk 3 ay yarı fiyat", aciklama="Yeni müşterilere."
         )
         self.url = reverse("bayi:tarifeler")
         self.client.force_login(self.bayi)
@@ -474,6 +477,17 @@ class TarifeSayfasiTestleri(TestCase):
         self.assertContains(yanit, "Platinum 30 GB")
         self.assertContains(yanit, "Aylık 30 GB")
         self.assertContains(yanit, "Turkcell")
+
+    def test_kampanya_bu_sayfada_gorunmez(self):
+        """Kampanya katalogda değil, başvuru formunda seçilir.
+
+        Bu sayfa bayinin müşteriye anlatırken açtığı katalog; kampanya ise
+        başvuru girerken yapılan bir seçim. İkisi karışınca bayi kampanyayı
+        burada görüp orada aramaya başlıyordu.
+        """
+        yanit = self.client.get(self.url)
+        self.assertContains(yanit, "Platinum 30 GB")
+        self.assertNotContains(yanit, "İlk 3 ay yarı fiyat")
 
     def test_pasif_tarife_gorunmez(self):
         self.tarife.aktif = False

@@ -10,7 +10,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from PIL import Image
 
-from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+from apps.katalog.models import BasvuruKategorisi, Kampanya, Operator, Tarife
 
 GECICI_MEDYA = tempfile.mkdtemp(prefix="katalog-test-")
 
@@ -114,6 +114,19 @@ class DosyaTemizligi(TestCase):
         with self.captureOnCommitCallbacks(execute=True):
             tarife.gorsel = None
             tarife.save()
+
+        self.assertFalse(os.path.exists(yol))
+
+    def test_kampanya_gorseli_de_temizlenir(self):
+        tarife, _ = self._tarife()
+        with self.captureOnCommitCallbacks(execute=True):
+            kampanya = Kampanya.objects.create(
+                tarife=tarife, ad="İlk 3 ay", gorsel=gorsel("kampanya.png")
+            )
+        yol = kampanya.gorsel.path
+
+        with self.captureOnCommitCallbacks(execute=True):
+            kampanya.delete()
 
         self.assertFalse(os.path.exists(yol))
 
@@ -519,6 +532,13 @@ class AcikGorselSunumu(TestCase):
 
         self.assertEqual(yanit.status_code, 200)
         self.assertIn("public", yanit["Cache-Control"])
+
+    def test_kampanya_gorseli_de_acilir(self):
+        kampanya = Kampanya.objects.create(
+            tarife=self.tarife, ad="Yaz", gorsel=gorsel("kampanya.png")
+        )
+
+        self.assertEqual(self.client.get(kampanya.gorsel.url).status_code, 200)
 
     def test_kimlik_klasoru_medya_yolundan_acilmaz(self):
         """Kişisel veri yalnızca izin kontrollü belge görünümünden gelir."""
