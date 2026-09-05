@@ -323,7 +323,7 @@ class Basvuru(ZamanDamgali):
 
     def clean(self):
         if self.kategori_id and self.tarife_id:
-            if self.tarife.kategori_id != self.kategori_id:
+            if not self.tarife.kategoriler.filter(pk=self.kategori_id).exists():
                 raise ValidationError({"tarife": "Seçilen tarife bu kategoriye ait değil."})
         if self.tarife_id and self.kampanya_id:
             if self.kampanya.tarife_id != self.tarife_id:

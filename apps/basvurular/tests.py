@@ -56,8 +56,9 @@ class DinamikFormTestleri(TestCase):
         self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
         self.kategori.operatorler.add(self.operator)
         self.tarife = Tarife.objects.create(
-            kategori=self.kategori, operator=self.operator, ad="Red 20 GB"
+            operator=self.operator, ad="Red 20 GB"
         )
+        self.tarife.kategoriler.add(self.kategori)
 
         for sira, (kod, etiket, cekirdek, zorunlu) in enumerate([
             ("isim", "İsim", "isim", True),
@@ -783,11 +784,13 @@ class AdminTarifeSecimiTestleri(TestCase):
         self.mnt = BasvuruKategorisi.objects.create(ad="MNT")
 
         self.dogru = Tarife.objects.create(
-            kategori=self.kont, operator=self.operator, ad="Gençlik"
+            operator=self.operator, ad="Gençlik"
         )
+        self.dogru.kategoriler.add(self.kont)
         self.yanlis = Tarife.objects.create(
-            kategori=self.mnt, operator=self.operator, ad="Uyumlu 12 GB"
+            operator=self.operator, ad="Uyumlu 12 GB"
         )
+        self.yanlis.kategoriler.add(self.mnt)
         self.kampanya = Kampanya.objects.create(tarife=self.dogru, ad="İlk 3 ay")
         self.yanlis_kampanya = Kampanya.objects.create(
             tarife=self.yanlis, ad="Taşıma kampanyası"
@@ -872,11 +875,13 @@ class BasvurudaKampanyaSecimi(TestCase):
         )
 
         self.tarife = Tarife.objects.create(
-            kategori=self.kategori, operator=self.operator, ad="Platinum 30 GB"
+            operator=self.operator, ad="Platinum 30 GB"
         )
+        self.tarife.kategoriler.add(self.kategori)
         self.oteki_tarife = Tarife.objects.create(
-            kategori=self.kategori, operator=self.operator, ad="Ekonomi 5 GB"
+            operator=self.operator, ad="Ekonomi 5 GB"
         )
+        self.oteki_tarife.kategoriler.add(self.kategori)
         self.kampanya = Kampanya.objects.create(
             tarife=self.tarife, ad="İlk 3 ay yarı fiyat"
         )
@@ -967,3 +972,84 @@ class BasvurudaKampanyaSecimi(TestCase):
 
         self.assertFalse(form.is_valid())
         self.assertIn("kampanya", form.errors)
+
+
+class TarifeKisaAciklamaUyarisi(TestCase):
+    """Tarifenin kısa açıklaması seçildiği anda bayinin karşısına çıkar.
+
+    Atlanmaması gereken bir uyarıyı listede küçük yazıyla göstermek
+    yetmiyordu; bayi tezgâh başında ve aceleyle giriyor.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import (
+            AlanTipi, BasvuruKategorisi, KategoriAlani, Operator, Tarife,
+        )
+
+        BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="isim", etiket="İsim",
+            cekirdek_alan="isim", tip=AlanTipi.METIN, zorunlu=True, sira=1,
+        )
+
+        self.uyarili = Tarife.objects.create(
+            operator=self.operator, ad="Platinum 30 GB",
+            kisa_aciklama="Bu tarifede taahhüt 24 ay; müşteriye söylemeyi unutma.",
+        )
+        self.uyarili.kategoriler.add(self.kategori)
+        self.sade = Tarife.objects.create(operator=self.operator, ad="Ekonomi 5 GB")
+        self.sade.kategoriler.add(self.kategori)
+
+        self.client.force_login(self.bayi)
+
+    def _sayfa(self):
+        from django.urls import reverse
+
+        adres = reverse("basvurular:yeni", args=[self.kategori.slug])
+        return self.client.get(adres).content.decode()
+
+    def test_uyari_secenekle_birlikte_gelir(self):
+        icerik = self._sayfa()
+
+        self.assertIn("taahhüt 24 ay", icerik)
+        self.assertIn("data-uyari", icerik)
+
+    def test_uyari_kutusu_sayfada_hazir_durur(self):
+        icerik = self._sayfa()
+
+        self.assertIn('id="tarife-uyarisi"', icerik)
+        self.assertIn("Tamam", icerik)
+        # Kutu boş açılır; metni seçime göre JavaScript doldurur.
+        self.assertIn('id="tarife-uyari-metni"', icerik)
+
+    def test_kisa_aciklamasi_olmayan_tarifede_uyari_tasinmaz(self):
+        import re
+
+        icerik = self._sayfa()
+        sade_secenek = re.search(
+            r'<option value="%s".*?</option>' % self.sade.pk, icerik, re.S
+        ).group(0)
+
+        self.assertNotIn("data-uyari", sade_secenek)
+
+    def test_htmx_kutusunda_da_uyari_gelir(self):
+        """Tarife listesi operatör seçilince HTMX ile yenileniyor."""
+        from django.urls import reverse
+
+        yanit = self.client.get(
+            reverse("basvurular:tarifeler"),
+            {"kategori": self.kategori.slug, "operator": self.operator.pk},
+        )
+
+        self.assertIn("taahhüt 24 ay", yanit.content.decode())

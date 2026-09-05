@@ -284,13 +284,13 @@ class BasvuruAdmin(ModelAdmin):
 
         if db_field.name == "tarife" and kategori_id:
             kwargs["queryset"] = (
-                Tarife.objects.filter(kategori_id=kategori_id, aktif=True)
+                Tarife.objects.filter(kategoriler=kategori_id, aktif=True)
                 .select_related("operator")
                 .order_by("operator__ad", "sira", "ad")
             )
         elif db_field.name == "kampanya" and kategori_id:
             kwargs["queryset"] = (
-                Kampanya.objects.filter(tarife__kategori_id=kategori_id, aktif=True)
+                Kampanya.objects.filter(tarife__kategoriler=kategori_id, aktif=True)
                 .select_related("tarife")
                 .order_by("tarife__ad", "sira", "ad")
             )

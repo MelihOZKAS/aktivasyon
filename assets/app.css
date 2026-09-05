@@ -204,6 +204,36 @@
     background: color-mix(in srgb, var(--color-murekkep) 7%, transparent);
   }
 
+  /* Tarife uyarısı: seçilen tarifenin atlanmaması gereken notu.
+     Yüzey yine kenarlıkla ayrılır; ayrımı perde yapar, gölge değil.
+     Pahlı köşe imza formu taşır, çizgisi --sim-kenar'dan gelir. */
+  .uyari-kutusu {
+    --sim-kenar: var(--color-cizgi-koyu);
+    width: min(26rem, calc(100vw - 2rem));
+    padding: 1.5rem;
+    border: 1px solid var(--color-cizgi-koyu);
+    border-radius: var(--radius-kart);
+    background: var(--color-yuzey);
+    color: var(--color-murekkep);
+  }
+
+  .uyari-kutusu::backdrop {
+    background: color-mix(in srgb, var(--color-murekkep) 45%, transparent);
+  }
+
+  /* Açılış kısa: bilgi versin, bekletmesin. Hareketi azaltılmış
+     tarayıcıda taban katmanı zaten süreyi sıfırlıyor. */
+  .uyari-kutusu[open] {
+    animation: uyari-gir 0.16s ease-out;
+  }
+
+  @keyframes uyari-gir {
+    from {
+      opacity: 0;
+      transform: translateY(0.375rem) scale(0.98);
+    }
+  }
+
   /* Durum göstergesi: sinyal çubuğu. Hem durumu hem sıradaki ilerlemeyi taşır. */
   .sinyal {
     display: inline-flex;

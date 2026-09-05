@@ -37,22 +37,25 @@ class OperatorGorunurlugu(TestCase):
         """Tarife tanımlayıp operatörü listeye eklemeyi unutmak tuzaktı."""
         self.assertNotIn(self.tarifeli, self.kategori.gecerli_operatorler())
 
-        Tarife.objects.create(
-            kategori=self.kategori, operator=self.tarifeli, ad="Taşıma 15 GB"
+        _tarife = Tarife.objects.create(
+            operator=self.tarifeli, ad="Taşıma 15 GB"
         )
+        _tarife.kategoriler.add(self.kategori)
         self.assertIn(self.tarifeli, self.kategori.gecerli_operatorler())
 
     def test_pasif_tarife_operatoru_getirmez(self):
-        Tarife.objects.create(
-            kategori=self.kategori, operator=self.tarifeli, ad="Kapalı", aktif=False
+        _tarife = Tarife.objects.create(
+            operator=self.tarifeli, ad="Kapalı", aktif=False
         )
+        _tarife.kategoriler.add(self.kategori)
         self.assertNotIn(self.tarifeli, self.kategori.gecerli_operatorler())
 
     def test_baska_kategorinin_tarifesi_sizmaz(self):
         digeri = BasvuruKategorisi.objects.create(ad="ADSL")
-        Tarife.objects.create(
-            kategori=digeri, operator=self.tarifeli, ad="Fiber 50"
+        _tarife = Tarife.objects.create(
+            operator=self.tarifeli, ad="Fiber 50"
         )
+        _tarife.kategoriler.add(digeri)
         self.assertNotIn(self.tarifeli, self.kategori.gecerli_operatorler())
 
     def test_hicbiri_yoksa_tum_aktif_operatorler(self):
@@ -61,9 +64,10 @@ class OperatorGorunurlugu(TestCase):
 
     def test_operator_listede_iki_kez_cikmaz(self):
         """Hem bağlı hem tarifesi olan operatör tekrar etmemeli."""
-        Tarife.objects.create(
-            kategori=self.kategori, operator=self.bagli, ad="Platinum"
+        _tarife = Tarife.objects.create(
+            operator=self.bagli, ad="Platinum"
         )
+        _tarife.kategoriler.add(self.kategori)
         adlar = [o.ad for o in self.kategori.gecerli_operatorler()]
         self.assertEqual(len(adlar), len(set(adlar)))
 
@@ -84,9 +88,10 @@ class DosyaTemizligi(TestCase):
     def _tarife(self):
         with self.captureOnCommitCallbacks(execute=True):
             t = Tarife.objects.create(
-                kategori=self.kategori, operator=self.operator,
+                operator=self.operator,
                 ad="Platinum", gorsel=gorsel(),
             )
+            t.kategoriler.add(self.kategori)
         return t, t.gorsel.path
 
     def test_tarife_silinince_gorsel_de_silinir(self):
@@ -189,7 +194,7 @@ class KurulumKomutu(TestCase):
         bayi = User.objects.get(username="bayi.kaya")
         onceki_bakiye = bayi.cuzdan.bakiye
         kategori = BasvuruKategorisi.objects.get(ad="Kontörlü Yeni Hat")
-        tarife = Tarife.objects.filter(kategori=kategori).first()
+        tarife = Tarife.objects.filter(kategoriler=kategori).first()
 
         basvuru = Basvuru.objects.create(
             bayi=bayi,
@@ -511,8 +516,9 @@ class AcikGorselSunumu(TestCase):
         kategori = BasvuruKategorisi.objects.create(ad="MNT")
         operator = Operator.objects.create(ad="Turkcell")
         self.tarife = Tarife.objects.create(
-            kategori=kategori, operator=operator, ad="Platinum", gorsel=gorsel()
+            operator=operator, ad="Platinum", gorsel=gorsel()
         )
+        self.tarife.kategoriler.add(kategori)
 
     def test_tarife_gorseli_uretimde_acilir(self):
         yanit = self.client.get(self.tarife.gorsel.url)
@@ -562,8 +568,8 @@ class YeniKategoriVarsayilanAlanlari(TestCase):
                 "sira": "10",
                 "alanlar-TOTAL_FORMS": "0",
                 "alanlar-INITIAL_FORMS": "0",
-                "tarifeler-TOTAL_FORMS": "0",
-                "tarifeler-INITIAL_FORMS": "0",
+                "Tarife_kategoriler-TOTAL_FORMS": "0",
+                "Tarife_kategoriler-INITIAL_FORMS": "0",
             },
             follow=True,
         )
@@ -614,8 +620,8 @@ class YeniKategoriVarsayilanAlanlari(TestCase):
                 "aktif": "on",
                 "alanlar-TOTAL_FORMS": "0",
                 "alanlar-INITIAL_FORMS": "0",
-                "tarifeler-TOTAL_FORMS": "0",
-                "tarifeler-INITIAL_FORMS": "0",
+                "Tarife_kategoriler-TOTAL_FORMS": "0",
+                "Tarife_kategoriler-INITIAL_FORMS": "0",
             },
             follow=True,
         )
@@ -702,3 +708,72 @@ class PaneldeAdiDegisenKayit(TestCase):
         call_command("baslangic_verisi", stdout=self._cikti())
 
         self.assertEqual(BasvuruKategorisi.objects.count(), adet)
+
+
+class TarifeBirdenCokKategoride(TestCase):
+    """Aynı tarife birden çok kategoride geçerli olabilir.
+
+    Operatör aynı paketi hem numara taşımada hem yeni hatta veriyordu;
+    tarifenin tek kategorisi olduğu için aynı tarife iki kez açılıyor,
+    fiyatı da iki yerde güncelleniyordu.
+    """
+
+    def setUp(self):
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.tasima = BasvuruKategorisi.objects.create(ad="Numara Taşıma")
+        self.yeni_hat = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.sebeke = BasvuruKategorisi.objects.create(ad="Şebeke İçi Geçiş")
+        self.tarife = Tarife.objects.create(operator=self.operator, ad="Platinum 30 GB")
+        self.tarife.kategoriler.add(self.tasima, self.yeni_hat)
+
+    def test_secilen_her_kategoride_gorunur(self):
+        from apps.katalog.models import Tarife
+
+        for kategori in (self.tasima, self.yeni_hat):
+            self.assertIn(
+                self.tarife, Tarife.objects.filter(kategoriler=kategori)
+            )
+
+    def test_secilmeyen_kategoride_gorunmez(self):
+        from apps.katalog.models import Tarife
+
+        self.assertNotIn(
+            self.tarife, Tarife.objects.filter(kategoriler=self.sebeke)
+        )
+
+    def test_basvuru_formunda_iki_kategoride_de_secilebilir(self):
+        from apps.basvurular.forms import BasvuruFormu
+
+        for kategori in (self.tasima, self.yeni_hat):
+            form = BasvuruFormu(kategori=kategori)
+            self.assertIn(self.tarife, form.fields["tarife"].queryset)
+
+    def test_kategorisi_olan_operator_forma_girer(self):
+        """Tarifesi olan operatör her iki kategoride de seçilebilir olmalı."""
+        for kategori in (self.tasima, self.yeni_hat):
+            self.assertIn(self.operator, kategori.gecerli_operatorler())
+
+    def test_basvuruda_kategoriye_ait_olmayan_tarife_reddedilir(self):
+        from django.contrib.auth.models import User
+        from django.core.exceptions import ValidationError
+
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+
+        durum = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        bayi = User.objects.create_user("bayi", password="parola12345")
+        basvuru = Basvuru(
+            bayi=bayi, kategori=self.sebeke, operator=self.operator,
+            tarife=self.tarife, isim="Ayşe", soyisim="Demir", kimlik_no="1",
+            irtibat="5551112233", durum=durum,
+        )
+
+        with self.assertRaises(ValidationError):
+            basvuru.full_clean(exclude=["referans_no"])
+
+    def test_kategori_adlari_tek_satirda_yazilir(self):
+        self.assertIn("Numara Taşıma", self.tarife.kategori_adlari)
+        self.assertIn("Faturalı Yeni Hat", self.tarife.kategori_adlari)

@@ -30,14 +30,18 @@
   {% if tarifeler %}
   <div class="yuzey mt-6 overflow-hidden rounded-kart">
     {% for tarife in tarifeler %}
-    <details class="group border-cizgi {% if not forloop.last %}border-b{% endif %}"
-             {% if forloop.first %}open{% endif %}>
+    {% comment %}
+      Hepsi kapalı açılır. İlkini açık getirmek, listeye bakmak isteyen bayiye
+      istemediği tarifenin ayrıntısını dayatıyordu; hangisini açacağına
+      kendisi karar versin.
+    {% endcomment %}
+    <details class="group border-cizgi {% if not forloop.last %}border-b{% endif %}">
       <summary class="flex min-h-14 cursor-pointer list-none items-center gap-3 px-5 py-3.5
                       transition-colors hover:bg-zemin">
         <span class="min-w-0 flex-1">
           <span class="baslik block truncate font-semibold">{{ tarife.ad }}</span>
           <span class="mt-0.5 flex items-center gap-2 text-xs text-soluk">
-            <span class="truncate">{{ tarife.kategori.ad }}</span>
+            <span class="truncate">{{ tarife.kategori_adlari }}</span>
           </span>
         </span>
 

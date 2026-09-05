@@ -30,11 +30,19 @@ class KategoriAlaniInline(TabularInline):
 
 
 class TarifeInline(TabularInline):
-    model = Tarife
+    """Bu kategoride geçerli tarifeler.
+
+    Tarifenin kategorisi çoğullaştığı için satır içi tablo doğrudan Tarife
+    üzerinde kurulamıyor; bağlantı tablosu üzerinden kuruluyor. Buradan var
+    olan bir tarife kategoriye eklenir ya da çıkarılır; tarifenin kendi
+    ayrıntıları (fiyat, açıklama, görsel) Tarifeler ekranından girilir.
+    """
+
+    model = Tarife.kategoriler.through
+    verbose_name = "Bu kategoride geçerli tarife"
+    verbose_name_plural = "Bu kategoride geçerli tarifeler"
     extra = 0
-    fields = ("operator", "ad", "musteri_tipi", "gorsel", "sira", "aktif")
-    ordering = ("operator", "sira")
-    show_change_link = True
+    autocomplete_fields = ("tarife",)
 
 
 class KampanyaInline(TabularInline):
@@ -121,15 +129,25 @@ class BasvuruKategorisiAdmin(ModelAdmin):
 @admin.register(Tarife)
 class TarifeAdmin(ModelAdmin):
     list_display = (
-        "ad", "kategori", "operator", "gorsel_var_mi", "kampanya_sayisi", "aktif"
+        "ad", "kategori_listesi", "operator", "gorsel_var_mi", "kampanya_sayisi", "aktif"
     )
-    list_filter = ("aktif", "kategori", "operator", "musteri_tipi")
-    search_fields = ("ad", "kategori__ad", "operator__ad")
-    autocomplete_fields = ("kategori", "operator")
+    list_filter = ("aktif", "kategoriler", "operator", "musteri_tipi")
+    search_fields = ("ad", "kategoriler__ad", "operator__ad")
+    autocomplete_fields = ("kategoriler", "operator")
     inlines = [TarifeParaKuraliInline, KampanyaInline]
     readonly_fields = ("gorsel_onizleme", "para_ozeti")
     fieldsets = (
-        ("Tarife", {"fields": ("kategori", "operator", "ad", "musteri_tipi")}),
+        (
+            "Tarife",
+            {
+                "fields": ("kategoriler", "operator", "ad", "musteri_tipi"),
+                "description": (
+                    "Aynı tarife birden çok kategoride geçerli olabilir. Operatör "
+                    "aynı paketi hem numara taşımada hem yeni hatta veriyorsa "
+                    "hepsini işaretleyin; tarifeyi ikinci kez açmanız gerekmez."
+                ),
+            },
+        ),
         (
             "Para",
             {
@@ -144,10 +162,12 @@ class TarifeAdmin(ModelAdmin):
         (
             "Bayiye gösterilecek içerik",
             {
-                "fields": ("aciklama", "gorsel", "gorsel_onizleme"),
+                "fields": ("kisa_aciklama", "aciklama", "gorsel", "gorsel_onizleme"),
                 "description": (
-                    "Buraya girdikleriniz bayi panelindeki <b>Tarifeler</b> sayfasında, "
-                    "tarife başlığının altında açılır."
+                    "<b>Kısa açıklama</b> bayi bu tarifeyi başvuruda seçtiği anda "
+                    "karşısına açılır; atlanmaması gereken bir uyarı için. "
+                    "Açıklama ve görsel ise bayi panelindeki <b>Tarifeler</b> "
+                    "sayfasında, tarife başlığının altında görünür."
                 ),
             },
         ),
@@ -155,7 +175,16 @@ class TarifeAdmin(ModelAdmin):
     )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("kategori", "operator")
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("operator")
+            .prefetch_related("kategoriler")
+        )
+
+    @admin.display(description="Kategoriler")
+    def kategori_listesi(self, obj):
+        return obj.kategori_adlari
 
     @admin.display(description="Bu tarifede hesap")
     def para_ozeti(self, obj):
@@ -259,7 +288,7 @@ class TarifeAdmin(ModelAdmin):
 @admin.register(Kampanya)
 class KampanyaAdmin(ModelAdmin):
     list_display = ("ad", "tarife", "baslangic_tarihi", "bitis_tarihi", "gecerli_mi", "aktif")
-    list_filter = ("aktif", "tarife__kategori", "tarife__operator")
+    list_filter = ("aktif", "tarife__kategoriler", "tarife__operator")
     search_fields = ("ad", "tarife__ad")
     autocomplete_fields = ("tarife",)
     fieldsets = (

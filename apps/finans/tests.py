@@ -37,8 +37,9 @@ class ParaMotoruTestleri(TestCase):
         self.operator = Operator.objects.create(ad="Turkcell")
         self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
         self.tarife = Tarife.objects.create(
-            kategori=self.kategori, operator=self.operator, ad="Süper 20GB"
+            operator=self.operator, ad="Süper 20GB"
         )
+        self.tarife.kategoriler.add(self.kategori)
 
     def _basvuru_olustur(self, durum=None):
         return Basvuru.objects.create(
@@ -630,8 +631,9 @@ class TarifeParaEkraniTestleri(TestCase):
         self.operator = Operator.objects.create(ad="Turkcell")
         self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
         self.tarife = Tarife.objects.create(
-            kategori=self.kategori, operator=self.operator, ad="Red 20 GB"
+            operator=self.operator, ad="Red 20 GB"
         )
+        self.tarife.kategoriler.add(self.kategori)
 
     def test_ad_bos_birakilirsa_kapsamdan_uretilir(self):
         """Tarife sayfasından iki rakam giren yönetici bir de ad uydurmasın."""

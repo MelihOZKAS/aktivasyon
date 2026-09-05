@@ -96,10 +96,10 @@ class BasvuruFormu(forms.Form):
     def _kapsami_daralt(self):
         self.fields["operator"].queryset = self.kategori.gecerli_operatorler()
         self.fields["tarife"].queryset = Tarife.objects.filter(
-            kategori=self.kategori, aktif=True
+            kategoriler=self.kategori, aktif=True
         ).select_related("operator")
         self.fields["kampanya"].queryset = Kampanya.objects.filter(
-            tarife__kategori=self.kategori, aktif=True
+            tarife__kategoriler=self.kategori, aktif=True
         ).select_related("tarife")
         self.fields["tarife"].required = self.kategori.tarife_zorunlu
 

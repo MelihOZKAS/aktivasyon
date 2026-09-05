@@ -231,7 +231,6 @@ class Command(BaseCommand):
                 continue
 
             tarife, yeni = Tarife.objects.get_or_create(
-                kategori=kategori,
                 operator=operator,
                 ad=tarife_adi,
                 defaults={
@@ -240,6 +239,9 @@ class Command(BaseCommand):
                     "sira": sira * 10,
                 },
             )
+            # Aynı tarife birden çok kategoride geçerli olabilir; bağlantı
+            # eklenir, var olanlar sökülmez.
+            tarife.kategoriler.add(kategori)
             tarifeler[(kategori_adi, tarife_adi)] = tarife
             # Tarifesi olan operatör kategorinin listesine de girsin; aksi
             # hâlde tarife tanımlı ama formda operatör seçilemez oluyor.

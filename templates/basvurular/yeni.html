@@ -139,5 +139,44 @@
       <button type="submit" class="dugme dugme-birincil sm:w-auto">Başvuruyu gönder</button>
     </div>
   </form>
+
+  {% comment %}
+    Tarifenin kısa açıklaması varsa seçildiği anda açılır. Bayi tezgâh
+    başında ve aceleyle giriyor; atlanmaması gereken şeyi listede küçük
+    yazıyla göstermek yetmiyordu.
+
+    Kutu ana formun dışında: içindeki kapatma formu iç içe geçseydi HTML
+    geçersiz olurdu. <dialog> kullanıldığı için perde, odak tuzağı ve Esc
+    tarayıcıdan geliyor.
+  {% endcomment %}
+  <dialog id="tarife-uyarisi" class="uyari-kutusu sim" aria-labelledby="tarife-uyari-basligi">
+    <p id="tarife-uyari-basligi" class="baslik text-lg font-bold">Bu tarifede dikkat</p>
+    <p id="tarife-uyari-metni"
+       class="mt-2 whitespace-pre-line text-sm leading-relaxed text-murekkep-yumusak"></p>
+    <form method="dialog" class="mt-6 flex justify-end">
+      <button class="dugme dugme-birincil w-full sm:w-auto" autofocus>Tamam</button>
+    </form>
+  </dialog>
 </div>
+
+<script>
+  (function () {
+    var kutu = document.getElementById("tarife-uyarisi");
+    var metin = document.getElementById("tarife-uyari-metni");
+    if (!kutu || !metin || typeof kutu.showModal !== "function") return;
+
+    // Tarife kutusu HTMX ile yenilendiği için olay belgeye bağlanır;
+    // doğrudan select'e bağlanan dinleyici ilk değişimden sonra ölürdü.
+    document.addEventListener("change", function (olay) {
+      if (olay.target.id !== "id_tarife") return;
+
+      var secenek = olay.target.selectedOptions[0];
+      var uyari = secenek && secenek.dataset.uyari;
+      if (!uyari) return;
+
+      metin.textContent = uyari;
+      kutu.showModal();
+    });
+  })();
+</script>
 {% endblock %}

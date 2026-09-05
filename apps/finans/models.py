@@ -353,7 +353,11 @@ class UcretKurali(ZamanDamgali):
             raise ValidationError(
                 {"bitis_tarihi": "Bitiş tarihi başlangıç tarihinden önce olamaz."}
             )
-        if self.tarife and self.kategori and self.tarife.kategori_id != self.kategori_id:
+        if (
+            self.tarife
+            and self.kategori
+            and not self.tarife.kategoriler.filter(pk=self.kategori_id).exists()
+        ):
             raise ValidationError(
                 {"tarife": "Seçilen tarife, seçilen kategoriye ait değil."}
             )

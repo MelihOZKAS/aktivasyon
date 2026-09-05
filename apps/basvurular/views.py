@@ -67,7 +67,7 @@ def tarife_secenekleri(request):
     tarifeler = Tarife.objects.none()
     if kategori_slug and operator_id:
         tarifeler = Tarife.objects.filter(
-            kategori__slug=kategori_slug, operator_id=operator_id, aktif=True
+            kategoriler__slug=kategori_slug, operator_id=operator_id, aktif=True
         ).order_by("sira", "ad")
 
     return render(request, "basvurular/parca_tarife.html", {"tarifeler": tarifeler})

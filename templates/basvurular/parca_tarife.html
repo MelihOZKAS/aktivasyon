@@ -4,8 +4,13 @@
         hx-target="#kampanya-kutusu"
         hx-trigger="change">
   <option value="">{% if tarifeler %}Seçiniz{% else %}Önce operatör seç{% endif %}</option>
+  {% comment %}
+    Kısa açıklama seçenekle birlikte taşınır: tarife seçilince açılacak
+    uyarı için sunucuya ikinci bir tur atmaya gerek kalmıyor.
+  {% endcomment %}
   {% for tarife in tarifeler %}
   <option value="{{ tarife.pk }}"
+          {% if tarife.kisa_aciklama %}data-uyari="{{ tarife.kisa_aciklama }}"{% endif %}
           {% if secili|stringformat:'s' == tarife.pk|stringformat:'s' %}selected{% endif %}>
     {{ tarife.ad }}
   </option>

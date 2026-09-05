@@ -457,9 +457,10 @@ class TarifeSayfasiTestleri(TestCase):
         self.operator = Operator.objects.create(ad="Turkcell", renk="#ffc900")
         self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
         self.tarife = Tarife.objects.create(
-            kategori=self.kategori, operator=self.operator,
+            operator=self.operator,
             ad="Platinum 30 GB", aciklama="Aylık 30 GB, sınırsız konuşma.",
         )
+        self.tarife.kategoriler.add(self.kategori)
         self.kampanya = Kampanya.objects.create(
             tarife=self.tarife, ad="İlk 3 ay yarı fiyat"
         )
@@ -499,9 +500,10 @@ class TarifeSayfasiTestleri(TestCase):
         from apps.katalog.models import Operator, Tarife
 
         vodafone = Operator.objects.create(ad="Vodafone", renk="#e60000", sira=20)
-        Tarife.objects.create(
-            kategori=self.kategori, operator=vodafone, ad="Red 20 GB"
+        _tarife = Tarife.objects.create(
+            operator=vodafone, ad="Red 20 GB"
         )
+        _tarife.kategoriler.add(self.kategori)
 
         yanit = self.client.get(self.url, {"operator": vodafone.slug})
         self.assertContains(yanit, "Red 20 GB")
@@ -1294,8 +1296,9 @@ class PaneldeAylikHakedis(TestCase):
         self.operator = Operator.objects.create(ad="Turkcell")
         self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
         self.tarife = Tarife.objects.create(
-            kategori=self.kategori, operator=self.operator, ad="Platinum"
+            operator=self.operator, ad="Platinum"
         )
+        self.tarife.kategoriler.add(self.kategori)
         UcretKurali.objects.create(
             ad="Hakediş", yon=KuralYonu.HAKEDIS, tutar=Decimal("250.00"),
             tetikleyici_durum=self.aktif, kategori=self.kategori,

@@ -124,7 +124,7 @@ class BasvuruKategorisi(ZamanDamgali):
         Hiçbiri yoksa tüm aktif operatörler gösterilir.
         """
         secilenler = Operator.objects.filter(aktif=True).filter(
-            models.Q(kategoriler=self) | models.Q(tarifeler__kategori=self,
+            models.Q(kategoriler=self) | models.Q(tarifeler__kategoriler=self,
                                                   tarifeler__aktif=True)
         ).distinct()
         return secilenler if secilenler.exists() else Operator.objects.filter(aktif=True)
@@ -137,11 +137,15 @@ class Tarife(ZamanDamgali):
     tek modelde toplanmıştır; ayrım artık `musteri_tipi` alanındadır.
     """
 
-    kategori = models.ForeignKey(
+    kategoriler = models.ManyToManyField(
         BasvuruKategorisi,
-        verbose_name="Kategori",
+        verbose_name="Kategoriler",
         related_name="tarifeler",
-        on_delete=models.CASCADE,
+        help_text=(
+            "Aynı tarife birden çok kategoride geçerli olabilir. Operatör aynı "
+            "paketi hem numara taşımada hem yeni hatta veriyorsa hepsini işaretleyin; "
+            "tarifeyi ikinci kez açmak gerekmez."
+        ),
     )
     operator = models.ForeignKey(
         Operator,
@@ -161,6 +165,16 @@ class Tarife(ZamanDamgali):
         blank=True,
         help_text="Bayi tarife sayfasında bu tarifenin altında görünür.",
     )
+    kisa_aciklama = models.CharField(
+        "Kısa Açıklama / Uyarı",
+        max_length=300,
+        blank=True,
+        help_text=(
+            "Bayi bu tarifeyi başvuruda seçtiği anda karşısına açılır. "
+            "Atlanmaması gereken bir şey varsa buraya yazın; boş bırakılırsa "
+            "hiçbir şey açılmaz."
+        ),
+    )
     gorsel = models.ImageField(
         "Görsel",
         upload_to="tarife/%Y/%m/",
@@ -174,18 +188,27 @@ class Tarife(ZamanDamgali):
     class Meta:
         verbose_name = "Tarife"
         verbose_name_plural = "Tarifeler"
-        ordering = ["kategori", "operator", "sira", "ad"]
+        ordering = ["operator", "sira", "ad"]
         constraints = [
+            # Kategori artık çoklu olduğu için anahtarın parçası olamaz:
+            # aynı ad + operatör bir tarifedir, kaç kategoride geçerli olduğu
+            # o tarifenin kendi bilgisidir.
             models.UniqueConstraint(
-                fields=["kategori", "operator", "ad"],
-                name="tarife_kategori_operator_ad_benzersiz",
+                fields=["operator", "ad"],
+                name="tarife_operator_ad_benzersiz",
             )
         ]
 
     def __str__(self):
-        # Kategori de yazılır: seçim kutularında hangi kategoriye ait olduğu
-        # görünmeden yanlış tarife seçilebiliyordu.
-        return f"{self.kategori.ad} · {self.operator.ad} · {self.ad}"
+        # Kategoriler de yazılır: seçim kutularında hangi kategoriye ait
+        # olduğu görünmeden yanlış tarife seçilebiliyordu.
+        return f"{self.kategori_adlari} · {self.operator.ad} · {self.ad}"
+
+    @property
+    def kategori_adlari(self):
+        """Tarifenin geçerli olduğu kategoriler, tek satırda."""
+        adlar = [kategori.ad for kategori in self.kategoriler.all()]
+        return ", ".join(adlar) if adlar else "kategorisiz"
 
     def save(self, *args, **kwargs):
         self.gorsel = kucult(self.gorsel)

@@ -287,10 +287,12 @@ def tarifeler(request):
 
     tarifeler_listesi = []
     if secili:
+        # Tarife birden çok kategoride geçerli olabildiği için kategoriye
+        # göre sıralanamaz; aynı tarife listede iki kez çıkardı.
         tarifeler_listesi = (
             Tarife.objects.filter(operator=secili, aktif=True)
-            .select_related("kategori")
-            .order_by("kategori__sira", "kategori__ad", "sira", "ad")
+            .prefetch_related("kategoriler")
+            .order_by("sira", "ad")
         )
 
     return render(

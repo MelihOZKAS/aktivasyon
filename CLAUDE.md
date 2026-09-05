@@ -250,6 +250,22 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **Bayi hakedişini şeffaf görür.** `/hakedisler/` sayfası hangi tarifeden ne
   kazanacağını, kesintisini ve elde kalan neti gösterir. Yeni bir para kalemi
   eklerken bu sayfayı da güncelle.
+- **Bir tarife birden çok kategoride geçerli olabilir.** `Tarife.kategoriler`
+  çoktan çoğadır; operatör aynı paketi hem numara taşımada hem yeni hatta
+  veriyorsa tarife bir kez açılır, kategoriler işaretlenir. Tekil `kategori`
+  alanı varken aynı tarife iki kez açılıyor, fiyatı iki yerde güncelleniyordu.
+  Tekillik anahtarı bu yüzden `(operatör, ad)`: kategori artık anahtarın
+  parçası değil. Kategori sayfasındaki satır içi tablo bağlantı tablosu
+  üzerinden kurulur (`Tarife.kategoriler.through`) — oradan tarife
+  eklenip çıkarılır, ayrıntısı Tarifeler ekranından girilir. Tarife
+  sorgularında `kategori=` değil `kategoriler=` kullan.
+- **Tarifenin kısa açıklaması seçildiği anda açılır.** `Tarife.kisa_aciklama`
+  doluysa bayi başvuruda o tarifeyi seçince `<dialog>` ile karşısına çıkar,
+  tek düğmesi "Tamam"dır. Atlanmaması gereken uyarıyı listede küçük yazıyla
+  göstermek yetmiyordu. Metin `<option>` üzerinde `data-uyari` ile taşınır;
+  seçim değişince sunucuya ikinci tur atılmaz. Kutu ana formun **dışındadır**
+  (içindeki kapatma formu iç içe geçseydi HTML geçersiz olurdu) ve olay
+  belgeye bağlanır, çünkü tarife kutusu HTMX ile yenileniyor.
 - **Tarifenin parası tarifenin sayfasından girilir.** Kural motoru genel
   kalır (kampanya, bayi grubu, tek bayi, tarih aralığı hâlâ mümkün) ama günlük
   iş üç rakamdan ibaret: **operatörden alışım**, **tedarikçiden alışım**,
@@ -284,6 +300,8 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   harfleri düşürür ("Faturalı" → "fatural").
 - **Bayiye içerik gösteren alanlar admin'den girilir.** Tarife açıklaması
   ile görseli `/tarifeler/` sayfasında görünür; şablona sabit metin yazma.
+  Katalogdaki akordiyonlar **kapalı** açılır: ilkini açık getirmek, listeye
+  bakmak isteyen bayiye istemediği tarifenin ayrıntısını dayatıyordu.
 - **Kampanyanın yalnızca adı vardır.** Görseli ve açıklaması bilinçli olarak
   yok: kampanya bayiye gösterilen bir içerik değil, başvuru girilirken yapılan
   bir seçimdir. Bir süre ikisi de vardı ve hiçbir ekranda görünmüyordu —
