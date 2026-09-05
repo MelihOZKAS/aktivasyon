@@ -341,6 +341,44 @@ class BelgeErisimTestleri(TestCase):
 
 
 @override_settings(MEDIA_ROOT=GECICI_MEDYA)
+class GorselAlaniGaleriyiDeAcar(TestCase):
+    """Telefonda görsel alanı yalnızca kamerayı açmamalı.
+
+    `capture` özniteliği doğrudan kamerayı açıyor ve galeriye hiç
+    girilemiyordu; müşterinin kimliği çoğu zaman zaten çekilmiş oluyor.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import AlanTipi, BasvuruKategorisi, KategoriAlani
+
+        BasvuruDurumu.objects.create(
+            ad="Giriş", slug="beklemede", baslangic_durumu=True
+        )
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="kimlik_on", etiket="Kimlik Ön Yüz",
+            tip=AlanTipi.RESIM, zorunlu=True, grup="Belgeler", sira=1,
+        )
+        self.client.force_login(self.bayi)
+
+    def test_kamera_zorlanmaz_galeri_de_acilir(self):
+        from django.urls import reverse
+
+        icerik = self.client.get(
+            reverse("basvurular:yeni", args=[self.kategori.slug])
+        ).content.decode()
+
+        self.assertIn('accept="image/*"', icerik)
+        self.assertNotIn("capture=", icerik)
+
+
 class BelgeYuklemeGuvenligiTestleri(TestCase):
     """Bayi yüklediği belgeyi personel açar; tarayıcıda çalışan dosya yüklenemez."""
 

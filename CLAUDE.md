@@ -79,7 +79,9 @@ Kontrol listesi:
 - Dokunma hedefleri en az 44×44px
 - Gezinme telefonda çalışıyor (çekmece açılıyor, kapanıyor, arkası kilitli)
 - Tablolar/listeler dar ekranda okunur; taşan içerik kendi kutusunda kayıyor
-- Form girdileri 16px+ (iOS'ta yakınlaştırma yapmasın), dosya alanları kamerayı açıyor
+- Form girdileri 16px+ (iOS'ta yakınlaştırma yapmasın); görsel alanları hem
+  kamerayı hem galeriyi açıyor (`capture` **kullanılmaz** — kamerayı zorlayıp
+  galeriye girmeyi engelliyordu)
 
 **2. Mor / violet renk kullanma.** Bu aile tercih edilmiyor.
 

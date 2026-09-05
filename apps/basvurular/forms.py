@@ -60,10 +60,11 @@ def _widget_uret(tanim):
     if tanim.tip == AlanTipi.SECIM:
         return forms.Select(attrs=ortak)
     if tanim.tip == AlanTipi.RESIM:
-        # Tezgâh başında kimlik fotoğrafı doğrudan telefon kamerasıyla çekilsin.
-        return forms.ClearableFileInput(
-            attrs={**ortak, "accept": "image/*", "capture": "environment"}
-        )
+        # `capture` bilinçli olarak yok: telefonda doğrudan kamerayı açıyor ve
+        # galeriye hiç girilemiyordu. Müşterinin kimliği çoğu zaman zaten
+        # çekilmiş oluyor. `accept` ile telefon "Fotoğraf Çek" ve "Galeriden
+        # Seç" seçeneklerini birlikte gösterir; kamera bir tık uzakta kalır.
+        return forms.ClearableFileInput(attrs={**ortak, "accept": "image/*"})
     if tanim.tip == AlanTipi.DOSYA:
         return forms.ClearableFileInput(attrs={**ortak, "accept": "image/*,application/pdf"})
     return forms.TextInput(attrs=ortak)
