@@ -132,13 +132,36 @@ class CuzdanIslemFormu(forms.Form):
     # taşınır, defter aynı anahtarı ikinci kez kabul etmez.
     islem_anahtari = forms.CharField(widget=forms.HiddenInput)
 
+    # Bankalı işlemler: para fiilen bir hesaba giriyor ya da oradan çıkıyor.
+    BANKALI = {CuzdanIslemi.TAHSILAT, CuzdanIslemi.IADE}
+
+    def __init__(self, *args, cuzdan=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.cuzdan = cuzdan
+
     def clean(self):
         temiz = super().clean()
-        # Banka yalnızca tahsilatta anlamlı: kredide ve borç artırımında
-        # kasaya para girmiyor, yazılan hesap yanıltıcı olurdu. Kutu zaten
-        # gizleniyor ama kural sunucuda da durur.
-        if temiz.get("tip") != CuzdanIslemi.TAHSILAT:
+        tip = temiz.get("tip")
+
+        # Banka yalnızca para giren/çıkan işlemlerde anlamlı: kredide ve borç
+        # artırımında kasaya dokunulmuyor, yazılan hesap yanıltıcı olurdu.
+        # Kutu zaten gizleniyor ama kural sunucuda da durur.
+        if tip not in self.BANKALI:
             temiz["banka"] = None
+        elif tip == CuzdanIslemi.IADE and not temiz.get("banka"):
+            self.add_error("banka", "İade havalenin çıktığı hesaptan düşer; banka seçin.")
+
+        tutar = temiz.get("tutar")
+        if (
+            tip == CuzdanIslemi.IADE
+            and tutar
+            and self.cuzdan
+            and tutar > self.cuzdan.bakiye
+        ):
+            self.add_error(
+                "tutar",
+                f"Bakiyesi {self.cuzdan.bakiye} ₺; bundan fazlası düşürülemez.",
+            )
         return temiz
 
 
@@ -208,7 +231,7 @@ class CuzdanAdmin(ModelAdmin):
             return redirect("admin:finans_cuzdan_changelist")
 
         if request.method == "POST":
-            form = CuzdanIslemFormu(request.POST)
+            form = CuzdanIslemFormu(request.POST, cuzdan=cuzdan)
             if form.is_valid():
                 tutar = form.cleaned_data["tutar"]
                 tip = form.cleaned_data["tip"]
@@ -231,7 +254,7 @@ class CuzdanAdmin(ModelAdmin):
                 return redirect("admin:finans_cuzdan_change", cuzdan.pk)
         else:
             form = CuzdanIslemFormu(
-                initial={"islem_anahtari": uuid4().hex}
+                cuzdan=cuzdan, initial={"islem_anahtari": uuid4().hex}
             )
 
         baglam = {

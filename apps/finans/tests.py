@@ -828,11 +828,13 @@ class CuzdanIslemEkrani(TestCase):
         self.assertIn("border-base-200", girdi)
         self.assertIn("rounded-default", girdi)
 
-    def test_ucu_de_ayni_tutar_alanini_kullanir(self):
-        """Tutar tek alandır; üç işlem de onu okur."""
+    def test_butun_islemler_ayni_tutar_alanini_kullanir(self):
+        """Tutar tek alandır; işlemlerin hepsi onu okur."""
+        from apps.finans.models import CuzdanIslemi
+
         icerik = self.client.get(self._adres()).content.decode()
 
-        self.assertEqual(icerik.count('name="tip"'), 3)
+        self.assertEqual(icerik.count('name="tip"'), len(CuzdanIslemi.choices))
         self.assertEqual(icerik.count('name="tutar"'), 1)
 
     def test_kredide_banka_kaydedilmez(self):
@@ -965,3 +967,102 @@ class HareketTarihAraligiFiltresi(TestCase):
 
         self.assertIn("tarih_from", icerik)
         self.assertIn("tarih_to", icerik)
+
+
+class BakiyeDusurmeIadesi(TestCase):
+    """Bayiye para ödenince bakiyesi ve bankanın bakiyesi birlikte düşer.
+
+    Bayi çalışmayı bırakınca elinde kalan bakiye havale edilir. Para iki
+    yerden birden eksilir; tek yerde düşseydi kasa ile defter ayrışırdı.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.finans.models import Banka
+
+        self.bayi = User.objects.create_user("5551112233", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=TL("10000.00"))
+        self.banka = Banka.objects.create(
+            banka_adi="Ziraat", hesap_sahibi="Firma",
+            iban="TR000000000000000000000009", bakiye=TL("50000.00"),
+        )
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _adres(self):
+        from django.urls import reverse
+
+        return reverse("admin:finans_cuzdan_bakiye_yukle", args=[self.cuzdan.pk])
+
+    def _uygula(self, tutar, banka=True, anahtar="i1"):
+        from apps.finans.models import CuzdanIslemi
+
+        return self.client.post(
+            self._adres(),
+            {"tip": CuzdanIslemi.IADE, "tutar": tutar,
+             "banka": self.banka.pk if banka else "",
+             "aciklama": "", "islem_anahtari": anahtar},
+            follow=True,
+        )
+
+    def test_bakiye_ve_banka_birlikte_duser(self):
+        self._uygula("10000.00")
+
+        self.cuzdan.refresh_from_db()
+        self.banka.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+        self.assertEqual(self.banka.bakiye, TL("40000.00"))
+
+    def test_kismi_iade_yapilabilir(self):
+        self._uygula("2500.00")
+
+        self.cuzdan.refresh_from_db()
+        self.banka.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("7500.00"))
+        self.assertEqual(self.banka.bakiye, TL("47500.00"))
+
+    def test_bakiyeden_fazlasi_dusurulemez(self):
+        """Olmayan parayı ödemek eksi bakiye demek; borç hanesiyle karışır."""
+        yanit = self._uygula("12000.00")
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("10000.00"))
+        self.assertIn("bundan fazlası düşürülemez", yanit.content.decode())
+
+    def test_banka_secilmeden_iade_yapilamaz(self):
+        yanit = self._uygula("1000.00", banka=False)
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("10000.00"))
+        self.assertIn("banka seçin", yanit.content.decode())
+
+    def test_borca_dokunulmaz(self):
+        """Bu bir ödeme, mahsuplaşma değil."""
+        self.cuzdan.borc = TL("3000.00")
+        self.cuzdan.save(update_fields=["borc"])
+
+        self._uygula("10000.00")
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.borc, TL("3000.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+
+    def test_defterde_kimin_odedigi_durur(self):
+        from apps.finans.models import HareketTipi
+
+        self._uygula("1000.00")
+
+        hareket = CuzdanHareketi.objects.get(tip=HareketTipi.IADE)
+        self.assertEqual(hareket.olusturan.get_username(), "yonetici")
+        self.assertEqual(hareket.banka, self.banka)
+        self.assertEqual(hareket.tutar, TL("-1000.00"))
+
+    def test_sayfa_yenilemek_ikinci_kez_odemez(self):
+        self._uygula("1000.00", anahtar="ayni")
+        self._uygula("1000.00", anahtar="ayni")
+
+        self.cuzdan.refresh_from_db()
+        self.banka.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("9000.00"))
+        self.assertEqual(self.banka.bakiye, TL("49000.00"))

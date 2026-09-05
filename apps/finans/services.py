@@ -572,6 +572,12 @@ def cuzdan_islemi(cuzdan, tip, tutar, *, aciklama="", banka=None, olusturan=None
             olusturan=olusturan, anahtar=anahtar,
         )
 
+    if tip == CuzdanIslemi.IADE:
+        return bakiye_dusur(
+            cuzdan, tutar, aciklama=aciklama, banka=banka,
+            olusturan=olusturan, anahtar=anahtar,
+        )
+
     if tip not in {CuzdanIslemi.KREDI, CuzdanIslemi.BORC}:
         raise ValueError(f"Bilinmeyen cüzdan işlemi: {tip}")
 
@@ -601,6 +607,47 @@ def cuzdan_islemi(cuzdan, tip, tutar, *, aciklama="", banka=None, olusturan=None
                 banka=banka,
                 olusturan=olusturan,
             )
+
+        return cuzdan
+
+
+def bakiye_dusur(cuzdan, tutar, *, aciklama="", banka=None, olusturan=None, anahtar=None):
+    """Bayiye para ödenir; bakiyesi ve bankanın bakiyesi birlikte düşer.
+
+    Bayi çalışmayı bırakınca elinde kalan bakiye kendisine havale edilir.
+    Para iki yerden birden eksilir: bayinin cüzdanından ve havalenin çıktığı
+    banka hesabından. Tek yerde düşseydi kasa ile defter ayrışırdı.
+
+    Bakiyeden fazlası düşürülemez: olmayan parayı ödemek eksi bakiye
+    demektir ve bu, borç hanesiyle karışan bir sayı üretir. Borç varsa
+    dokunulmaz — bu bir ödeme, mahsuplaşma değil.
+    """
+    if tutar <= SIFIR:
+        raise ValueError("İşlem tutarı sıfırdan büyük olmalıdır.")
+
+    with transaction.atomic():
+        cuzdan = Cuzdan.objects.select_for_update().get(pk=cuzdan.pk)
+        if tutar > cuzdan.bakiye:
+            raise ValueError(
+                f"Bakiyesi {cuzdan.bakiye} ₺; bundan fazlası düşürülemez."
+            )
+
+        anahtar = anahtar or f"iade:{cuzdan.pk}:{CuzdanHareketi.objects.count()}"
+        hareket = _hareket_yaz(
+            cuzdan=cuzdan,
+            tip=HareketTipi.IADE,
+            tutar=-tutar,
+            idempotency_anahtari=f"{anahtar}:iade",
+            aciklama=aciklama or "Bayiye ödeme",
+            banka=banka,
+            olusturan=olusturan,
+        )
+
+        # Havale bankadan çıktı; kasa da azalır. Hareket yazılmadıysa
+        # (aynı anahtar ikinci kez) bankaya da dokunulmaz.
+        if hareket is not None and banka:
+            banka.bakiye = banka.bakiye - tutar
+            banka.save(update_fields=["bakiye", "guncelleme_tarihi"])
 
         return cuzdan
 

@@ -58,6 +58,7 @@
           <span class="block text-sm font-semibold text-font-important-light dark:text-font-important-dark">
             {% if secenek.data.value == "kredi" %}Hem borç hem bakiye ekle
             {% elif secenek.data.value == "borc" %}Sadece borç arttır
+            {% elif secenek.data.value == "iade" %}Bakiye düşür — bayiye ödeme
             {% else %}Tahsilat{% endif %}
           </span>
           <span class="mt-1 block text-sm leading-relaxed text-base-500">
@@ -66,6 +67,10 @@
               bedelini sonra ödersin. <b>5.000 ₺</b> verirsen bakiye 5.000, borç 5.000 olur.
             {% elif secenek.data.value == "borc" %}
               Yalnızca borç hanesi artar. Düzeltme içindir; bayinin işlem gücü değişmez.
+            {% elif secenek.data.value == "iade" %}
+              Bayiye para ödedin. Bakiyesinden düşer, <b>havalenin çıktığı bankadan
+              da düşer</b>. Çalışmayı bırakan bayinin elinde kalan parayı geri
+              vermek için. Bakiyesinden fazlası düşürülemez; borcuna dokunulmaz.
             {% else %}
               Bayiden para aldın. Borcu varsa önce o kapanır, artan bakiyeye geçer.
               600 ₺ borcu olana <b>1.000 ₺</b> girersen borç sıfırlanır, bakiyeye 400 ₺ yazılır.
@@ -86,8 +91,9 @@
         {{ form.tutar }}
       </div>
       {% comment %}
-        Banka yalnızca tahsilatta sorulur: kredide ve borç artırımında kasaya
-        para girmiyor, hesap sormak yanıltıcı. Kural sunucuda da duruyor.
+        Banka yalnızca para giren/çıkan işlemlerde sorulur: kredide ve borç
+        artırımında kasaya dokunulmuyor, hesap sormak yanıltıcı olurdu.
+        Kural sunucuda da duruyor.
       {% endcomment %}
       <div id="banka-kutusu">
         <label for="{{ form.banka.id_for_label }}"
@@ -95,7 +101,9 @@
           Banka
         </label>
         {{ form.banka }}
-        <div class="mt-2 text-xs text-base-500">Paranın girdiği hesap. Bankanın bakiyesi de artar.</div>
+        <div class="mt-2 text-xs text-base-500">
+          Paranın girdiği ya da çıktığı hesap; bankanın bakiyesi de değişir.
+        </div>
       </div>
     </div>
 
@@ -138,9 +146,9 @@
         kart.style.borderColor = secili ? "#0e5e5b" : "";
         kart.style.background = secili ? "rgba(14,94,91,.04)" : "";
       });
-      // Banka yalnızca tahsilatta sorulur.
+      // Banka yalnızca para giren/çıkan işlemlerde sorulur.
       if (bankaKutusu) {
-        bankaKutusu.hidden = secilenDeger !== "tahsilat";
+        bankaKutusu.hidden = !(secilenDeger === "tahsilat" || secilenDeger === "iade");
       }
     }
     kartlar.forEach(function (kart) {

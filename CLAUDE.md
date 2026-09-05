@@ -145,10 +145,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Bu, **borç kuralıyla çelişmez**: borcun üst sınırı yok, ama borç işlenmiş
   bir işlemin sonucudur — parası olmadan yeni bir işlem *başlatmak* ayrı
   şeydir. Tahsilat kuralı yoksa hiçbir kategori engellenmez.
-- **Cüzdana elle yapılan işlem üç türlüdür** (`CuzdanIslemi`): *hem borç hem
+- **Cüzdana elle yapılan işlem dört türlüdür** (`CuzdanIslemi`): *hem borç hem
   bakiye ekle* (açık hesap — bayi hemen işlem yapar, bedelini sonra öder),
-  *sadece borç arttır* (düzeltme) ve *tahsilat* (bayiden para alındı; borcu
-  varsa önce o kapanır, artan bakiyeye geçer). Tek giriş noktası
+  *sadece borç arttır* (düzeltme), *tahsilat* (bayiden para alındı; borcu
+  varsa önce o kapanır, artan bakiyeye geçer) ve *bakiye düşür* (bayiye para
+  ödendi). İade, bayinin bakiyesi **ve havalenin çıktığı bankanın bakiyesi**
+  ile birlikte düşer — tek yerde düşseydi kasa ile defter ayrışırdı; banka bu
+  yüzden zorunludur. Bakiyeden fazlası düşürülemez (olmayan parayı ödemek eksi
+  bakiye demek, borç hanesiyle karışır) ve borca dokunulmaz: bu bir ödeme,
+  mahsuplaşma değil. Tek giriş noktası
   `apps.finans.services.cuzdan_islemi`. Ekran hem **Cüzdanlar** hem
   **Kullanıcılar** listesinden açılır — yönetici bayiyi kullanıcı adından
   bulup para işlemi için ikinci kez aramasın; ekranın kendisi tek yerdedir,
