@@ -23,17 +23,21 @@
           {{ aylik_hakedis|para }}<span class="ml-1 text-3xl text-olumlu/40">₺</span>
         </p>
       </div>
-    </div>
 
-    {% if cuzdan.borc %}
-    <dl class="mt-7 flex flex-wrap items-center gap-x-9 gap-y-3 border-t border-cizgi
-               pt-4 text-sm">
-      <div class="flex items-baseline gap-2">
-        <dt class="text-soluk">Borç</dt>
-        <dd class="rakam font-semibold text-uyari">{{ cuzdan.borc|para }} ₺</dd>
+      {% comment %}
+        Borç da bakiyeyle aynı boyda, aynı satırda durur: bayinin hesabına
+        bakarken sorduğu üç rakamdan biri. Altta küçük yazıyla dururken
+        okunmuyordu — borcu olan bayi onu bakiyesi kadar net görmeli.
+      {% endcomment %}
+      {% if cuzdan.borc %}
+      <div>
+        <p class="text-sm text-soluk">Borç</p>
+        <p class="rakam mt-1.5 text-[2.5rem] font-bold leading-[0.95] text-uyari sm:text-[3.25rem] lg:text-[4rem]">
+          {{ cuzdan.borc|para }}<span class="ml-1 text-3xl text-uyari/40">₺</span>
+        </p>
       </div>
-    </dl>
-    {% endif %}
+      {% endif %}
+    </div>
   </section>
 
   {% if durum_dagilimi %}
