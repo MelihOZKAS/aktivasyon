@@ -519,9 +519,9 @@ def tedarikci_panel(request):
     aylik_kazanc = (
         Basvuru.objects.filter(
             tedarikci=request.user,
-            ana_hakedis_islendi=True,
+            alis_bedeli_islendi=True,
             olusturma_tarihi__gte=ayin_basi,
-        ).aggregate(toplam=Sum("ana_hakedis"))["toplam"]
+        ).aggregate(toplam=Sum("alis_bedeli"))["toplam"]
         or 0
     )
 

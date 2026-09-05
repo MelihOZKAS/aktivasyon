@@ -114,22 +114,31 @@
 
   <section class="rounded-default border border-base-200 bg-white p-5 lg:col-span-2 dark:border-base-800 dark:bg-base-900">
     <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
-      İşlenen alış bedeli
+      Karşı tarafla hesap
     </h2>
     <p class="mb-4 text-sm text-base-500">
-      Tamamlanan işlemlerde hattı almak için ödediğiniz tutar, kime ödendiğine
-      göre. <b>Operatöre ödenen sistemde bir borç doğurmaz</b> — operatörün
-      cüzdanı yoktur, tutar yalnızca başvuruya işlenir. Tedarikçiye ödenen
-      onun cüzdanına yazılır; henüz ödemediğiniz kısmı yandaki tablodadır.
+      Tamamlanan işlemlerde hattı almak için ödediğiniz maliyet ve aynı
+      işlemler için aldığınız prim. <b>Operatör tarafı sistemde borç
+      doğurmaz</b> — operatörün cüzdanı yoktur, tutar yalnızca başvuruya
+      işlenir. Tedarikçiye ödenen maliyet cüzdanına yazılır (henüz ödemediğiniz
+      kısmı yandaki tablodadır), ondan aldığınız prim cüzdanından düşer.
     </p>
-    <dl class="grid gap-4 sm:grid-cols-2 text-sm">
+    <dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 text-sm">
       <div>
-        <dt class="text-base-500">Operatöre</dt>
-        <dd class="text-xl font-semibold">{{ ana_hakedis.operatorden }} ₺</dd>
+        <dt class="text-base-500">Operatöre maliyet</dt>
+        <dd class="text-xl font-semibold text-red-600">{{ alis_bedeli.operatorden }} ₺</dd>
       </div>
       <div>
-        <dt class="text-base-500">Tedarikçilere</dt>
-        <dd class="text-xl font-semibold">{{ ana_hakedis.tedarikciden }} ₺</dd>
+        <dt class="text-base-500">Tedarikçilere maliyet</dt>
+        <dd class="text-xl font-semibold text-red-600">{{ alis_bedeli.tedarikciden }} ₺</dd>
+      </div>
+      <div>
+        <dt class="text-base-500">Operatörden prim</dt>
+        <dd class="text-xl font-semibold text-green-600">{{ alis_bedeli.prim_operatorden }} ₺</dd>
+      </div>
+      <div>
+        <dt class="text-base-500">Tedarikçilerden prim</dt>
+        <dd class="text-xl font-semibold text-green-600">{{ alis_bedeli.prim_tedarikciden }} ₺</dd>
       </div>
     </dl>
   </section>

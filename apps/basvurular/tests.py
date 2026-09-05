@@ -2046,7 +2046,7 @@ class KarOzetiKartlari(TestCase):
             kategori=self.kategori, tetikleyici_durum=self.giris,
         )
         UcretKurali.objects.create(
-            ad="Turkcell alışım", yon=KuralYonu.ANA_HAKEDIS, tutar=Decimal("1000.00"),
+            ad="Turkcell alışım", yon=KuralYonu.ALIS, tutar=Decimal("1000.00"),
             kategori=self.kategori, operator=self.operator,
             tetikleyici_durum=self.aktif,
         )
@@ -2067,6 +2067,6 @@ class KarOzetiKartlari(TestCase):
         ozet = yanit.context_data["kar_ozeti"]
 
         self.assertEqual(ozet["tahsilat"], Decimal("1150.00"))
-        self.assertEqual(ozet["ana_hakedis"], Decimal("1000.00"))
+        self.assertEqual(ozet["alis_bedeli"], Decimal("1000.00"))
         self.assertEqual(ozet["hakedis"], Decimal("0"))
         self.assertEqual(ozet["kar"], Decimal("150.00"))

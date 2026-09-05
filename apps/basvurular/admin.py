@@ -207,7 +207,7 @@ class BasvuruAdmin(ModelAdmin):
         "tedarikci",
         "musteri_tipi",
         "para_islendi",
-        "ana_hakedis_islendi",
+        "alis_bedeli_islendi",
         "sim_karsiligi_alindi",
         "olusturma_tarihi",
     )
@@ -228,9 +228,11 @@ class BasvuruAdmin(ModelAdmin):
         "referans_no",
         "tahsil_edilen",
         "hakedis",
-        "ana_hakedis",
+        "alis_bedeli",
+        "alinan_prim",
         "para_islendi",
-        "ana_hakedis_islendi",
+        "alis_bedeli_islendi",
+        "alinan_prim_islendi",
         "belgeler_silindi",
         "sim_karsiligi_tarihi",
         "kar_ozeti",
@@ -282,14 +284,19 @@ class BasvuruAdmin(ModelAdmin):
             },
         ),
         (
-            "Alış bedeli",
+            "Operatör / tedarikçi hesabı",
             {
-                "fields": ("tedarikci", "ana_hakedis", "ana_hakedis_islendi"),
+                "fields": (
+                    "tedarikci",
+                    "alis_bedeli", "alis_bedeli_islendi",
+                    "alinan_prim", "alinan_prim_islendi",
+                ),
                 "description": (
-                    "Hattı kimden aldıysak ona ödediğimiz tutar. Tedarikçi "
-                    "atanmışsa bedel onun cüzdanına alacak olarak yazılır; "
-                    "atanmamışsa doğrudan operatöre ödenir ve yalnızca kâr "
-                    "hesabından düşer (operatörün cüzdanı yoktur)."
+                    "Karşı tarafla para iki yönde birden akabilir: hattı ondan "
+                    "satın alırız (maliyet) ve aynı işlem için bize prim ödeyebilir. "
+                    "Tedarikçi atanmışsa maliyet onun cüzdanına alacak yazılır, "
+                    "prim hesabından düşer; atanmamışsa operatörün cüzdanı "
+                    "olmadığı için hareket yazılmaz, tutarlar yalnızca kâra girer."
                 ),
             },
         ),
@@ -448,12 +455,14 @@ class BasvuruAdmin(ModelAdmin):
             return yanit
 
         toplam = sorgu.aggregate(
-            alis=Sum("ana_hakedis"),
+            alis=Sum("alis_bedeli"),
+            prim=Sum("alinan_prim"),
             kesinti=Sum("tahsil_edilen"),
             odenen=Sum("hakedis"),
             giris=Sum("giris_bedeli"),
         )
         alis = toplam["alis"] or Decimal("0")
+        prim = toplam["prim"] or Decimal("0")
         kesinti = toplam["kesinti"] or Decimal("0")
         odenen = toplam["odenen"] or Decimal("0")
         giris = toplam["giris"] or Decimal("0")
@@ -467,10 +476,11 @@ class BasvuruAdmin(ModelAdmin):
         # giriş bedeliyle satılan işlemde 0 yazıyor, kâr ise 150 çıkıyordu —
         # aynı ekranda iki rakam birbirini tutmuyordu.
         yanit.context_data["kar_ozeti"] = {
-            "ana_hakedis": alis,
+            "alis_bedeli": alis,
+            "prim": prim,
             "tahsilat": kesinti + giris,
             "hakedis": odenen,
-            "kar": kesinti + giris - odenen - alis,
+            "kar": kesinti + giris + prim - odenen - alis,
         }
         # Kimden kaç SIM kart alacağımız: tedarikçiye satılmışsa ondan,
         # değilse operatörden.
@@ -497,10 +507,15 @@ class BasvuruAdmin(ModelAdmin):
             obj.hakedis,
         )
 
-    @display(description="Kâr", ordering="ana_hakedis")
+    @display(description="Kâr", ordering="alis_bedeli")
     def kar_gosterimi(self, obj):
-        """Bayiden kestiğimiz − bayiye ödediğimiz − alış bedeli."""
-        if not (obj.para_islendi or obj.ana_hakedis_islendi or obj.giris_bedeli_islendi):
+        """Bayiden kestiğimiz + aldığımız prim − bayiye ödediğimiz − maliyet."""
+        if not (
+            obj.para_islendi
+            or obj.alis_bedeli_islendi
+            or obj.alinan_prim_islendi
+            or obj.giris_bedeli_islendi
+        ):
             return format_html('<span style="color:#94a3b8">—</span>')
         kar = obj.kar
         renk = "#0F8A4D" if kar > 0 else ("#D42046" if kar < 0 else "#6F7B8F")
@@ -513,7 +528,8 @@ class BasvuruAdmin(ModelAdmin):
         satirlar = [
             ("Bayiden kesilen", obj.tahsil_edilen, "#0F8A4D"),
             ("Giriş bedeli (başvuru girilirken)", obj.giris_bedeli, "#0F8A4D"),
-            (f"Alış bedeli ({obj.ana_hakedis_kaynagi})", -obj.ana_hakedis, "#D42046"),
+            (f"Alınan prim ({obj.karsi_taraf})", obj.alinan_prim, "#0F8A4D"),
+            (f"Maliyet ({obj.karsi_taraf})", -obj.alis_bedeli, "#D42046"),
             ("Bayiye ödenen", -obj.hakedis, "#D42046"),
         ]
         # format_html_join gerekli: "".join(...) düz str döndürür ve dıştaki
@@ -604,7 +620,7 @@ class BasvuruAdmin(ModelAdmin):
                 tedarikci = form.cleaned_data["tedarikci"]
                 atanan = atlanan = 0
                 for basvuru in secilenler:
-                    if basvuru.ana_hakedis_islendi:
+                    if basvuru.alis_bedeli_islendi:
                         atlanan += 1
                         continue
                     basvuru.tedarikci = tedarikci
@@ -637,7 +653,7 @@ class BasvuruAdmin(ModelAdmin):
 
     @admin.action(description="Tedarikçi atamasını kaldır (bedeli işlenmemişse)")
     def tedarikci_atamasini_kaldir(self, request, secilenler):
-        kaldirilan = secilenler.filter(ana_hakedis_islendi=False).update(tedarikci=None)
+        kaldirilan = secilenler.filter(alis_bedeli_islendi=False).update(tedarikci=None)
         atlanan = secilenler.count() - kaldirilan
         self.message_user(
             request,

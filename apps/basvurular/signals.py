@@ -54,7 +54,7 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     from apps.finans.services import (
         basvuru_parasini_geri_al,
         basvuru_parasini_isle,
-        ana_hakedisi_isle,
+        alis_ve_primi_isle,
         giris_bedelini_isle,
     )
 
@@ -67,9 +67,11 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     # ana hakediş tarafını yeniden değerlendiririz.
     if not durum_degisti:
         if tedarikci_atandi and instance.durum.hakedis_tetikler:
-            guncel = ana_hakedisi_isle(instance)
-            instance.ana_hakedis = guncel.ana_hakedis
-            instance.ana_hakedis_islendi = guncel.ana_hakedis_islendi
+            guncel = alis_ve_primi_isle(instance)
+            instance.alis_bedeli = guncel.alis_bedeli
+            instance.alis_bedeli_islendi = guncel.alis_bedeli_islendi
+            instance.alinan_prim = guncel.alinan_prim
+            instance.alinan_prim_islendi = guncel.alinan_prim_islendi
         return
 
     # Değişikliği kimin yaptığı ve varsa notu, kaydeden taraf `_degistiren` /
@@ -125,16 +127,19 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
 
     if durum.hakedis_tetikler and not instance.para_islendi:
         guncel = basvuru_parasini_isle(instance)
-        guncel = ana_hakedisi_isle(guncel)
+        guncel = alis_ve_primi_isle(guncel)
     elif durum.olumsuz_sonuc and (
         instance.para_islendi
-        or instance.ana_hakedis_islendi
+        or instance.alis_bedeli_islendi
+        or instance.alinan_prim_islendi
         or instance.giris_bedeli_islendi
     ):
         # İşlem yürümedi: giriş bedeli dahil her şey iade edilir.
         guncel = basvuru_parasini_geri_al(instance, giris_bedeli_dahil=True)
     elif not durum.hakedis_tetikler and (
-        instance.para_islendi or instance.ana_hakedis_islendi
+        instance.para_islendi
+        or instance.alis_bedeli_islendi
+        or instance.alinan_prim_islendi
     ):
         # Para, tetikleyen durumda *olmaya* bağlıdır. İptal kadar "yanlış
         # başvuruyu onayladım" da buradan çıkar: durum tetikleyici olmaktan
@@ -148,9 +153,11 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     # Servis kilitli bir kopya üzerinde çalıştı; eldeki instance'ı senkronla.
     instance.tahsil_edilen = guncel.tahsil_edilen
     instance.hakedis = guncel.hakedis
-    instance.ana_hakedis = guncel.ana_hakedis
+    instance.alis_bedeli = guncel.alis_bedeli
+    instance.alinan_prim = guncel.alinan_prim
     instance.para_islendi = guncel.para_islendi
-    instance.ana_hakedis_islendi = guncel.ana_hakedis_islendi
+    instance.alis_bedeli_islendi = guncel.alis_bedeli_islendi
+    instance.alinan_prim_islendi = guncel.alinan_prim_islendi
     instance.giris_bedeli = guncel.giris_bedeli
     instance.giris_bedeli_islendi = guncel.giris_bedeli_islendi
     instance.para_surumu = guncel.para_surumu

@@ -217,7 +217,7 @@ class Basvuru(ZamanDamgali):
     hakedis = models.DecimalField(
         "Bayiye Hakediş", max_digits=12, decimal_places=2, default=SIFIR
     )
-    ana_hakedis = models.DecimalField(
+    alis_bedeli = models.DecimalField(
         "Alış Bedeli",
         max_digits=12,
         decimal_places=2,
@@ -241,8 +241,22 @@ class Basvuru(ZamanDamgali):
         "Giriş Bedeli İşlendi", default=False, editable=False
     )
     para_islendi = models.BooleanField("Para İşlendi", default=False, editable=False)
-    ana_hakedis_islendi = models.BooleanField(
-        "Ana Hakediş İşlendi", default=False, editable=False
+    alis_bedeli_islendi = models.BooleanField(
+        "Alış Bedeli İşlendi", default=False, editable=False
+    )
+    alinan_prim = models.DecimalField(
+        "Alınan Prim",
+        max_digits=12,
+        decimal_places=2,
+        default=SIFIR,
+        help_text=(
+            "Bu işlem için operatörün ya da tedarikçinin bize ödediği prim. "
+            "Kâr hesabında gelirdir. Maliyetle aynı anda olabilir: hattı satın "
+            "alıp aktivasyon için ayrıca prim de alabiliriz."
+        ),
+    )
+    alinan_prim_islendi = models.BooleanField(
+        "Alınan Prim İşlendi", default=False, editable=False
     )
     para_surumu = models.PositiveIntegerField(
         "Para İşlem Sürümü",
@@ -332,21 +346,30 @@ class Basvuru(ZamanDamgali):
     def kar(self):
         """Firmanın bu işlemden kazancı.
 
-        Gelir iki kalemdir: bayiden kestiğimiz ücret ve başvuru girilirken
-        alınan giriş bedeli. Gider de iki kalemdir: bayiye ödediğimiz
-        hakediş ve **alış bedeli** — hattı operatörden alırken ya da işlemi
-        üstlenen tedarikçiye ödediğimiz tutar.
+        Gelir üç kalemdir: bayiden kestiğimiz ücret, başvuru girilirken alınan
+        giriş bedeli ve karşı taraftan (operatör ya da tedarikçi) aldığımız
+        prim. Gider iki kalemdir: bayiye ödediğimiz hakediş ve alış bedeli —
+        hattı satın alırken ödediğimiz tutar.
 
-        Alış bedeli bir süre gelir sayılıyordu ("ana hakediş": operatör bize
-        prim öder varsayımı). 1000'e alıp bayiye 1150'ye satan yönetici
-        kârını 2150 görüyordu; iki gelir toplanıyor, maliyet hiç
-        düşülmüyordu.
+        Karşı tarafla para **iki yönde birden** akabilir: hattı 1000'e alıp
+        aktivasyon için 1500 prim alıp bayiye 200 verdiğimizde kâr 300'dür.
+        Tek bir kalem varken yönetici primi maliyet hanesine yazıyor, kâr
+        ters çıkıyordu.
         """
-        return self.tahsil_edilen + self.giris_bedeli - self.hakedis - self.ana_hakedis
+        return (
+            self.tahsil_edilen
+            + self.giris_bedeli
+            + self.alinan_prim
+            - self.hakedis
+            - self.alis_bedeli
+        )
 
     @property
-    def ana_hakedis_kaynagi(self):
-        """Alış bedelini kime ödüyoruz?"""
+    def karsi_taraf(self):
+        """Hattı kimden alıyor, primi kimden alıyoruz?
+
+        İşlemi bir tedarikçi üstlendiyse o, üstlenilmemişse operatör.
+        """
         if self.tedarikci_id:
             profil = getattr(self.tedarikci, "bayi_profili", None)
             return profil.unvan if profil and profil.unvan else self.tedarikci.get_username()

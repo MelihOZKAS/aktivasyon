@@ -126,6 +126,7 @@ class HareketTipi(models.TextChoices):
     TAHSILAT = "tahsilat", "İşlem Ücreti Tahsilatı"
     HAKEDIS = "hakedis", "Hakediş"
     TEDARIKCI_BEDELI = "tedarikci_bedeli", "Tedarikçiye Ödeme"
+    TEDARIKCI_PRIMI = "tedarikci_primi", "Tedarikçiden Alınan Prim"
     BORC_EKLE = "borc_ekle", "Borç Ekleme"
     BORC_TAHSIL = "borc_tahsil", "Borç Tahsilatı"
     IADE = "iade", "Bayiye İade / Ödeme"
@@ -314,19 +315,33 @@ class CuzdanHareketi(models.Model):
 
 
 class KuralYonu(models.TextChoices):
-    """Paranın üç yönü. Etiketler yöneticinin kendi diliyle yazılmıştır:
-    "yön" ve "hakediş" soyut kalıyordu, alış/satış herkesin bildiği şey."""
+    """Paranın dört yönü. Etiketler yöneticinin kendi diliyle yazılmıştır:
+    "yön" ve "hakediş" soyut kalıyordu, alış/satış herkesin bildiği şey.
 
-    ANA_HAKEDIS = "tedarikci_geliri", "Alışım (operatörden ya da tedarikçiden)"
+    Karşı tarafla (operatör ya da tedarikçi) para **iki yönde birden**
+    akabilir: hattı ondan satın alırız *ve* aynı işlem için bize prim öder.
+    Tek bir kalem varken yönetici primi maliyet hanesine yazıyor, kâr ters
+    çıkıyordu. İkisi ayrı yöndür, ikisi birden tanımlanabilir.
+
+    Veritabanı değerleri eski adlarını taşır (`tedarikci_geliri`); kayıtlı
+    kurallar bozulmasın diye değiştirilmedi.
+    """
+
+    ALIS = "tedarikci_geliri", "Maliyetim (operatöre ya da tedarikçiye ödediğim)"
+    PRIM = "ana_prim", "Aldığım prim (operatörden ya da tedarikçiden)"
     HAKEDIS = "hakedis", "Bayiye ödenecek (bayi fiyat listesi)"
     TAHSILAT = "tahsilat", "Bayiden tahsil edilecek"
 
+
+# Karşı tarafla olan hesap: biri gider, biri gelir.
+KARSI_TARAF_YONLERI = (KuralYonu.ALIS, KuralYonu.PRIM)
 
 # Otomatik kural adında kullanılır; uzun etiketler ada sığmıyor.
 KISA_YON = {
     KuralYonu.TAHSILAT: "bayiden tahsilat",
     KuralYonu.HAKEDIS: "bayiye ödenen",
-    KuralYonu.ANA_HAKEDIS: "alışım",
+    KuralYonu.ALIS: "maliyetim",
+    KuralYonu.PRIM: "aldığım prim",
 }
 
 
@@ -530,8 +545,8 @@ class OperatorAlisi(UcretKurali):
 
     class Meta:
         proxy = True
-        verbose_name = "Operatörden Alış"
-        verbose_name_plural = "Operatörden Alışlarım"
+        verbose_name = "Operatör Hesabı"
+        verbose_name_plural = "Operatörle Hesabım"
 
 
 class TedarikciAlisi(UcretKurali):
@@ -543,5 +558,5 @@ class TedarikciAlisi(UcretKurali):
 
     class Meta:
         proxy = True
-        verbose_name = "Tedarikçiden Alış"
-        verbose_name_plural = "Tedarikçiden Alışlarım"
+        verbose_name = "Tedarikçi Hesabı"
+        verbose_name_plural = "Tedarikçiyle Hesabım"

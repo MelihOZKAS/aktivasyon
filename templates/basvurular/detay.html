@@ -42,11 +42,11 @@
     </dl>
     {% endif %}
 
-    {% if tedarikci_gorunumu and basvuru.ana_hakedis_islendi %}
+    {% if tedarikci_gorunumu and basvuru.alis_bedeli_islendi %}
     <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-t border-cizgi pt-4 text-sm">
       <div class="flex items-baseline gap-2">
         <dt class="text-soluk">Bu işlemden kazandığın</dt>
-        <dd class="rakam font-semibold text-olumlu">{{ basvuru.ana_hakedis|para }} ₺</dd>
+        <dd class="rakam font-semibold text-olumlu">{{ basvuru.alis_bedeli|para }} ₺</dd>
       </div>
     </dl>
     {% endif %}

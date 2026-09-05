@@ -267,7 +267,8 @@ class TarifeAdmin(ModelAdmin):
         Yönetici üç kaydı ayrı ayrı açıp kafasında toplamasın. Alış iki
         kaynaktan olabilir (operatör ya da tedarikçi), bayi fiyatı gruba göre
         değişebilir; tablo ikisinin her bileşimi için kârı yazar.
-        Kâr = bayiden tahsilat − bayiye ödenen − alışım. Kampanyaya özel
+        Kâr = bayiden tahsilat + aldığım prim − bayiye ödenen − maliyetim.
+        Kampanyaya özel
         kurallar sayılmaz; onlar kampanyanın kendi hesabı.
         """
         if obj is None or obj.pk is None:
@@ -285,9 +286,12 @@ class TarifeAdmin(ModelAdmin):
             )
 
         alislar = []
+        primler = []
         bayi_fiyatlari = {}
         for kural in kurallar:
-            if kural.yon == KuralYonu.ANA_HAKEDIS:
+            if kural.yon == KuralYonu.PRIM:
+                primler.append(kural.tutar)
+            elif kural.yon == KuralYonu.ALIS:
                 if kural.tedarikci_id:
                     profil = getattr(kural.tedarikci, "bayi_profili", None)
                     kaynak = (
@@ -302,6 +306,11 @@ class TarifeAdmin(ModelAdmin):
                 grup = kural.bayi_grubu.ad if kural.bayi_grubu_id else "Tüm bayiler"
                 bayi_fiyatlari.setdefault(grup, {})[kural.yon] = kural.tutar
 
+        # Aynı kapsamda birden çok prim kuralı olabilir; motor en spesifik
+        # olanı seçer, tabloda en yükseği göstermek yanıltır — toplamı değil,
+        # tek kuralın tutarı geçerlidir, o yüzden ilki alınır.
+        prim = primler[0] if primler else SIFIR
+
         # Yarım girilmiş tabloda da kâr sütunu anlamlı kalsın.
         if not alislar:
             alislar = [("girilmedi", SIFIR)]
@@ -313,11 +322,12 @@ class TarifeAdmin(ModelAdmin):
             for grup, tutarlar in sorted(bayi_fiyatlari.items()):
                 odenen = tutarlar.get(KuralYonu.HAKEDIS, SIFIR)
                 tahsil = tutarlar.get(KuralYonu.TAHSILAT, SIFIR)
-                # Alış giderdir: hattı operatörden ya da tedarikçiden alırken
-                # ödediğimiz tutar. Bir süre gelir sayılıyordu ve kâr şişikti.
-                kar = tahsil - odenen - alis
+                # Alış giderdir, prim gelirdir: karşı tarafla para iki yönde
+                # birden akabilir. Bir süre tek kalem vardı ve o da gelir
+                # sayılıyordu; kâr ters çıkıyordu.
+                kar = tahsil + prim - odenen - alis
                 satirlar.append((
-                    kaynak, alis, grup, odenen, tahsil,
+                    kaynak, alis, prim, grup, odenen, tahsil,
                     "#0F8A4D" if kar >= SIFIR else "#D42046", kar,
                 ))
 
@@ -325,7 +335,8 @@ class TarifeAdmin(ModelAdmin):
         return format_html(
             '<table style="border-collapse:collapse;font-size:.85rem">'
             '<tr style="text-align:left;color:#6F7B8F">'
-            '<th style="{0}">Kimden alıyorum</th><th style="{0}">Alışım</th>'
+            '<th style="{0}">Kimden alıyorum</th><th style="{0}">Maliyetim</th>'
+            '<th style="{0}">Aldığım prim</th>'
             '<th style="{0}">Bayi grubu</th><th style="{0}">Bayiye</th>'
             '<th style="{0}">Bayiden</th><th style="padding:.3rem 0">Kâr</th>'
             "</tr>{1}</table>",
@@ -333,9 +344,10 @@ class TarifeAdmin(ModelAdmin):
             format_html_join(
                 "",
                 '<tr><td style="{0}">{1}</td><td style="{0}">{2} ₺</td>'
-                '<td style="{0}">{3}</td><td style="{0}">{4} ₺</td>'
-                '<td style="{0}">{5} ₺</td>'
-                '<td style="padding:.3rem 0"><b style="color:{6}">{7} ₺</b></td></tr>',
+                '<td style="{0}">{3} ₺</td>'
+                '<td style="{0}">{4}</td><td style="{0}">{5} ₺</td>'
+                '<td style="{0}">{6} ₺</td>'
+                '<td style="padding:.3rem 0"><b style="color:{7}">{8} ₺</b></td></tr>',
                 ((hucre, *satir) for satir in satirlar),
             ),
         )

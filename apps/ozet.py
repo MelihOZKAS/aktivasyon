@@ -92,25 +92,33 @@ def _tedarikci_borclari():
     return {"satirlar": satirlar, "toplam": sum(s["borc"] for s in satirlar)}
 
 
-def _ana_hakedis_ozeti():
-    """İşlenen alış bedeli, kime ödendiğine göre.
+def _alis_ozeti():
+    """Karşı tarafla olan hesap: ödediğimiz maliyet ve aldığımız prim.
 
-    Operatörün cüzdanı olmadığı için oraya ödenen tutar yalnızca başvuruya
-    işlenir; sistemde bir borç kaydı doğurmaz. Tedarikçiye ödenen ise onun
-    cüzdanına yazılır, karşılığı yukarıdaki tablodadır.
+    Operatörün cüzdanı olmadığı için oraya ödenen ya da oradan gelen tutar
+    yalnızca başvuruya işlenir; sistemde bir borç kaydı doğurmaz.
+    Tedarikçiye ödenen maliyet onun cüzdanına yazılır (karşılığı yukarıdaki
+    tablodadır), ondan alınan prim ise cüzdanından düşer.
     """
     from apps.basvurular.models import Basvuru
 
-    islenen = Basvuru.objects.filter(ana_hakedis_islendi=True)
-
-    def toplam(sorgu):
+    def toplam(sorgu, alan):
         # Toplam kuruşsuz dönebiliyor (400 gibi); para her yerde iki hanesiyle
         # görünmeli, yoksa listede rakamlar hizasız kalıyor.
-        return (sorgu.aggregate(t=Sum("ana_hakedis"))["t"] or SIFIR).quantize(SIFIR)
+        return (sorgu.aggregate(t=Sum(alan))["t"] or SIFIR).quantize(SIFIR)
+
+    alis = Basvuru.objects.filter(alis_bedeli_islendi=True)
+    prim = Basvuru.objects.filter(alinan_prim_islendi=True)
 
     return {
-        "operatorden": toplam(islenen.filter(tedarikci__isnull=True)),
-        "tedarikciden": toplam(islenen.filter(tedarikci__isnull=False)),
+        "operatorden": toplam(alis.filter(tedarikci__isnull=True), "alis_bedeli"),
+        "tedarikciden": toplam(alis.filter(tedarikci__isnull=False), "alis_bedeli"),
+        "prim_operatorden": toplam(
+            prim.filter(tedarikci__isnull=True), "alinan_prim"
+        ),
+        "prim_tedarikciden": toplam(
+            prim.filter(tedarikci__isnull=False), "alinan_prim"
+        ),
     }
 
 
@@ -128,7 +136,7 @@ def stok_ve_alacak(request):
             "bayideki_kartlar": _bayideki_kartlar(),
             "sim_alacaklari": sim_alacaklari(),
             "tedarikci_borclari": _tedarikci_borclari(),
-            "ana_hakedis": _ana_hakedis_ozeti(),
+            "alis_bedeli": _alis_ozeti(),
             "basvuru_listesi": reverse("admin:basvurular_basvuru_changelist"),
         },
     )

@@ -170,7 +170,7 @@ class KurulumKomutu(TestCase):
         # 5-7: tarifeler, gruplar, üç yönde de kural
         self.assertTrue(Tarife.objects.exists())
         self.assertTrue(BayiGrubu.objects.exists())
-        for yon in (KuralYonu.TAHSILAT, KuralYonu.HAKEDIS, KuralYonu.ANA_HAKEDIS):
+        for yon in (KuralYonu.TAHSILAT, KuralYonu.HAKEDIS, KuralYonu.ALIS):
             self.assertTrue(
                 UcretKurali.objects.filter(yon=yon).exists(), f"{yon} kuralı yok"
             )
@@ -215,7 +215,7 @@ class KurulumKomutu(TestCase):
 
         self.assertEqual(basvuru.tahsil_edilen, Decimal("1150.00"))
         self.assertEqual(basvuru.hakedis, Decimal("50.00"))
-        self.assertEqual(basvuru.ana_hakedis, Decimal("1000.00"))
+        self.assertEqual(basvuru.alis_bedeli, Decimal("1000.00"))
         # Kâr = bayiden tahsilat − bayiye hakediş − alış bedeli
         self.assertEqual(basvuru.kar, Decimal("100.00"))
         self.assertEqual(bayi.cuzdan.bakiye, onceki_bakiye - 1150 + 50)
@@ -1113,7 +1113,7 @@ class StokVeAlacakOzeti(TestCase):
         Basvuru.objects.create(
             bayi=self.bayi, kategori=self.kategori, operator=self.operator,
             isim="Ayşe", soyisim="Demir", kimlik_no="1", irtibat="5551112233",
-            durum=self.aktif, ana_hakedis=Decimal("400.00"), ana_hakedis_islendi=True,
+            durum=self.aktif, alis_bedeli=Decimal("400.00"), alis_bedeli_islendi=True,
         )
 
         self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
@@ -1160,10 +1160,12 @@ class StokVeAlacakOzeti(TestCase):
 
         self.assertNotIn("999,00", icerik)
 
-    def test_alis_bedeli_kime_odendigine_gore_ayrilir(self):
+    def test_karsi_taraf_hesabi_maliyet_ve_primi_ayirir(self):
         icerik = self._sayfa()
 
-        self.assertIn("İşlenen alış bedeli", icerik)
+        self.assertIn("Karşı tarafla hesap", icerik)
+        self.assertIn("Operatöre maliyet", icerik)
+        self.assertIn("Operatörden prim", icerik)
         self.assertIn("400,00", icerik)
 
     def test_personel_olmayan_giremez(self):

@@ -19,6 +19,7 @@ from unfold.widgets import (
 )
 
 from apps.finans.models import (
+    KARSI_TARAF_YONLERI,
     Banka,
     BayiGrubu,
     Cuzdan,
@@ -661,7 +662,8 @@ class UcretKuraliAdmin(ModelAdmin):
         # Kuralın kendi sayfası kendi tutarını gösterir.
         tutarlar[obj.yon] = obj.tutar
 
-        alis = tutarlar.get(KuralYonu.ANA_HAKEDIS)
+        alis = tutarlar.get(KuralYonu.ALIS)
+        prim = tutarlar.get(KuralYonu.PRIM)
         odenen = tutarlar.get(KuralYonu.HAKEDIS)
         tahsil = tutarlar.get(KuralYonu.TAHSILAT)
 
@@ -671,27 +673,31 @@ class UcretKuraliAdmin(ModelAdmin):
             return format_html("<b>{} ₺</b>", deger)
 
         satirlar = [
-            ("Alışım (operatör ya da tedarikçiden)", hucre(alis)),
+            ("Maliyetim (operatöre ya da tedarikçiye)", hucre(alis)),
+            ("Aldığım prim (operatörden ya da tedarikçiden)", hucre(prim)),
             ("Bayiden tahsilat", hucre(tahsil)),
             ("Bayiye ödediğim", hucre(odenen)),
         ]
 
-        # Gelir bayiden tahsil ettiğimizdir, gider alıştır; biri eksikken
-        # rakam yazmak yanıltır. Alış girilmeden hesaplayınca kâr şişik,
-        # tahsilat girilmeden hesaplayınca eksi görünüyordu — ikisi de
-        # "kural yarım kalmış" demek.
-        eksikler = [
-            ad
-            for ad, deger in (("bayiden tahsilat", tahsil), ("alış", alis))
-            if deger is None
-        ]
-        if eksikler:
+        # Gelir bayiden tahsil ettiğimiz ve aldığımız prim, gider maliyet ve
+        # bayiye ödediğimiz. Hiç gelir ya da hiç gider tanımlı değilken rakam
+        # yazmak yanıltır: kural yarım kalmış demektir.
+        gelir_var = tahsil is not None or prim is not None
+        gider_var = alis is not None or odenen is not None
+        if not (gelir_var and gider_var):
+            eksik = "Gelir" if not gelir_var else "Gider"
             kar_satiri = format_html(
-                '<span style="color:#B45309">{} girilmeden kâr hesaplanamaz.</span>',
-                " ve ".join(eksikler).capitalize(),
+                '<span style="color:#B45309">{} kalemi girilmeden kâr '
+                "hesaplanamaz.</span>",
+                eksik,
             )
         else:
-            kar = tahsil - (odenen or SIFIR) - alis
+            kar = (
+                (tahsil or SIFIR)
+                + (prim or SIFIR)
+                - (odenen or SIFIR)
+                - (alis or SIFIR)
+            )
             kar_satiri = format_html(
                 '<b style="color:{}">{} ₺</b>',
                 "#0F8A4D" if kar >= SIFIR else "#D42046",
@@ -1100,10 +1106,12 @@ class AlisAdmin(ModelAdmin):
     yeri ayrıldı.
     """
 
-    yon = KuralYonu.ANA_HAKEDIS
     tedarikciden_mi = False
 
-    list_display = ("kapsam_yazisi", "kaynak", "tutar_gosterimi", "tetikleyici_durum", "aktif")
+    list_display = (
+        "kapsam_yazisi", "kaynak", "yon_gosterimi", "tutar_gosterimi",
+        "tetikleyici_durum", "aktif",
+    )
     list_filter = ("aktif", "kategori", "operator", "tetikleyici_durum")
     search_fields = ("ad", "tarife__ad", "kategori__ad")
     autocomplete_fields = ("kategori", "operator", "tarife", "tetikleyici_durum")
@@ -1112,17 +1120,42 @@ class AlisAdmin(ModelAdmin):
         return (
             super()
             .get_queryset(request)
-            .filter(yon=self.yon, tedarikci__isnull=not self.tedarikciden_mi)
+            .filter(
+                yon__in=KARSI_TARAF_YONLERI,
+                tedarikci__isnull=not self.tedarikciden_mi,
+            )
             .select_related("kategori", "operator", "tarife", "tedarikci", "tetikleyici_durum")
         )
 
     def get_changeform_initial_data(self, request):
-        # Yön bu ekranda sabit; yönetici her kayıtta yeniden seçmesin.
-        return {"yon": self.yon}
+        # En sık girilen kalem maliyettir; prim isteyen kutudan değiştirir.
+        return {"yon": KuralYonu.ALIS}
 
-    def save_model(self, request, obj, form, change):
-        obj.yon = self.yon
-        super().save_model(request, obj, form, change)
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        """Bu ekranda yalnızca karşı tarafla olan iki yön seçilebilir.
+
+        Bayi tarafındaki yönler buraya karışmamalı; ama maliyet ile prim
+        arasındaki seçim yöneticinin kararıdır — aynı işlemde ikisi birden
+        olabilir (hattı 1000'e alıp 1500 prim almak gibi). Yön sabit
+        olduğunda yönetici primini maliyet hanesine yazıyor, kâr ters
+        çıkıyordu.
+        """
+        if db_field.name == "yon":
+            kwargs["choices"] = [
+                (deger, etiket)
+                for deger, etiket in KuralYonu.choices
+                if deger in KARSI_TARAF_YONLERI
+            ]
+        return super().formfield_for_choice_field(db_field, request, **kwargs)
+
+    @display(description="Yön", ordering="yon")
+    def yon_gosterimi(self, obj):
+        gelir = obj.yon == KuralYonu.PRIM
+        return format_html(
+            '<span style="color:{};font-weight:600">{}</span>',
+            "#0F8A4D" if gelir else "#D42046",
+            "Aldığım prim" if gelir else "Maliyetim",
+        )
 
     @display(description="Neyin alışı")
     def kapsam_yazisi(self, obj):
@@ -1156,13 +1189,15 @@ class OperatorAlisiAdmin(AlisAdmin):
             },
         ),
         (
-            "Alış fiyatım",
+            "Tutar",
             {
-                "fields": ("tutar", "tetikleyici_durum"),
+                "fields": ("yon", "tutar", "tetikleyici_durum"),
                 "description": (
-                    "Bu hattı almak için operatöre ödediğiniz tutar. Operatörün "
-                    "cüzdanı olmadığı için hareket yazılmaz; tutar başvuruya "
-                    "işlenir ve kârdan düşer."
+                    "Operatörle para iki yönde akabilir: hattı ondan satın "
+                    "alırsınız (<b>maliyet</b>) ve aynı işlem için size prim "
+                    "ödeyebilir (<b>aldığım prim</b>). İkisi de tanımlanabilir; "
+                    "her biri ayrı bir kayıttır. Operatörün cüzdanı olmadığı "
+                    "için hareket yazılmaz, tutarlar yalnızca kâra girer."
                 ),
             },
         ),
@@ -1202,7 +1237,18 @@ class TedarikciAlisiAdmin(AlisAdmin):
                 "description": "Boş bırakılan alan “hepsi” demektir.",
             },
         ),
-        ("Alış fiyatım", {"fields": ("tutar", "tetikleyici_durum")}),
+        (
+            "Tutar",
+            {
+                "fields": ("yon", "tutar", "tetikleyici_durum"),
+                "description": (
+                    "Tedarikçiyle para iki yönde akabilir: aktivasyonu ondan "
+                    "satın alırsınız (<b>maliyet</b>, cüzdanına alacak yazılır) "
+                    "ya da o size prim öder (<b>aldığım prim</b>, hesabından "
+                    "düşer). İkisi de tanımlanabilir; her biri ayrı kayıttır."
+                ),
+            },
+        ),
         ("Geçerlilik", {"fields": ("ad", "baslangic_tarihi", "bitis_tarihi", "oncelik", "aktif")}),
     )
 

@@ -85,31 +85,34 @@ TARIFELER = [
 KURALLAR = [
     ("MNT / Numara Taşıma", "MNT hat ücreti", KuralYonu.TAHSILAT, "1000.00"),
     ("MNT / Numara Taşıma", "MNT hakedişi", KuralYonu.HAKEDIS, "40.00"),
-    ("MNT / Numara Taşıma", "MNT alışım", KuralYonu.ANA_HAKEDIS, "900.00"),
+    ("MNT / Numara Taşıma", "MNT maliyetim", KuralYonu.ALIS, "900.00"),
 
     ("Kontörlü Yeni Hat", "Kontörlü hat ücreti", KuralYonu.TAHSILAT, "1150.00"),
     ("Kontörlü Yeni Hat", "Kontörlü hat hakedişi", KuralYonu.HAKEDIS, "50.00"),
-    ("Kontörlü Yeni Hat", "Kontörlü hat alışım", KuralYonu.ANA_HAKEDIS, "1000.00"),
+    ("Kontörlü Yeni Hat", "Kontörlü hat maliyetim", KuralYonu.ALIS, "1000.00"),
 
+    # Faturalı hatta iki yön birden: hattı 850'ye alıyor, aktivasyon için
+    # 200 prim alıyoruz. Kâr = 1000 + 200 − 60 − 850 = 290.
     ("Faturalı Yeni Hat", "Faturalı hat ücreti", KuralYonu.TAHSILAT, "1000.00"),
     ("Faturalı Yeni Hat", "Faturalı hat hakedişi", KuralYonu.HAKEDIS, "60.00"),
-    ("Faturalı Yeni Hat", "Faturalı hat alışım", KuralYonu.ANA_HAKEDIS, "850.00"),
+    ("Faturalı Yeni Hat", "Faturalı hat maliyetim", KuralYonu.ALIS, "850.00"),
+    ("Faturalı Yeni Hat", "Faturalı hat primim", KuralYonu.PRIM, "200.00"),
 
     ("Şebeke İçi Geçiş", "Şebeke içi geçiş ücreti", KuralYonu.TAHSILAT, "260.00"),
     ("Şebeke İçi Geçiş", "Şebeke içi geçiş hakedişi", KuralYonu.HAKEDIS, "20.00"),
-    ("Şebeke İçi Geçiş", "Şebeke içi geçiş alışım", KuralYonu.ANA_HAKEDIS, "200.00"),
+    ("Şebeke İçi Geçiş", "Şebeke içi geçiş maliyetim", KuralYonu.ALIS, "200.00"),
 
     ("ADSL / İnternet", "ADSL ücreti", KuralYonu.TAHSILAT, "850.00"),
     ("ADSL / İnternet", "ADSL hakedişi", KuralYonu.HAKEDIS, "70.00"),
-    ("ADSL / İnternet", "ADSL alışım", KuralYonu.ANA_HAKEDIS, "700.00"),
+    ("ADSL / İnternet", "ADSL maliyetim", KuralYonu.ALIS, "700.00"),
 
     ("Pasaportlu Numara Taşıma", "Pasaportlu taşıma ücreti", KuralYonu.TAHSILAT, "1100.00"),
     ("Pasaportlu Numara Taşıma", "Pasaportlu taşıma hakedişi", KuralYonu.HAKEDIS, "50.00"),
-    ("Pasaportlu Numara Taşıma", "Pasaportlu taşıma alışım", KuralYonu.ANA_HAKEDIS, "950.00"),
+    ("Pasaportlu Numara Taşıma", "Pasaportlu taşıma maliyetim", KuralYonu.ALIS, "950.00"),
 
     ("Pasaportlu Yeni Hat", "Pasaportlu hat ücreti", KuralYonu.TAHSILAT, "1150.00"),
     ("Pasaportlu Yeni Hat", "Pasaportlu hat hakedişi", KuralYonu.HAKEDIS, "50.00"),
-    ("Pasaportlu Yeni Hat", "Pasaportlu hat alışım", KuralYonu.ANA_HAKEDIS, "1000.00"),
+    ("Pasaportlu Yeni Hat", "Pasaportlu hat maliyetim", KuralYonu.ALIS, "1000.00"),
 ]
 
 # Daha dar kapsamlı kural, genel kuralı ezer. İki örnek: bir bayi kademesi
@@ -126,8 +129,8 @@ GRUP_KURALLARI = [
 # yaptığında işi ondan satın alıyoruz; kendi payını da eklediği için alış
 # operatörden almaktan biraz pahalıdır.
 TEDARIKCI_KURALLARI = [
-    ("MNT / Numara Taşıma", "tedarikci.ege", "Ege Tedarik · MNT alışım", "920.00"),
-    ("Faturalı Yeni Hat", "tedarikci.ege", "Ege Tedarik · faturalı hat alışım", "870.00"),
+    ("MNT / Numara Taşıma", "tedarikci.ege", "Ege Tedarik · MNT maliyetim", "920.00"),
+    ("Faturalı Yeni Hat", "tedarikci.ege", "Ege Tedarik · faturalı hat maliyetim", "870.00"),
 ]
 
 BANKALAR = [
@@ -312,14 +315,14 @@ class Command(BaseCommand):
             _, yeni = UcretKurali.objects.get_or_create(
                 ad=ad,
                 defaults={
-                    "yon": KuralYonu.ANA_HAKEDIS,
+                    "yon": KuralYonu.ALIS,
                     "tutar": Decimal(tutar),
                     "kategori": kategori,
                     "tedarikci": tedarikci,
                     "tetikleyici_durum": aktif_durum,
                 },
             )
-            self._kural_satiri(ad, KuralYonu.ANA_HAKEDIS, tutar, yeni)
+            self._kural_satiri(ad, KuralYonu.ALIS, tutar, yeni)
 
     def _kural_satiri(self, ad, yon, tutar, yeni):
         etiket = dict(KuralYonu.choices)[yon].split(" (")[0]

@@ -8,10 +8,12 @@ hakediş sistemi. Üç taraf var:
 | Taraf | Ne yapar | Para yönü |
 |---|---|---|
 | **Bayi** | Müşteriyi getirir, başvuruyu girer | Hat ücretini bize öder, hakediş alır |
-| **Tedarikçi** | Üstlendiği işlemin aktivasyonunu yapar | Alış bedelini ona **biz öderiz** |
-| **Operatör** | Tedarikçi yoksa aktivasyon doğrudan onda yapılır | Alış bedelini ona **biz öderiz** |
+| **Tedarikçi** | Üstlendiği işlemin aktivasyonunu yapar | Maliyeti ona biz öderiz; prim veriyorsa ondan alırız |
+| **Operatör** | Tedarikçi yoksa aktivasyon doğrudan onda yapılır | Maliyeti ona biz öderiz; prim veriyorsa ondan alırız |
 
-Yani hattı alıp bayiye daha yüksek fiyattan satıyoruz; aradaki fark kârdır.
+Karşı tarafla para **iki yönde birden** akabilir: hattı ondan satın alırız
+*ve* aynı işlem için bize prim ödeyebilir. Hattı 1000'e alıp 1500 prim alıp
+bayiye 200 verdiğimizde kâr 300'dür.
 
 Bir firma hem bayi hem tedarikçi olabilir.
 
@@ -380,24 +382,26 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   olmayabilir; para işlenirken `_cuzdani_getir` sıfır bakiyeli cüzdan açar.
 - **Aynı kapsamda iki ücret kuralı varsa son eklenen kazanır.** Sonuç
   rastgele olmamalı; sıralama `(özgüllük, öncelik, pk)` üçlüsüne dayanır.
-- **Kâr = bayiden tahsilat + giriş bedeli − bayiye hakediş − alış bedeli.**
-  `Basvuru.kar` bunu hesaplar. **Alış bedeli giderdir:** hattı kimden
-  alıyorsak ona ödediğimiz tutar. İşlemi bir tedarikçi üstlendiyse bedel
-  **onun cüzdanına alacak olarak yazılır** (bayiye giren para gibi önce
-  borcunu kapatır, kalanı bakiyeye geçer); üstlenilmemişse doğrudan
-  operatöre ödenir — operatörün cüzdanı yoktur, hareket yazılmaz, tutar
-  yalnızca başvuruya işlenir. Tutar `UcretKurali`'nda `yon=ANA_HAKEDIS` ile
-  tanımlanır ve `operator` ya da `tedarikci` kapsamıyla daraltılır.
-  Tedarikçi sonradan da atanabildiği için kendi tekillik anahtarıyla ayrı
-  işlenir (`ana_hakedisi_isle`).
-  **Yön bir süre tersti.** Alan "ana hakediş" adıyla, "operatör bize prim
-  öder" varsayımıyla yazılmıştı: tutar gelir sayılıyor ve tedarikçinin
-  hesabından **düşülüyordu**. Ekranların dili ise alış diliydi ("Operatörden
-  Alışlarım", "Alış fiyatım"). 1000'e alıp bayiye 1150'ye satan yönetici
-  kârını 2150 görüyordu — iki gelir toplanıyor, maliyet hiç düşülmüyordu.
-  Model kodda hâlâ `ana_hakedis` adını taşır (kolon adı değişmedi); kullanıcı
-  gören her yerde **alış bedeli** denir. Bu alana dokunan yeni bir ekran
-  yazarken gider olduğunu unutma.
+- **Kâr = bayiden tahsilat + giriş bedeli + alınan prim − bayiye hakediş −
+  alış bedeli.** `Basvuru.kar` bunu hesaplar. **Karşı tarafla (operatör ya da
+  tedarikçi) para iki yönde birden akar** ve her yön ayrı bir kuraldır:
+  `KuralYonu.ALIS` (maliyetim — gider) ve `KuralYonu.PRIM` (aldığım prim —
+  gelir). İkisi aynı işlemde birlikte tanımlanabilir; `alis_ve_primi_isle`
+  ikisini de kendi bayrağı ve kendi defter anahtarıyla işler, biri boşken
+  diğeri çalışır.
+  · **Tedarikçi varsa:** maliyet onun **cüzdanına alacak** yazılır (cüzdana
+  giren para gibi önce borcunu kapatır), prim ise **hesabından düşer**
+  (bakiyesi yetmezse borca yazılır).
+  · **Tedarikçi yoksa:** operatörün cüzdanı olmadığı için hareket yazılmaz;
+  iki tutar da yalnızca başvuruya işlenir ve kâra girer.
+  Tedarikçi sonradan da atanabildiği için bayi tarafındaki paradan ayrı işlenir.
+  **Bu alan iki kez yanlış kuruldu.** Önce "ana hakediş" adıyla tek kalemdi ve
+  gelir sayılıyordu: 1000'e alıp 1150'ye satan yönetici kârını 2150 görüyordu.
+  Yön düzeltilince bu sefer prim alan yönetici primini maliyet hanesine yazmak
+  zorunda kaldı, kâr eksiye düştü. Ders: **karşı tarafla olan hesap tek yönlü
+  değildir.** Alanlar `Basvuru.alis_bedeli` / `alinan_prim`; veritabanındaki
+  kural değeri hâlâ eski adını taşır (`tedarikci_geliri`), kayıtlı kurallar
+  bozulmasın diye değiştirilmedi.
 - **Özet rakamlar defter satırlarından değil başvurudan okunur.** Panelin
   "Bu ay hakediş" değeri bir süre yalnızca `HAKEDIS` tipli cüzdan
   hareketlerini topluyordu; iki yerde yanlıştı. İptalin ters kaydı (`IPTAL`)
@@ -455,6 +459,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   "hakediş" soyut kalıyor, "Alışım (operatörden ya da tedarikçiden)" herkesin
   bildiği şey. `UcretKurali.ad` boş bırakılabilir, kapsamdan üretilir; iki
   rakam girmeye gelen yönetici bir de ad uydurmasın.
+  **Operatörle Hesabım / Tedarikçiyle Hesabım** ekranları iki yönü birden
+  alır: yön kutusu yalnızca maliyet ve prim seçeneklerini gösterir
+  (`formfield_for_choice_field`), bayi tarafındaki yönler oraya karışmaz.
+  Yön bu ekranlarda bir süre sabitti; prim alan yönetici primini maliyet
+  hanesine yazmak zorunda kalıyordu.
   Kural listesinde **bayi grubu kendi sütunundadır**: aynı fiyatın kademe
   kademe girildiği bir tabloda aranan ilk şey odur, kapsam özetinin içinde
   bir etiket olarak okunması zordu. Kâr satırı **gelir ya da gider kalemi

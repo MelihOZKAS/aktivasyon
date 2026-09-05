@@ -399,7 +399,7 @@ class TedarikciTestleri(TestCase):
             kategori=self.kategori, tetikleyici_durum=self.aktif,
         )
         UcretKurali.objects.create(
-            ad="Tedarikçi X alışı", yon=KuralYonu.ANA_HAKEDIS,
+            ad="Tedarikçi X alışı", yon=KuralYonu.ALIS,
             tutar=TL("140.00"), kategori=self.kategori,
             tedarikci=self.tedarikci, tetikleyici_durum=self.aktif,
         )
@@ -419,7 +419,7 @@ class TedarikciTestleri(TestCase):
         self.assertEqual(self.cuzdan.bakiye, TL("845.00"))
         # Tedarikçi: 5000 + 140 (bizim ona borcumuz)
         self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("5140.00"))
-        self.assertEqual(basvuru.ana_hakedis, TL("140.00"))
+        self.assertEqual(basvuru.alis_bedeli, TL("140.00"))
         self.assertEqual(basvuru.kar, TL("15.00"))
 
     def test_tedarikciye_odenen_once_borcunu_kapatir(self):
@@ -445,7 +445,7 @@ class TedarikciTestleri(TestCase):
         basvuru.save()
 
         basvuru.refresh_from_db()
-        self.assertEqual(basvuru.ana_hakedis, TL("0.00"))
+        self.assertEqual(basvuru.alis_bedeli, TL("0.00"))
         # Henüz alış yok: 250 − 95
         self.assertEqual(basvuru.kar, TL("155.00"))
 
@@ -454,7 +454,7 @@ class TedarikciTestleri(TestCase):
 
         basvuru.refresh_from_db()
         self.tedarikci_cuzdan.refresh_from_db()
-        self.assertEqual(basvuru.ana_hakedis, TL("140.00"))
+        self.assertEqual(basvuru.alis_bedeli, TL("140.00"))
         self.assertEqual(basvuru.kar, TL("15.00"))
         self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("5140.00"))
 
@@ -463,7 +463,7 @@ class TedarikciTestleri(TestCase):
         Cuzdan.objects.create(bayi=digeri, bakiye=TL("5000.00"))
         self._kurallari_kur()
         UcretKurali.objects.create(
-            ad="Tedarikçi Y fiyatı", yon=KuralYonu.ANA_HAKEDIS,
+            ad="Tedarikçi Y fiyatı", yon=KuralYonu.ALIS,
             tutar=TL("120.00"), kategori=self.kategori,
             tedarikci=digeri, tetikleyici_durum=self.aktif,
         )
@@ -477,8 +477,8 @@ class TedarikciTestleri(TestCase):
 
         b1.refresh_from_db()
         b2.refresh_from_db()
-        self.assertEqual(b1.ana_hakedis, TL("140.00"))
-        self.assertEqual(b2.ana_hakedis, TL("120.00"))
+        self.assertEqual(b1.alis_bedeli, TL("140.00"))
+        self.assertEqual(b2.alis_bedeli, TL("120.00"))
 
     def test_tedarikcisiz_basvuruda_tedarikciye_ozel_kural_uygulanmaz(self):
         self._kurallari_kur()
@@ -487,8 +487,8 @@ class TedarikciTestleri(TestCase):
         basvuru.save()
 
         basvuru.refresh_from_db()
-        self.assertEqual(basvuru.ana_hakedis, TL("0.00"))
-        self.assertFalse(basvuru.ana_hakedis_islendi)
+        self.assertEqual(basvuru.alis_bedeli, TL("0.00"))
+        self.assertFalse(basvuru.alis_bedeli_islendi)
 
     def test_operatore_odenen_alis_kaydedilir(self):
         """Tedarikçi yoksa hattı operatörden alırız; cüzdan hareketi olmaz
@@ -502,7 +502,7 @@ class TedarikciTestleri(TestCase):
             kategori=self.kategori, tetikleyici_durum=self.aktif,
         )
         UcretKurali.objects.create(
-            ad="Turkcell alışım", yon=KuralYonu.ANA_HAKEDIS,
+            ad="Turkcell alışım", yon=KuralYonu.ALIS,
             tutar=TL("160.00"), kategori=self.kategori, operator=self.operator,
             tetikleyici_durum=self.aktif,
         )
@@ -512,10 +512,10 @@ class TedarikciTestleri(TestCase):
         basvuru.save()
 
         basvuru.refresh_from_db()
-        self.assertEqual(basvuru.ana_hakedis, TL("160.00"))
+        self.assertEqual(basvuru.alis_bedeli, TL("160.00"))
         # 300 − 95 − 160
         self.assertEqual(basvuru.kar, TL("45.00"))
-        self.assertEqual(basvuru.ana_hakedis_kaynagi, self.operator.ad)
+        self.assertEqual(basvuru.karsi_taraf, self.operator.ad)
         # Operatörün cüzdanı yok: hareket yazılmamalı.
         self.assertFalse(
             CuzdanHareketi.objects.filter(
@@ -546,8 +546,8 @@ class TedarikciTestleri(TestCase):
         basvuru.save()
         basvuru.save()
 
-        from apps.finans.services import ana_hakedisi_isle
-        ana_hakedisi_isle(basvuru)
+        from apps.finans.services import alis_ve_primi_isle
+        alis_ve_primi_isle(basvuru)
 
         self.tedarikci_cuzdan.refresh_from_db()
         self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("5140.00"))
@@ -636,7 +636,7 @@ class KenarDurumTestleri(TestCase):
             kategori=self.kategori, tetikleyici_durum=self.aktif,
         )
         UcretKurali.objects.create(
-            ad="Tedarikçi alışı", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("130.00"),
+            ad="Tedarikçi alışı", yon=KuralYonu.ALIS, tutar=TL("130.00"),
             kategori=self.kategori, tedarikci=ikili, tetikleyici_durum=self.aktif,
         )
 
@@ -697,7 +697,7 @@ class TarifeParaEkraniTestleri(TestCase):
             tarife=self.tarife, tetikleyici_durum=self.aktif,
         )
         UcretKurali.objects.create(
-            yon=KuralYonu.ANA_HAKEDIS, tutar=TL("150.00"),
+            yon=KuralYonu.ALIS, tutar=TL("150.00"),
             tarife=self.tarife, tetikleyici_durum=self.aktif,
         )
         yonetici = User.objects.create_superuser("yon", "y@x.com", "parola12345")
@@ -731,11 +731,11 @@ class TarifeParaEkraniTestleri(TestCase):
             tarife=self.tarife, tetikleyici_durum=self.aktif,
         )
         UcretKurali.objects.create(
-            yon=KuralYonu.ANA_HAKEDIS, tutar=TL("150.00"),
+            yon=KuralYonu.ALIS, tutar=TL("150.00"),
             tarife=self.tarife, tetikleyici_durum=self.aktif,
         )
         UcretKurali.objects.create(
-            yon=KuralYonu.ANA_HAKEDIS, tutar=TL("140.00"), tedarikci=tedarikci,
+            yon=KuralYonu.ALIS, tutar=TL("140.00"), tedarikci=tedarikci,
             tarife=self.tarife, tetikleyici_durum=self.aktif,
         )
         yonetici = User.objects.create_superuser("yon4", "y4@x.com", "parola12345")
@@ -1619,7 +1619,7 @@ class KuralSayfasindaKarTablosu(TestCase):
     def test_alis_girilince_kar_hesaplanir(self):
         """Alış giderdir; kâr bayiden tahsil ettiğimizden düşülerek çıkar."""
         UcretKurali.objects.create(
-            ad="Operatörden alış", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("400.00"),
+            ad="Operatörden alış", yon=KuralYonu.ALIS, tutar=TL("400.00"),
             tetikleyici_durum=self.aktif, kategori=self.kategori,
             operator=self.operator, tarife=self.tarife,
         )
@@ -1638,7 +1638,7 @@ class KuralSayfasindaKarTablosu(TestCase):
 
     def test_tahsilat_da_kara_girer(self):
         UcretKurali.objects.create(
-            ad="Operatörden alış", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("400.00"),
+            ad="Operatörden alış", yon=KuralYonu.ALIS, tutar=TL("400.00"),
             tetikleyici_durum=self.aktif, kategori=self.kategori,
             operator=self.operator, tarife=self.tarife,
         )
@@ -1671,7 +1671,7 @@ class KuralSayfasindaKarTablosu(TestCase):
         baska = Tarife.objects.create(operator=vodafone, ad="Red")
         baska.kategoriler.add(self.kategori)
         UcretKurali.objects.create(
-            ad="Başka tarifenin alışı", yon=KuralYonu.ANA_HAKEDIS,
+            ad="Başka tarifenin alışı", yon=KuralYonu.ALIS,
             tutar=TL("9999.00"), tetikleyici_durum=self.aktif,
             kategori=self.kategori, operator=vodafone, tarife=baska,
         )
@@ -1707,7 +1707,7 @@ class AlisEkranlari(TestCase):
 
     def _kural(self, **degisiklikler):
         alanlar = {
-            "ad": "Alış", "yon": KuralYonu.ANA_HAKEDIS, "tutar": TL("400.00"),
+            "ad": "Alış", "yon": KuralYonu.ALIS, "tutar": TL("400.00"),
             "tetikleyici_durum": self.aktif, "kategori": self.kategori,
         }
         alanlar.update(degisiklikler)
@@ -1738,14 +1738,13 @@ class AlisEkranlari(TestCase):
         self.assertIn("900.00", icerik)
         self.assertNotIn("400.00", icerik)
 
-    def test_ekrandan_girilen_kayit_ana_hakedis_olur(self):
-        """Yön kutusu ekranda yok; kayıt yine de doğru yönle açılır."""
+    def _ekrandan_ekle(self, ad="Turkcell alışı", yon=None):
         from django.urls import reverse
 
-        self.client.post(
+        return self.client.post(
             reverse("admin:finans_operatoralisi_add"),
             {
-                "ad": "Turkcell alışı", "tutar": "400.00",
+                "ad": ad, "yon": yon or KuralYonu.ALIS, "tutar": "400.00",
                 "tetikleyici_durum": self.aktif.pk, "kategori": self.kategori.pk,
                 "operator": self.operator.pk, "tarife": "",
                 "baslangic_tarihi": "", "bitis_tarihi": "",
@@ -1754,9 +1753,33 @@ class AlisEkranlari(TestCase):
             follow=True,
         )
 
+    def test_ekrandan_girilen_kayit_alis_bedeli_olur(self):
+        self._ekrandan_ekle()
+
         kural = UcretKurali.objects.get(ad="Turkcell alışı")
-        self.assertEqual(kural.yon, KuralYonu.ANA_HAKEDIS)
+        self.assertEqual(kural.yon, KuralYonu.ALIS)
         self.assertIsNone(kural.tedarikci_id)
+
+    def test_ayni_ekrandan_prim_de_girilir(self):
+        """Operatör hem para aldığımız hem ödediğimiz taraf olabilir.
+
+        Yön sabitken yönetici primini maliyet hanesine yazıyor, kâr ters
+        çıkıyordu.
+        """
+        self._ekrandan_ekle(ad="Turkcell primi", yon=KuralYonu.PRIM)
+
+        kural = UcretKurali.objects.get(ad="Turkcell primi")
+        self.assertEqual(kural.yon, KuralYonu.PRIM)
+
+    def test_ekranda_bayi_yonleri_secilemez(self):
+        from django.urls import reverse
+
+        icerik = self.client.get(
+            reverse("admin:finans_operatoralisi_add")
+        ).content.decode()
+
+        self.assertIn("Aldığım prim", icerik)
+        self.assertNotIn("Bayiye ödenecek", icerik)
 
     def test_tedarikci_ekraninda_tedarikci_zorunlu(self):
         from django.urls import reverse
@@ -1764,7 +1787,7 @@ class AlisEkranlari(TestCase):
         yanit = self.client.post(
             reverse("admin:finans_tedarikcialisi_add"),
             {
-                "ad": "Tedarikçi alışı", "tutar": "900.00",
+                "ad": "Tedarikçi alışı", "yon": KuralYonu.ALIS, "tutar": "900.00",
                 "tetikleyici_durum": self.aktif.pk, "kategori": self.kategori.pk,
                 "operator": "", "tarife": "", "tedarikci": "",
                 "baslangic_tarihi": "", "bitis_tarihi": "",
@@ -1777,23 +1800,11 @@ class AlisEkranlari(TestCase):
 
     def test_motor_ekrandan_girileni_kullanir(self):
         """Giriş yeri değişti, motorun okuduğu kaynak değişmedi."""
-        from django.urls import reverse
-
-        self.client.post(
-            reverse("admin:finans_operatoralisi_add"),
-            {
-                "ad": "Turkcell alışı", "tutar": "400.00",
-                "tetikleyici_durum": self.aktif.pk, "kategori": self.kategori.pk,
-                "operator": self.operator.pk, "tarife": "",
-                "baslangic_tarihi": "", "bitis_tarihi": "",
-                "oncelik": "0", "aktif": "on",
-            },
-            follow=True,
-        )
+        self._ekrandan_ekle()
 
         self.assertTrue(
             UcretKurali.objects.filter(
-                yon=KuralYonu.ANA_HAKEDIS, kategori=self.kategori
+                yon=KuralYonu.ALIS, kategori=self.kategori
             ).exists()
         )
 
@@ -2013,7 +2024,7 @@ class KuralKarTablosu(TestCase):
 
         # Operatörden alış: bayi grubuyla ilgisi yok, gruba bağlanmaz.
         UcretKurali.objects.create(
-            ad="Turkcell alış", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("500.00"),
+            ad="Turkcell alış", yon=KuralYonu.ALIS, tutar=TL("500.00"),
             tetikleyici_durum=self.durum, kategori=self.kategori,
             operator=self.operator,
         )
@@ -2049,7 +2060,7 @@ class KuralKarTablosu(TestCase):
         """Faturalı Yeni Hat kuralına, Numara Taşıma alışı karışmamalı."""
         digeri = BasvuruKategorisi.objects.create(ad="Faturalı Numara Taşıma")
         UcretKurali.objects.create(
-            ad="Taşıma alışı", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("777.00"),
+            ad="Taşıma alışı", yon=KuralYonu.ALIS, tutar=TL("777.00"),
             tetikleyici_durum=self.durum, kategori=digeri, operator=self.operator,
         )
 
@@ -2111,7 +2122,7 @@ class AlisBedeliGiderdir(TestCase):
         self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=TL("5000.00"))
 
         UcretKurali.objects.create(
-            ad="Turkcell alışım", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("1000.00"),
+            ad="Turkcell alışım", yon=KuralYonu.ALIS, tutar=TL("1000.00"),
             kategori=self.kategori, operator=self.operator,
             tetikleyici_durum=self.aktif,
         )
@@ -2132,7 +2143,7 @@ class AlisBedeliGiderdir(TestCase):
 
         basvuru.refresh_from_db()
         self.assertEqual(basvuru.tahsil_edilen, TL("1150.00"))
-        self.assertEqual(basvuru.ana_hakedis, TL("1000.00"))
+        self.assertEqual(basvuru.alis_bedeli, TL("1000.00"))
         self.assertEqual(basvuru.kar, TL("150.00"))
 
 
@@ -2165,7 +2176,7 @@ class KuralTetikleyiciDurumu(TestCase):
         from django.core.exceptions import ValidationError
 
         with self.assertRaises(ValidationError) as hata:
-            self._kural(KuralYonu.ANA_HAKEDIS, self.giris).full_clean()
+            self._kural(KuralYonu.ALIS, self.giris).full_clean()
 
         self.assertIn("tetikleyici_durum", hata.exception.message_dict)
         self.assertIn("hiçbir zaman işlemez", str(hata.exception))
@@ -2181,7 +2192,7 @@ class KuralTetikleyiciDurumu(TestCase):
         self._kural(KuralYonu.TAHSILAT, self.giris).full_clean()
 
     def test_tetikleyen_durum_her_yonde_gecerlidir(self):
-        for yon in (KuralYonu.ANA_HAKEDIS, KuralYonu.HAKEDIS, KuralYonu.TAHSILAT):
+        for yon in (KuralYonu.ALIS, KuralYonu.HAKEDIS, KuralYonu.TAHSILAT):
             self._kural(yon, self.aktif).full_clean()
 
     def test_listede_bayi_grubu_sutunu_var(self):
@@ -2216,7 +2227,7 @@ class KuralTetikleyiciDurumu(TestCase):
 
         # Kural doğrulamadan geçmiyor; eski kayıtları temsilen doğrudan yazılır.
         UcretKurali.objects.create(
-            ad="Eski alış kuralı", yon=KuralYonu.ANA_HAKEDIS, tutar=TL("1000.00"),
+            ad="Eski alış kuralı", yon=KuralYonu.ALIS, tutar=TL("1000.00"),
             kategori=self.kategori, tetikleyici_durum=self.giris,
         )
         yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
@@ -2227,3 +2238,124 @@ class KuralTetikleyiciDurumu(TestCase):
         ).content.decode()
 
         self.assertIn("hiç işlemez", icerik)
+
+
+class MaliyetVePrimBirlikte(TestCase):
+    """Karşı tarafla para iki yönde birden akabilir.
+
+    Hattı 1000'e alıp aktivasyon için 1500 prim alıp bayiye 200 verince kâr
+    300'dür. Tek kalem varken yönetici primini maliyet hanesine yazıyor,
+    kâr ters çıkıyordu.
+    """
+
+    def setUp(self):
+        from apps.bayi.models import BayiProfili
+
+        self.beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.iptal = BasvuruDurumu.objects.create(
+            ad="İptal", slug="iptal", olumsuz_sonuc=True
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+
+        self.bayi = User.objects.create_user("bayi", password="parola123")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=TL("5000.00"))
+
+        self.tedarikci = User.objects.create_user("tedarikci", password="parola123")
+        self.tedarikci_cuzdan = Cuzdan.objects.create(
+            bayi=self.tedarikci, bakiye=TL("5000.00")
+        )
+        BayiProfili.objects.create(
+            kullanici=self.tedarikci, unvan="Ege", bayi_mi=False, tedarikci_mi=True
+        )
+
+    def _kural(self, yon, tutar, **kapsam):
+        return UcretKurali.objects.create(
+            ad=f"{yon}-{tutar}", yon=yon, tutar=TL(tutar),
+            kategori=self.kategori, tetikleyici_durum=self.aktif, **kapsam,
+        )
+
+    def _basvuru(self, tedarikci=None):
+        basvuru = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            tedarikci=tedarikci, isim="Ayşe", soyisim="Demir", kimlik_no="1",
+            irtibat="5551112233", durum=self.beklemede,
+        )
+        basvuru.durum = self.aktif
+        basvuru.save()
+        basvuru.refresh_from_db()
+        return basvuru
+
+    def test_maliyet_ve_prim_ayni_islemde_islenir(self):
+        self._kural(KuralYonu.ALIS, "1000.00")
+        self._kural(KuralYonu.PRIM, "1500.00")
+        self._kural(KuralYonu.HAKEDIS, "200.00")
+
+        basvuru = self._basvuru()
+
+        self.assertEqual(basvuru.alis_bedeli, TL("1000.00"))
+        self.assertEqual(basvuru.alinan_prim, TL("1500.00"))
+        self.assertEqual(basvuru.hakedis, TL("200.00"))
+        # 1500 − 200 − 1000
+        self.assertEqual(basvuru.kar, TL("300.00"))
+
+    def test_yalnizca_prim_tanimliysa_maliyet_sifirdir(self):
+        self._kural(KuralYonu.PRIM, "500.00")
+        self._kural(KuralYonu.HAKEDIS, "250.00")
+
+        basvuru = self._basvuru()
+
+        self.assertEqual(basvuru.alis_bedeli, TL("0.00"))
+        self.assertEqual(basvuru.alinan_prim, TL("500.00"))
+        self.assertEqual(basvuru.kar, TL("250.00"))
+
+    def test_tedarikciden_alinan_prim_hesabindan_duser(self):
+        """Primi tedarikçi ödüyorsa cüzdanından çıkar."""
+        self._kural(KuralYonu.PRIM, "300.00", tedarikci=self.tedarikci)
+
+        self._basvuru(tedarikci=self.tedarikci)
+
+        self.tedarikci_cuzdan.refresh_from_db()
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("4700.00"))
+
+    def test_tedarikcide_maliyet_girer_prim_cikar(self):
+        """Aynı tedarikçide iki yön birden işleyebilir."""
+        self._kural(KuralYonu.ALIS, "1000.00", tedarikci=self.tedarikci)
+        self._kural(KuralYonu.PRIM, "300.00", tedarikci=self.tedarikci)
+
+        self._basvuru(tedarikci=self.tedarikci)
+
+        self.tedarikci_cuzdan.refresh_from_db()
+        # 5000 + 1000 (bizim borcumuz) − 300 (onun ödediği prim)
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("5700.00"))
+
+    def test_iptalde_prim_de_geri_alinir(self):
+        self._kural(KuralYonu.ALIS, "1000.00", tedarikci=self.tedarikci)
+        self._kural(KuralYonu.PRIM, "300.00", tedarikci=self.tedarikci)
+
+        basvuru = self._basvuru(tedarikci=self.tedarikci)
+        basvuru.durum = self.iptal
+        basvuru.save()
+
+        basvuru.refresh_from_db()
+        self.tedarikci_cuzdan.refresh_from_db()
+        self.assertEqual(basvuru.alinan_prim, TL("0.00"))
+        self.assertEqual(basvuru.alis_bedeli, TL("0.00"))
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("5000.00"))
+        self.assertEqual(basvuru.kar, TL("0.00"))
+
+    def test_prim_iki_kez_islenmez(self):
+        from apps.finans.services import alis_ve_primi_isle
+
+        self._kural(KuralYonu.PRIM, "300.00", tedarikci=self.tedarikci)
+        basvuru = self._basvuru(tedarikci=self.tedarikci)
+
+        alis_ve_primi_isle(basvuru)
+
+        self.tedarikci_cuzdan.refresh_from_db()
+        self.assertEqual(self.tedarikci_cuzdan.bakiye, TL("4700.00"))
