@@ -309,6 +309,23 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   yaptığı için bilgileri kimlikten okuyup operatör sistemine giriyor.
   İlgisiz kullanıcı 404 alır. Kural iki yerde: `basvurular.views.belge`
   (dosya erişimi) ve `detay` (`belgeler_gorunur`) — birlikte güncellenir.
+- **Tedarikçi işlemin sonucunu kendisi yazar.** Aktivasyonu fiilen o yapıyor;
+  hattı açan da operatörden ret yiyen de o. Panelindeki satır başvuru detayına
+  gider (bir süre gitmiyordu: müşteri bilgilerini ve kimlik görüntülerini
+  göremeden aktivasyon yapılamaz) ve detayda durum kutusu vardır. Hangi
+  durumları seçebileceği veridir — `BasvuruDurumu.tedarikci_secebilir` —
+  başlangıç durumu dışında hepsi açık gelir; istemediğini yönetici kapatır.
+  **Sonuçlanmış başvuruya dokunamaz:** para işlendikten sonra durumu geri
+  çekmek ters kayıt demektir, yanlış onayın düzeltmesi yönetim kararıdır ve
+  tedarikçi ödediği bedeli tek başına geri alamamalı. Değişiklik `durum_bildir`
+  görünümünden geçer, kimin yaptığı ve notu durum geçmişine düşer
+  (`Basvuru._degistiren` / `_aciklama`). Detayda herkes kendi hesabını görür:
+  bayi kesintisini ve hakedişini, tedarikçi bu işlem için ödediğini — bayinin
+  marjı tedarikçiye açılmaz. **Başvuruyu hangi bayinin getirdiği de
+  gösterilmez** (`detay_alanlari.BAYIYI_ELE_VEREN`): tedarikçi işlemi üstlenir,
+  müşteriyle ilgilenir; aradaki bayiyi tanıması doğrudan temasa kapı açar.
+  Satır listeye hiç girmediği için "Görünüm" kutusundan da açılamaz. Tedarikçiye
+  bayiyi ele verecek yeni bir alan eklersen bu listeye de yaz.
 - **Bayi menüsünün sırası bilinçlidir:** Panel, Tarifeler, Yeni başvuru,
   Başvurularım, Hakedişler, Cüzdan. Bayi müşteriyle önce tarifeye bakıyor,
   sonra başvuruyu giriyor; menü bu sırayı izler.

@@ -20,4 +20,5 @@ urlpatterns = [
         views.detay_gorunumu_ayarla,
         name="detay-gorunum",
     ),
+    path("<referans:referans>/durum/", views.durum_bildir, name="durum-bildir"),
 ]

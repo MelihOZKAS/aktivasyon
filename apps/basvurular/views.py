@@ -10,6 +10,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from apps.basvurular.forms import BasvuruFormu
 from apps.basvurular.detay_alanlari import detay_satirlari, gizli_alanlar
@@ -225,7 +226,14 @@ def detay(request, referans):
 
     # Satırlar tek yerde üretilir; ayar kutusundaki seçenekler de aynı
     # listeden gelir. Kategoriye alan eklenince ikisi birden büyür.
-    tum_satirlar = detay_satirlari(basvuru)
+    bayi_gorunumu = request.user.id == basvuru.bayi_id
+    tedarikci_gorunumu = request.user.id == basvuru.tedarikci_id
+
+    # Tedarikçi işlemi üstlenir, müşteriyle ilgilenir; başvuruyu hangi
+    # bayinin getirdiği onun işi değil.
+    tum_satirlar = detay_satirlari(
+        basvuru, tedarikci_gorunumu=tedarikci_gorunumu and not bayi_gorunumu
+    )
     gizli = gizli_alanlar(request.user)
 
     return render(
@@ -239,8 +247,75 @@ def detay(request, referans):
             # Başvuruyu getiren bayi ve işlemi üstlenen tedarikçi görebilir.
             "belgeler_gorunur": request.user.id
             in {basvuru.bayi_id, basvuru.tedarikci_id},
+            "bayi_gorunumu": bayi_gorunumu,
+            "tedarikci_gorunumu": tedarikci_gorunumu,
+            # Aktivasyonu tedarikçi yapıyor; sonucu da o bildirir.
+            "durum_secenekleri": (
+                _tedarikci_durumlari() if tedarikci_gorunumu and not basvuru.sonuclandi_mi else []
+            ),
+            # Bayi kendi listesine, tedarikçi kendi paneline döner: karşı
+            # tarafın ekranı rol kontrolünden geçemez.
+            "geri_url": "basvurular:liste" if bayi_gorunumu else "bayi:tedarikci-panel",
         },
     )
+
+
+def _tedarikci_durumlari():
+    """Tedarikçinin seçebileceği durumlar.
+
+    Hangi durumlar olduğu veridir (`BasvuruDurumu.tedarikci_secebilir`);
+    listeyi koda gömmek yeni bir durum eklendiğinde yazılım değişikliği
+    gerektirirdi.
+    """
+    return BasvuruDurumu.objects.filter(aktif=True, tedarikci_secebilir=True).order_by(
+        "sira", "ad"
+    )
+
+
+@login_required
+@require_POST
+def durum_bildir(request, referans):
+    """Tedarikçi üstlendiği işlemin sonucunu kendisi yazar.
+
+    Aktivasyonu fiilen tedarikçi yapıyor: hattı açan da, operatörden ret
+    yiyen de o. Sonucu yöneticiye telefonla bildirip beklemek, günlük işte
+    tek elle yapılan şeyin durum değiştirmek olduğu bir sistemde fazladan
+    bir durak.
+
+    Sonuçlanmış başvuruya dokunamaz. Para işlendikten sonra durumu geri
+    çekmek ters kayıt demektir; yanlış onayın düzeltmesi yönetim kararıdır
+    ve tedarikçi kendi ödediği bedeli tek başına geri alamamalı.
+    """
+    basvuru = get_object_or_404(
+        Basvuru.objects.select_related("durum"),
+        referans_no=referans,
+        tedarikci=request.user,
+    )
+
+    if basvuru.sonuclandi_mi:
+        messages.error(
+            request,
+            "Bu işlem sonuçlandı; durumunu artık yalnızca yönetim değiştirebilir.",
+        )
+        return redirect("basvurular:detay", referans=referans)
+
+    durum = _tedarikci_durumlari().filter(pk=request.POST.get("durum") or 0).first()
+    if durum is None:
+        messages.error(request, "Geçerli bir durum seç.")
+        return redirect("basvurular:detay", referans=referans)
+
+    if durum.pk == basvuru.durum_id:
+        messages.info(request, f"Başvuru zaten “{durum.ad}” durumunda.")
+        return redirect("basvurular:detay", referans=referans)
+
+    basvuru.durum = durum
+    # Kimin yazdığı ve notu durum geçmişine düşsün.
+    basvuru._degistiren = request.user
+    basvuru._aciklama = (request.POST.get("aciklama") or "").strip()[:255]
+    basvuru.save(update_fields=["durum", "guncelleme_tarihi"])
+
+    messages.success(request, f"Durum “{durum.ad}” olarak güncellendi.")
+    return redirect("basvurular:detay", referans=referans)
 
 
 @login_required
@@ -262,9 +337,17 @@ def detay_gorunumu_ayarla(request, referans):
 
     if request.method == "POST":
         acik = set(request.POST.getlist("alan"))
+        # Kutuda hiç çizilmeyen satır "kapatıldı" sayılmamalı: tedarikçiye
+        # gösterilmeyen bayi satırları listeye buradan da girmez.
         gizli = [
             satir["anahtar"]
-            for satir in detay_satirlari(basvuru)
+            for satir in detay_satirlari(
+                basvuru,
+                tedarikci_gorunumu=(
+                    request.user.id == basvuru.tedarikci_id
+                    and request.user.id != basvuru.bayi_id
+                ),
+            )
             if satir["anahtar"] not in acik
         ]
         tercih, _ = DetayGorunumTercihi.objects.get_or_create(kullanici=request.user)

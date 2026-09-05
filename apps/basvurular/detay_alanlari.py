@@ -21,11 +21,20 @@ def _satir(anahtar, etiket, deger, genis=False, rakam=False):
     }
 
 
-def detay_satirlari(basvuru):
+# Başvuruyu getiren bayiyi ele veren satırlar. Tedarikçi işlemi üstlenir,
+# müşteriyle ilgilenir; hangi bayinin getirdiği onun işi değil ve doğrudan
+# temasa açık kapı bırakır.
+BAYIYI_ELE_VEREN = {"bayi", "bayi_unvani"}
+
+
+def detay_satirlari(basvuru, tedarikci_gorunumu=False):
     """Başvurunun bütün bilgileri, ekrandaki sırayla.
 
     Değeri boş olan satır listeye girmez: bayi olmayan bir bilgiyi ne
     ekranda ne ayar kutusunda görmeli.
+
+    `tedarikci_gorunumu` açıkken başvuruyu getiren bayinin kim olduğu
+    listeye hiç girmez — ayar kutusundan da açılamaz.
     """
     profil = getattr(basvuru.bayi, "bayi_profili", None)
     adaylar = [
@@ -68,6 +77,9 @@ def detay_satirlari(basvuru):
     adaylar.append(
         _satir("bayi_aciklamasi", "Bayi açıklaması", basvuru.bayi_aciklamasi, genis=True)
     )
+
+    if tedarikci_gorunumu:
+        adaylar = [s for s in adaylar if s["anahtar"] not in BAYIYI_ELE_VEREN]
 
     return [satir for satir in adaylar if satir["deger"] not in (None, "")]
 

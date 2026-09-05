@@ -57,9 +57,18 @@
 
     {% if sayfa.object_list %}
     <div class="yuzey overflow-hidden rounded-kart">
+      {% comment %}
+        Satır detaya gider: aktivasyonu tedarikçi yapıyor, müşteri
+        bilgilerini ve kimlik görüntülerini oradan okuyup operatör sistemine
+        giriyor. Sonucu da aynı ekrandan bildiriyor.
+      {% endcomment %}
       {% for basvuru in sayfa %}
-      <div class="flex items-center gap-4 px-5 py-4
-                  {% if not forloop.last %}border-b border-cizgi{% endif %}">
+      <a href="{% url 'basvurular:detay' basvuru.referans_no %}"
+         class="flex items-center gap-4 px-5 py-4 transition-colors
+                {% if basvuru.durum.olumsuz_sonuc %}satir-olumsuz
+                {% elif basvuru.durum.hakedis_tetikler %}satir-olumlu
+                {% else %}hover:bg-zemin{% endif %}
+                {% if not forloop.last %}border-b border-cizgi{% endif %}">
         {% sinyal basvuru.durum %}
 
         <div class="min-w-0 flex-1">
@@ -92,7 +101,7 @@
           <p class="mt-0.5 text-xs text-soluk">{{ basvuru.olusturma_tarihi|date:"j M Y" }}</p>
           {% endif %}
         </div>
-      </div>
+      </a>
       {% endfor %}
     </div>
 

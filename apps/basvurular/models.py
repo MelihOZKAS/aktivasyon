@@ -68,6 +68,14 @@ class BasvuruDurumu(ZamanDamgali):
         default=False,
         help_text="Eksik evrak gibi durumlarda bayinin başvuruyu güncellemesine izin verir.",
     )
+    tedarikci_secebilir = models.BooleanField(
+        "Tedarikçi Seçebilir",
+        default=False,
+        help_text=(
+            "İşlemi üstlenen tedarikçi başvuruyu bu duruma çekebilir. "
+            "Aktivasyonu fiilen tedarikçi yaptığı için sonucu da o bildirir."
+        ),
+    )
     bildirim_gonder = models.BooleanField(
         "Telegram Bildirimi Gönder",
         default=False,

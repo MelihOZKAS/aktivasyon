@@ -32,16 +32,20 @@ def _getir_ya_da_ac(model, ad, defaults):
         return mevcut, False
     return model.objects.create(ad=ad, slug=slug, **defaults), True
 
+# `tedarikci`: işlemi üstlenen tedarikçi başvuruyu bu duruma çekebilir.
+# Başlangıç durumu dışında hepsi açık gelir — aktivasyonu fiilen tedarikçi
+# yapıyor, sonucu da o bildirmeli. Kapatmak eklemekten kolaydır: istemediği
+# durumu yönetici panelden kapatır.
 DURUMLAR = [
     # (ad, slug, renk, ikon, baslangic, hakedis, olumsuz, bayi_duzenler,
-    #  sira, sinyal, bildirim, belge_sil)
-    ("Beklemede", "beklemede", "#64748b", "schedule", True, False, False, False, 10, 1, False, False),
-    ("İşlemde", "islemde", "#3b82f6", "sync", False, False, False, False, 20, 3, False, False),
-    ("Eksik Evrak", "eksik-evrak", "#f59e0b", "warning", False, False, False, True, 30, 2, True, False),
-    ("Mutabakat Bekliyor", "mutabakat", "#0891b2", "handshake", False, False, False, False, 40, 4, False, False),
-    ("Aktif", "aktif", "#16a34a", "check_circle", False, True, False, False, 50, 5, True, True),
-    ("Hatalı", "hatali", "#dc2626", "cancel", False, False, True, False, 60, 1, True, False),
-    ("İptal", "iptal", "#78716c", "block", False, False, True, False, 70, 1, True, True),
+    #  tedarikci, sira, sinyal, bildirim, belge_sil)
+    ("Beklemede", "beklemede", "#64748b", "schedule", True, False, False, False, False, 10, 1, False, False),
+    ("İşlemde", "islemde", "#3b82f6", "sync", False, False, False, False, True, 20, 3, False, False),
+    ("Eksik Evrak", "eksik-evrak", "#f59e0b", "warning", False, False, False, True, True, 30, 2, True, False),
+    ("Mutabakat Bekliyor", "mutabakat", "#0891b2", "handshake", False, False, False, False, True, 40, 4, False, False),
+    ("Aktif", "aktif", "#16a34a", "check_circle", False, True, False, False, True, 50, 5, True, True),
+    ("Hatalı", "hatali", "#dc2626", "cancel", False, False, True, False, True, 60, 1, True, False),
+    ("İptal", "iptal", "#78716c", "block", False, False, True, False, True, 70, 1, True, True),
 ]
 
 OPERATORLER = [
@@ -174,8 +178,8 @@ class Command(BaseCommand):
         baslangic_var = BasvuruDurumu.objects.filter(baslangic_durumu=True).exists()
 
         for (
-            ad, slug, renk, ikon, baslangic, hakedis, olumsuz, duzenle, sira,
-            sinyal, bildirim, belge_sil,
+            ad, slug, renk, ikon, baslangic, hakedis, olumsuz, duzenle, tedarikci,
+            sira, sinyal, bildirim, belge_sil,
         ) in DURUMLAR:
             if baslangic and baslangic_var:
                 baslangic = False
@@ -190,6 +194,7 @@ class Command(BaseCommand):
                     "hakedis_tetikler": hakedis,
                     "olumsuz_sonuc": olumsuz,
                     "bayi_duzenleyebilir": duzenle,
+                    "tedarikci_secebilir": tedarikci,
                     "sira": sira,
                     "sinyal_seviyesi": sinyal,
                     "bildirim_gonder": bildirim,

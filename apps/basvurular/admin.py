@@ -86,6 +86,7 @@ class BasvuruDurumuAdmin(ModelAdmin):
         "hakedis_tetikler",
         "olumsuz_sonuc",
         "bayi_duzenleyebilir",
+        "tedarikci_secebilir",
         "bildirim_gonder",
         "belgeleri_sil",
         "sinyal_seviyesi",
@@ -105,12 +106,15 @@ class BasvuruDurumuAdmin(ModelAdmin):
                     "hakedis_tetikler",
                     "olumsuz_sonuc",
                     "bayi_duzenleyebilir",
+                    "tedarikci_secebilir",
                     "bildirim_gonder",
                     "belgeleri_sil",
                 ),
                 "description": (
                     "“Para Hareketini Tetikler” işaretli duruma geçildiğinde ücret "
-                    "kuralları çalışır. “Olumsuz Sonuç” işaretliyse işlenmiş para geri alınır."
+                    "kuralları çalışır. “Olumsuz Sonuç” işaretliyse işlenmiş para geri alınır. "
+                    "“Tedarikçi Seçebilir” işaretli durumları, işlemi üstlenen tedarikçi "
+                    "kendi panelinden seçebilir; aktivasyonu o yaptığı için sonucu da o bildirir."
                 ),
             },
         ),

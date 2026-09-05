@@ -72,11 +72,19 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
             instance.ana_hakedis_islendi = guncel.ana_hakedis_islendi
         return
 
+    # Değişikliği kimin yaptığı ve varsa notu, kaydeden taraf `_degistiren` /
+    # `_aciklama` ile taşır: tedarikçi sonucu bildirirken "kim yazdı" sorusu
+    # geçmişten okunabilsin.
     DurumGecmisi.objects.create(
         basvuru=instance,
         onceki_durum_id=onceki_durum_id,
         yeni_durum=instance.durum,
-        aciklama="Başvuru oluşturuldu." if created else "",
+        degistiren=getattr(instance, "_degistiren", None),
+        aciklama=(
+            "Başvuru oluşturuldu."
+            if created
+            else getattr(instance, "_aciklama", "") or ""
+        ),
     )
 
     durum = instance.durum

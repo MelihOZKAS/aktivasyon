@@ -555,6 +555,16 @@ class RolErisimTestleri(TestCase):
         self.beklemede = BasvuruDurumu.objects.create(
             ad="Beklemede", slug="beklemede", baslangic_durumu=True
         )
+        self.islemde = BasvuruDurumu.objects.create(
+            ad="İşlemde", slug="islemde", tedarikci_secebilir=True, sira=20
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True,
+            tedarikci_secebilir=True, sira=50,
+        )
+        self.mutabakat = BasvuruDurumu.objects.create(
+            ad="Mutabakat", slug="mutabakat", sira=40
+        )
         self.kategori = BasvuruKategorisi.objects.create(ad="MNT", tarife_zorunlu=False)
         self.operator = Operator.objects.create(ad="Turkcell")
         self.kategori.operatorler.add(self.operator)
@@ -703,6 +713,124 @@ class RolErisimTestleri(TestCase):
         )
         self.basvuru.refresh_from_db()
         self.assertEqual(self.basvuru.tedarikci, self.tedarikci)
+
+    def test_tedarikci_paneli_detaya_baglanir(self):
+        """Aktivasyonu yapacaksa detayı açabilmeli; satır bağlantı olmalı."""
+        self.client.force_login(self.tedarikci)
+        yanit = self.client.get(reverse("bayi:tedarikci-panel"))
+        self.assertContains(
+            yanit, reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        )
+
+    def test_tedarikci_durumu_degistirebilir(self):
+        """Sonucu aktivasyonu yapan taraf yazar; yöneticiyi beklemez."""
+        self.client.force_login(self.tedarikci)
+
+        detay = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        )
+        self.assertContains(detay, "İşlemin sonucunu bildir")
+        self.assertContains(detay, "İşlemde")
+        # Seçemeyeceği durum kutuya hiç girmez.
+        self.assertNotContains(detay, "Mutabakat")
+
+        yanit = self.client.post(
+            reverse("basvurular:durum-bildir", args=[self.basvuru.referans_no]),
+            {"durum": self.islemde.pk, "aciklama": "Operatörde işleme alındı"},
+        )
+        self.assertRedirects(
+            yanit, reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        )
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.basvuru.durum, self.islemde)
+
+        # Kim değiştirdi ve ne yazdı, geçmişte durur.
+        kayit = self.basvuru.durum_gecmisi.order_by("-tarih").first()
+        self.assertEqual(kayit.degistiren, self.tedarikci)
+        self.assertEqual(kayit.aciklama, "Operatörde işleme alındı")
+
+    def test_tedarikci_izinsiz_duruma_gecemez(self):
+        """Liste veridir; işaretlenmemiş durum elle gönderilse de geçmez."""
+        self.client.force_login(self.tedarikci)
+        self.client.post(
+            reverse("basvurular:durum-bildir", args=[self.basvuru.referans_no]),
+            {"durum": self.mutabakat.pk},
+        )
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.basvuru.durum, self.beklemede)
+
+    def test_sonuclanmis_islemin_durumu_tedarikciden_degismez(self):
+        """Para işlendikten sonra geri almak yönetim kararıdır."""
+        self.basvuru.durum = self.aktif
+        self.basvuru.save()
+
+        self.client.force_login(self.tedarikci)
+        self.client.post(
+            reverse("basvurular:durum-bildir", args=[self.basvuru.referans_no]),
+            {"durum": self.islemde.pk},
+        )
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.basvuru.durum, self.aktif)
+
+    def test_baskasinin_islemine_durum_yazilamaz(self):
+        from apps.basvurular.models import Basvuru
+
+        digeri = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            isim="Gizli", soyisim="Kayıt", kimlik_no="9",
+            irtibat="5559998877", durum=self.beklemede,
+        )
+        self.client.force_login(self.tedarikci)
+        yanit = self.client.post(
+            reverse("basvurular:durum-bildir", args=[digeri.referans_no]),
+            {"durum": self.islemde.pk},
+        )
+        self.assertEqual(yanit.status_code, 404)
+        digeri.refresh_from_db()
+        self.assertEqual(digeri.durum, self.beklemede)
+
+    def test_bayi_kendi_basvurusunun_durumunu_degistiremez(self):
+        """Durum değiştirmek bayinin işi değil; kutu ona hiç çizilmez."""
+        self.client.force_login(self.bayi)
+        yanit = self.client.post(
+            reverse("basvurular:durum-bildir", args=[self.basvuru.referans_no]),
+            {"durum": self.islemde.pk},
+        )
+        self.assertEqual(yanit.status_code, 404)
+
+        detay = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        )
+        self.assertNotContains(detay, "İşlemin sonucunu bildir")
+
+    def test_tedarikci_basvuruyu_getiren_bayiyi_gormez(self):
+        """İşlemi üstlenir, müşteriyle ilgilenir; bayi kimliği onun işi değil."""
+        self.client.force_login(self.tedarikci)
+        yanit = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        )
+        self.assertNotContains(yanit, "Bayi A")
+        self.assertNotContains(yanit, "saf_bayi")
+
+        # Başvuruyu getiren bayi kendi ekranında görmeye devam eder.
+        self.client.force_login(self.bayi)
+        kendi = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        )
+        self.assertContains(kendi, "Bayi A")
+
+    def test_tedarikci_bayinin_hakedisini_gormez(self):
+        """Bayinin kâr marjı tedarikçiye açılmaz."""
+        self.basvuru.durum = self.aktif
+        self.basvuru.hakedis = TL("175.00")
+        self.basvuru.para_islendi = True
+        self.basvuru.save()
+
+        self.client.force_login(self.tedarikci)
+        yanit = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        )
+        self.assertNotContains(yanit, "Hakedişin")
 
     def test_profilsiz_kullanici_bayi_sayilir(self):
         """Eski kayıtlar rol kontrolüyle kilitlenmemeli."""

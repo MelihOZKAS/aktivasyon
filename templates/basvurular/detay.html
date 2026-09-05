@@ -25,7 +25,11 @@
       </div>
     </div>
 
-    {% if basvuru.para_islendi %}
+    {% comment %}
+      Herkes kendi hesabını görür: bayi kesintisini ve hakedişini, tedarikçi
+      bu işlem için ödediğini. Tedarikçiye bayinin hakedişi gösterilmez.
+    {% endcomment %}
+    {% if bayi_gorunumu and basvuru.para_islendi %}
     <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-t border-cizgi pt-4 text-sm">
       <div class="flex items-baseline gap-2">
         <dt class="text-soluk">Kesilen ücret</dt>
@@ -34,6 +38,15 @@
       <div class="flex items-baseline gap-2">
         <dt class="text-soluk">Hakedişin</dt>
         <dd class="rakam font-semibold text-olumlu">{{ basvuru.hakedis|para }} ₺</dd>
+      </div>
+    </dl>
+    {% endif %}
+
+    {% if tedarikci_gorunumu and basvuru.ana_hakedis_islendi %}
+    <dl class="mt-5 flex flex-wrap gap-x-8 gap-y-2 border-t border-cizgi pt-4 text-sm">
+      <div class="flex items-baseline gap-2">
+        <dt class="text-soluk">Bu işlem için ödediğin</dt>
+        <dd class="rakam font-semibold text-olumsuz">{{ basvuru.ana_hakedis|para }} ₺</dd>
       </div>
     </dl>
     {% endif %}
@@ -135,6 +148,48 @@
   </div>
   {% endif %}
 
+  {% comment %}
+    Aktivasyonu fiilen tedarikçi yapıyor; sonucu da o bildirir. Hangi
+    durumları seçebileceği veridir (BasvuruDurumu.tedarikci_secebilir),
+    burada liste yok. Sonuçlanmış işlemde kutu hiç çizilmez: para
+    işlendikten sonra durumu geri çekmek yönetim kararıdır.
+  {% endcomment %}
+  {% if durum_secenekleri %}
+  <div class="yuzey rounded-kart p-6">
+    <h3 class="baslik font-semibold">İşlemin sonucunu bildir</h3>
+    <p class="mt-1.5 text-sm leading-relaxed text-soluk">
+      Aktivasyonu tamamladığında ya da bir sorun çıktığında durumu buradan
+      güncelle; başvuruyu getiren bayi anında görür.
+    </p>
+
+    <form method="post" action="{% url 'basvurular:durum-bildir' basvuru.referans_no %}"
+          class="mt-4 space-y-3">
+      {% csrf_token %}
+      <select name="durum" class="girdi" required aria-label="Yeni durum">
+        <option value="">Yeni durum seç</option>
+        {% for durum in durum_secenekleri %}
+        <option value="{{ durum.pk }}" {% if durum.pk == basvuru.durum_id %}disabled{% endif %}>
+          {{ durum.ad }}{% if durum.pk == basvuru.durum_id %} (şu anki){% endif %}
+        </option>
+        {% endfor %}
+      </select>
+
+      <input type="text" name="aciklama" class="girdi" maxlength="255"
+             placeholder="Not — bayi ve yönetim görür (isteğe bağlı)">
+
+      <button type="submit" class="dugme dugme-birincil w-full sm:w-auto">Durumu güncelle</button>
+    </form>
+  </div>
+  {% elif tedarikci_gorunumu and basvuru.sonuclandi_mi %}
+  <div class="yuzey rounded-kart p-6">
+    <h3 class="baslik font-semibold">İşlem sonuçlandı</h3>
+    <p class="mt-1.5 text-sm leading-relaxed text-soluk">
+      Bu başvurunun parası işlendi. Bir yanlışlık varsa yönetime bildir;
+      sonuçlanmış işlemin durumu buradan değiştirilmez.
+    </p>
+  </div>
+  {% endif %}
+
   <div class="yuzey rounded-kart p-6">
     <h3 class="baslik font-semibold">Durum geçmişi</h3>
     <ol class="mt-4 space-y-4">
@@ -153,7 +208,10 @@
     </ol>
   </div>
 
-  <a href="{% url 'basvurular:liste' %}" class="dugme dugme-sessiz">Listeye dön</a>
+  {# Bayi kendi listesine, tedarikçi kendi paneline döner. #}
+  <a href="{% url geri_url %}" class="dugme dugme-sessiz">
+    {% if bayi_gorunumu %}Listeye dön{% else %}Üstlendiklerime dön{% endif %}
+  </a>
 </div>
 
 <script>
