@@ -1290,3 +1290,141 @@ class HatBedeliIptaldeGeriYuklenir(TestCase):
 
         self.assertIn(HareketTipi.TAHSILAT, tipler)
         self.assertEqual(tipler.count(HareketTipi.IPTAL), 2)
+
+
+class GirisBedeliIlkGiristeKesilir(TestCase):
+    """Bayi ürünü alırken öder: bedel başvuru girildiği anda kesilir.
+
+    Tutar başlangıç durumuna ("İlk giriş") yazılmış tahsilat kuralından
+    gelir. Aktivasyonda işleyen hakedişten ayrı bir hatta durur; ikisi aynı
+    bayrağı paylaşsaydı biri diğerini bloke ederdi.
+    """
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.finans.models import Cuzdan, KuralYonu, UcretKurali
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        self.ilk_giris = BasvuruDurumu.objects.create(
+            ad="İlk giriş", slug="ilk-giris", baslangic_durumu=True, sira=10
+        )
+        self.islemde = BasvuruDurumu.objects.create(
+            ad="İşlemde", slug="islemde", sira=20
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True, sira=50
+        )
+        self.iptal = BasvuruDurumu.objects.create(
+            ad="İptal", slug="iptal", olumsuz_sonuc=True, sira=70
+        )
+
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=Decimal("1150.00"))
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.tarife = Tarife.objects.create(operator=self.operator, ad="Platinum")
+        self.tarife.kategoriler.add(self.kategori)
+
+        UcretKurali.objects.create(
+            ad="Hat bedeli", yon=KuralYonu.TAHSILAT, tutar=Decimal("1150.00"),
+            tetikleyici_durum=self.ilk_giris, kategori=self.kategori,
+        )
+        UcretKurali.objects.create(
+            ad="Bayi hakedişi", yon=KuralYonu.HAKEDIS, tutar=Decimal("250.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+        )
+
+    def _basvuru(self):
+        from apps.basvurular.models import Basvuru
+
+        return Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            tarife=self.tarife, isim="Ayşe", soyisim="Demir", kimlik_no="1",
+            irtibat="5551112233", durum=self.ilk_giris,
+        )
+
+    def test_basvuru_girilir_girilmez_kesilir(self):
+        from decimal import Decimal
+
+        basvuru = self._basvuru()
+
+        self.cuzdan.refresh_from_db()
+        basvuru.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("0.00"))
+        self.assertEqual(basvuru.giris_bedeli, Decimal("1150.00"))
+        self.assertTrue(basvuru.giris_bedeli_islendi)
+
+    def test_aktifte_hakedis_ayrica_isler(self):
+        """Eski motorda giriş bedeli kesilince aktivasyon hakedişi işlenmezdi."""
+        from decimal import Decimal
+
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        basvuru.refresh_from_db()
+        # 1150 kesildi, 250 hakediş yattı.
+        self.assertEqual(self.cuzdan.bakiye, Decimal("250.00"))
+        self.assertEqual(basvuru.hakedis, Decimal("250.00"))
+        self.assertEqual(basvuru.giris_bedeli, Decimal("1150.00"))
+
+    def test_iptalde_giris_bedeli_de_iade_edilir(self):
+        from decimal import Decimal
+
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+        basvuru.durum = self.iptal
+        basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        basvuru.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("1150.00"))
+        self.assertEqual(basvuru.giris_bedeli, Decimal("0.00"))
+        self.assertEqual(basvuru.hakedis, Decimal("0.00"))
+
+    def test_yanlis_onay_geri_alinca_giris_bedeli_durur(self):
+        """Ürün hâlâ bayide; yalnızca aktivasyon parası geri alınır."""
+        from decimal import Decimal
+
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        basvuru.durum = self.islemde
+        basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        basvuru.refresh_from_db()
+        # Hakediş geri alındı, giriş bedeli durdu: 1150 kesik.
+        self.assertEqual(self.cuzdan.bakiye, Decimal("0.00"))
+        self.assertEqual(basvuru.hakedis, Decimal("0.00"))
+        self.assertEqual(basvuru.giris_bedeli, Decimal("1150.00"))
+
+    def test_geri_alinip_yeniden_onaylanabilir(self):
+        from decimal import Decimal
+
+        basvuru = self._basvuru()
+        for durum in (self.aktif, self.islemde, self.aktif):
+            basvuru.durum = durum
+            basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("250.00"))
+
+    def test_kar_giris_bedelini_de_sayar(self):
+        from decimal import Decimal
+
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+        basvuru.refresh_from_db()
+
+        # 1150 giriş bedeli − 250 hakediş = 900
+        self.assertEqual(basvuru.kar, Decimal("900.00"))

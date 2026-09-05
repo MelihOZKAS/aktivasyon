@@ -238,7 +238,7 @@ class BasvuruAdmin(ModelAdmin):
             "Para",
             {
                 "fields": (
-                    "tahsil_edilen", "hakedis", "para_islendi",
+                    "giris_bedeli", "tahsil_edilen", "hakedis", "para_islendi",
                     "kar_ozeti", "sonuclanma_tarihi",
                 ),
                 "description": (
@@ -346,18 +346,19 @@ class BasvuruAdmin(ModelAdmin):
 
     @display(description="Bayi (kesinti / hakediş)")
     def tutar_ozeti(self, obj):
-        if not obj.para_islendi:
+        if not (obj.para_islendi or obj.giris_bedeli_islendi):
             return format_html('<span style="color:#94a3b8">işlenmedi</span>')
+        # Giriş bedeli de bayiden çıkan paradır; kesinti hanesinde toplanır.
         return format_html(
             '<span style="color:#D42046">-{}</span> / <span style="color:#0F8A4D">+{}</span>',
-            obj.tahsil_edilen,
+            obj.giris_bedeli + obj.tahsil_edilen,
             obj.hakedis,
         )
 
     @display(description="Kâr", ordering="ana_hakedis")
     def kar_gosterimi(self, obj):
         """Tedarikçiden aldığımız + bayiden kestiğimiz − bayiye ödediğimiz."""
-        if not (obj.para_islendi or obj.ana_hakedis_islendi):
+        if not (obj.para_islendi or obj.ana_hakedis_islendi or obj.giris_bedeli_islendi):
             return format_html('<span style="color:#94a3b8">—</span>')
         kar = obj.kar
         renk = "#0F8A4D" if kar > 0 else ("#D42046" if kar < 0 else "#6F7B8F")
@@ -369,6 +370,7 @@ class BasvuruAdmin(ModelAdmin):
             return "—"
         satirlar = [
             (f"Ana hakediş ({obj.ana_hakedis_kaynagi})", obj.ana_hakedis, "#0F8A4D"),
+            ("Giriş bedeli (başvuru girilirken)", obj.giris_bedeli, "#0F8A4D"),
             ("Bayiden kesilen", obj.tahsil_edilen, "#0F8A4D"),
             ("Bayiye ödenen", -obj.hakedis, "#D42046"),
         ]

@@ -153,6 +153,21 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Başvurudaki `hakedis` alanı yine 250'dir — mahsup cüzdan tarafındadır,
   bayinin hakedişi kısılmaz. Bayiye para giren yeni bir kalem eklersen
   aynı sırayı uygula.
+- **Giriş bedeli ayrı bir hattır.** Bayi ürünü alırken öder: başvurunun
+  **başlangıç durumuna** ("İlk giriş") yazılmış `TAHSILAT` kuralı, başvuru
+  oluşturulduğu anda işler (`giris_bedelini_isle`). Aktivasyonda işleyen
+  paradan (hakediş, ana hakediş) bilinçli olarak ayrıdır: aynı `para_islendi`
+  bayrağını paylaşsalardı biri diğerini bloke eder, giriş bedeli kesilen
+  başvuruda aktivasyon hakedişi hiç işlenmezdi. Alan `Basvuru.giris_bedeli`,
+  hareket `CuzdanHareketi.giris_bedeli` ile işaretlenir, kâr hesabına girer.
+  **Yalnızca olumsuz sonuçta iade edilir** — yanlış onay geri alındığında
+  durur, çünkü ürün hâlâ bayinin elindedir. Bu yüzden `basvuru_parasini_geri_al`
+  `giris_bedeli_dahil` parametresi alır; olumsuz duruma geçişte `True`,
+  tetikleyici durumdan çıkışta `False`.
+  Bir uç durum var: başvuru İlk giriş'ten *tetikleyici olmayan* bir duruma
+  (İşlemde gibi) çekilirse giriş bedeli yerinde kalır ama İlk giriş'e
+  dönülmedikçe ikinci kez de kesilmez. Akış İlk giriş → Aktif / İptal
+  olduğu sürece bu yola girilmez.
 - **Para, tetikleyen durumda *olmaya* bağlıdır.** `hakedis_tetikler` bir
   duruma geçilince işlenir; o durumdan **herhangi bir** duruma çıkılınca ters
   kayıtla geri alınır. Yalnızca `olumsuz_sonuc` durumunda geri almak sessiz

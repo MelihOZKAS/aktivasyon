@@ -216,6 +216,19 @@ class Basvuru(ZamanDamgali):
         default=SIFIR,
         help_text="Operatörden ya da işlemi üstlenen tedarikçiden aldığımız tutar.",
     )
+    giris_bedeli = models.DecimalField(
+        "Giriş Bedeli",
+        max_digits=12,
+        decimal_places=2,
+        default=SIFIR,
+        help_text=(
+            "Başvuru girilirken bayiden tahsil edilen tutar. Başlangıç durumuna "
+            "yazılmış tahsilat kuralından gelir."
+        ),
+    )
+    giris_bedeli_islendi = models.BooleanField(
+        "Giriş Bedeli İşlendi", default=False, editable=False
+    )
     para_islendi = models.BooleanField("Para İşlendi", default=False, editable=False)
     ana_hakedis_islendi = models.BooleanField(
         "Ana Hakediş İşlendi", default=False, editable=False
@@ -308,10 +321,11 @@ class Basvuru(ZamanDamgali):
     def kar(self):
         """Firmanın bu işlemden kazancı.
 
-        Ana hakediş (operatörden ya da tedarikçiden) ve bayiden kestiğimiz
-        ücret gelirdir; bayiye ödediğimiz hakediş giderdir.
+        Ana hakediş (operatörden ya da tedarikçiden), başvuru girilirken
+        alınan giriş bedeli ve bayiden kestiğimiz ücret gelirdir; bayiye
+        ödediğimiz hakediş giderdir.
         """
-        return self.ana_hakedis + self.tahsil_edilen - self.hakedis
+        return self.ana_hakedis + self.tahsil_edilen + self.giris_bedeli - self.hakedis
 
     @property
     def ana_hakedis_kaynagi(self):

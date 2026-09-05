@@ -55,6 +55,7 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
         basvuru_parasini_geri_al,
         basvuru_parasini_isle,
         ana_hakedisi_isle,
+        giris_bedelini_isle,
     )
 
     onceki_durum_id = getattr(instance, "_onceki_durum_id", None)
@@ -106,9 +107,24 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     if durum.belgeleri_sil and not instance.belgeler_silindi:
         belgeleri_sil(instance)
 
+    # Giriş bedeli başvurunun kendisine bağlıdır, sonucuna değil: bayi ürünü
+    # alırken öder. Aktivasyon parasından ayrı bir hatta işlenir, yoksa
+    # `para_islendi` biri diğerini bloke ederdi.
+    if created:
+        guncel = giris_bedelini_isle(instance)
+        instance.giris_bedeli = guncel.giris_bedeli
+        instance.giris_bedeli_islendi = guncel.giris_bedeli_islendi
+
     if durum.hakedis_tetikler and not instance.para_islendi:
         guncel = basvuru_parasini_isle(instance)
         guncel = ana_hakedisi_isle(guncel)
+    elif durum.olumsuz_sonuc and (
+        instance.para_islendi
+        or instance.ana_hakedis_islendi
+        or instance.giris_bedeli_islendi
+    ):
+        # İşlem yürümedi: giriş bedeli dahil her şey iade edilir.
+        guncel = basvuru_parasini_geri_al(instance, giris_bedeli_dahil=True)
     elif not durum.hakedis_tetikler and (
         instance.para_islendi or instance.ana_hakedis_islendi
     ):
@@ -127,4 +143,6 @@ def durum_degisiminde_para_isle(sender, instance, created, **kwargs):
     instance.ana_hakedis = guncel.ana_hakedis
     instance.para_islendi = guncel.para_islendi
     instance.ana_hakedis_islendi = guncel.ana_hakedis_islendi
+    instance.giris_bedeli = guncel.giris_bedeli
+    instance.giris_bedeli_islendi = guncel.giris_bedeli_islendi
     instance.para_surumu = guncel.para_surumu

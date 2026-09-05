@@ -186,6 +186,14 @@ class CuzdanHareketi(models.Model):
         help_text="Bu hareket iptal edildiyse, iptal kaydını gösterir.",
     )
 
+    giris_bedeli = models.BooleanField(
+        "Giriş Bedeli Hareketi",
+        default=False,
+        help_text=(
+            "Başvuru girilirken alınan bedel. Yalnızca başvuru olumsuz "
+            "sonuçlanınca iade edilir; ara durumlarda geri alınmaz."
+        ),
+    )
     idempotency_anahtari = models.CharField(
         "Tekillik Anahtarı",
         max_length=255,

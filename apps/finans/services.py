@@ -53,6 +53,7 @@ def _hareket_yaz(
     banka=None,
     olusturan=None,
     borca_yaz=False,
+    giris_bedeli=False,
 ):
     """Cüzdanı günceller ve defter kaydını oluşturur.
 
@@ -84,6 +85,7 @@ def _hareket_yaz(
                 idempotency_anahtari=idempotency_anahtari,
                 aciklama=aciklama,
                 olusturan=olusturan,
+                giris_bedeli=giris_bedeli,
             )
     except IntegrityError:
         # Aynı olay daha önce işlenmiş; cüzdanı geri al ve sessizce çık.
@@ -327,6 +329,72 @@ def basvuru_parasini_isle(basvuru, *, olusturan=None):
         return basvuru_kilitli
 
 
+def giris_bedelini_isle(basvuru, *, olusturan=None):
+    """Başvuru girilirken bayiden alınan bedeli işler.
+
+    Bayi ürünü alıyor; bedeli başvuruyu girdiği anda cebinden çıkar. Tutar,
+    başvurunun **başlangıç durumuna** yazılmış tahsilat kuralından gelir —
+    "İlk giriş" durumuna 1150 ₺ tanımlanmışsa o kesilir.
+
+    Bu hat, aktivasyonda işleyen paradan (hakediş, ana hakediş) ayrı durur:
+    biri başvurunun *girişine*, diğeri *sonucuna* bağlıdır. Aynı `para_islendi`
+    bayrağını paylaşsalardı biri diğerini bloke ederdi — giriş bedeli kesilen
+    başvuruda aktivasyon hakedişi hiç işlenmezdi.
+
+    Giriş bedeli yalnızca başvuru olumsuz sonuçlanınca iade edilir; ara
+    durumlarda geri alınmaz, çünkü ürün bayinin elinde durmaya devam eder.
+    """
+    with transaction.atomic():
+        cuzdan = _cuzdani_getir(basvuru.bayi_id)
+        basvuru_kilitli = type(basvuru).objects.select_for_update().get(pk=basvuru.pk)
+
+        if basvuru_kilitli.giris_bedeli_islendi:
+            return basvuru_kilitli
+
+        kurallar = uygun_kurallari_bul(basvuru_kilitli, basvuru_kilitli.durum)
+        kural = kurallar.get(KuralYonu.TAHSILAT)
+        if kural is None or kural.tutar <= SIFIR:
+            return basvuru_kilitli
+
+        surum = basvuru_kilitli.para_surumu
+        tutar = kural.tutar
+        bakiyeden = min(tutar, max(cuzdan.bakiye, SIFIR))
+        borctan = tutar - bakiyeden
+
+        if bakiyeden > SIFIR:
+            _hareket_yaz(
+                cuzdan=cuzdan,
+                tip=HareketTipi.TAHSILAT,
+                tutar=-bakiyeden,
+                idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:giris:bakiye",
+                aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad}",
+                basvuru=basvuru_kilitli,
+                kural=kural,
+                olusturan=olusturan,
+                giris_bedeli=True,
+            )
+        if borctan > SIFIR:
+            _hareket_yaz(
+                cuzdan=cuzdan,
+                tip=HareketTipi.BORC_EKLE,
+                tutar=borctan,
+                idempotency_anahtari=f"basvuru:{basvuru_kilitli.pk}:{surum}:giris:borc",
+                aciklama=f"{basvuru_kilitli.referans_no} · {kural.ad} (borç)",
+                basvuru=basvuru_kilitli,
+                kural=kural,
+                olusturan=olusturan,
+                borca_yaz=True,
+                giris_bedeli=True,
+            )
+
+        basvuru_kilitli.giris_bedeli = tutar
+        basvuru_kilitli.giris_bedeli_islendi = True
+        basvuru_kilitli.save(
+            update_fields=["giris_bedeli", "giris_bedeli_islendi", "guncelleme_tarihi"]
+        )
+        return basvuru_kilitli
+
+
 def ana_hakedisi_isle(basvuru, *, olusturan=None):
     """İşlemden bize giren ana hakedişi kaydeder.
 
@@ -392,24 +460,37 @@ def ana_hakedisi_isle(basvuru, *, olusturan=None):
         return basvuru_kilitli
 
 
-def basvuru_parasini_geri_al(basvuru, *, olusturan=None):
-    """Başvuru para tetikleyen durumdan çıktığında işlenmiş parayı ters kayıtla iptal eder.
+def basvuru_parasini_geri_al(basvuru, *, olusturan=None, giris_bedeli_dahil=False):
+    """Başvuruya işlenmiş parayı ters kayıtla iptal eder.
 
-    Yalnızca iptal için değil: yanlış başvuru onaylandığında da durum geri
-    alınır ve para buradan döner. Defter değişmezdir, satır silinmez; her
-    hareketin karşısına ters kaydı yazılır.
+    İki ayrı durumda çağrılır ve kapsamı farklıdır:
+
+    · **Başvuru olumsuz sonuçlandı** (`giris_bedeli_dahil=True`): giriş bedeli
+      dahil her şey iade edilir. İşlem yürümedi, bayinin parası onda kalmaz.
+    · **Yanlış onay geri alındı** (`giris_bedeli_dahil=False`): yalnızca
+      aktivasyonda işlenen para geri alınır. Giriş bedeli durur, çünkü ürün
+      hâlâ bayinin elinde ve başvuru yaşamaya devam ediyor.
+
+    Defter değişmezdir, satır silinmez; her hareketin karşısına ters kaydı
+    yazılır.
     """
     with transaction.atomic():
         basvuru_kilitli = type(basvuru).objects.select_for_update().get(pk=basvuru.pk)
 
-        if not (basvuru_kilitli.para_islendi or basvuru_kilitli.ana_hakedis_islendi):
+        islenmis = (
+            basvuru_kilitli.para_islendi
+            or basvuru_kilitli.ana_hakedis_islendi
+            or (giris_bedeli_dahil and basvuru_kilitli.giris_bedeli_islendi)
+        )
+        if not islenmis:
             return basvuru_kilitli
 
-        hareketler = list(
-            basvuru_kilitli.cuzdan_hareketleri.filter(ters_kayit__isnull=True)
-            .exclude(tip=HareketTipi.IPTAL)
-            .select_related("cuzdan")
-        )
+        hareketler = basvuru_kilitli.cuzdan_hareketleri.filter(
+            ters_kayit__isnull=True
+        ).exclude(tip=HareketTipi.IPTAL)
+        if not giris_bedeli_dahil:
+            hareketler = hareketler.filter(giris_bedeli=False)
+        hareketler = list(hareketler.select_related("cuzdan"))
         # Hem bayinin hem tedarikçinin cüzdanı kilitlenir.
         cuzdanlar = {
             c.pk: c
@@ -441,16 +522,20 @@ def basvuru_parasini_geri_al(basvuru, *, olusturan=None):
         basvuru_kilitli.ana_hakedis = SIFIR
         basvuru_kilitli.para_islendi = False
         basvuru_kilitli.ana_hakedis_islendi = False
+        alanlar = [
+            "tahsil_edilen", "hakedis", "ana_hakedis",
+            "para_islendi", "ana_hakedis_islendi", "para_surumu",
+            "guncelleme_tarihi",
+        ]
+        if giris_bedeli_dahil:
+            basvuru_kilitli.giris_bedeli = SIFIR
+            basvuru_kilitli.giris_bedeli_islendi = False
+            alanlar += ["giris_bedeli", "giris_bedeli_islendi"]
+
         # Sonraki işleme yeni anahtarlarla yazsın: aynı başvuru düzeltilip
         # yeniden onaylandığında para gerçekten hareket etsin.
         basvuru_kilitli.para_surumu = basvuru_kilitli.para_surumu + 1
-        basvuru_kilitli.save(
-            update_fields=[
-                "tahsil_edilen", "hakedis", "ana_hakedis",
-                "para_islendi", "ana_hakedis_islendi", "para_surumu",
-                "guncelleme_tarihi",
-            ]
-        )
+        basvuru_kilitli.save(update_fields=alanlar)
         return basvuru_kilitli
 
 
