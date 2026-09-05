@@ -1260,3 +1260,94 @@ class AcilanHesapKutusu(TestCase):
 
         self.assertNotIn("delete_olusturulan_kullanici", icerik)
         self.assertNotIn("add_olusturulan_kullanici", icerik)
+
+
+class PaneldeAylikHakedis(TestCase):
+    """Panelin "Bu ay hakediş" rakamı başvurulardan okunur.
+
+    Yalnızca HAKEDIS tipli defter satırlarını toplamak iki yerde yanlış
+    sonuç veriyordu: iptalin ters kaydı sayılmadığı için bakiye sıfırlanmışken
+    panelde hakediş duruyordu, borcu kapatan hakediş de BORC_TAHSIL satırına
+    düştüğü için eksik görünüyordu.
+    """
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.finans.models import KuralYonu, UcretKurali
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        self.beklemede = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.iptal = BasvuruDurumu.objects.create(
+            ad="İptal", slug="iptal", olumsuz_sonuc=True
+        )
+
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=Decimal("0.00"))
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.tarife = Tarife.objects.create(
+            kategori=self.kategori, operator=self.operator, ad="Platinum"
+        )
+        UcretKurali.objects.create(
+            ad="Hakediş", yon=KuralYonu.HAKEDIS, tutar=Decimal("250.00"),
+            tetikleyici_durum=self.aktif, kategori=self.kategori,
+        )
+        self.client.force_login(self.bayi)
+
+    def _basvuru(self, durum=None):
+        from apps.basvurular.models import Basvuru
+
+        return Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            tarife=self.tarife, isim="Ayşe", soyisim="Demir", kimlik_no="1",
+            irtibat="5551112233", durum=durum or self.beklemede,
+        )
+
+    def _panel_hakedisi(self):
+        return self.client.get(reverse("bayi:panel")).context["aylik_hakedis"]
+
+    def test_aktif_basvurunun_hakedisi_gorunur(self):
+        from decimal import Decimal
+
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        self.assertEqual(self._panel_hakedisi(), Decimal("250.00"))
+
+    def test_iptal_edilen_basvurunun_hakedisi_dusulur(self):
+        """Bakiye sıfırlanmışken panelde hakediş durup kalıyordu."""
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+        basvuru.durum = self.iptal
+        basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, 0)
+        self.assertEqual(self._panel_hakedisi(), 0)
+
+    def test_borcu_kapatan_hakedis_tam_gorunur(self):
+        """Hakedişin borca giden kısmı da bayinin kazancıdır."""
+        from decimal import Decimal
+
+        self.cuzdan.borc = Decimal("100.00")
+        self.cuzdan.save(update_fields=["borc"])
+
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("150.00"))
+        self.assertEqual(self.cuzdan.borc, 0)
+        # Cüzdana 150 girdi ama bayinin bu aydaki hakedişi 250'dir.
+        self.assertEqual(self._panel_hakedisi(), Decimal("250.00"))

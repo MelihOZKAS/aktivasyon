@@ -237,6 +237,16 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `operator` ya da `tedarikci` kapsamıyla daraltılır. Tedarikçi sonradan da
   atanabildiği için kendi tekillik anahtarıyla ayrı işlenir
   (`ana_hakedisi_isle`).
+- **Özet rakamlar defter satırlarından değil başvurudan okunur.** Panelin
+  "Bu ay hakediş" değeri bir süre yalnızca `HAKEDIS` tipli cüzdan
+  hareketlerini topluyordu; iki yerde yanlıştı. İptalin ters kaydı (`IPTAL`)
+  sayılmadığı için bakiye sıfırlanmışken panelde hakediş duruyordu, borcu
+  kapatan hakediş de `BORC_TAHSIL` satırına düştüğü için eksik görünüyordu.
+  `Basvuru.hakedis` ikisini de doğru taşır: geri alınan başvuruda sıfırlanır,
+  borç mahsubunda tam tutarı korur. Yeni bir özet rakam eklerken başvurunun
+  alanlarından topla; defter satırı tek tek doğrudur ama toplamı almak
+  hareket tiplerini bilmeyi gerektirir (borç satırının işareti bakiye
+  satırıyla aynı anlama gelmez).
 - **Bayi hakedişini şeffaf görür.** `/hakedisler/` sayfası hangi tarifeden ne
   kazanacağını, kesintisini ve elde kalan neti gösterir. Yeni bir para kalemi
   eklerken bu sayfayı da güncelle.

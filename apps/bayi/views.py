@@ -213,15 +213,24 @@ def _durum_dagilimi(kullanici):
 def panel(request):
     cuzdan = getattr(request.user, "cuzdan", None)
 
+    # Bu ayın hakedişi başvurulardan okunur, defter satırlarından değil.
+    #
+    # Yalnızca HAKEDIS tipli satırları toplamak iki yerde yanlış sonuç
+    # veriyordu: iptal edilen başvurunun ters kaydı (IPTAL) sayılmadığı için
+    # bakiye sıfırlanmışken panelde hakediş duruyordu; borcu kapatan hakediş
+    # de BORC_TAHSIL satırına düştüğü için eksik görünüyordu.
+    #
+    # `Basvuru.hakedis` her iki durumu da doğru taşır: geri alınan başvuruda
+    # sıfırlanır, borç mahsubunda tam tutarı korur.
     ayin_basi = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    aylik_hakedis = 0
-    if cuzdan:
-        aylik_hakedis = (
-            CuzdanHareketi.objects.filter(
-                cuzdan=cuzdan, tip=HareketTipi.HAKEDIS, tarih__gte=ayin_basi
-            ).aggregate(toplam=Sum("tutar"))["toplam"]
-            or 0
-        )
+    aylik_hakedis = (
+        Basvuru.objects.filter(
+            bayi=request.user,
+            para_islendi=True,
+            sonuclanma_tarihi__gte=ayin_basi,
+        ).aggregate(toplam=Sum("hakedis"))["toplam"]
+        or 0
+    )
 
     araliklar = _kategori_hakedisleri(request.user)
     kategoriler = list(
