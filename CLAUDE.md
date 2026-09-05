@@ -123,11 +123,45 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Bayiyi tamamen durdurmak gerekirse cüzdandaki `islem_yapabilir` kapatılır.
   Bayi panelinde "borç limiti" ya da "kullanılabilir tutar" gösterilmez;
   `apps/bayi/tests.py` bunu kontrol eder.
+- **Bayiye giren her kuruş önce borcu kapatır.** Hakediş de elle yapılan
+  bakiye yüklemesi de aynı sırayı izler: borç varsa oradan düşülür (`BORC_TAHSIL`),
+  kalanı bakiyeye yazılır. 100 borcu olan bayi 250 hakediş alınca cüzdanında
+  150 durur; hem 250 çekilebilir bakiye hem 100 borç aynı anda durmaz.
+  Başvurudaki `hakedis` alanı yine 250'dir — mahsup cüzdan tarafındadır,
+  bayinin hakedişi kısılmaz. Bayiye para giren yeni bir kalem eklersen
+  aynı sırayı uygula.
+- **Para, tetikleyen durumda *olmaya* bağlıdır.** `hakedis_tetikler` bir
+  duruma geçilince işlenir; o durumdan **herhangi bir** duruma çıkılınca ters
+  kayıtla geri alınır. Yalnızca `olumsuz_sonuc` durumunda geri almak sessiz
+  bir tuzaktı: yanlış başvuruyu onaylayan yönetici durumu "İşlemde"ye çekiyor,
+  para bayide kalıyordu. Yanlış onayın düzeltmesi de günlük işin kuralına
+  uyar — tek yapılan şey durumu değiştirmektir.
+- **Defterin tekillik anahtarı `Basvuru.para_surumu` içerir.** Para her geri
+  alındığında sürüm artar. Anahtar sürümsüzken geri alınıp yeniden onaylanan
+  başvurunun ikinci hareketi `IntegrityError`'a takılıp sessizce yutuluyordu:
+  başvuru "150 hakediş ödendi" derken cüzdanda karşılığı yoktu. Yeni bir para
+  hareketi eklerken anahtara sürümü koy.
+- **Onaylanan başvurunun kimlik görüntüleri anında silinir** (`belgeleri_sil`).
+  Yanlış onay geri alınabilir, para geri döner ama **görüntüler geri gelmez.**
+  Bayiden yeniden istemek gerekirse başvuru `bayi_duzenleyebilir` işaretli bir
+  duruma (Eksik Evrak) alınır.
 - **Formda sabit alan listesi yoktur.** Hangi alanların sorulacağına
   `KategoriAlani` kayıtları karar verir — İsim, TC No gibi çekirdek alanlar
   dahil. `cekirdek_alan` doluysa değer başvurunun kendi kolonuna yazılır
   (aranabilir olur), boşsa `ek_bilgiler` JSON'una girer. Forma yeni bir sabit
   alan ekleme; kategori tanımından geçir.
+- **Yeni kategori boş formla açılmaz; bilinen bütün alanlar açık gelir.**
+  Panelden kategori eklemek hiç alanı olmayan bir kategori bırakıyordu: bayi
+  boş form görüyor, yönetici yirmi satırı elle giriyordu.
+  `apps/katalog/varsayilan_alanlar.TUM_ALANLAR` hepsini açar
+  (`BasvuruKategorisiAdmin.save_related`); bu kategoride sorulmayacak olanı
+  yönetici "Aktif" kutusundan kapatır. Kapatmak eklemekten kolaydır ve kural
+  tek cümlede durur — müşteri tipine göre dallanma **yok**, kimlik de pasaport
+  da gelir. Her kategoriye açılan niş alanlar (Taşınacak No, Geçeceği
+  Operatör) zorunlu **değildir**: kapatmayı unutan yönetici bayiyi olmayan
+  bir bilgiyi doldurmaya mahkûm etmesin. Var olan alana dokunulmaz, kapatılan
+  alan geri açılmaz. Ortak alan listesi tek yerde durur; `baslangic_verisi`
+  de oradan okur. Yeni bir alan yaygınlaşırsa listeye buradan eklenir.
 - **Bayi parolasını başvuru sırasında kendisi seçer.** Kamuya açık formda
   parola alanı vardır; `BayiBasvurusu.parola_ozeti` yalnızca **özeti** tutar,
   düz metin hiçbir yere yazılmaz — Telegram bildirimine de girmez. Özet
@@ -156,6 +190,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   yöneticinin açtığı herhangi bir sayfa bayinin parolasını sıfırlatabilirdi.
   Parola log'a, mesaja, bildirime girmez — sistem yalnızca özetini saklar,
   bu yüzden "eski parolası neydi" diye bakılamaz.
+- **Bayi başvurusunda fiyat kademesi de seçilir.** `BayiBasvurusu.bayi_grubu`
+  onay ekranında durur ve hesap açılırken cüzdana yazılır
+  (`bayi_hesabi_ac`); yönetici onaydan sonra bir de cüzdan ekranına gitmiyor.
+  Boş bırakılırsa hesap yine açılır ama panel uyarır: bayi grubuna bağlı
+  hakediş kuralları kademesiz cüzdanda işlemez, bayi işlem yapar karşılığında
+  hiçbir şey almaz. Kademe başvurana sorulmaz — kamuya açık formun alan
+  listesi sabittir (`fields`), yönetimin fiyat kararı oraya sızmaz.
 - **Kullanıcı seçtiren kutularda ekle/düzenle/sil düğmeleri kapatılır.**
   Başvurudaki "Açılan Hesap" kutusunun yanındaki kırmızı çöp kutusu seçimi
   değil, seçili kullanıcının kendisini siler; yanlış hesap seçilince ilk
