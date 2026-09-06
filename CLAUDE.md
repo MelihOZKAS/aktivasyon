@@ -29,6 +29,7 @@ Bu ilkeyi bozan bir çözüm önerme.
 | Finans | `apps/finans` | Cüzdan, değişmez defter, ücret ve hakediş kuralları |
 | Bayi | `apps/bayi` | Profil ve roller, SIM stoğu, duyurular, paneller |
 | Bildirim | `apps/bildirim` | Telegram |
+| Destek | `apps/destek` | Bayi–yönetim yazışması |
 
 ## Kurulum sırası
 
@@ -370,6 +371,24 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   müşteriyle ilgilenir; aradaki bayiyi tanıması doğrudan temasa kapı açar.
   Satır listeye hiç girmediği için "Görünüm" kutusundan da açılamaz. Tedarikçiye
   bayiyi ele verecek yeni bir alan eklersen bu listeye de yaz.
+- **Destek talebi bayi ile yönetim arasındaki yazışmadır** (`apps/destek`).
+  Bayi telefonla arıyordu; konuşma hiçbir yerde kalmıyor, kimin ne dediği
+  unutuluyordu. Talep bir **konu** ve **mesajlardan** oluşur; isteğe bağlı
+  olarak bir başvuruya bağlanır — kutuya yalnızca bayinin kendi başvuruları
+  girer. Adres referans numarasıyla kurulur (`/destek/VV6YEHDW/`), sayaçla
+  değil.
+  **Durum bilinçli olarak iki tanedir:** açık ve kapalı. "Sıra kimde"
+  sorusu ayrı bir durum değil, son mesajın kimden geldiğinden okunan bir
+  bayraktır (`yanit_bekliyor`); üçüncü bir durum iki kaydı senkron tutmak
+  demekti ve senkron kalmayan gün yanlış tarafı bekletirdi. Kapalı talebe
+  yazılan mesaj onu **yeniden açar** — konuşma sürüyorsa kayıt kapalı
+  görünmemeli.
+  Mesaj eklemenin tek yolu `destek.services.mesaj_ekle`: kaydı yazar,
+  talebin özet alanlarını günceller, gerekirse yeniden açar. Yönetim
+  panelindeki satır içi yanıt kutusu da (`save_formset`) oradan geçer;
+  doğrudan kaydedilseydi talep yanıtlandığı hâlde rozette beklemeye devam
+  ederdi. Talep açılınca Telegram'a haber gider, **yanıtlar bildirilmez**:
+  açık talep zaten rozetle sayılıyor, grup her mesajda dolmasın.
 - **Bayi menüsünün sırası bilinçlidir:** Panel, Tarifeler, Yeni başvuru,
   Başvurularım, Hakedişler, Cüzdan. Bayi müşteriyle önce tarifeye bakıyor,
   sonra başvuruyu giriyor; menü bu sırayı izler.
@@ -624,7 +643,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **Rozet şablonu ezilmiştir** (`templates/unfold/helpers/app_list_badge.html`).
   unfold rozeti `badge` anahtarı dolu olduğu sürece çiziyor; geri çağırım boş
   dönünce sayı yerine geri çağırımın nokta yolunu basıyordu. Ezilmiş sürüm
-  değeri önce çözer, boşsa hiç çizmez. Rozet sınıfları unfold'un derlenmiş
+  değeri önce çözer, boşsa hiç çizmez.
+  **Değer tembel bir vekildir** (`lazy(callback)(request)`): sonuç sınıfı
+  verilmediği için `bool()` her zaman doğru döner, `{% if deger %}` yetmiyordu
+  — bekleyen iş yokken de içi boş kırmızı bir nokta çiziliyordu. Şablon değeri
+  `stringformat` ile metne çevirip öyle bakar. Aynı şablon hem yan menüde hem
+  gösterge panelinde kullanılıyor. Rozet sınıfları unfold'un derlenmiş
   CSS'inden gelir — bizim `static/app.css` yönetim panelinde yüklü değildir,
   oraya yeni sınıf uyduramazsın.
 - **Satır işlemleri açılır menüde saklanmaz**

@@ -17,6 +17,7 @@ urlpatterns = [
     path("yonetim/", admin.site.urls),
     path("", include("apps.bayi.urls", namespace="bayi")),
     path("basvuru/", include("apps.basvurular.urls", namespace="basvurular")),
+    path("destek/", include("apps.destek.urls", namespace="destek")),
 ]
 
 # Tarife, kampanya ve operatör görselleri DEBUG'dan bağımsız sunulur:

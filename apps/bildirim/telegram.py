@@ -123,6 +123,27 @@ def basvuru_bildir(basvuru, yeni=False):
     mesaj_gonder("\n".join(s for s in satirlar if s is not None))
 
 
+def destek_talebi_bildir(talep):
+    """Bayi yeni bir destek talebi açtığında operasyon grubuna haber verir.
+
+    Yanıtlar bildirilmez: açık bir talebin devamı zaten yönetim panelinde
+    rozetle sayılıyor, her mesajda grup dolmasın.
+    """
+    profil = getattr(talep.bayi, "bayi_profili", None)
+    unvan = profil.unvan if profil and profil.unvan else talep.bayi.get_username()
+    mesaj_gonder(
+        "\n".join(
+            [
+                "💬 <b>Yeni destek talebi</b>",
+                "",
+                _satir("Talep No", talep.referans_no),
+                _satir("Bayi", unvan),
+                _satir("Konu", talep.konu),
+            ]
+        )
+    )
+
+
 def bayi_basvurusu_bildir(basvuru):
     """Bayi olmak isteyen biri form doldurduğunda operasyon grubuna haber verir."""
     mesaj_gonder(

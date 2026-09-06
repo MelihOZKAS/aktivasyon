@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block baslik %}Destek · Aktivasyon{% endblock %}
+{% block sayfa_basligi %}Destek{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl space-y-6">
+
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h2 class="baslik text-xl font-bold">
+      Taleplerim
+      <span class="rakam ml-1 text-base font-medium text-soluk">{{ toplam }}</span>
+    </h2>
+    <a href="{% url 'destek:yeni' %}" class="dugme dugme-birincil">Yeni talep</a>
+  </div>
+
+  {% if sayfa.object_list %}
+  <div class="yuzey overflow-hidden rounded-kart">
+    {% for talep in sayfa %}
+    <a href="{{ talep.get_absolute_url }}"
+       class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-zemin
+              {% if not forloop.last %}border-b border-cizgi{% endif %}">
+      <div class="min-w-0 flex-1">
+        <p class="truncate font-medium">{{ talep.konu }}</p>
+        <p class="mt-0.5 flex items-baseline gap-2.5 truncate text-sm text-soluk">
+          <span class="referans">{{ talep.referans_no }}</span>
+          <span class="truncate">{{ talep.son_mesaj_tarihi|date:"j M Y, H:i" }}</span>
+        </p>
+      </div>
+
+      <div class="shrink-0 text-right">
+        {% if talep.acik_mi %}
+        <p class="text-sm font-semibold {% if talep.yanit_bekliyor %}text-uyari{% else %}text-olumlu{% endif %}">
+          {% if talep.yanit_bekliyor %}Yanıt bekliyor{% else %}Yanıtlandı{% endif %}
+        </p>
+        {% else %}
+        <p class="text-sm font-semibold text-soluk">Kapalı</p>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if sayfa.has_other_pages %}
+  <div class="flex items-center justify-between text-sm">
+    {% if sayfa.has_previous %}
+    <a href="?sayfa={{ sayfa.previous_page_number }}" class="dugme dugme-sessiz">Önceki</a>
+    {% else %}<span></span>{% endif %}
+    <span class="text-soluk">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
+    {% if sayfa.has_next %}
+    <a href="?sayfa={{ sayfa.next_page_number }}" class="dugme dugme-sessiz">Sonraki</a>
+    {% else %}<span></span>{% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="yuzey sim rounded-kart px-6 py-14 text-center">
+    <p class="baslik font-semibold">Henüz talebin yok</p>
+    <p class="mx-auto mt-1.5 max-w-xs text-sm text-soluk">
+      Bir sorun ya da sorun olduğunda buradan yaz; yazışma kayda geçer,
+      yanıtı yine burada görürsün.
+    </p>
+    <a href="{% url 'destek:yeni' %}" class="dugme dugme-birincil mt-6">Yeni talep</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

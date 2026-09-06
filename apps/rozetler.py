@@ -45,3 +45,16 @@ def bekleyen_odeme_bildirimleri(request):
     return _sayi(
         OdemeBildirimi.objects.filter(durum=OdemeBildirimiDurumu.BEKLIYOR)
     )
+
+
+def yanit_bekleyen_talepler(request):
+    """Bayinin yazdığı, yönetimin henüz yanıtlamadığı destek talepleri.
+
+    Rozet yine "bakılacak iş" sayar: yönetim yanıt yazdığı anda sıra bayiye
+    geçer ve talep sayıdan düşer.
+    """
+    from apps.destek.models import DestekTalebi, TalepDurumu
+
+    return _sayi(
+        DestekTalebi.objects.filter(durum=TalepDurumu.ACIK, yanit_bekliyor=True)
+    )

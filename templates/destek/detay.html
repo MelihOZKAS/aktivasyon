@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ talep.referans_no }} · Destek{% endblock %}
+{% block sayfa_basligi %}Talep {{ talep.referans_no }}{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl space-y-6">
+
+  <div class="yuzey sim rounded-kart p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="min-w-0">
+        <h2 class="baslik text-xl font-bold">{{ talep.konu }}</h2>
+        <p class="mt-1.5 flex flex-wrap items-baseline gap-2.5 text-sm text-soluk">
+          <span class="referans">{{ talep.referans_no }}</span>
+          <span>{{ talep.olusturma_tarihi|date:"j F Y, H:i" }}</span>
+        </p>
+      </div>
+      <span class="rounded-full px-3 py-1 text-sm font-semibold
+                   {% if not talep.acik_mi %}bg-zemin text-soluk
+                   {% elif talep.yanit_bekliyor %}bg-uyari/10 text-uyari
+                   {% else %}bg-olumlu/10 text-olumlu{% endif %}">
+        {% if not talep.acik_mi %}Kapalı
+        {% elif talep.yanit_bekliyor %}Yanıt bekliyor
+        {% else %}Yanıtlandı{% endif %}
+      </span>
+    </div>
+
+    {% if talep.basvuru %}
+    <p class="mt-4 border-t border-cizgi pt-4 text-sm text-soluk">
+      İlgili başvuru:
+      <a href="{% url 'basvurular:detay' talep.basvuru.referans_no %}"
+         class="referans font-medium text-vurgu hover:underline">
+        {{ talep.basvuru.referans_no }}
+      </a>
+      <span>· {{ talep.basvuru.kategori.ad }}</span>
+    </p>
+    {% endif %}
+  </div>
+
+  {% comment %}
+    Yazışma: bayinin mesajı solda beyaz, yönetimin mesajı sağda koyu.
+    Renk burada bilgi taşıyor — kimin yazdığı okunmadan anlaşılsın.
+  {% endcomment %}
+  <div class="space-y-3">
+    {% for mesaj in mesajlar %}
+    <div class="flex {% if mesaj.personelden %}justify-end{% endif %}">
+      <div class="max-w-[85%] rounded-kart px-4 py-3
+                  {% if mesaj.personelden %}bg-murekkep text-white
+                  {% else %}yuzey border border-cizgi{% endif %}">
+        <p class="text-xs font-semibold {% if mesaj.personelden %}text-white/60{% else %}text-soluk{% endif %}">
+          {% if mesaj.personelden %}Yönetim{% else %}Sen{% endif %}
+          · {{ mesaj.tarih|date:"j M Y, H:i" }}
+        </p>
+        <p class="mt-1.5 whitespace-pre-line text-sm leading-relaxed">{{ mesaj.icerik }}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if talep.acik_mi %}
+  <div class="yuzey rounded-kart p-6">
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+      <div>
+        <label for="{{ form.icerik.id_for_label }}" class="alan-etiketi mb-1.5">
+          {{ form.icerik.label }}
+        </label>
+        {{ form.icerik }}
+        {% for hata in form.icerik.errors %}
+        <p class="mt-1.5 text-sm text-olumsuz">{{ hata }}</p>
+        {% endfor %}
+      </div>
+      <button type="submit" class="dugme dugme-birincil w-full sm:w-auto">Gönder</button>
+    </form>
+  </div>
+
+  <form method="post" action="{% url 'destek:kapat' talep.referans_no %}">
+    {% csrf_token %}
+    <button type="submit" class="dugme dugme-sessiz">Talebi kapat</button>
+  </form>
+  {% else %}
+  <div class="yuzey rounded-kart p-6">
+    <p class="baslik font-semibold">Talep kapalı</p>
+    <p class="mt-1.5 text-sm leading-relaxed text-soluk">
+      Konu devam ediyorsa yeni bir talep aç; yazışman burada duruyor.
+    </p>
+    <a href="{% url 'destek:yeni' %}" class="dugme dugme-sessiz mt-4">Yeni talep</a>
+  </div>
+  {% endif %}
+
+  <a href="{% url 'destek:liste' %}" class="dugme dugme-sessiz">Taleplerime dön</a>
+</div>
+{% endblock %}

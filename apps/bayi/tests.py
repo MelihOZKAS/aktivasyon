@@ -904,6 +904,15 @@ class YanMenuRozetleri(TestCase):
         self.assertIn("Bayi Başvuruları", icerik)
         return icerik
 
+    def test_bekleyen_yoksa_bos_nokta_cizilmez(self):
+        """Rozet değeri tembel bir vekil; `if` her zaman doğru dönüyordu.
+
+        Bekleyen iş yokken yan menüde içi boş kırmızı bir nokta çıkıyordu.
+        """
+        icerik = self._menu()
+
+        self.assertNotIn('rounded-full text-center text-[11px]', icerik)
+
     def test_bekleyen_yoksa_rozet_cizilmez(self):
         from apps import rozetler
 

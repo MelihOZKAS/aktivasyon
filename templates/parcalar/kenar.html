@@ -91,6 +91,14 @@
 
       {% endif %}
 
+      {% url 'destek:liste' as u_destek %}
+      <a href="{{ u_destek }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path == u_destek %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Destek
+      </a>
+
       <a href="{{ u_cuzdan }}"
          class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
                 {% if request.path == u_cuzdan %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">

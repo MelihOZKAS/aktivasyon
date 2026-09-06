@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block baslik %}Yeni destek talebi · Aktivasyon{% endblock %}
+{% block sayfa_basligi %}Yeni talep{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-2xl space-y-6">
+  <div class="yuzey sim rounded-kart p-6">
+    <h2 class="baslik text-xl font-bold">Yeni talep</h2>
+    <p class="mt-1.5 text-sm leading-relaxed text-soluk">
+      Konuyu kısaca yaz, ayrıntıyı mesaja bırak. Bir başvuruyla ilgiliyse
+      seçersen yönetim doğrudan o kayda bakar.
+    </p>
+
+    <form method="post" class="mt-6 space-y-5">
+      {% csrf_token %}
+
+      {% for alan in form %}
+      <div>
+        <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5">
+          {{ alan.label }}
+          {% if not alan.field.required %}
+          <span class="font-normal text-soluk">· isteğe bağlı</span>
+          {% endif %}
+        </label>
+        {{ alan }}
+        {% for hata in alan.errors %}
+        <p class="mt-1.5 text-sm text-olumsuz">{{ hata }}</p>
+        {% endfor %}
+      </div>
+      {% endfor %}
+
+      <button type="submit" class="dugme dugme-birincil w-full">Talebi gönder</button>
+    </form>
+  </div>
+
+  <a href="{% url 'destek:liste' %}" class="dugme dugme-sessiz">Taleplerime dön</a>
+</div>
+{% endblock %}

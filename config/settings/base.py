@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "apps.finans",
     "apps.bayi",
     "apps.bildirim",
+    "apps.destek",
 ]
 
 MIDDLEWARE = [
@@ -295,6 +296,12 @@ UNFOLD = {
                     },
                     {"title": "SIM Stoğu", "icon": "sim_card", "link": "/yonetim/bayi/simkart/"},
                     {"title": "Duyurular", "icon": "notifications", "link": "/yonetim/bayi/duyuru/"},
+                    {
+                        "title": "Destek Talepleri",
+                        "icon": "forum",
+                        "link": "/yonetim/destek/destektalebi/",
+                        "badge": "apps.rozetler.yanit_bekleyen_talepler",
+                    },
                     {"title": "Kullanıcılar", "icon": "person", "link": "/yonetim/auth/user/"},
                 ],
             },
