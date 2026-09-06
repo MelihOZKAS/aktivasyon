@@ -95,6 +95,13 @@
           Bayi başvurusu yap
         </a>
       </div>
+
+      {% if genel_ayarlar.iletisim_var %}
+      <div class="mt-6 border-t border-cizgi pt-5">
+        <p class="mb-1 text-sm text-soluk">Giremiyor musun? Bize ulaş.</p>
+        {% include "parcalar/iletisim.html" %}
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

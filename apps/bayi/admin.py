@@ -20,6 +20,7 @@ from apps.bayi.models import (
     BayiBasvurusu,
     BayiProfili,
     Duyuru,
+    GenelAyarlar,
     SimKart,
     SimKartDurumu,
 )
@@ -373,6 +374,42 @@ class DuyuruAdmin(ModelAdmin):
     list_filter = ("aktif", "onemli")
     search_fields = ("baslik", "icerik")
     date_hierarchy = "olusturma_tarihi"
+
+
+@admin.register(GenelAyarlar)
+class GenelAyarlarAdmin(ModelAdmin):
+    """Tek kayıtlı ayar ekranı.
+
+    Liste görünümü anlamsız: tek satır var. Menüden tıklayan yönetici
+    doğrudan düzenleme sayfasına düşer; ekleme ve silme kapalıdır, yoksa
+    "hangi ayar geçerli" sorusu doğar.
+    """
+
+    fieldsets = (
+        (
+            "İletişim",
+            {
+                "fields": ("telefon", "eposta"),
+                "description": (
+                    "Kamuya açık sayfaların altında görünür: giriş ekranı, "
+                    "tanıtım sayfası ve bayi başvuru formu. Boş bıraktığınız "
+                    "alan hiç gösterilmez."
+                ),
+            },
+        ),
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        from django.shortcuts import redirect
+
+        ayar = GenelAyarlar.getir()
+        return redirect("admin:bayi_genelayarlar_change", ayar.pk)
 
 
 class BayiBasvurusuAdminFormu(forms.ModelForm):

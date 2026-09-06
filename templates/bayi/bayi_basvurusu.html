@@ -111,6 +111,13 @@
         <p class="mb-3 text-sm text-soluk">Hesabınız zaten var mı?</p>
         <a href="{% url 'bayi:giris' %}" class="dugme dugme-sessiz w-full">Giriş yap</a>
       </div>
+
+      {% if genel_ayarlar.iletisim_var %}
+      <div class="mt-6 border-t border-cizgi pt-5">
+        <p class="mb-1 text-sm text-soluk">Sormak istediğiniz bir şey mi var?</p>
+        {% include "parcalar/iletisim.html" %}
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

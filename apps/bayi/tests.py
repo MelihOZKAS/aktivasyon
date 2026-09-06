@@ -1686,3 +1686,87 @@ class CuzdanHareketiOncekiSonraki(TestCase):
         icerik = self._sayfa()
 
         self.assertIn("400,00 ₺", icerik)
+
+
+class GenelAyarlarIletisim(TestCase):
+    """İletişim bilgisi admin'den girilir, kamuya açık sayfalarda görünür.
+
+    Şablona sabit metin yazılsaydı numarayı değiştirmek yazılım
+    güncellemesi gerektirirdi.
+    """
+
+    def setUp(self):
+        from apps.bayi.models import GenelAyarlar
+
+        self.ayar = GenelAyarlar.getir()
+
+    def _sayfalar(self):
+        return ["/", "/giris-yap/", "/bayi-basvurusu/"]
+
+    def test_bos_ayarda_iletisim_kutusu_cizilmez(self):
+        for adres in self._sayfalar():
+            icerik = self.client.get(adres).content.decode()
+            self.assertNotIn("tel:", icerik, adres)
+            self.assertNotIn("mailto:", icerik, adres)
+
+    def test_girilen_bilgiler_acik_sayfalarda_gorunur(self):
+        self.ayar.telefon = "0850 123 45 67"
+        self.ayar.eposta = "destek@ornek.com"
+        self.ayar.save()
+
+        for adres in self._sayfalar():
+            icerik = self.client.get(adres).content.decode()
+            self.assertIn("0850 123 45 67", icerik, adres)
+            self.assertIn("destek@ornek.com", icerik, adres)
+            self.assertIn("tel:08501234567", icerik, adres)
+            self.assertIn("mailto:destek@ornek.com", icerik, adres)
+
+    def test_yalnizca_biri_girilirse_digeri_cizilmez(self):
+        self.ayar.telefon = "0850 123 45 67"
+        self.ayar.save()
+
+        icerik = self.client.get("/giris-yap/").content.decode()
+
+        self.assertIn("tel:", icerik)
+        self.assertNotIn("mailto:", icerik)
+
+    def test_kayit_tek_kalir(self):
+        """Hangi ayarın geçerli olduğu sorusu hiç doğmasın."""
+        from apps.bayi.models import GenelAyarlar
+
+        ayar = GenelAyarlar.getir()
+        ayar.telefon = "0500 000 00 00"
+        ayar.save()
+        GenelAyarlar.getir()
+
+        self.assertEqual(GenelAyarlar.objects.count(), 1)
+        self.assertEqual(GenelAyarlar.getir().pk, GenelAyarlar.TEKIL_PK)
+        self.assertEqual(GenelAyarlar.getir().telefon, "0500 000 00 00")
+
+    def test_yonetimden_ikinci_kayit_eklenemez(self):
+        from django.contrib.auth.models import User
+
+        yonetici = User.objects.create_superuser("y", password="Panel-2026x")
+        self.client.force_login(yonetici)
+
+        yanit = self.client.get("/yonetim/bayi/genelayarlar/add/")
+
+        self.assertEqual(yanit.status_code, 403)
+
+    def test_ayar_kaydi_silinmez(self):
+        from apps.bayi.models import GenelAyarlar
+
+        self.ayar.delete()
+
+        self.assertEqual(GenelAyarlar.objects.count(), 1)
+
+    def test_yonetim_listesi_dogrudan_duzenlemeye_gider(self):
+        from django.contrib.auth.models import User
+
+        yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(yonetici)
+
+        yanit = self.client.get("/yonetim/bayi/genelayarlar/")
+
+        self.assertEqual(yanit.status_code, 302)
+        self.assertIn("/genelayarlar/1/change/", yanit["Location"])

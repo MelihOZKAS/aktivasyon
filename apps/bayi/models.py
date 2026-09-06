@@ -178,6 +178,70 @@ class Duyuru(ZamanDamgali):
         return self.baslik
 
 
+class GenelAyarlar(ZamanDamgali):
+    """Sitenin kamuya açık iletişim bilgileri — tek kayıt.
+
+    Telefon ve e-posta şablona gömülü olsaydı değiştirmek yazılım
+    güncellemesi gerektirirdi; bayiye içerik gösteren her alan gibi bu da
+    admin'den girilir.
+
+    Tek satır tutulur: `pk` her kayıtta 1'e sabitlenir, ikinci bir ayar
+    kaydı açılamaz. Boş bırakılan alan sitede hiç görünmez — yarım bir
+    iletişim kutusu göstermektense hiç göstermemek yeğdir.
+    """
+
+    TEKIL_PK = 1
+
+    telefon = models.CharField(
+        "İletişim Telefonu",
+        max_length=30,
+        blank=True,
+        help_text="Sitede tıklanabilir olarak görünür. Örn: 0850 123 45 67",
+    )
+    eposta = models.EmailField(
+        "İletişim E-postası",
+        blank=True,
+        help_text="Sitede tıklanabilir olarak görünür.",
+    )
+
+    class Meta:
+        verbose_name = "Genel Ayar"
+        verbose_name_plural = "Genel Ayarlar"
+
+    def __str__(self):
+        return "Genel Ayarlar"
+
+    def save(self, *args, **kwargs):
+        """Kayıt her zaman tek satırdır: `pk` 1'e sabitlenir.
+
+        İkinci bir ayar kaydı açılamaz; hangisinin geçerli olduğu sorusu hiç
+        doğmasın. Kayıt açmanın doğru yolu `getir()`; `objects.create()`
+        ikinci kez çağrılırsa tekil anahtara çarpar ve bu sessiz kalmaktan
+        iyidir.
+        """
+        self.pk = self.TEKIL_PK
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """Ayar kaydı silinmez; alanları boşaltmak yeter."""
+        return 0, {}
+
+    @classmethod
+    def getir(cls):
+        """Var olan kaydı verir; yoksa boş bir tane açar."""
+        kayit, _ = cls.objects.get_or_create(pk=cls.TEKIL_PK)
+        return kayit
+
+    @property
+    def iletisim_var(self):
+        return bool(self.telefon or self.eposta)
+
+    @property
+    def telefon_baglantisi(self):
+        """`tel:` bağlantısı için sadeleştirilmiş numara."""
+        return "".join(k for k in self.telefon if k.isdigit() or k == "+")
+
+
 class BayiBasvuruDurumu(models.TextChoices):
     YENI = "yeni", "Yeni"
     GORUSULDU = "gorusuldu", "Görüşüldü"

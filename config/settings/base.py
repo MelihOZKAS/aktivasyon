@@ -65,6 +65,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.bayi.context_processors.bayi_baglami",
+                "apps.bayi.context_processors.genel_ayarlar",
             ],
         },
     },
@@ -295,6 +296,17 @@ UNFOLD = {
                     {"title": "SIM Stoğu", "icon": "sim_card", "link": "/yonetim/bayi/simkart/"},
                     {"title": "Duyurular", "icon": "notifications", "link": "/yonetim/bayi/duyuru/"},
                     {"title": "Kullanıcılar", "icon": "person", "link": "/yonetim/auth/user/"},
+                ],
+            },
+            {
+                "title": "Ayarlar",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Genel Ayarlar",
+                        "icon": "settings",
+                        "link": "/yonetim/bayi/genelayarlar/",
+                    },
                 ],
             },
         ],
