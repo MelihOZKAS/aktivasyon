@@ -111,6 +111,20 @@
     </div>
     {% endif %}
 
+    {% comment %}
+      İletişim panelin içinde de dursun: takılan bayi çıkış yapmadan,
+      numarayı başka yerde aramadan ulaşabilsin. Bilgi Genel Ayarlar'dan
+      gelir; boşsa kutu hiç çizilmez.
+    {% endcomment %}
+    {% if genel_ayarlar.iletisim_var %}
+    <div class="mx-3 mb-3 border-t border-cizgi pt-3">
+      <p class="mb-1 px-3 text-xs font-semibold text-soluk">Bize ulaş</p>
+      <div class="px-3">
+        {% include "parcalar/iletisim.html" %}
+      </div>
+    </div>
+    {% endif %}
+
     {% if user.is_staff %}
     <a href="/yonetim/" class="mx-3 mb-3 flex min-h-11 items-center rounded-lg px-3 text-xs
                                font-medium text-soluk hover:text-murekkep">

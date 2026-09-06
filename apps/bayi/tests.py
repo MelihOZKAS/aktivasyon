@@ -1721,6 +1721,39 @@ class GenelAyarlarIletisim(TestCase):
             self.assertIn("tel:08501234567", icerik, adres)
             self.assertIn("mailto:destek@ornek.com", icerik, adres)
 
+    def test_panel_icinde_de_gorunur(self):
+        """Takılan bayi çıkış yapmadan ulaşabilmeli."""
+        from django.contrib.auth.models import User
+
+        from apps.finans.models import Cuzdan
+
+        self.ayar.telefon = "0850 123 45 67"
+        self.ayar.eposta = "destek@ornek.com"
+        self.ayar.save()
+
+        bayi = User.objects.create_user("5551112233", password="parola12345")
+        Cuzdan.objects.create(bayi=bayi)
+        self.client.force_login(bayi)
+
+        icerik = self.client.get("/panel/").content.decode()
+
+        self.assertIn("Bize ulaş", icerik)
+        self.assertIn("tel:08501234567", icerik)
+        self.assertIn("mailto:destek@ornek.com", icerik)
+
+    def test_bos_ayarda_panelde_de_cizilmez(self):
+        from django.contrib.auth.models import User
+
+        from apps.finans.models import Cuzdan
+
+        bayi = User.objects.create_user("5551112233", password="parola12345")
+        Cuzdan.objects.create(bayi=bayi)
+        self.client.force_login(bayi)
+
+        icerik = self.client.get("/panel/").content.decode()
+
+        self.assertNotIn("Bize ulaş", icerik)
+
     def test_yalnizca_biri_girilirse_digeri_cizilmez(self):
         self.ayar.telefon = "0850 123 45 67"
         self.ayar.save()

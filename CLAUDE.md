@@ -531,8 +531,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kapalıdır, liste doğrudan düzenleme sayfasına yönlendirir — "hangi ayar
   geçerli" sorusu hiç doğmasın. Ayarları okumanın yolu `GenelAyarlar.getir()`;
   `objects.create()` ikinci kez çağrılırsa tekil anahtara çarpar.
-  Bilgiler kamuya açık üç sayfada görünür (giriş, tanıtım, bayi başvurusu)
-  ve `parcalar/iletisim.html` ile tek yerden çizilir; bağlam işlemcisi
+  Bilgiler kamuya açık üç sayfada (giriş, tanıtım, bayi başvurusu) **ve
+  panelin kenar menüsünde** görünür — takılan bayi çıkış yapmadan
+  ulaşabilsin. Hepsi `parcalar/iletisim.html` ile tek yerden çizilir; bağlam işlemcisi
   `genel_ayarlar` oturum açmamış ziyaretçiye de taşır (`bayi_baglami` girişi
   olmayana boş döner). **Boş bırakılan alan hiç gösterilmez** — yarım bir
   iletişim kutusu göstermektense hiç göstermemek yeğdir. Yeni bir site geneli
