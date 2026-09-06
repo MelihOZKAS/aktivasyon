@@ -225,6 +225,11 @@ UNFOLD = {
                 "separator": True,
                 "items": [
                     {
+                        "title": "Kârlılık Raporu",
+                        "icon": "query_stats",
+                        "link": "/yonetim/rapor/",
+                    },
+                    {
                         "title": "Stok ve Alacak Özeti",
                         "icon": "insights",
                         "link": "/yonetim/ozet/",

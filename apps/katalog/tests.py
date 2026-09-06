@@ -1174,3 +1174,147 @@ class StokVeAlacakOzeti(TestCase):
         yanit = self.client.get(self.ADRES)
 
         self.assertEqual(yanit.status_code, 302)
+
+
+class KarlilikRaporu(TestCase):
+    """Tarih aralıklı kâr raporu.
+
+    Kâr rakamı başvuru listesinin üstünde de var ama orada uygulanan filtreye
+    bağlı ve kırılımı yok. Aralık en fazla 31 gün: rapor her açılışta
+    başvuruları tarıyor, uzun aralık sunucuyu boşuna yorar.
+    """
+
+    ADRES = "/yonetim/rapor/"
+
+    def setUp(self):
+        from datetime import timedelta
+        from decimal import Decimal
+
+        from django.contrib.auth.models import User
+        from django.utils import timezone
+
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import BasvuruKategorisi, Operator
+
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.bayi = User.objects.create_user("5551112233", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+
+        self.bugun = timezone.localdate()
+
+        def basvuru(gun_once, tahsilat, maliyet, prim="0.00", hakedis="0.00"):
+            """Rapor testinde para motoru devrede değil.
+
+            Kural tanımlamak yerine tutarlar doğrudan yazılır: burada
+            denenen şey motorun hesabı değil, raporun topladığı rakam.
+            Kayıt sonrası `update()` sinyalleri atlar; `create()` içinde
+            verilseydi motor tutarları sıfırlardı.
+            """
+            kayit = Basvuru.objects.create(
+                bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+                isim="Ayşe", soyisim="Demir", kimlik_no="1", irtibat="5551112233",
+                durum=self.aktif,
+            )
+            Basvuru.objects.filter(pk=kayit.pk).update(
+                tahsil_edilen=Decimal(tahsilat), alis_bedeli=Decimal(maliyet),
+                alinan_prim=Decimal(prim), hakedis=Decimal(hakedis),
+                sonuclanma_tarihi=timezone.now() - timedelta(days=gun_once),
+            )
+            return kayit
+
+        basvuru(0, "1150.00", "1000.00")            # bugün: 150 kâr
+        basvuru(3, "1000.00", "850.00", prim="200.00", hakedis="60.00")  # 290
+        basvuru(60, "5000.00", "0.00")              # aralık dışı
+
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _sayfa(self, **parametre):
+        return self.client.get(self.ADRES, parametre)
+
+    def test_varsayilan_aralikta_kar_toplanir(self):
+        from decimal import Decimal
+
+        yanit = self._sayfa()
+
+        self.assertEqual(yanit.status_code, 200)
+        toplam = yanit.context["toplam"]
+        self.assertEqual(toplam["adet"], 2)
+        self.assertEqual(toplam["kar"], Decimal("440.00"))
+        self.assertEqual(toplam["prim"], Decimal("200.00"))
+
+    def test_aralik_disindaki_islem_sayilmaz(self):
+        """60 gün öncesi varsayılan 30 günlük pencereye girmez."""
+        from decimal import Decimal
+
+        toplam = self._sayfa().context["toplam"]
+
+        self.assertNotEqual(toplam["kar"], Decimal("5440.00"))
+
+    def test_tarih_araligi_secilebilir(self):
+        from datetime import timedelta
+        from decimal import Decimal
+
+        gun = self.bugun - timedelta(days=3)
+        toplam = self._sayfa(
+            baslangic=gun.isoformat(), bitis=gun.isoformat()
+        ).context["toplam"]
+
+        self.assertEqual(toplam["adet"], 1)
+        self.assertEqual(toplam["kar"], Decimal("290.00"))
+
+    def test_bitis_gunu_araliga_dahildir(self):
+        """Alan DateTimeField; bitiş günü gece yarısıyla kesilmemeli."""
+        toplam = self._sayfa(
+            baslangic=self.bugun.isoformat(), bitis=self.bugun.isoformat()
+        ).context["toplam"]
+
+        self.assertEqual(toplam["adet"], 1)
+
+    def test_31_gunden_uzun_aralik_reddedilir(self):
+        from datetime import timedelta
+
+        yanit = self._sayfa(
+            baslangic=(self.bugun - timedelta(days=60)).isoformat(),
+            bitis=self.bugun.isoformat(),
+        )
+
+        self.assertContains(yanit, "en fazla 31 gün")
+        # Varsayılana düşer; 60 gün öncesi yine sayılmaz.
+        self.assertEqual(yanit.context["toplam"]["adet"], 2)
+
+    def test_ters_aralik_reddedilir(self):
+        from datetime import timedelta
+
+        yanit = self._sayfa(
+            baslangic=self.bugun.isoformat(),
+            bitis=(self.bugun - timedelta(days=5)).isoformat(),
+        )
+
+        self.assertContains(yanit, "önce olamaz")
+
+    def test_kirilimlar_gosterilir(self):
+        yanit = self._sayfa()
+
+        basliklar = [b["baslik"] for b in yanit.context["kirilimlar"]]
+        self.assertIn("Kategoriye göre", basliklar)
+        self.assertIn("Operatöre göre", basliklar)
+        self.assertContains(yanit, "Kontörlü Yeni Hat")
+        self.assertContains(yanit, "Turkcell")
+
+    def test_gunluk_satirlar_araligi_kapsar(self):
+        gunler = [
+            b for b in self._sayfa().context["kirilimlar"] if b["baslik"] == "Günlük"
+        ][0]
+
+        self.assertEqual(len(gunler["satirlar"]), 30)
+
+    def test_personel_olmayan_giremez(self):
+        self.client.force_login(self.bayi)
+
+        self.assertEqual(self.client.get(self.ADRES).status_code, 302)

@@ -412,6 +412,19 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   alanlarından topla; defter satırı tek tek doğrudur ama toplamı almak
   hareket tiplerini bilmeyi gerektirir (borç satırının işareti bakiye
   satırıyla aynı anlama gelmez).
+- **Kârlılık raporu tarih aralıklıdır ve aralık en fazla 31 gündür**
+  (`apps/rapor.py`, `/yonetim/rapor/`). Kâr rakamı başvuru listesinin üstünde
+  de duruyor ama orada uygulanan filtreye bağlı ve kırılımı yok; "bu ay hangi
+  kategori kazandırdı, hangi bayi ne getirdi" sorusu cevapsız kalıyordu.
+  Rapor **sonuçlanma tarihine** göre çalışır: kâr ancak işlem sonuçlanınca
+  kesinleşir, yarım işlenmiş başvuru tabloyu yanıltır. Sayfa bunu açıkça
+  yazar. Aralık sınırı bilinçlidir — rapor her açılışta başvuruları tarar,
+  yıllık bir aralık sunucuyu boşuna yorar; sınır aşılırsa form sebebini
+  söyler ve varsayılan aralığa (son 30 gün) düşer. Bitiş günü aralığa
+  **dahildir** (`GunAraligiFiltresi` ile aynı gerekçe: alan `DateTimeField`,
+  saf tarih gece yarısı demek). Para kalemleri tek yerde durur
+  (`rapor.KALEMLER`); toplam da kırılımlar da oradan üretilir, biri
+  güncellenip diğeri unutulmaz. Yeni bir para kalemi eklersen o sözlüğe yaz.
 - **Stok ve alacak özeti tek ekranda toplanır** (`apps/ozet.py`,
   `/yonetim/ozet/`). SIM stoğu, bayilerdeki kartlar, beklenen SIM
   karşılıkları, tedarikçi borçları ve işlenen ana hakediş ayrı listelerde
