@@ -1612,6 +1612,70 @@ class PaneldeAylikHakedis(TestCase):
         # Cüzdana 150 girdi ama bayinin bu aydaki hakedişi 250'dir.
         self.assertEqual(self._panel_hakedisi(), Decimal("250.00"))
 
+    def test_gecen_ayin_hakedisi_sayilmaz(self):
+        """Rakam her ayın 1'inde sıfırdan başlar."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.basvurular.models import Basvuru
+
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        ayin_basi = timezone.localtime().replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        Basvuru.objects.filter(pk=basvuru.pk).update(
+            sonuclanma_tarihi=ayin_basi - timedelta(minutes=1)
+        )
+
+        self.assertEqual(self._panel_hakedisi(), 0)
+
+    def test_ayin_ilk_saatleri_bu_aya_sayilir(self):
+        """Sınır yerel gece yarısıdır, UTC'nin gece yarısı değil.
+
+        `timezone.now()` UTC döndüğü için sınır ayın 1'i saat 03:00 (TSİ)
+        oluyordu: o üç saatte sonuçlanan başvuru bir önceki aya sayılıyordu.
+        """
+        from datetime import timedelta
+        from decimal import Decimal
+
+        from django.utils import timezone
+
+        from apps.basvurular.models import Basvuru
+
+        basvuru = self._basvuru()
+        basvuru.durum = self.aktif
+        basvuru.save()
+
+        ayin_basi = timezone.localtime().replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        Basvuru.objects.filter(pk=basvuru.pk).update(
+            sonuclanma_tarihi=ayin_basi + timedelta(minutes=30)
+        )
+
+        self.assertEqual(self._panel_hakedisi(), Decimal("250.00"))
+
+    def test_baska_bayinin_hakedisi_sayilmaz(self):
+        from decimal import Decimal
+
+        from apps.basvurular.models import Basvuru
+
+        komsu = User.objects.create_user("komsu", password="parola12345")
+        Cuzdan.objects.create(bayi=komsu, bakiye=Decimal("0.00"))
+        komsunun = Basvuru.objects.create(
+            bayi=komsu, kategori=self.kategori, operator=self.operator,
+            tarife=self.tarife, isim="Veli", soyisim="Kaya", kimlik_no="2",
+            irtibat="5551112244", durum=self.beklemede,
+        )
+        komsunun.durum = self.aktif
+        komsunun.save()
+
+        self.assertEqual(self._panel_hakedisi(), 0)
+
 
 class SatirIslemleriGorunur(TestCase):
     """Kullanıcı listesindeki işlem düğmeleri açılır menüde saklanmaz.
@@ -1812,3 +1876,133 @@ class GenelAyarlarIletisim(TestCase):
 
         self.assertEqual(yanit.status_code, 302)
         self.assertIn("/genelayarlar/1/change/", yanit["Location"])
+
+
+class BayiyeKapaliKategoriler(TestCase):
+    """Başvuru tipi bayi bazında kapatılabilir.
+
+    Her bayi her işi yapmıyor: kimine yalnızca kontörlü hat açtırılıyor,
+    kimine numara taşıma da veriliyordu ve bunu ayıracak bir yer yoktu.
+    Kapatma negatif listede durur (`BayiProfili.kapali_kategoriler`), yani
+    varsayılan "açık"tır: sonradan eklenen bir tip bütün bayilere
+    kendiliğinden gelir.
+    """
+
+    def setUp(self):
+        from apps.bayi.models import BayiProfili
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+        self.profil = BayiProfili.objects.create(kullanici=self.bayi, unvan="Deneme")
+
+        self.operator = Operator.objects.create(ad="Turkcell", renk="#ffc900")
+        self.acik = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.kapali = BasvuruKategorisi.objects.create(ad="Faturalı Numara Taşıma")
+
+        self.acik_tarife = Tarife.objects.create(operator=self.operator, ad="Kontör Paketi")
+        self.acik_tarife.kategoriler.add(self.acik)
+        self.kapali_tarife = Tarife.objects.create(operator=self.operator, ad="Taşıma Paketi")
+        self.kapali_tarife.kategoriler.add(self.kapali)
+
+        self.profil.kapali_kategoriler.add(self.kapali)
+        self.client.force_login(self.bayi)
+
+    def _icerik(self, ad):
+        return self.client.get(reverse(ad)).content.decode()
+
+    def test_kategori_ekraninda_gorunmez(self):
+        icerik = self._icerik("basvurular:kategori-sec")
+
+        self.assertIn("Kontörlü Yeni Hat", icerik)
+        self.assertNotIn("Faturalı Numara Taşıma", icerik)
+
+    def test_panelde_gorunmez(self):
+        icerik = self._icerik("bayi:panel")
+
+        self.assertIn("Kontörlü Yeni Hat", icerik)
+        self.assertNotIn("Faturalı Numara Taşıma", icerik)
+
+    def test_formu_acilmaz_ve_sebebi_yazilir(self):
+        """Adresi elle yazan bayi sessiz bir 404 değil, sebebini görür."""
+        yanit = self.client.get(
+            reverse("basvurular:yeni", args=[self.kapali.slug]), follow=True
+        )
+
+        self.assertRedirects(yanit, reverse("basvurular:kategori-sec"))
+        self.assertContains(yanit, "hesabına kapalı")
+
+    def test_acik_kategorinin_formu_acilir(self):
+        yanit = self.client.get(reverse("basvurular:yeni", args=[self.acik.slug]))
+
+        self.assertEqual(yanit.status_code, 200)
+
+    def test_katalogda_kapali_tipin_tarifesi_yok(self):
+        icerik = self._icerik("bayi:tarifeler")
+
+        self.assertIn("Kontör Paketi", icerik)
+        self.assertNotIn("Taşıma Paketi", icerik)
+
+    def test_iki_kategoride_gecerli_tarife_biri_acikken_durur(self):
+        """Tarife birden çok tipte geçerli olabilir; hepsi kapalıysa düşer."""
+        self.kapali_tarife.kategoriler.add(self.acik)
+
+        self.assertIn("Taşıma Paketi", self._icerik("bayi:tarifeler"))
+
+    def test_hakedis_sayfasinda_gorunmez(self):
+        from decimal import Decimal
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.finans.models import KuralYonu, UcretKurali
+
+        aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        for kategori in (self.acik, self.kapali):
+            UcretKurali.objects.create(
+                ad=f"{kategori.ad} hakedişi", yon=KuralYonu.HAKEDIS,
+                tutar=Decimal("250.00"), kategori=kategori, tetikleyici_durum=aktif,
+            )
+
+        icerik = self._icerik("bayi:hakedisler")
+
+        self.assertIn("Kontörlü Yeni Hat", icerik)
+        self.assertNotIn("Faturalı Numara Taşıma", icerik)
+
+    def test_kapatma_yoksa_hepsi_acik(self):
+        self.profil.kapali_kategoriler.clear()
+
+        icerik = self._icerik("basvurular:kategori-sec")
+
+        self.assertIn("Kontörlü Yeni Hat", icerik)
+        self.assertIn("Faturalı Numara Taşıma", icerik)
+
+    def test_profili_olmayan_kullanici_hepsini_gorur(self):
+        """Eski kullanıcılar bayi sayılır; kapalı tipi de yoktur."""
+        eski = User.objects.create_user("eski", password="parola12345")
+        Cuzdan.objects.create(bayi=eski)
+        self.client.force_login(eski)
+
+        icerik = self._icerik("basvurular:kategori-sec")
+
+        self.assertIn("Faturalı Numara Taşıma", icerik)
+
+    def test_hepsi_kapaliysa_sebebi_yazilir(self):
+        """Boş ekranda "kategori tanımlanmamış" demek yanıltıcıydı."""
+        self.profil.kapali_kategoriler.add(self.acik)
+
+        yanit = self.client.get(reverse("basvurular:kategori-sec"))
+
+        self.assertContains(yanit, "Hesabına açık bir başvuru tipi yok")
+
+    def test_kullanici_sayfasindan_ayarlanir(self):
+        """Yönetici bayiyi kullanıcı sayfasında açıp kapatır."""
+        yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(yonetici)
+
+        icerik = self.client.get(
+            reverse("admin:auth_user_change", args=[self.bayi.pk])
+        ).content.decode()
+
+        self.assertIn("kapali_kategoriler", icerik)
+        self.assertIn("Faturalı Numara Taşıma", icerik)

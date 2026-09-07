@@ -82,18 +82,59 @@ class DestekAkisi(TestCase):
         talep.refresh_from_db()
         self.assertEqual(talep.durum, TalepDurumu.KAPALI)
 
-    def test_kapali_talebe_yazmak_yeniden_acar(self):
-        """Konuşma devam ediyorsa kayıt kapalı görünmemeli."""
-        from apps.destek.services import mesaj_ekle
-
+    def _kapali_talep(self):
         talep = self._talep_ac()
         talep.durum = TalepDurumu.KAPALI
         talep.save(update_fields=["durum"])
+        return talep
 
-        mesaj_ekle(talep, self.yonetici, "Bir sorum var.", personelden=True)
+    def test_kapali_talep_yazilinca_yeniden_acilmaz(self):
+        """Kapatma tutmalı.
+
+        Mesaj eklemek bir süre kapalı talebi yeniden açıyordu: yönetici
+        kapatıyor, bayi yazıyor, talep yeniden açılıyor ve kapalı bir talebe
+        sürekli yazılabiliyordu.
+        """
+        from apps.destek.services import mesaj_ekle
+
+        talep = self._kapali_talep()
+
+        mesaj_ekle(talep, self.yonetici, "Bilgi olsun.", personelden=True)
 
         talep.refresh_from_db()
-        self.assertEqual(talep.durum, TalepDurumu.ACIK)
+        self.assertEqual(talep.durum, TalepDurumu.KAPALI)
+
+    def test_bayi_kapali_talebe_yazamaz(self):
+        talep = self._kapali_talep()
+        onceki = talep.mesajlar.count()
+
+        self.client.force_login(self.bayi)
+        yanit = self.client.post(
+            talep.get_absolute_url(), {"icerik": "Bir sorum daha var."}, follow=True
+        )
+
+        talep.refresh_from_db()
+        self.assertEqual(talep.mesajlar.count(), onceki)
+        self.assertEqual(talep.durum, TalepDurumu.KAPALI)
+        self.assertContains(yanit, "üzerine yazılamaz")
+
+    def test_servis_kapali_talepte_bayi_mesajini_reddeder(self):
+        """Görünümdeki kapının arkasında ikinci kapı."""
+        from apps.destek.services import TalepKapali, mesaj_ekle
+
+        talep = self._kapali_talep()
+
+        with self.assertRaises(TalepKapali):
+            mesaj_ekle(talep, self.bayi, "Elle gönderilen istek.")
+
+    def test_kapali_talepte_yazma_kutusu_cizilmez(self):
+        talep = self._kapali_talep()
+
+        self.client.force_login(self.bayi)
+        icerik = self.client.get(talep.get_absolute_url()).content.decode()
+
+        self.assertNotIn("Gönder", icerik)
+        self.assertIn("Talep kapalı", icerik)
 
     def test_giris_yapmayan_giremez(self):
         yanit = self.client.get(reverse("destek:liste"))

@@ -9,6 +9,7 @@ from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, StackedInline
 from unfold.decorators import action as unfold_islem
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
+from unfold.widgets import UnfoldAdminCheckboxSelectMultipleWidget
 
 from django.contrib.auth import update_session_auth_hash
 from django.http import Http404
@@ -28,12 +29,28 @@ from apps.bayi.parola import uret as parola_uret
 from apps.bayi.services import HesapAcilamadi, bayi_hesabi_ac
 from apps.bayi.telefon import normalize
 from apps.finans.models import Cuzdan
-from apps.katalog.models import Operator
+from apps.katalog.models import BasvuruKategorisi, Operator
 
 logger = logging.getLogger(__name__)
 
 
-class BayiProfiliInline(StackedInline):
+class KapaliKategoriKutusu:
+    """“Kapalı başvuru tipleri” kutusunu onay kutusu listesi olarak çizer.
+
+    Varsayılan çoklu seçim kutusunda kapatmak için Ctrl'e basılı tutmak
+    gerekiyor; yönetici tek tıkla açtığını kapatıyordu. Liste kategori
+    sırasını izler, pasif tipler de görünür — kapatılmış bir tip sonradan
+    açılırsa işaret yerinde dursun.
+    """
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        if db_field.name == "kapali_kategoriler":
+            kwargs["widget"] = UnfoldAdminCheckboxSelectMultipleWidget()
+            kwargs["queryset"] = BasvuruKategorisi.objects.order_by("sira", "ad")
+        return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+
+class BayiProfiliInline(KapaliKategoriKutusu, StackedInline):
     model = BayiProfili
     can_delete = False
     extra = 0
@@ -43,6 +60,7 @@ class BayiProfiliInline(StackedInline):
         ("telefon", "sehir"),
         "adres",
         ("vergi_dairesi", "vergi_no"),
+        "kapali_kategoriler",
         "notlar",
     )
 
@@ -215,7 +233,7 @@ class GrupAdmin(TemelGrupAdmin, ModelAdmin):
 
 
 @admin.register(BayiProfili)
-class BayiProfiliAdmin(ModelAdmin):
+class BayiProfiliAdmin(KapaliKategoriKutusu, ModelAdmin):
     list_display = ("kullanici", "unvan", "rol_rozeti", "telefon", "sehir")
     search_fields = ("kullanici__username", "unvan", "yetkili_adi", "telefon", "vergi_no")
     autocomplete_fields = ("kullanici",)
@@ -233,6 +251,17 @@ class BayiProfiliAdmin(ModelAdmin):
             },
         ),
         ("Firma", {"fields": ("kullanici", "unvan", "yetkili_adi", "telefon", "sehir", "adres")}),
+        (
+            "Başvuru tipleri",
+            {
+                "fields": ("kapali_kategoriler",),
+                "description": (
+                    "İşaretlenen tipler bu bayiye <b>hiç gösterilmez</b>. Boş "
+                    "bırakılırsa hepsi açıktır; sonradan açılan yeni bir tip de "
+                    "kendiliğinden açık gelir."
+                ),
+            },
+        ),
         ("Kayıt", {"fields": ("vergi_dairesi", "vergi_no", "notlar")}),
     )
 

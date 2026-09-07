@@ -8,7 +8,7 @@ geçer kuralının aynısı.
 """
 
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
@@ -70,7 +70,11 @@ class DestekTalebiAdmin(ModelAdmin):
                 "description": (
                     "Yanıt yazmak için aşağıdaki <b>Yazışma</b> tablosunun boş "
                     "satırına mesajınızı yazıp kaydedin. Yazışma silinmez, "
-                    "düzenlenmez."
+                    "düzenlenmez.<br>"
+                    "Durumu <b>Kapalı</b> yapmak yazışmayı bitirir: bayi o "
+                    "talebe bir daha yazamaz, devam eden konu için yeni talep "
+                    "açar. Mesaj yazmak durumu değiştirmez — kapalı talep "
+                    "kapalı kalır."
                 ),
             },
         ),
@@ -131,11 +135,27 @@ class DestekTalebiAdmin(ModelAdmin):
         if formset.model is not DestekMesaji:
             return super().save_formset(request, form, formset, change)
 
+        eklenen = 0
         for nesne in formset.save(commit=False):
             if nesne.pk:
                 continue
-            mesaj_ekle(form.instance, request.user, nesne.icerik, personelden=True)
+            if mesaj_ekle(
+                form.instance, request.user, nesne.icerik, personelden=True
+            ):
+                eklenen += 1
         formset.save_m2m()
+
+        # Kapalı talebe yazılan yanıtı bayi okur ama cevaplayamaz; yönetici
+        # bunu bilerek yapsın. Mesaj eklemek durumu artık değiştirmiyor:
+        # kapattığı talep bayi yazınca yeniden açılıyordu, kapatma hiç
+        # tutmuyordu.
+        if eklenen and not form.instance.acik_mi:
+            self.message_user(
+                request,
+                "Talep kapalı: bayi bu yanıta cevap yazamaz. Yazışmanın "
+                "sürmesini istiyorsanız durumu “Açık” yapın.",
+                messages.WARNING,
+            )
 
     @admin.action(description="Seçili talepleri kapat")
     def kapat(self, request, secilenler):

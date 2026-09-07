@@ -19,6 +19,7 @@ from apps.bayi.models import Duyuru
 from apps.bayi.yetki import bayi_gerekli, baslangic_sayfasi, tedarikci_gerekli
 from apps.bildirim.telegram import bayi_basvurusu_bildir
 from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
+from apps.bayi.kategoriler import acik_kategoriler, kapali_kategori_idleri
 from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
 
 # Bir başvurunun yolculuğu: giriş ekranında ve ana sayfada aynı anlatı.
@@ -222,7 +223,12 @@ def panel(request):
     #
     # `Basvuru.hakedis` her iki durumu da doğru taşır: geri alınan başvuruda
     # sıfırlanır, borç mahsubunda tam tutarı korur.
-    ayin_basi = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    # Ayın başı yerel saatle kurulur. `timezone.now()` UTC döndürdüğü için
+    # `replace` ile bulunan sınır ayın 1'i saat 03:00 (TSİ) oluyordu: gece
+    # yarısıyla sabah üç arasında sonuçlanan başvuru bir önceki aya sayılıyordu.
+    ayin_basi = timezone.localtime().replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
     aylik_hakedis = (
         Basvuru.objects.filter(
             bayi=request.user,
@@ -234,9 +240,12 @@ def panel(request):
 
     araliklar = _kategori_hakedisleri(request.user)
     kategoriler = list(
-        BasvuruKategorisi.objects.filter(aktif=True)
-        .prefetch_related("operatorler")
-        .order_by("sira", "ad")
+        acik_kategoriler(
+            request.user,
+            BasvuruKategorisi.objects.filter(aktif=True)
+            .prefetch_related("operatorler")
+            .order_by("sira", "ad"),
+        )
     )
     for kategori in kategoriler:
         aralik = araliklar.get(kategori.pk)
@@ -297,6 +306,18 @@ def tarifeler(request):
             .prefetch_related("kategoriler")
             .order_by("sira", "ad")
         )
+        # Bayiye kapatılmış tipin tarifesi katalogda da durmaz; giremeyeceği
+        # bir işlemi müşteriye anlatmasın. Tarife birden çok kategoride
+        # geçerli olabildiği için ancak **hepsi** kapalıysa düşer;
+        # kategorisiz tarife her zaman görünür.
+        kapalilar = kapali_kategori_idleri(request.user)
+        if kapalilar:
+            tarifeler_listesi = [
+                tarife
+                for tarife in tarifeler_listesi
+                if not tarife.kategoriler.all()
+                or any(k.pk not in kapalilar for k in tarife.kategoriler.all())
+            ]
 
     return render(
         request,
@@ -440,10 +461,11 @@ def hakedisler(request):
         return secilen
 
     satirlar = []
-    kategoriler = (
+    kategoriler = acik_kategoriler(
+        request.user,
         BasvuruKategorisi.objects.filter(aktif=True)
         .prefetch_related("tarifeler__operator")
-        .order_by("sira", "ad")
+        .order_by("sira", "ad"),
     )
 
     for kategori in kategoriler:

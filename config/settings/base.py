@@ -124,8 +124,18 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # Telegram bildirimleri. Anahtarlar tanımlı değilse bildirim sessizce atlanır,
 # uygulama etkilenmez.
-TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
-TELEGRAM_SOHBET_ID = env("TELEGRAM_SOHBET_ID", default="")
+#
+# Eski adlar da okunur: sunucudaki `docker.env` git'te olmadığı için
+# `git pull` onu güncellemiyor ve orada anahtarlar hâlâ `Telegram_Token` /
+# `Telegram_Chat_id` olarak duruyordu. Ortam değişkeni adı büyük/küçük harfe
+# duyarlı olduğundan ikisi de boş okunuyor, bildirim hiç gitmiyor ve hata da
+# vermiyordu — "ayarlar dolu ama mesaj yok" tablosu buradan çıktı.
+TELEGRAM_BOT_TOKEN = env(
+    "TELEGRAM_BOT_TOKEN", default=env("Telegram_Token", default="")
+)
+TELEGRAM_SOHBET_ID = env(
+    "TELEGRAM_SOHBET_ID", default=env("Telegram_Chat_id", default="")
+)
 # Gönderimi eşzamanlı yapmak için False: hata ayıklarken sonucu hemen görürsünüz.
 TELEGRAM_ARKA_PLAN = env.bool("TELEGRAM_ARKA_PLAN", default=True)
 

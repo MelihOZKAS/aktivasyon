@@ -16,6 +16,7 @@ from apps.basvurular.forms import BasvuruFormu
 from apps.basvurular.detay_alanlari import detay_satirlari, gizli_alanlar
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
 from apps.basvurular.validators import SATIR_ICI_GOSTERILEBILIR
+from apps.bayi.kategoriler import acik_kategoriler, kategori_acik_mi
 from apps.bayi.yetki import bayi_gerekli
 from apps.bayi.templatetags.panel import para
 from apps.finans.services import en_dusuk_basvuru_bedeli, operator_bedelleri
@@ -58,10 +59,18 @@ def kategori_sec(request):
     Bayiden tahsil edilen bir bedeli olan kategoriler, bakiye yetmiyorsa
     kapalı gösterilir: bayi forma girip bütün alanları doldurduktan sonra
     "bakiyen yetmiyor" duvarına çarpmasın.
+
+    Yöneticinin bu bayiye kapattığı tipler ise hiç listelenmez. Bakiye
+    yetersizliği geçicidir — para yatınca açılır, o yüzden sebebiyle
+    gösterilir; kapatma yönetimin kararıdır ve bayinin yapabileceği bir şey
+    yoktur, kapalı bir kart göstermek boşuna umut olurdu.
     """
     bakiye = _bakiye(request.user)
     kategoriler = list(
-        BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad")
+        acik_kategoriler(
+            request.user,
+            BasvuruKategorisi.objects.filter(aktif=True).order_by("sira", "ad"),
+        )
     )
     for kategori in kategoriler:
         kategori.gereken_bedel = en_dusuk_basvuru_bedeli(request.user, kategori)
@@ -76,7 +85,16 @@ def kategori_sec(request):
     return render(
         request,
         "basvurular/kategori_sec.html",
-        {"kategoriler": kategoriler, "bakiye": bakiye},
+        {
+            "kategoriler": kategoriler,
+            "bakiye": bakiye,
+            # Liste boşsa sebebi ayırt edilsin: sistemde hiç tip yok mu,
+            # yoksa hepsi bu bayiye mi kapatılmış?
+            "hepsi_kapali": (
+                not kategoriler
+                and BasvuruKategorisi.objects.filter(aktif=True).exists()
+            ),
+        },
     )
 
 
@@ -87,6 +105,17 @@ def yeni(request, kategori):
     kategori = get_object_or_404(
         BasvuruKategorisi.objects.prefetch_related("alanlar"), slug=kategori, aktif=True
     )
+
+    # Kapalı tip listede hiç görünmüyor; buraya ancak adres elle yazılarak
+    # gelinir. Sessizce 404 vermek yerine sebebi söylenir: bayi "sistem
+    # bozuk" sanıp destek açmasın.
+    if not kategori_acik_mi(request.user, kategori):
+        messages.error(
+            request,
+            f"“{kategori.ad}” başvuruları hesabına kapalı. "
+            "Açtırmak için yöneticinle iletişime geç.",
+        )
+        return redirect("basvurular:kategori-sec")
 
     cuzdan = getattr(request.user, "cuzdan", None)
     if cuzdan and not cuzdan.islem_yapabilir:

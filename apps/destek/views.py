@@ -66,6 +66,17 @@ def detay(request, referans):
     talep = _talebi_getir(request.user, referans)
 
     if request.method == "POST":
+        # Kapalı talebe yazma kutusu hiç çizilmiyor; buraya ancak elle
+        # gönderilen bir istekle gelinir. Sessizce yazmak yerine sebebi
+        # söylenir — kapalı talep kapalı kalmalı.
+        if not talep.acik_mi:
+            messages.error(
+                request,
+                "Bu talep kapatıldı; üzerine yazılamaz. "
+                "Konu devam ediyorsa yeni bir talep aç.",
+            )
+            return redirect("destek:detay", referans=referans)
+
         form = YanitFormu(request.POST)
         if form.is_valid():
             mesaj_ekle(talep, request.user, form.cleaned_data["icerik"])
@@ -89,8 +100,8 @@ def detay(request, referans):
 def kapat(request, referans):
     """Bayi işi bitince talebi kendisi kapatabilir.
 
-    Kapalı talebe yazılan yeni mesaj onu yeniden açar (`mesaj_ekle`);
-    kapatmak konuşmayı bitirmez, yalnızca kuyruktan düşürür.
+    Kapatmak yazışmayı bitirir: kapalı talebe iki taraf da yazamaz, konu
+    devam ediyorsa yeni talep açılır. Yeniden açmak yönetimin işidir.
     """
     talep = _talebi_getir(request.user, referans)
     if talep.acik_mi:

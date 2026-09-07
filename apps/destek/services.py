@@ -1,8 +1,15 @@
 """Destek talebine mesaj yazmanın tek yolu.
 
-Mesaj eklemek üç şeyi birden yapar: kaydı yazar, talebin özet alanlarını
-(son mesaj, sıra kimde) günceller ve kapalı talebi yeniden açar. Bunlar
-ayrı ayrı yapılsaydı biri unutulur, talep listede yanlış tarafta görünürdü.
+Mesaj eklemek iki şeyi birden yapar: kaydı yazar ve talebin özet alanlarını
+(son mesaj, sıra kimde) günceller. Ayrı ayrı yapılsaydı biri unutulur,
+talep listede yanlış tarafta görünürdü.
+
+**Mesaj yazmak talebin durumunu değiştirmez.** Bir süre kapalı talebe
+yazılan mesaj onu yeniden açıyordu; sonuç, yöneticinin kapattığı talebin
+bayi yazar yazmaz yeniden açılması oldu — kapatma hiç tutmuyor, bayi
+kapalı talebe sürekli yazabiliyordu. Kapatmak yönetimin (ya da talebi
+kendisi kapatan bayinin) kararıdır ve kapalı kalır; devam eden bir konu
+için bayi yeni talep açar.
 """
 
 import logging
@@ -13,17 +20,29 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+class TalepKapali(Exception):
+    """Kapalı talebe bayi mesajı yazılamaz."""
+
+
 def mesaj_ekle(talep, gonderen, icerik, *, personelden=False):
     """Talebe mesaj yazar ve özet alanlarını günceller.
 
-    Kapalı bir talebe yazmak onu **yeniden açar**: konuşma devam ediyorsa
-    kayıt kapalı görünmemeli, yoksa kimse bakmaz.
+    Durum olduğu gibi kalır. Kapalı talebe **bayi yazamaz**: kapı önce
+    görünümde durur (kutu hiç çizilmez), burada ikinci kez durur — elle
+    gönderilen bir istek kapalı talebi konuşmaya döndürmesin. Yönetim
+    kapalı talebe not düşebilir; talep yine kapalı kalır, yeniden açmak
+    ayrı ve bilinçli bir iştir.
     """
     from apps.destek.models import DestekMesaji, TalepDurumu
 
     icerik = (icerik or "").strip()
     if not icerik:
         return None
+
+    if not personelden and talep.durum == TalepDurumu.KAPALI:
+        raise TalepKapali(
+            f"{talep.referans_no} kapalı; yeni mesaj için yeni talep açılmalı."
+        )
 
     with transaction.atomic():
         mesaj = DestekMesaji.objects.create(
@@ -35,11 +54,9 @@ def mesaj_ekle(talep, gonderen, icerik, *, personelden=False):
         talep.son_mesaj_tarihi = mesaj.tarih or timezone.now()
         # Son sözü bayi söylediyse sıra yönetimdedir.
         talep.yanit_bekliyor = not personelden
-        alanlar = ["son_mesaj_tarihi", "yanit_bekliyor", "guncelleme_tarihi"]
-        if talep.durum == TalepDurumu.KAPALI:
-            talep.durum = TalepDurumu.ACIK
-            alanlar.append("durum")
-        talep.save(update_fields=alanlar)
+        talep.save(
+            update_fields=["son_mesaj_tarihi", "yanit_bekliyor", "guncelleme_tarihi"]
+        )
 
     return mesaj
 

@@ -19,6 +19,7 @@ from unfold.widgets import (
 )
 
 from apps.finans.models import (
+    BAYI_YONLERI,
     KARSI_TARAF_YONLERI,
     Banka,
     BayiGrubu,
@@ -448,8 +449,69 @@ class UcretKuraliEklemeFormu(forms.ModelForm):
         return temiz
 
 
+class TetikleyiciGosterimi:
+    """Hiç işlemeyecek kuralı listede işaretler.
+
+    Kural listesi ikiye ayrıldı (bayi tarafı / alışlar); işaret ikisinde de
+    durmalı — bir süre yalnızca birinde durunca "Giriş" durumuna bağlanmış
+    alış kuralı sessizce hiç çalışmıyordu.
+    """
+
+    @display(description="Tetikleyici Durum", ordering="tetikleyici_durum")
+    def tetikleyici_gosterimi(self, obj):
+        """Hiç işlemeyecek kuralı listede söyler.
+
+        Para, "Para Hareketini Tetikler" işaretli duruma geçilince işler.
+        Kural başka bir duruma bağlanmışsa hiçbir zaman çalışmaz; bu ancak
+        kâr yanlış görününce fark ediliyordu. Yeni kayıtları `clean()`
+        engelliyor, eskiler burada görünür.
+        """
+        durum = obj.tetikleyici_durum
+        if durum is None:
+            return "—"
+        calisir = durum.hakedis_tetikler or (
+            obj.yon == KuralYonu.TAHSILAT and durum.baslangic_durumu
+        )
+        if calisir:
+            return durum.ad
+        return format_html(
+            '{} <span style="color:#D42046;font-weight:600">· hiç işlemez</span>',
+            durum.ad,
+        )
+
+
+class BayiYonuFiltresi(admin.SimpleListFilter):
+    """Yön filtresi bu ekranda yalnızca bayi tarafını sunar.
+
+    Django'nun hazır alan filtresi modeldeki dört seçeneği birden yazardı;
+    listede alış kuralı olmadığı için ikisi her zaman boş sonuç veriyordu.
+    """
+
+    title = "Yön"
+    parameter_name = "yon"
+
+    def lookups(self, request, model_admin):
+        return [(yon.value, yon.label) for yon in BAYI_YONLERI]
+
+    def queryset(self, request, secilenler):
+        deger = self.value()
+        return secilenler.filter(yon=deger) if deger else secilenler
+
+
 @admin.register(UcretKurali)
-class UcretKuraliAdmin(ModelAdmin):
+class UcretKuraliAdmin(TetikleyiciGosterimi, ModelAdmin):
+    """Bayi tarafındaki para kuralları: bayiden tahsilat ve bayiye hakediş.
+
+    Karşı tarafla olan hesap (operatöre/tedarikçiye ödediğim maliyet ve
+    onlardan aldığım prim) bu listeye **girmez**; her biri kendi ekranında
+    durur — *Operatörden Alışlarım* ve *Tedarikçiden Alışlarım*. Üçü tek
+    listede karışıkken yönetici "bu satır kimin hesabı" diye her seferinde
+    yön rozetini okumak zorunda kalıyordu; tedarikçiye ait bir fiyat
+    operatör kurallarının arasında görünüyordu. Kayıt yine tek tabloda
+    (`UcretKurali`) durur, motor tek kaynaktan okur — ayrılan yalnızca
+    giriş ve görüntüleme yeridir.
+    """
+
     list_display = (
         "ad",
         "yon_rozeti",
@@ -461,7 +523,10 @@ class UcretKuraliAdmin(ModelAdmin):
         "aktif",
     )
     list_editable = ("oncelik", "aktif")
-    list_filter = ("yon", "aktif", "kategori", "operator", "bayi_grubu", "tetikleyici_durum")
+    list_filter = (
+        BayiYonuFiltresi, "aktif", "kategori", "operator", "bayi_grubu",
+        "tetikleyici_durum",
+    )
     search_fields = ("ad",)
     autocomplete_fields = (
         "kategori",
@@ -482,7 +547,10 @@ class UcretKuraliAdmin(ModelAdmin):
                 "fields": ("kar_tablosu",),
                 "description": (
                     "Bu kural tek bir yönü tutar. Aynı kapsamdaki diğer yönler "
-                    "aşağıda listelenir; eksik olan varsa yazar."
+                    "aşağıda listelenir; eksik olan varsa yazar. Alış ve prim "
+                    "kalemleri buradan girilmez — yerleri "
+                    "<b>Operatörden Alışlarım</b> ve "
+                    "<b>Tedarikçiden Alışlarım</b> ekranlarıdır."
                 ),
             },
         ),
@@ -502,9 +570,8 @@ class UcretKuraliAdmin(ModelAdmin):
                     "Boş bırakılan her alan “hepsi” anlamına gelir. Bir başvuruya "
                     "birden fazla kural uyarsa en dar kapsamlı olan uygulanır; "
                     "eşitlik durumunda önceliği yüksek olan kazanır.<br>"
-                    "<b>Alışım</b> giderdir: tedarikçi boşsa hattı operatörden "
-                    "alırız (cüzdan hareketi oluşmaz), tedarikçi seçiliyse bedel "
-                    "o tedarikçinin cüzdanına alacak olarak yazılır."
+                    "<b>Tedarikçi</b> yalnızca fiyat o tedarikçinin yaptığı "
+                    "işlemlerde değişiyorsa doldurulur; genellikle boş kalır."
                 ),
             },
         ),
@@ -515,14 +582,47 @@ class UcretKuraliAdmin(ModelAdmin):
     )
 
     def get_queryset(self, request):
+        """Yalnızca bayi tarafındaki kurallar. Alışlar kendi ekranlarında."""
         return (
             super()
             .get_queryset(request)
+            .filter(yon__in=BAYI_YONLERI)
             .select_related(
                 "kategori", "operator", "tarife", "kampanya", "bayi_grubu",
                 "bayi", "tedarikci", "tetikleyici_durum",
             )
         )
+
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        """Bu ekrandan alış kuralı açılamaz.
+
+        Yön kutusu dört seçeneği birden sunuyor olsaydı buradan girilen bir
+        alış kaydı kaydedildiği anda listeden kaybolurdu — kendi ekranına
+        düştüğü için. Alış girilecekse yeri bellidir.
+        """
+        if db_field.name == "yon":
+            kwargs["choices"] = [
+                (deger, etiket)
+                for deger, etiket in KuralYonu.choices
+                if deger in BAYI_YONLERI
+            ]
+        return super().formfield_for_choice_field(db_field, request, **kwargs)
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        """Alış kuralının eski adresi kendi ekranına yönlendirilir.
+
+        Liste artık karşı taraf kurallarını göstermediği için bu adres 404
+        verirdi; kaydedilmiş bağlantı ya da yer imi kırılmasın.
+        """
+        kural = (
+            UcretKurali.objects.filter(pk=object_id).first()
+            if str(object_id).isdigit()
+            else None
+        )
+        if kural is not None and kural.yon in KARSI_TARAF_YONLERI:
+            ekran = "tedarikcialisi" if kural.tedarikci_id else "operatoralisi"
+            return redirect(f"admin:finans_{ekran}_change", object_id)
+        return super().change_view(request, object_id, form_url, extra_context)
 
     def get_form(self, request, obj=None, **kwargs):
         """Ekleme ekranında çoklu kategori formu kullanılır."""
@@ -584,28 +684,6 @@ class UcretKuraliAdmin(ModelAdmin):
                 + ", ".join(k.ad for k in kategoriler),
                 messages.SUCCESS,
             )
-
-    @display(description="Tetikleyici Durum", ordering="tetikleyici_durum")
-    def tetikleyici_gosterimi(self, obj):
-        """Hiç işlemeyecek kuralı listede söyler.
-
-        Para, "Para Hareketini Tetikler" işaretli duruma geçilince işler.
-        Kural başka bir duruma bağlanmışsa hiçbir zaman çalışmaz; bu ancak
-        kâr yanlış görününce fark ediliyordu. Yeni kayıtları `clean()`
-        engelliyor, eskiler burada görünür.
-        """
-        durum = obj.tetikleyici_durum
-        if durum is None:
-            return "—"
-        calisir = durum.hakedis_tetikler or (
-            obj.yon == KuralYonu.TAHSILAT and durum.baslangic_durumu
-        )
-        if calisir:
-            return durum.ad
-        return format_html(
-            '{} <span style="color:#D42046;font-weight:600">· hiç işlemez</span>',
-            durum.ad,
-        )
 
     @staticmethod
     def _kapsam_tutarlari(kural):
@@ -723,8 +801,11 @@ class UcretKuraliAdmin(ModelAdmin):
             )
         return format_html(
             '{}<p style="margin-top:.75rem;font-size:.8125rem;color:#6F7B8F">'
-            "Eksik yönü aynı kapsamda ikinci bir kural açarak girersiniz; "
-            "tarifeye bağlı fiyatlarda tarifenin kendi sayfası daha kolaydır.</p>",
+            "Eksik yönü aynı kapsamda ikinci bir kural açarak girersiniz: "
+            "alış ve prim <b>Operatörden Alışlarım</b> / "
+            "<b>Tedarikçiden Alışlarım</b> ekranlarından, bayi tarafı buradan. "
+            "Tarifeye bağlı fiyatlarda tarifenin kendi sayfası üçünü yan yana "
+            "gösterir.</p>",
             tablo,
         )
 
@@ -1097,7 +1178,7 @@ class OdemeBildirimiAdmin(ModelAdmin):
         self.message_user(request, f"{islenen} bildirim reddedildi.", messages.WARNING)
 
 
-class AlisAdmin(ModelAdmin):
+class AlisAdmin(TetikleyiciGosterimi, ModelAdmin):
     """Alış ekranlarının ortak iskeleti.
 
     "Alışım nereye giriliyor" sorusunun cevabı yön kutusunun içinde saklı
@@ -1110,7 +1191,7 @@ class AlisAdmin(ModelAdmin):
 
     list_display = (
         "kapsam_yazisi", "kaynak", "yon_gosterimi", "tutar_gosterimi",
-        "tetikleyici_durum", "aktif",
+        "tetikleyici_gosterimi", "aktif",
     )
     list_filter = ("aktif", "kategori", "operator", "tetikleyici_durum")
     search_fields = ("ad", "tarife__ad", "kategori__ad")

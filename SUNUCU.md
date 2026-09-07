@@ -73,14 +73,14 @@ Listede başka projelerin adı çıkıyorsa onlara dokunma.
 ## 3 · Ayar dosyasını kontrol et
 
 `aktivasyon/docker.env` git'te **değil**; `git pull` onu silmez, üzerine
-yazmaz. Ama yeni yapı iki Telegram anahtarını farklı adla okuyor.
+yazmaz. Telegram anahtarlarının yeni adı `TELEGRAM_BOT_TOKEN` /
+`TELEGRAM_SOHBET_ID`; eski adlar (`Telegram_Token`, `Telegram_Chat_id`) da
+okunur, yani dosyaya dokunmadan çalışır. Yine de tek isimde durmaları
+karışıklığı önler:
 
 ```bash
 cut -d= -f1 aktivasyon/docker.env
 ```
-
-Çıktıda `Telegram_Token` ve `Telegram_Chat_id` görüyorsan adlarını değiştir —
-yoksa bildirimler sessizce çalışmaz (hata vermez, sadece gitmez):
 
 ```bash
 sed -i 's/^Telegram_Token=/TELEGRAM_BOT_TOKEN=/; s/^Telegram_Chat_id=/TELEGRAM_SOHBET_ID=/' aktivasyon/docker.env
@@ -196,7 +196,8 @@ Sonra tarayıcıdan:
 3. Giriş sonrası `/yonetim/` paneline düşmelisin
 4. Telefondan da aç — her ekran mobil uyumlu olmalı
 
-Telegram kurduysan dene:
+Telegram kurduysan dene (komut Telegram'ın kendi hata metnini yazar:
+"chat not found", "Unauthorized"…):
 
 ```bash
 docker exec -it app_fadil python manage.py telegram_dene

@@ -336,6 +336,9 @@ class KuralYonu(models.TextChoices):
 # Karşı tarafla olan hesap: biri gider, biri gelir.
 KARSI_TARAF_YONLERI = (KuralYonu.ALIS, KuralYonu.PRIM)
 
+# Bayi tarafındaki hesap: biri bayiden alınır, biri bayiye ödenir.
+BAYI_YONLERI = (KuralYonu.TAHSILAT, KuralYonu.HAKEDIS)
+
 # Otomatik kural adında kullanılır; uzun etiketler ada sığmıyor.
 KISA_YON = {
     KuralYonu.TAHSILAT: "bayiden tahsilat",

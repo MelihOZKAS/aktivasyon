@@ -1808,6 +1808,56 @@ class AlisEkranlari(TestCase):
             ).exists()
         )
 
+    def test_genel_kural_listesinde_alis_gorunmez(self):
+        """Her kural yalnızca kendi ekranında durur.
+
+        Operatör alışı, tedarikçi alışı ve bayi tarafı tek listede
+        karışıkken hangi satırın kimin hesabı olduğu ancak yön rozeti
+        okunarak anlaşılıyordu.
+        """
+        self._kural(operator=self.operator)
+        self._kural(tedarikci=self.tedarikci, tutar=TL("900.00"))
+        self._kural(yon=KuralYonu.PRIM, tutar=TL("120.00"))
+        self._kural(yon=KuralYonu.HAKEDIS, tutar=TL("250.00"))
+        self._kural(yon=KuralYonu.TAHSILAT, tutar=TL("1150.00"))
+
+        icerik = self._liste("ucretkurali")
+
+        self.assertIn("250.00", icerik)
+        self.assertIn("1150.00", icerik)
+        self.assertNotIn("400.00", icerik)
+        self.assertNotIn("900.00", icerik)
+        self.assertNotIn("120.00", icerik)
+
+    def test_genel_ekranda_alis_yonu_secilemez(self):
+        from django.urls import reverse
+
+        icerik = self.client.get(
+            reverse("admin:finans_ucretkurali_add")
+        ).content.decode()
+
+        self.assertIn("Bayiye ödenecek", icerik)
+        self.assertNotIn("Aldığım prim", icerik)
+
+    def test_alis_kuralinin_genel_adresi_kendi_ekranina_gider(self):
+        """Eski bağlantı 404 vermez, kuralın yaşadığı ekrana yönlenir."""
+        from django.urls import reverse
+
+        operator_kurali = self._kural(operator=self.operator)
+        tedarikci_kurali = self._kural(tedarikci=self.tedarikci, tutar=TL("900.00"))
+
+        for kural, ekran in (
+            (operator_kurali, "operatoralisi"),
+            (tedarikci_kurali, "tedarikcialisi"),
+        ):
+            yanit = self.client.get(
+                reverse("admin:finans_ucretkurali_change", args=[kural.pk])
+            )
+            self.assertRedirects(
+                yanit,
+                reverse(f"admin:finans_{ekran}_change", args=[kural.pk]),
+            )
+
 
 class HareketFiltreleri(TestCase):
     """Cüzdan hareketleri listesinin filtreleri.
@@ -2222,6 +2272,12 @@ class KuralTetikleyiciDurumu(TestCase):
         self.assertIn("tüm gruplar", icerik)
 
     def test_liste_calismayan_kurali_isaretler(self):
+        """İşaret her iki kural ekranında da durur.
+
+        Liste bayi tarafı ve alışlar diye ikiye ayrıldı; uyarı yalnızca
+        birinde kalsaydı "Giriş" durumuna bağlanmış alış kuralı sessizce
+        hiç işlemeyecekti.
+        """
         from django.contrib.auth.models import User
         from django.urls import reverse
 
@@ -2230,14 +2286,19 @@ class KuralTetikleyiciDurumu(TestCase):
             ad="Eski alış kuralı", yon=KuralYonu.ALIS, tutar=TL("1000.00"),
             kategori=self.kategori, tetikleyici_durum=self.giris,
         )
+        UcretKurali.objects.create(
+            ad="Eski hakediş kuralı", yon=KuralYonu.HAKEDIS, tutar=TL("250.00"),
+            kategori=self.kategori, tetikleyici_durum=self.islemde,
+        )
         yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
         self.client.force_login(yonetici)
 
-        icerik = self.client.get(
-            reverse("admin:finans_ucretkurali_changelist")
-        ).content.decode()
+        for ekran in ("ucretkurali", "operatoralisi"):
+            icerik = self.client.get(
+                reverse(f"admin:finans_{ekran}_changelist")
+            ).content.decode()
 
-        self.assertIn("hiç işlemez", icerik)
+            self.assertIn("hiç işlemez", icerik, ekran)
 
 
 class MaliyetVePrimBirlikte(TestCase):

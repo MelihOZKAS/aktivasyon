@@ -42,7 +42,17 @@
     </a>
     {% endif %}
     {% empty %}
+    {% comment %}
+      Yönetici bütün tipleri bu bayiye kapatmış olabilir; o zaman ortada
+      tanımsız bir sistem yok, bayinin bilmesi gereken bir kısıt var.
+    {% endcomment %}
+    {% if hepsi_kapali %}
+    <p class="text-sm text-soluk">
+      Hesabına açık bir başvuru tipi yok. Yöneticinle iletişime geç.
+    </p>
+    {% else %}
     <p class="text-sm text-soluk">Henüz kategori tanımlanmamış.</p>
+    {% endif %}
     {% endfor %}
   </div>
 </div>

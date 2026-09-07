@@ -289,6 +289,27 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   bir bilgiyi doldurmaya mahkûm etmesin. Var olan alana dokunulmaz, kapatılan
   alan geri açılmaz. Ortak alan listesi tek yerde durur; `baslangic_verisi`
   de oradan okur. Yeni bir alan yaygınlaşırsa listeye buradan eklenir.
+- **Başvuru tipi bayi bazında kapatılabilir.** Her bayi her işi yapmıyor;
+  kimine yalnızca kontörlü hat, kimine numara taşıma da açılıyor.
+  `BayiProfili.kapali_kategoriler` **negatif** listedir: boş liste "hepsi
+  açık" demektir ve sonradan eklenen yeni bir tip bütün bayilere
+  kendiliğinden gelir. Pozitif liste her yeni tipi bayi bayi işaretlemeyi
+  gerektirirdi; unutulan bayide tip hiç görünmez, sebebini de kimse bilmezdi
+  (kategori alanlarındaki kuralın aynısı: kapatmak eklemekten kolaydır).
+  Yönetici kutuyu **kullanıcı sayfasından** açar (`BayiProfiliInline`, ayrıca
+  Bayi Profilleri ekranı); onay kutusu listesidir — çoklu seçim kutusunda
+  kapatmak Ctrl'e basmayı gerektiriyor, yönetici tek tıkla açtığını
+  kapatıyordu. Süzme tek yerden geçer: `apps.bayi.kategoriler`. Kapı beş
+  yerde durur: kategori ekranı, panel kartları, tarife kataloğu, hakediş
+  sayfası ve form açılışı. Bayiye içerik gösteren yeni bir ekran yazarken
+  oradan da geçir. **Kapalı tip gizlenir**, bakiye yetersizliği gibi kapalı
+  gösterilmez: bakiye geçicidir (para yatınca açılır, o yüzden sebebiyle
+  durur), kapatma ise yönetimin kararıdır ve bayinin yapabileceği bir şey
+  yoktur. Adresi elle yazan bayi sessiz bir 404 değil sebebini görür; hepsi
+  kapalıysa kategori ekranı "tanımlanmamış" değil "hesabına açık tip yok"
+  der. Girilmiş başvurular yerinde kalır — liste ve detay kısıtlanmaz, yarım
+  kalan iş tamamlanabilsin. Katalogda bir tarife ancak geçerli olduğu
+  **bütün** kategoriler kapalıysa düşer.
 - **Bayi parolasını başvuru sırasında kendisi seçer.** Kamuya açık formda
   parola alanı vardır; `BayiBasvurusu.parola_ozeti` yalnızca **özeti** tutar,
   düz metin hiçbir yere yazılmaz — Telegram bildirimine de girmez. Özet
@@ -380,9 +401,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   **Durum bilinçli olarak iki tanedir:** açık ve kapalı. "Sıra kimde"
   sorusu ayrı bir durum değil, son mesajın kimden geldiğinden okunan bir
   bayraktır (`yanit_bekliyor`); üçüncü bir durum iki kaydı senkron tutmak
-  demekti ve senkron kalmayan gün yanlış tarafı bekletirdi. Kapalı talebe
-  yazılan mesaj onu **yeniden açar** — konuşma sürüyorsa kayıt kapalı
-  görünmemeli.
+  demekti ve senkron kalmayan gün yanlış tarafı bekletirdi.
+  **Kapalı talep kapalı kalır; mesaj yazmak durumu değiştirmez.** Bir süre
+  kapalı talebe yazılan mesaj onu yeniden açıyordu ("konuşma sürüyorsa kayıt
+  kapalı görünmemeli") — sonuç, kapatmanın hiç tutmaması oldu: yönetici
+  kapatıyor, bayi yazıyor, talep yeniden açılıyor ve bayi kapalı talebe
+  sürekli yazabiliyordu. Kapatmak yazışmayı **bitirir**; devam eden konu
+  için bayi yeni talep açar, yeniden açmak yönetimin bilinçli kararıdır
+  (durum alanı ya da listedeki "yeniden aç" işlemi). Bayi tarafında kapı iki
+  yerde durur: kutu hiç çizilmez ve `detay` görünümü elle gönderilen isteği
+  geri çevirir; servis de kapalı talepte bayi mesajını reddeder
+  (`TalepKapali`). Yönetim kapalı talebe not düşebilir — talep yine kapalı
+  kalır ve panel "bayi bu yanıta cevap yazamaz" diye uyarır.
   Mesaj eklemenin tek yolu `destek.services.mesaj_ekle`: kaydı yazar,
   talebin özet alanlarını günceller, gerekirse yeniden açar. Yönetim
   panelindeki satır içi yanıt kutusu da (`save_formset`) oradan geçer;
@@ -491,6 +521,23 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   "hakediş" soyut kalıyor, "Alışım (operatörden ya da tedarikçiden)" herkesin
   bildiği şey. `UcretKurali.ad` boş bırakılabilir, kapsamdan üretilir; iki
   rakam girmeye gelen yönetici bir de ad uydurmasın.
+  **Her kural yalnızca kendi ekranında görünür.** *Ücret ve Hakediş
+  Kuralları* bayi tarafını (bayiden tahsilat, bayiye hakediş), *Operatörden
+  Alışlarım* tedarikçisi olmayan alış/prim kurallarını, *Tedarikçiden
+  Alışlarım* tedarikçili olanları listeler. Üçü tek listede karışıkken
+  yönetici "bu satır kimin hesabı" diye her seferinde yön rozetini okumak
+  zorunda kalıyor, tedarikçiye ait bir fiyat operatör kurallarının arasında
+  görünüyordu. Ayrılan yalnızca **görüntüleme ve giriş yeri**; kayıt yine
+  tek tabloda (`UcretKurali`), motor tek kaynaktan okur. Ayrım üç yerde
+  birden durur, yoksa kayıt girildiği anda kaybolur: liste süzgeci
+  (`get_queryset`), yön kutusunun seçenekleri (`formfield_for_choice_field`)
+  ve yön filtresi (`BayiYonuFiltresi`; Django'nun hazır alan filtresi dört
+  seçeneği birden yazıp ikisinde boş sonuç veriyordu). Alış kuralının genel
+  adresi kendi ekranına yönlendirilir — eski yer imi 404 vermesin. Listeye
+  yeni bir sütun ya da uyarı eklerken **iki tarafa da** ekle:
+  "hiç işlemez" işareti bir süre yalnızca genel listedeydi, tetiklemeyen
+  duruma bağlanmış alış kuralı sessizce hiç çalışmıyordu
+  (`TetikleyiciGosterimi`).
   **Operatörle Hesabım / Tedarikçiyle Hesabım** ekranları iki yönü birden
   alır: yön kutusu yalnızca maliyet ve prim seçeneklerini gösterir
   (`formfield_for_choice_field`), bayi tarafındaki yönler oraya karışmaz.
@@ -600,6 +647,19 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 
 ## Bildirimler
 
+- **Telegram anahtarları eski adlarıyla da okunur.** Sunucudaki
+  `docker.env` git'te olmadığı için `git pull` onu güncellemiyor ve orada
+  anahtarlar hâlâ `Telegram_Token` / `Telegram_Chat_id` olarak duruyordu.
+  Ortam değişkeni adı büyük/küçük harfe duyarlı; ikisi de boş okunuyor,
+  `yapilandirilmis_mi()` False dönüyor ve bildirim **hiç gitmiyor, hata da
+  vermiyordu** — "ayarlar dolu ama mesaj yok" tablosu buradan çıktı.
+  `base.py` yeni adı bulamazsa eskisine bakar. Yeni bir ayar adı
+  değiştirirken aynısını yap: sunucudaki dosyayı elle düzeltmek gereken
+  her ad değişikliği bir gün unutulur.
+- **`manage.py telegram_dene` Telegram'ın kendi hata metnini yazar.**
+  "chat not found", "Unauthorized" gibi sebepler yalnızca günlüğe düşüyordu;
+  onu görmek container log'unu taramak demekti. `_gonder` sonucu
+  `(gitti_mi, açıklama)` olarak döndürür.
 - **`apps.bildirim` INSTALLED_APPS'te olmalı.** Bir süre değildi: bildirimler
   doğrudan import edildikleri için çalışıyordu ama `telegram_dene` komutu
   bulunamıyordu. Yeni bir uygulama eklerken INSTALLED_APPS'e de ekle.

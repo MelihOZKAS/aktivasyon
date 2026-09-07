@@ -38,6 +38,18 @@ class BayiProfili(ZamanDamgali):
     vergi_dairesi = models.CharField("Vergi Dairesi", max_length=120, blank=True)
     vergi_no = models.CharField("Vergi / TC No", max_length=20, blank=True)
     notlar = models.TextField("Notlar", blank=True, help_text="Bayiye gösterilmez.")
+    kapali_kategoriler = models.ManyToManyField(
+        "katalog.BasvuruKategorisi",
+        verbose_name="Bu bayiye kapalı başvuru tipleri",
+        related_name="kapali_bayiler",
+        blank=True,
+        help_text=(
+            "İşaretlenen tip bu bayiye hiç gösterilmez: kategori ekranında, "
+            "panelde, tarife kataloğunda ve hakediş sayfasında çıkmaz; "
+            "adresini elle yazsa da form açılmaz. Boş bırakılırsa hepsi "
+            "açıktır."
+        ),
+    )
 
     class Meta:
         verbose_name = "Bayi Profili"

@@ -34,7 +34,14 @@ def yapilandirilmis_mi():
 
 
 def _gonder(metin):
-    """Mesajı Telegram'a iletir. Hata yükseltmez, yalnızca kaydeder."""
+    """Mesajı Telegram'a iletir. Hata yükseltmez, yalnızca kaydeder.
+
+    Sonucu `(gitti_mi, açıklama)` olarak da döndürür: `telegram_dene`
+    komutu bunu ekrana yazar. Sunucuda uyarı günlüğe düşüyordu ama oraya
+    bakmak container log'unu taramak demekti; "ayarlar dolu, mesaj yok"
+    şikâyetinin sebebi (yanlış sohbet id, kapatılmış bot) tek komutla
+    görünsün.
+    """
     veri = urllib.parse.urlencode(
         {
             "chat_id": settings.TELEGRAM_SOHBET_ID,
@@ -50,10 +57,23 @@ def _gonder(metin):
     try:
         with urllib.request.urlopen(istek, timeout=ZAMAN_ASIMI) as yanit:
             sonuc = json.loads(yanit.read().decode())
-        if not sonuc.get("ok"):
-            logger.warning("Telegram mesajı reddetti: %s", sonuc.get("description"))
+    except urllib.error.HTTPError as hata:
+        # Telegram hatayı gövdede açıklar: "chat not found", "Unauthorized"…
+        try:
+            aciklama = json.loads(hata.read().decode()).get("description", str(hata))
+        except (ValueError, OSError):
+            aciklama = str(hata)
+        logger.warning("Telegram mesajı reddetti: %s", aciklama)
+        return False, aciklama
     except (urllib.error.URLError, OSError, ValueError) as hata:
         logger.warning("Telegram bildirimi gönderilemedi: %s", hata)
+        return False, str(hata)
+
+    if not sonuc.get("ok"):
+        aciklama = sonuc.get("description", "bilinmeyen hata")
+        logger.warning("Telegram mesajı reddetti: %s", aciklama)
+        return False, aciklama
+    return True, "gönderildi"
 
 
 def mesaj_gonder(metin):
