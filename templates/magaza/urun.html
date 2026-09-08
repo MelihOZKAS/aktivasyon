@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}{{ urun.ad }}{% endblock %}
+{% block sayfa_basligi %}{{ urun.ad }}{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl">
+
+  <a href="{% url 'magaza:liste' %}" class="mb-5 inline-flex text-sm font-medium text-soluk">
+    ← Mağaza
+  </a>
+
+  <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+    {% if urun.gorsel %}
+    <img src="{{ urun.gorsel.url }}" alt="{{ urun.ad }}"
+         class="max-h-80 w-full object-cover">
+    {% endif %}
+
+    <div class="p-5 sm:p-6">
+      <h2 class="baslik text-2xl font-bold">{{ urun.ad }}</h2>
+      <p class="rakam mt-2 text-2xl font-bold">{{ urun.fiyat|para }} ₺</p>
+
+      {% if urun.aciklama %}
+      <p class="mt-4 whitespace-pre-line text-sm leading-relaxed text-murekkep-yumusak">
+        {{ urun.aciklama }}
+      </p>
+      {% endif %}
+
+      {% comment %}
+        Ürün bakiyeden alınır, borca yazılmaz: parası olmayana mal
+        gönderilmiş olurdu ve giden mal geri gelmiyor. Kutu kapatılmaz,
+        sebebi yazılır — bayi neyin eksik olduğunu bilsin.
+      {% endcomment %}
+      {% if not yeterli %}
+      <div class="sim mt-5 rounded-kart border border-uyari/40 bg-uyari/5 p-4">
+        <p class="text-sm font-semibold text-uyari">Bakiyen bu ürüne yetmiyor</p>
+        <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
+          Bakiyen <b>{{ bakiye|para }} ₺</b>, ürün <b>{{ urun.fiyat|para }} ₺</b>.
+          Ürünler bakiyeden alınır, borca yazılmaz. Cüzdanından ödeme
+          bildirimi yapıp bakiye yükleyebilirsin.
+        </p>
+        <a href="{% url 'bayi:cuzdan' %}" class="dugme dugme-sessiz mt-3 inline-flex text-sm">
+          Cüzdana git
+        </a>
+      </div>
+      {% else %}
+
+      <form method="post" action="{% url 'magaza:satin-al' urun.slug %}" class="mt-6 space-y-4">
+        {% csrf_token %}
+        {% comment %}
+          Anahtar gizli alanda taşınır: sayfa yenilenince aynı sipariş
+          ikinci kez açılmaz, para ikinci kez düşmez.
+        {% endcomment %}
+        <input type="hidden" name="islem_anahtari" value="{{ islem_anahtari }}">
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label for="adet" class="alan-etiketi mb-1.5 block">Adet</label>
+            <input type="number" name="adet" id="adet" value="1" min="1" step="1"
+                   class="girdi" inputmode="numeric"
+                   data-birim="{{ urun.fiyat }}" data-bakiye="{{ bakiye }}">
+          </div>
+          <div>
+            <label for="bayi_notu" class="alan-etiketi mb-1.5 block">
+              Not <span class="font-normal text-soluk">— zorunlu değil</span>
+            </label>
+            <input type="text" name="bayi_notu" id="bayi_notu" maxlength="255"
+                   class="girdi" placeholder="Renk, model tercihi…">
+          </div>
+        </div>
+
+        <div class="sim rounded-kart border border-cizgi bg-zemin p-4">
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-soluk">Toplam</span>
+            <span id="toplam" class="rakam text-xl font-bold">{{ urun.fiyat|para }} ₺</span>
+          </div>
+          <div class="mt-1 flex items-center justify-between">
+            <span class="text-xs text-soluk">Sipariş sonrası bakiyen</span>
+            <span id="kalan" class="rakam text-xs font-semibold"></span>
+          </div>
+          <p id="yetmiyor" hidden class="mt-2 text-xs font-semibold text-uyari">
+            Bu adet için bakiyen yetmiyor.
+          </p>
+        </div>
+
+        <button type="submit" id="satin-al" class="dugme dugme-birincil w-full sm:w-auto">
+          Satın al
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% comment %}
+  Toplam ve kalan bakiye adet değiştikçe yazılır: bayi "kaç tane alabilirim"
+  sorusunu göndermeden önce görsün. Sunucu kuralı yerinde durur —
+  `siparis_odemesini_isle` bakiyeyi son kez denetler.
+{% endcomment %}
+<script>
+  (function () {
+    var adet = document.getElementById("adet");
+    if (!adet) return;
+
+    var birim = parseFloat(adet.dataset.birim || "0");
+    var bakiye = parseFloat(adet.dataset.bakiye || "0");
+    var toplamKutusu = document.getElementById("toplam");
+    var kalanKutusu = document.getElementById("kalan");
+    var uyari = document.getElementById("yetmiyor");
+    var dugme = document.getElementById("satin-al");
+
+    function yaz(sayi) {
+      return sayi.toLocaleString("tr-TR", {
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
+      }) + " ₺";
+    }
+
+    function hesapla() {
+      var sayi = parseInt(adet.value, 10);
+      if (!sayi || sayi < 1) sayi = 1;
+      var toplam = birim * sayi;
+      var kalan = bakiye - toplam;
+      var yeterli = kalan >= 0;
+
+      toplamKutusu.textContent = yaz(toplam);
+      kalanKutusu.textContent = yaz(kalan);
+      kalanKutusu.style.color = yeterli ? "" : "var(--color-uyari)";
+      uyari.hidden = yeterli;
+      dugme.disabled = !yeterli;
+      dugme.style.opacity = yeterli ? "" : ".5";
+    }
+
+    adet.addEventListener("input", hesapla);
+    hesapla();
+  })();
+</script>
+{% endblock %}

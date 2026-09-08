@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block baslik %}Siparişlerim{% endblock %}
+{% block sayfa_basligi %}Siparişlerim{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl">
+  <div class="mb-7 flex flex-wrap items-center justify-between gap-4">
+    <h2 class="baslik text-2xl font-bold">Siparişlerim</h2>
+    <a href="{% url 'magaza:liste' %}" class="dugme dugme-sessiz text-sm">Mağazaya dön</a>
+  </div>
+
+  {% if sayfa.object_list %}
+  <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+    {% for siparis in sayfa.object_list %}
+    {% include "magaza/parca_siparis.html" %}
+    {% endfor %}
+  </div>
+
+  {% if sayfa.has_other_pages %}
+  <div class="mt-4 flex items-center justify-between gap-3">
+    {% if sayfa.has_previous %}
+    <a class="dugme dugme-sessiz text-sm" href="?sayfa={{ sayfa.previous_page_number }}">Önceki</a>
+    {% else %}<span></span>{% endif %}
+    <span class="text-xs text-soluk">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
+    {% if sayfa.has_next %}
+    <a class="dugme dugme-sessiz text-sm" href="?sayfa={{ sayfa.next_page_number }}">Sonraki</a>
+    {% else %}<span></span>{% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">Henüz sipariş vermedin.</p>
+    <a href="{% url 'magaza:liste' %}" class="dugme dugme-birincil mt-4 inline-flex text-sm">
+      Mağazaya git
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

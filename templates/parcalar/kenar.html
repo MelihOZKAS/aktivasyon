@@ -43,6 +43,7 @@
       {% url 'bayi:tarifeler' as u_tarifeler %}
       {% url 'bayi:hakedisler' as u_hakedisler %}
       {% url 'bayi:cuzdan' as u_cuzdan %}
+      {% url 'magaza:liste' as u_magaza %}
 
       {% if tedarikci_mi %}
       <a href="{{ u_tedarikci }}"
@@ -105,6 +106,19 @@
         <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h18v11H3zM3 8l2-4h14l2 4M16 13.5h2"/></svg>
         Cüzdan
       </a>
+
+      {% comment %}
+        Mağaza cüzdanın hemen ardında: bayi önce elindeki parayı görür,
+        sonra harcayacağı yere geçer. Yalnızca bayi rolüne açık.
+      {% endcomment %}
+      {% if bayi_mi %}
+      <a href="{{ u_magaza }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path == u_magaza %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6h15l-1.5 9h-12zM6 6L5 3H2M9 20a1 1 0 100-2 1 1 0 000 2zM18 20a1 1 0 100-2 1 1 0 000 2z"/></svg>
+        Mağaza
+      </a>
+      {% endif %}
     </nav>
 
     {% if cuzdan %}

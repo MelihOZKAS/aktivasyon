@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}Mağaza{% endblock %}
+{% block sayfa_basligi %}Mağaza{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-4xl">
+
+  <div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h2 class="baslik text-2xl font-bold">Mağaza</h2>
+      <p class="mt-1 text-sm text-soluk">
+        Ürünler bakiyenden düşülerek alınır; uğradığımızda elden teslim edilir.
+      </p>
+    </div>
+    <div class="sim shrink-0 rounded-kart border border-cizgi bg-yuzey px-4 py-3">
+      <p class="text-xs font-semibold text-soluk">Bakiyen</p>
+      <p class="rakam mt-0.5 text-xl font-bold">{{ bakiye|para }} ₺</p>
+    </div>
+  </div>
+
+  {% if urunler %}
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {% for urun in urunler %}
+    <a href="{{ urun.get_absolute_url }}"
+       class="yuzey flex flex-col overflow-hidden rounded-kart border border-cizgi
+              transition hover:border-vurgu">
+      {% if urun.gorsel %}
+      <img src="{{ urun.gorsel.url }}" alt="{{ urun.ad }}"
+           class="aspect-[4/3] w-full object-cover" loading="lazy">
+      {% else %}
+      <div class="grid aspect-[4/3] w-full place-items-center bg-zemin-koyu text-silik">
+        <svg width="32" height="32" viewBox="0 0 24 24" class="h-8 w-8" fill="none"
+             stroke="currentColor" stroke-width="1.5">
+          <path d="M3 9h18M3 9l2-5h14l2 5M5 9v11h14V9M9 13h6"/>
+        </svg>
+      </div>
+      {% endif %}
+      <div class="flex flex-1 flex-col p-4">
+        <p class="baslik font-semibold">{{ urun.ad }}</p>
+        <p class="rakam mt-2 text-lg font-bold">{{ urun.fiyat|para }} ₺</p>
+        {% if urun.fiyat > bakiye %}
+        <p class="mt-1 text-xs text-uyari">Bakiyen yetmiyor</p>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">Şu an satışta ürün yok.</p>
+  </div>
+  {% endif %}
+
+  {% comment %}
+    Siparişler ayrı bir menü maddesi değil: menü sırası bilinçli ve kısa
+    tutuluyor. Son birkaçı burada, tamamı kendi sayfasında.
+  {% endcomment %}
+  {% if son_siparisler %}
+  <section class="mt-10">
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="baslik font-semibold">Son siparişlerin</h2>
+      <a href="{% url 'magaza:siparislerim' %}" class="text-sm font-medium text-vurgu">
+        Hepsi
+      </a>
+    </div>
+    <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+      {% for siparis in son_siparisler %}
+      {% include "magaza/parca_siparis.html" %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

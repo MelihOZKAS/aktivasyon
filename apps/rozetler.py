@@ -58,3 +58,10 @@ def yanit_bekleyen_talepler(request):
     return _sayi(
         DestekTalebi.objects.filter(durum=TalepDurumu.ACIK, yanit_bekliyor=True)
     )
+
+
+def bekleyen_siparisler(request):
+    """Verilmiş ama henüz teslim edilmemiş ürün siparişleri."""
+    from apps.magaza.models import Siparis, SiparisDurumu
+
+    return _sayi(Siparis.objects.filter(durum=SiparisDurumu.VERILDI))

@@ -30,6 +30,7 @@ Bu ilkeyi bozan bir çözüm önerme.
 | Bayi | `apps/bayi` | Profil ve roller, SIM stoğu, duyurular, paneller |
 | Bildirim | `apps/bildirim` | Telegram |
 | Destek | `apps/destek` | Bayi–yönetim yazışması |
+| Mağaza | `apps/magaza` | Bayinin hakedişiyle aldığı ürünler |
 
 ## Kurulum sırası
 
@@ -170,6 +171,30 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kullanıcı tarafı yalnızca yönlendirir. Her hareket kimin yaptığını taşır
   (`olusturan`) ve hareket listesinde görünür. İşlem anahtarı formda gizli
   alanda taşınır: sayfa yenilenince aynı işlem ikinci kez yazılmaz.
+- **Bayi hakedişini mağazadan ürüne çevirir** (`apps/magaza`). Kazandığı
+  parayı harcayabileceği tek yer başvuru bedeliydi. Ürünü görür, fiyatını
+  bilir, siparişi verir; tutar o anda **bakiyesinden** düşer.
+  **Borca yazılmaz** — başvuruda borcun üst sınırı yoktur çünkü borç işlenmiş
+  bir işlemin sonucudur; burada ise parası olmayana mal verilmiş olurdu ve
+  giden mal geri gelmiyor. Kapı iki yerde durur: ürün sayfası sebebini yazıp
+  düğmeyi kapatır (gizlemez), `siparis_odemesini_isle` son kez denetler.
+  **Stok tutulmaz.** Ürünler bayiye uğrandığında elden veriliyor; tutulmayan
+  bir sayı yanlış olurdu. Satılmayacak ürünün "Aktif"i kapatılır — mağazada
+  hiç görünmez, verilmiş siparişler yerinde kalır.
+  **Fiyat tektir**, bayi grubuna göre kademe yok: satılan şey bir hizmet
+  değil, rafta duran bir ürün. Sipariş anında `urun_adi` ve `birim_fiyat`
+  kopyalanır; ürünün fiyatı sonra değişse de ödenen tutar kayıtta doğru kalır.
+  **Para siparişin iptal edilmemiş olmasına bağlıdır** — başvurudaki kuralın
+  aynısı. İptal'e geçince ters kayıtla iade edilir, İptal'den çıkarılırsa
+  yeniden kesilir (bakiye yetmezse kayıt iptalde kalır ve yönetici sebebini
+  görür). Tek kapı `finans.services.siparis_durumunu_uygula`; satır düğmesi de
+  formdaki durum alanı da (`SiparisAdmin.save_model`) oradan geçer. Defter
+  anahtarı `Siparis.para_surumu` içerir. İptal para oynattığı için düğme
+  doğrudan çalışmaz, ne olacağını yazan onay ekranını açar ve iş POST ile
+  yapılır. Sipariş formundaki gizli `islem_anahtari` sayfa yenilenince aynı
+  siparişin ikinci kez açılmasını engeller.
+  Durum bilinçli olarak üç tanedir (verildi / teslim / iptal): kargo yok,
+  ara durumlar takip edilecek bir şey anlatmıyor.
 - **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme
   bildiriminin `durum` alanı formda düzenlenebilir; yönetici "Onaylandı"
   seçip kaydedince bildirim onaylanmış **görünüyor** ama para hiç hareket

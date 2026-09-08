@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "apps.bayi",
     "apps.bildirim",
     "apps.destek",
+    "apps.magaza",
 ]
 
 MIDDLEWARE = [
@@ -313,6 +314,24 @@ UNFOLD = {
                         "badge": "apps.rozetler.yanit_bekleyen_talepler",
                     },
                     {"title": "Kullanıcılar", "icon": "person", "link": "/yonetim/auth/user/"},
+                ],
+            },
+            {
+                "title": "Mağaza",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Ürünler",
+                        "icon": "inventory_2",
+                        "link": "/yonetim/magaza/urun/",
+                    },
+                    {
+                        "title": "Siparişler",
+                        "icon": "shopping_cart",
+                        "link": "/yonetim/magaza/siparis/",
+                        # Verilmiş ama teslim edilmemiş siparişler: hazırlanacak iş.
+                        "badge": "apps.rozetler.bekleyen_siparisler",
+                    },
                 ],
             },
             {

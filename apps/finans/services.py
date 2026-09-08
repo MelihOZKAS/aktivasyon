@@ -50,6 +50,7 @@ def _hareket_yaz(
     idempotency_anahtari,
     aciklama="",
     basvuru=None,
+    siparis=None,
     kural=None,
     banka=None,
     olusturan=None,
@@ -81,6 +82,7 @@ def _hareket_yaz(
                 onceki_borc=onceki_borc,
                 sonraki_borc=cuzdan.borc,
                 basvuru=basvuru,
+                siparis=siparis,
                 kural=kural,
                 banka=banka,
                 idempotency_anahtari=idempotency_anahtari,
@@ -892,3 +894,110 @@ def bakiye_yukle(cuzdan, tutar, *, aciklama="", banka=None, olusturan=None, anah
             banka.save(update_fields=["bakiye", "guncelleme_tarihi"])
 
         return cuzdan
+
+
+# -- mağaza siparişleri ---------------------------------------------------
+#
+# Para siparişin **iptal edilmemiş olmasına** bağlıdır: sipariş verildiği
+# anda tutar bakiyeden düşer, İptal'e çekilince ters kayıtla geri döner,
+# İptal'den çıkarılırsa yeniden kesilir. Başvurudaki kuralın aynısı —
+# yanlış işlemin düzeltmesi de sadece durumu değiştirmektir.
+
+
+class SiparisVerilemez(Exception):
+    """Sipariş parası işlenemedi; sebebi mesajda yazılıdır."""
+
+
+def siparis_odemesini_isle(siparis, *, olusturan=None):
+    """Sipariş tutarını bayinin bakiyesinden düşer.
+
+    **Borca yazılmaz.** Başvuruda borcun üst sınırı yoktur çünkü borç
+    işlenmiş bir işlemin sonucudur; burada ise parası olmayana ürün
+    verilmiş olurdu ve giden mal geri gelmiyor. Bakiye yetmiyorsa sipariş
+    hiç açılmaz (`SiparisVerilemez`), kapı bayi ekranında da durur.
+    """
+    with transaction.atomic():
+        kilitli = type(siparis).objects.select_for_update().get(pk=siparis.pk)
+        if kilitli.para_islendi or kilitli.tutar <= SIFIR:
+            return kilitli
+
+        cuzdan = _cuzdani_getir(kilitli.bayi_id)
+        if not cuzdan.islem_yapabilir:
+            raise SiparisVerilemez(
+                "Hesabın işleme kapalı. Yöneticinle görüşmen gerekiyor."
+            )
+        if cuzdan.bakiye < kilitli.tutar:
+            raise SiparisVerilemez(
+                f"Bakiyen {cuzdan.bakiye} ₺; bu sipariş {kilitli.tutar} ₺. "
+                "Ürün bakiyeden alınır, borca yazılmaz."
+            )
+
+        _hareket_yaz(
+            cuzdan=cuzdan,
+            tip=HareketTipi.SIPARIS,
+            tutar=-kilitli.tutar,
+            idempotency_anahtari=f"siparis:{kilitli.pk}:{kilitli.para_surumu}",
+            aciklama=f"{kilitli.referans_no} · {kilitli.urun_adi} ×{kilitli.adet}",
+            siparis=kilitli,
+            olusturan=olusturan,
+        )
+        kilitli.para_islendi = True
+        kilitli.save(update_fields=["para_islendi", "guncelleme_tarihi"])
+        return kilitli
+
+
+def siparis_odemesini_geri_al(siparis, *, olusturan=None):
+    """İptal edilen siparişin parasını ters kayıtla iade eder.
+
+    Defter değişmezdir, satır silinmez; her hareketin karşısına ters kaydı
+    yazılır. Sürüm artar ki sipariş yeniden açılırsa ikinci hareket aynı
+    anahtara çarpıp sessizce yutulmasın.
+    """
+    with transaction.atomic():
+        kilitli = type(siparis).objects.select_for_update().get(pk=siparis.pk)
+        if not kilitli.para_islendi:
+            return kilitli
+
+        hareketler = list(
+            kilitli.cuzdan_hareketleri.filter(ters_kayit__isnull=True)
+            .exclude(tip=HareketTipi.IPTAL)
+            .select_related("cuzdan")
+        )
+        cuzdanlar = {
+            c.pk: c
+            for c in Cuzdan.objects.select_for_update().filter(
+                pk__in={h.cuzdan_id for h in hareketler}
+            )
+        }
+
+        for hareket in hareketler:
+            ters = _hareket_yaz(
+                cuzdan=cuzdanlar[hareket.cuzdan_id],
+                tip=HareketTipi.IPTAL,
+                tutar=-hareket.tutar,
+                idempotency_anahtari=f"iptal:siparis:{hareket.pk}",
+                aciklama=f"{kilitli.referans_no} · sipariş iptali",
+                siparis=kilitli,
+                olusturan=olusturan,
+            )
+            if ters:
+                hareket.ters_kayit = ters
+                hareket.save(update_fields=["ters_kayit"])
+
+        kilitli.para_islendi = False
+        kilitli.para_surumu = kilitli.para_surumu + 1
+        kilitli.save(update_fields=["para_islendi", "para_surumu", "guncelleme_tarihi"])
+        return kilitli
+
+
+def siparis_durumunu_uygula(siparis, *, olusturan=None):
+    """Siparişin parasını durumuyla tutarlı hâle getirir.
+
+    Tek kapı: karar hangi yoldan verilirse verilsin (satır düğmesi, form,
+    toplu işlem) buradan geçer. İkinci kez çağrılmak zarar vermez.
+    """
+    from apps.magaza.models import SiparisDurumu
+
+    if siparis.durum == SiparisDurumu.IPTAL:
+        return siparis_odemesini_geri_al(siparis, olusturan=olusturan)
+    return siparis_odemesini_isle(siparis, olusturan=olusturan)

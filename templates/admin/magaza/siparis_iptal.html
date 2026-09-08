@@ -1,0 +1,55 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Sipariş iptali para oynatır: düğme doğrudan çalışmaz, ne olacağını yazan
+  bu ekranı açar ve iş POST ile yapılır. Yöneticinin açtığı herhangi bir
+  sayfa ya da bir önizleme isteği kimsenin bakiyesini oynatmamalı.
+
+  Sınıflar unfold'un derlenmiş CSS'inden gelir; bizim static/app.css
+  yönetim panelinde yüklü değildir.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+
+    <p class="mb-4 text-sm leading-relaxed text-base-500">
+      <b>{{ siparis.referans_no }}</b> numaralı sipariş iptal edilecek:
+      {{ siparis.urun_adi }} ×{{ siparis.adet }}.
+    </p>
+
+    <ul class="mb-6 space-y-2 text-sm">
+      <li class="flex justify-between border-b border-base-100 py-1.5 dark:border-base-800">
+        <span class="text-base-500">Bayi</span>
+        <span class="font-medium">{{ siparis.bayi.bayi_profili.unvan|default:siparis.bayi.get_username }}</span>
+      </li>
+      <li class="flex justify-between border-b border-base-100 py-1.5 dark:border-base-800">
+        <span class="text-base-500">Bakiyesine geri yazılacak</span>
+        <span class="font-semibold" style="color:#0F8A4D">{{ siparis.tutar }} ₺</span>
+      </li>
+      <li class="flex justify-between py-1.5">
+        <span class="text-base-500">Şu anki durum</span>
+        <span class="font-medium">{{ siparis.get_durum_display }}</span>
+      </li>
+    </ul>
+
+    <p class="mb-6 text-sm leading-relaxed text-base-500">
+      Defter satırı silinmez; her hareketin karşısına ters kaydı yazılır.
+      İptal sebebini kaydın <b>Yönetim Notu</b> alanına yazarsanız bayi de
+      sipariş listesinde görür.
+    </p>
+
+    <form method="post" class="flex flex-wrap gap-3">
+      {% csrf_token %}
+      <button type="submit"
+              class="rounded-default px-4 py-2 font-medium text-white" style="background:#D42046">
+        İptal et ve parayı iade et
+      </button>
+      <a href="{% url 'admin:magaza_siparis_changelist' %}"
+         class="rounded-default border border-base-200 px-4 py-2 font-medium hover:bg-base-100 dark:border-base-700">
+        Vazgeç
+      </a>
+    </form>
+  </div>
+</div>
+{% endblock %}

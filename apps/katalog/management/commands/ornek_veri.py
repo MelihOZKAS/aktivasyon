@@ -18,6 +18,20 @@ from apps.basvurular.models import BasvuruDurumu
 from apps.bayi.models import Duyuru, SimKart
 from apps.finans.models import Banka, BayiGrubu, KuralYonu, UcretKurali
 from apps.katalog.models import BasvuruKategorisi, Kampanya, MusteriTipi, Operator, Tarife
+from apps.magaza.models import Urun
+
+# Mağaza ürünleri: bayi hakedişini burada harcıyor. Stok tutulmuyor,
+# yalnızca satış fiyatı.
+URUNLER = [
+    ("Tabela (ışıklı, 100×40)", Decimal("4500.00"),
+     "Cepheye asılan ışıklı tabela. Montaj bize ait."),
+    ("Vitrin Afişi Seti", Decimal("350.00"),
+     "5 parça vitrin afişi; kampanya görselleriyle birlikte."),
+    ("POS Rulo (50'li koli)", Decimal("780.00"),
+     "80mm termal rulo, 50 adet."),
+    ("Kartvizit (1000 adet)", Decimal("620.00"),
+     "Bayi adı ve iletişim bilgileriyle basılır."),
+]
 
 GRUPLAR = [
     ("Standart Bayi", "Yeni açılan bayilerin varsayılan kademesi."),
@@ -205,6 +219,7 @@ class Command(BaseCommand):
         self._banka()
         self._duyurular()
         self._sim_stogu()
+        self._urunler()
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -379,3 +394,14 @@ class Command(BaseCommand):
         self.stdout.write(
             f"  {zimmetli} kart bayiye zimmetli, {bekleyen} kart beklemede"
         )
+
+    def _urunler(self):
+        self.stdout.write(self.style.MIGRATE_HEADING("\nMağaza ürünleri"))
+        for sira, (ad, fiyat, aciklama) in enumerate(URUNLER, start=10):
+            _, yeni = Urun.objects.get_or_create(
+                ad=ad,
+                defaults={"fiyat": fiyat, "aciklama": aciklama, "sira": sira},
+            )
+            self.stdout.write(
+                f"  {ad:28} {fiyat:>9} ₺  {'oluşturuldu' if yeni else 'zaten var'}"
+            )
