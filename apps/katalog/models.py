@@ -332,6 +332,17 @@ class KategoriAlani(ZamanDamgali):
         related_name="alanlar",
         on_delete=models.CASCADE,
     )
+    tarifeler = models.ManyToManyField(
+        Tarife,
+        verbose_name="Yalnızca Bu Tarifelerde",
+        related_name="kategori_alanlari",
+        blank=True,
+        help_text=(
+            "Boş bırakılırsa alan kategorideki bütün tarifelerde sorulur. "
+            "Tarife işaretlenirse koşul <b>kategori ve tarife</b> olarak birlikte "
+            "aranır: alan yalnızca bu tarifelerden biri seçildiğinde çıkar."
+        ),
+    )
     kod = models.SlugField(
         "Alan Kodu",
         max_length=60,
@@ -480,6 +491,32 @@ class KategoriAlani(ZamanDamgali):
 
     def __str__(self):
         return f"{self.kategori.ad} · {self.etiket}"
+
+    @property
+    def tarife_kisiti(self):
+        """Alanın bağlı olduğu tarife id'leri; boş küme "hepsi" demektir.
+
+        Kapsam kuralı ücret motorundakiyle aynı: boş bırakılan kapsam
+        daraltmaz. Pozitif liste olsaydı her yeni tarifede bütün alanları
+        tek tek işaretlemek gerekirdi.
+        """
+        return {t.pk for t in self.tarifeler.all()}
+
+    @property
+    def tarife_kodlari(self):
+        """Şablonun kutuya yazdığı tarife id listesi; boşsa alan hep görünür."""
+        return ",".join(str(pk) for pk in sorted(self.tarife_kisiti))
+
+    def tarifede_sorulur_mu(self, tarife_id):
+        """Seçili tarifede bu alan formda çıkar mı?"""
+        kisit = self.tarife_kisiti
+        if not kisit:
+            return True
+        try:
+            return int(tarife_id) in kisit
+        except (TypeError, ValueError):
+            # Tarife henüz seçilmemiş: tarifeye bağlı alan da henüz çıkmaz.
+            return False
 
     def clean(self):
         if self.cekirdek_alan and self.dosya_mi:

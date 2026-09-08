@@ -77,11 +77,12 @@
 
     {# Kategoriye özel alanlar: KategoriAlani tanımlarından üretilir #}
     {% for grup, alanlar in form.gruplu_alanlar %}
-    <section class="yuzey rounded-kart p-5 sm:p-6">
+    <section class="yuzey rounded-kart p-5 sm:p-6" data-alan-bolumu>
       <h2 class="baslik font-semibold">{{ grup|default:"Başvuru detayları" }}</h2>
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
-        {% for alan in alanlar %}
-        <div {% if alan.field.widget.input_type == 'checkbox' %}class="sm:col-span-2 flex items-center gap-3"{% endif %}>
+        {% for tanim, alan in alanlar %}
+        <div data-alan-kutusu{% if tanim.tarife_kodlari %} data-tarifeler="{{ tanim.tarife_kodlari }}"{% endif %}
+             {% if alan.field.widget.input_type == 'checkbox' %}class="sm:col-span-2 flex items-center gap-3"{% endif %}>
           {% if alan.field.widget.input_type == 'checkbox' %}
             {{ alan }}
             <label for="{{ alan.id_for_label }}" class="alan-etiketi">{{ alan.label }}</label>
@@ -111,14 +112,14 @@
       aynı girdiye `capture` ekleyip açıyor, sonra geri alıyor.
     {% endcomment %}
     {% if form.belge_alanlari %}
-    <section class="yuzey rounded-kart p-5 sm:p-6">
+    <section class="yuzey rounded-kart p-5 sm:p-6" data-alan-bolumu>
       <h2 class="baslik font-semibold">Belgeler</h2>
       <p class="mt-1 text-sm text-soluk">
         Galeriden seçebilir ya da telefonla o an çekebilirsin.
       </p>
       <div class="mt-4 grid gap-4 sm:grid-cols-2">
         {% for tanim, alan in form.belge_alanlari %}
-        <div>
+        <div data-alan-kutusu{% if tanim.tarife_kodlari %} data-tarifeler="{{ tanim.tarife_kodlari }}"{% endif %}>
           <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5 block">
             {{ alan.label }}{% if not alan.field.required %}
             <span class="font-normal text-soluk">— zorunlu değil</span>{% endif %}
@@ -195,6 +196,55 @@
 </div>
 
 <script>
+  // Tarifeye bağlı alanlar. Bir alan yalnızca belirli tarifelerde soruluyorsa
+  // (KategoriAlani.tarifeler) kutusu başka tarife seçiliyken hiç görünmez:
+  // "Faturalı Yeni Hat + Genç Tarife" gibi koşullar tek ekranda çözülsün,
+  // her tarife kombinasyonu için ayrı kategori açılmasın.
+  //
+  // Sunucu kuralı yerinde durur (`BasvuruFormu.clean`): gizli kutu elle
+  // gönderilse de değeri alınmaz, zorunluluğu aranmaz.
+  (function () {
+    function uygula() {
+      var kutu = document.getElementById("id_tarife");
+      var secilen = kutu ? kutu.value : "";
+
+      document.querySelectorAll("[data-tarifeler]").forEach(function (alan) {
+        var izinli = alan.dataset.tarifeler.split(",");
+        var gorunur = !!secilen && izinli.indexOf(secilen) !== -1;
+        alan.hidden = !gorunur;
+
+        // Gizli ve zorunlu bir girdi tarayıcıyı kilitler: form gönderilmez
+        // ama odaklanılamayan alana da uyarı basılamaz, bayi sebebini
+        // göremeden "hiçbir şey olmuyor" der. Zorunluluk kutuyla birlikte
+        // kalkar, kutu geri gelince yeniden konur.
+        alan.querySelectorAll("input, select, textarea").forEach(function (girdi) {
+          if (gorunur) {
+            if (girdi.dataset.zorunluydu === "1") girdi.required = true;
+          } else {
+            if (girdi.required) girdi.dataset.zorunluydu = "1";
+            girdi.required = false;
+          }
+        });
+      });
+
+      // Bütün alanları gizlenen bölüm başlığıyla birlikte kalkar; içi boş bir
+      // "Belgeler" kartı bayiye bir şeyin yüklenmediğini düşündürüyordu.
+      document.querySelectorAll("[data-alan-bolumu]").forEach(function (bolum) {
+        var kutular = bolum.querySelectorAll("[data-alan-kutusu]");
+        var gorunen = 0;
+        kutular.forEach(function (k) { if (!k.hidden) gorunen++; });
+        bolum.hidden = kutular.length > 0 && gorunen === 0;
+      });
+    }
+
+    // Tarife kutusu HTMX ile yenileniyor; olay belgeye bağlanır.
+    document.addEventListener("change", function (olay) {
+      if (olay.target.id === "id_tarife") uygula();
+    });
+    document.body.addEventListener("htmx:afterSwap", uygula);
+    uygula();
+  })();
+
   // SIM kutusu seçilen operatöre göre daralır. Vodafone kartıyla Turkcell
   // aktivasyonu yapılamaz; hatlar BTK'da IMEI bazında lisanslı. Liste
   // daraltılmasa bayi ucuz kartı seçip pahalı işlem girebilirdi. Kural

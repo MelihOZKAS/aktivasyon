@@ -1,0 +1,82 @@
+{% extends "admin/change_form.html" %}
+
+{% comment %}
+  "Tarife koşulu" bölümü kategori kutusunun yanındaki düğmeyle açılır.
+
+  Bölüm varsayılan olarak kapalıdır: alanların çoğunda tarife koşulu yok ve
+  her tanım ekranında açık duran bir tarife listesi gereksiz gürültü. Koşulu
+  olan kayıtta (ya da doğrulama hatası varken) kendiliğinden açık gelir —
+  yönetici girdiği koşulu görmeden kaydetmesin.
+
+  Düğme Django'nun kendi kalem/+/göz düğmelerinin yanına, aynı boyda
+  eklenir; ama onlar gibi ikon değil, ne yaptığını yazan bir düğmedir:
+  oradaki "+" yeni bir *kategori* açıyor, bu ise tarife koşulunu gösteriyor.
+
+  Sınıflar unfold'un derlenmiş CSS'inde var olanlarla sınırlı — bizim
+  static/app.css yönetim panelinde yüklü değil. Karşılığı olmayan ölçüler
+  satır içi stille yazılıyor.
+{% endcomment %}
+
+{% block form_after %}
+{{ block.super }}
+<script>
+  (function () {
+    var bolum = document.querySelector("fieldset.tarife-kosulu");
+    var kategori = document.getElementById("id_kategori");
+    if (!bolum || !kategori) return;
+
+    var sarmalayici = kategori.closest(".related-widget-wrapper");
+    if (!sarmalayici) return;
+    // Dar ekranda düğme alt satıra insin; sarmalayıcı tek satır flex.
+    sarmalayici.style.flexWrap = "wrap";
+    sarmalayici.style.rowGap = ".5rem";
+
+    var kutular = bolum.querySelectorAll("input[type=checkbox]");
+    var hataVar = !!bolum.querySelector(".errorlist, [class*='text-red']");
+
+    function seciliSayisi() {
+      var adet = 0;
+      kutular.forEach(function (k) { if (k.checked) adet++; });
+      return adet;
+    }
+
+    var dugme = document.createElement("button");
+    dugme.type = "button";
+    dugme.className =
+      "bg-white border cursor-pointer flex flex-row gap-1 h-[38px] items-center " +
+      "ml-2 rounded-default shadow-xs shrink-0 text-sm font-medium " +
+      "dark:bg-base-900";
+    dugme.style.paddingInline = ".75rem";
+    // unfold kalem/+/göz düğmelerini `order: 9999` ile satır sonuna itiyor;
+    // düğme DOM'da sonuncu olduğu hâlde onların soluna düşüyordu.
+    dugme.style.order = "10000";
+
+    function yaz() {
+      var adet = seciliSayisi();
+      var acik = !bolum.hidden;
+      dugme.textContent = adet
+        ? "Tarife koşulu · " + adet
+        : (acik ? "Tarife koşulu" : "+ Tarife koşulu");
+      // Koşul girilmişse düğme vurgu renginde durur: alanın her tarifede
+      // sorulmadığı, bölüm kapalıyken de görünsün.
+      dugme.style.color = adet ? "var(--color-primary-600)" : "";
+      dugme.style.borderColor = adet ? "var(--color-primary-600)" : "";
+      dugme.setAttribute("aria-expanded", acik ? "true" : "false");
+    }
+
+    function ayarla(acik) {
+      bolum.hidden = !acik;
+      yaz();
+    }
+
+    dugme.addEventListener("click", function () {
+      ayarla(bolum.hidden);
+      if (!bolum.hidden) bolum.scrollIntoView({ block: "nearest" });
+    });
+    kutular.forEach(function (k) { k.addEventListener("change", yaz); });
+
+    sarmalayici.appendChild(dugme);
+    ayarla(seciliSayisi() > 0 || hataVar);
+  })();
+</script>
+{% endblock %}

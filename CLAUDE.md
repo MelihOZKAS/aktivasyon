@@ -267,6 +267,27 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dahil. `cekirdek_alan` doluysa değer başvurunun kendi kolonuna yazılır
   (aranabilir olur), boşsa `ek_bilgiler` JSON'una girer. Forma yeni bir sabit
   alan ekleme; kategori tanımından geçir.
+- **Bir alan yalnızca belirli tarifelerde sorulabilir.** `KategoriAlani.tarifeler`
+  boşsa alan kategorideki bütün tarifelerde çıkar; tarife işaretlenirse koşul
+  **kategori ve tarife** olarak birlikte aranır ("Faturalı Yeni Hat *ve* Genç
+  Tarife"). Boş = hepsi kuralı ücret motorundaki `kapsam()` ile aynı: pozitif
+  liste olsaydı her yeni tarifede bütün alanları tek tek işaretlemek
+  gerekirdi. Alternatif, aynı işin her tarife bileşimi için ayrı kategori
+  açmaktı — form alanları yirmi kez kopyalanırdı.
+  Kapı iki yerde durur: kutu tarayıcıda gizlenir (`data-tarifeler`,
+  `templates/basvurular/yeni.html`) ve `BasvuruFormu.clean` sorulmamış alanın
+  değerini almaz, zorunluluğunu aramaz — gizli girdi elle gönderilse de
+  yazılmaz. Gizlerken `required` de kaldırılır: gizli ve zorunlu bir girdi
+  tarayıcıyı kilitler, form gönderilmez ama odaklanılamayan alana uyarı da
+  basılamaz. Bütün alanları gizlenen **bölüm** başlığıyla birlikte kalkar.
+  Yönetimde kutu Kategori satırının yanındaki **"+ Tarife koşulu"** düğmesiyle
+  açılır (`templates/admin/katalog/kategorialani/change_form.html`): alanların
+  çoğunda koşul yok, her tanım ekranında açık duran bir tarife listesi
+  gürültüydü. Koşul girilmiş kayıtta bölüm kendiliğinden açık gelir ve düğme
+  vurgu renginde sayıyı yazar. Liste kategorinin tarifeleriyle sınırlıdır;
+  başka kategorinin tarifesi seçilirse `KategoriAlaniFormu` reddeder — koşul
+  hiçbir zaman sağlanmaz, alan da hiç görünmezdi. Alan listesindeki *Tarife
+  koşulu* sütunu bunu kayıt kayıt aramadan gösterir.
 - **Çekirdek alan çoğu alanda boş kalır.** Yalnızca başvurunun kendi kolonu
   olan bilgilerde (isim, TC no, telefon) doldurulur; o zaman değer aranabilir
   olur. Bir kategoride aynı çekirdek alan iki kez kullanılamaz, görsel/dosya

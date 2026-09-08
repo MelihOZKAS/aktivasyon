@@ -113,7 +113,9 @@ class BasvuruFormu(forms.Form):
         self.kategori = kategori
         self.bayi = bayi
         self.alan_tanimlari = list(
-            kategori.alanlar.filter(aktif=True).order_by("sira", "id")
+            kategori.alanlar.filter(aktif=True)
+            .prefetch_related("tarifeler")
+            .order_by("sira", "id")
         )
 
         self._kapsami_daralt()
@@ -254,8 +256,20 @@ class BasvuruFormu(forms.Form):
     def clean(self):
         temiz = super().clean()
 
+        secili_tarife = temiz.get("tarife")
+
         for tanim in self.alan_tanimlari:
             anahtar = ALAN_ONEKI + tanim.kod
+
+            # Tarifeye bağlı alan: başka tarife seçilmişse hiç sorulmamış
+            # sayılır. Kutu tarayıcıda da gizleniyor ama kural burada durur —
+            # gizli girdi elle gönderilse de değer alınmaz, zorunluluk aranmaz.
+            if not tanim.tarifede_sorulur_mu(
+                secili_tarife.pk if secili_tarife else None
+            ):
+                temiz[anahtar] = None
+                self.errors.pop(anahtar, None)
+                continue
 
             # Koşullu alan: koşul sağlanmıyorsa zorunluluğu ve değeri düşür.
             if tanim.kosul_alani_id:
@@ -359,12 +373,18 @@ class BasvuruFormu(forms.Form):
 
     @property
     def gruplu_alanlar(self):
-        """Dosya olmayan alanları `grup` başlığına göre öbekler."""
+        """Dosya olmayan alanları `grup` başlığına göre öbekler.
+
+        Tanımın kendisi de veriliyor: şablon alanın hangi tarifelerde
+        sorulduğunu (`tarife_kodlari`) kutunun sarmalayıcısına yazıyor.
+        """
         obekler = {}
         for tanim in self.alan_tanimlari:
             if tanim.dosya_mi:
                 continue
-            obekler.setdefault(tanim.grup or "", []).append(self[ALAN_ONEKI + tanim.kod])
+            obekler.setdefault(tanim.grup or "", []).append(
+                (tanim, self[ALAN_ONEKI + tanim.kod])
+            )
         return obekler.items()
 
     @property

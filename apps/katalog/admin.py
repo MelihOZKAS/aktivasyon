@@ -6,6 +6,7 @@ from django.shortcuts import render
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
+from unfold.widgets import UnfoldAdminCheckboxSelectMultipleWidget
 
 from apps.finans.admin import TarifeParaKuraliInline
 from apps.finans.models import KuralYonu
@@ -408,16 +409,52 @@ class AlanKopyalaFormu(forms.Form):
     )
 
 
+class KategoriAlaniFormu(forms.ModelForm):
+    """Alan tanımı formu; tarife koşulunu kategoriyle birlikte denetler.
+
+    Tarife bir kategoriye bağlı olmayabilir (`Tarife.kategoriler` çoktan
+    çoğa). Başka kategorinin tarifesi işaretlenirse koşul hiçbir zaman
+    sağlanmaz ve alan formda hiç çıkmaz — sistem de tek kelime etmezdi.
+    """
+
+    class Meta:
+        model = KategoriAlani
+        fields = "__all__"
+
+    def clean(self):
+        temiz = super().clean()
+        kategori = temiz.get("kategori")
+        tarifeler = temiz.get("tarifeler")
+
+        if kategori and tarifeler:
+            yabanci = [
+                t.ad for t in tarifeler if kategori not in t.kategoriler.all()
+            ]
+            if yabanci:
+                self.add_error(
+                    "tarifeler",
+                    f"{', '.join(yabanci)}: bu tarife(ler) “{kategori.ad}” "
+                    "kategorisinde geçerli değil, koşul hiçbir zaman sağlanmaz. "
+                    "Tarifenin kendi sayfasından bu kategoriyi işaretleyin ya da "
+                    "seçimi kaldırın.",
+                )
+        return temiz
+
+
 @admin.register(KategoriAlani)
 class KategoriAlaniAdmin(ModelAdmin):
     list_display = (
-        "etiket", "kategori", "tip_gosterimi", "kod", "grup", "zorunlu", "sira", "aktif"
+        "etiket", "kategori", "tarife_kosulu", "tip_gosterimi", "kod", "grup",
+        "zorunlu", "sira", "aktif",
     )
     list_editable = ("sira", "aktif")
     list_filter = ("aktif", "kategori", "tip", "zorunlu", "cekirdek_alan")
     search_fields = ("etiket", "kod", "kategori__ad")
     autocomplete_fields = ("kategori", "kosul_alani")
     actions = ("alanlari_kopyala",)
+    form = KategoriAlaniFormu
+    # Kategori satırının yanındaki "+ Tarife koşulu" düğmesi bu bölümü açar.
+    change_form_template = "admin/katalog/kategorialani/change_form.html"
     fieldsets = (
         (
             "Tanım",
@@ -439,6 +476,22 @@ class KategoriAlaniAdmin(ModelAdmin):
                 ),
             },
         ),
+        (
+            "Tarife koşulu",
+            {
+                # Bölüm kategori kutusunun yanındaki düğmeyle açılıp kapanır;
+                # sınıf betiğin tutamağıdır (`admin/katalog/kategorialani/`).
+                "classes": ("tarife-kosulu",),
+                "fields": ("tarifeler",),
+                "description": (
+                    "Alan bu kategoride <b>her tarifede</b> soruluyorsa burayı boş "
+                    "bırakın. Yalnızca belirli tarifelerde sorulacaksa işaretleyin: "
+                    "koşul <b>kategori ve tarife</b> olarak birlikte aranır — "
+                    "“Faturalı Yeni Hat <i>ve</i> Genç Tarife” gibi. Başka tarife "
+                    "seçildiğinde kutu bayinin formunda hiç görünmez."
+                ),
+            },
+        ),
         ("Davranış", {"fields": ("zorunlu", "yardim_metni", "placeholder", "secenekler")}),
         (
             "Doğrulama",
@@ -455,7 +508,82 @@ class KategoriAlaniAdmin(ModelAdmin):
     )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("kategori")
+        return (
+            super().get_queryset(request)
+            .select_related("kategori")
+            .prefetch_related("tarifeler")
+        )
+
+    @display(description="Tarife koşulu")
+    def tarife_kosulu(self, obj):
+        """Alanın hangi tarifelerde sorulduğu listede de okunsun.
+
+        Koşul yalnızca düzenleme ekranında görünseydi, "bu alan neden bazı
+        başvurularda çıkmıyor" sorusunun cevabı kayıt kayıt aranırdı.
+        """
+        adlar = [t.ad for t in obj.tarifeler.all()]
+        if not adlar:
+            return format_html('<span style="color:#94A3B8">her tarifede</span>')
+        return format_html(
+            '<span style="color:#0E5E5B;font-weight:600">{}</span>', " · ".join(adlar)
+        )
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        """Tarife kutusu onay kutusu listesidir ve kategoriye süzülür.
+
+        Çoklu seçim kutusunda işaret kaldırmak Ctrl'e basmayı gerektiriyor;
+        yönetici tek tıkla açtığını kapatıyordu (bayinin kapalı kategorileri
+        kutusundaki kuralın aynısı).
+
+        Liste düzenlenen alanın kategorisine daraltılır: sistemdeki bütün
+        tarifeleri dökmek, bu kategoride hiç geçerli olmayan tarifeyi
+        işaretlemeye davetiye. Kategori henüz belli değilse (yeni kayıt)
+        aktif tarifelerin tamamı listelenir, seçim `KategoriAlaniFormu`
+        tarafından denetlenir.
+        """
+        if db_field.name != "tarifeler":
+            return super().formfield_for_manytomany(db_field, request, **kwargs)
+
+        kwargs["widget"] = UnfoldAdminCheckboxSelectMultipleWidget()
+        tarifeler = Tarife.objects.filter(aktif=True).select_related("operator")
+        nesne = self._duzenlenen_alan(request)
+        if nesne is not None and nesne.kategori_id:
+            tarifeler = tarifeler.filter(kategoriler=nesne.kategori_id)
+        kwargs["queryset"] = tarifeler.order_by("operator__sira", "sira", "ad")
+
+        alan = super().formfield_for_manytomany(db_field, request, **kwargs)
+        # Liste zaten bu kategoriye süzülü; `Tarife.__str__` kategori adını da
+        # yazınca her satır "MNT / Numara Taşıma · Turkcell · …" diye başlıyor
+        # ve okunan tek şey tekrar oluyordu.
+        alan.label_from_instance = lambda tarife: (
+            f"{tarife.operator.ad} · {tarife.ad}" if tarife.operator_id else tarife.ad
+        )
+        return alan
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        """Tarife kutusunun yanındaki ekle/düzenle/sil düğmelerini kapatır.
+
+        Oradaki "+" yeni bir *tarife* açar; burada yapılan iş tarife
+        tanımlamak değil, var olanı koşula bağlamak. Kapatma burada yapılır
+        çünkü Django sarmalayıcıyı `formfield_for_manytomany` döndükten
+        **sonra** takıyor — iç bileşene yazılan bayrak kayboluyordu.
+        """
+        alan = super().formfield_for_dbfield(db_field, request, **kwargs)
+        if alan is not None and db_field.name == "tarifeler":
+            for ozellik in (
+                "can_add_related", "can_change_related",
+                "can_delete_related", "can_view_related",
+            ):
+                if hasattr(alan.widget, ozellik):
+                    setattr(alan.widget, ozellik, False)
+        return alan
+
+    def _duzenlenen_alan(self, request):
+        """Düzenleme ekranındaki kayıt; ekleme ekranında None."""
+        nesne_id = request.resolver_match.kwargs.get("object_id")
+        if not nesne_id:
+            return None
+        return self.model.objects.filter(pk=nesne_id).select_related("kategori").first()
 
     @display(description="Tip")
     def tip_gosterimi(self, obj):
@@ -478,7 +606,7 @@ class KategoriAlaniAdmin(ModelAdmin):
                     if alan.kategori_id == hedef.pk:
                         atlanan += 1
                         continue
-                    _, olusturuldu = KategoriAlani.objects.get_or_create(
+                    kopya, olusturuldu = KategoriAlani.objects.get_or_create(
                         kategori=hedef,
                         kod=alan.kod,
                         defaults={
@@ -501,6 +629,16 @@ class KategoriAlaniAdmin(ModelAdmin):
                             "sira": alan.sira,
                         },
                     )
+                    if olusturuldu:
+                        # Tarife koşulu da taşınır, ama yalnızca hedef
+                        # kategoride gerçekten geçerli olan tarifeler:
+                        # geçersiz bir koşul alanı formda hiç göstermezdi.
+                        # Hiçbiri geçerli değilse alan koşulsuz kopyalanır —
+                        # fazla sorulan alan fark edilir, hiç sorulmayan
+                        # alan fark edilmez.
+                        kopya.tarifeler.set(
+                            alan.tarifeler.filter(kategoriler=hedef)
+                        )
                     eklenen += olusturuldu
                     atlanan += not olusturuldu
 

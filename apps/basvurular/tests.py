@@ -212,6 +212,196 @@ class DinamikFormTestleri(TestCase):
         self.assertContains(yanit, "Faturalı Yeni Hat")
 
 
+@override_settings(MEDIA_ROOT=GECICI_MEDYA)
+class TarifeyeBagliAlanlar(TestCase):
+    """Bir alan yalnızca belirli tarifelerde sorulabilmeli.
+
+    Koşul kategori **ve** tarife olarak birlikte aranır: "Faturalı Yeni Hat
+    ve Genç Tarife" için sorulan bir alan, aynı kategoride başka tarife
+    seçilince hiç çıkmaz. Aksi hâlde her tarife bileşimi için ayrı kategori
+    açmak gerekirdi.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(GECICI_MEDYA, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True, sira=10
+        )
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi, bakiye=Decimal("500.00"))
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.kategori.operatorler.add(self.operator)
+
+        self.genc = Tarife.objects.create(operator=self.operator, ad="Genç Tarife")
+        self.platinum = Tarife.objects.create(operator=self.operator, ad="Platinum 20GB")
+        for tarife in (self.genc, self.platinum):
+            tarife.kategoriler.add(self.kategori)
+
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="isim", etiket="İsim",
+            cekirdek_alan="isim", tip=AlanTipi.METIN, zorunlu=True, sira=1,
+        )
+        # Yalnızca Genç Tarife'de sorulan, üstelik zorunlu bir alan.
+        self.ogrenci = KategoriAlani.objects.create(
+            kategori=self.kategori, kod="ogrenci_no", etiket="Öğrenci No",
+            tip=AlanTipi.METIN, zorunlu=True, sira=5,
+        )
+        self.ogrenci.tarifeler.add(self.genc)
+
+        self.client.force_login(self.bayi)
+
+    def _url(self):
+        return reverse("basvurular:yeni", args=[self.kategori.slug])
+
+    def _gonderi(self, tarife, **degisiklikler):
+        veri = {
+            "operator": self.operator.pk,
+            "tarife": tarife.pk,
+            "kampanya": "",
+            "musteri_tipi": "turk",
+            "bayi_aciklamasi": "",
+            "alan__isim": "Ayşe",
+        }
+        veri.update(degisiklikler)
+        return veri
+
+    def test_kosulsuz_alan_her_tarifede_sorulur(self):
+        alan = KategoriAlani.objects.get(kod="isim")
+        self.assertTrue(alan.tarifede_sorulur_mu(self.platinum.pk))
+        self.assertTrue(alan.tarifede_sorulur_mu(None))
+
+    def test_tarifeye_bagli_alan_yalnizca_o_tarifede_sorulur(self):
+        self.assertTrue(self.ogrenci.tarifede_sorulur_mu(self.genc.pk))
+        self.assertFalse(self.ogrenci.tarifede_sorulur_mu(self.platinum.pk))
+        # Tarife henüz seçilmemişken de çıkmaz.
+        self.assertFalse(self.ogrenci.tarifede_sorulur_mu(None))
+
+    def test_baska_tarifede_zorunluluk_aranmaz(self):
+        """Alan sorulmuyorsa boş olması başvuruyu engellememeli."""
+        yanit = self.client.post(self._url(), self._gonderi(self.platinum))
+
+        self.assertEqual(yanit.status_code, 302)
+        basvuru = Basvuru.objects.get()
+        self.assertEqual(basvuru.tarife, self.platinum)
+        self.assertNotIn("ogrenci_no", basvuru.ek_bilgiler)
+
+    def test_kendi_tarifesinde_zorunluluk_aranir(self):
+        yanit = self.client.post(self._url(), self._gonderi(self.genc))
+
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn("alan__ogrenci_no", yanit.context["form"].errors)
+        self.assertEqual(Basvuru.objects.count(), 0)
+
+    def test_kendi_tarifesinde_deger_kaydedilir(self):
+        yanit = self.client.post(
+            self._url(), self._gonderi(self.genc, alan__ogrenci_no="2026123")
+        )
+
+        self.assertEqual(yanit.status_code, 302)
+        self.assertEqual(Basvuru.objects.get().ek_bilgiler["ogrenci_no"], "2026123")
+
+    def test_baska_tarifede_gonderilen_deger_yazilmaz(self):
+        """Gizli kutu elle doldurulup gönderilse de değeri alınmaz."""
+        yanit = self.client.post(
+            self._url(), self._gonderi(self.platinum, alan__ogrenci_no="2026123")
+        )
+
+        self.assertEqual(yanit.status_code, 302)
+        self.assertNotIn("ogrenci_no", Basvuru.objects.get().ek_bilgiler)
+
+    def test_kutu_tarife_kisitini_tasir(self):
+        """Şablon hangi tarifelerde görüneceğini kutuya yazmalı."""
+        yanit = self.client.get(self._url())
+
+        self.assertContains(yanit, 'data-tarifeler="%s"' % self.genc.pk)
+
+
+class TarifeKosuluYonetimEkrani(TestCase):
+    """Koşul kategoriyle tutarlı olmalı ve listede görünmeli."""
+
+    def setUp(self):
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.diger = BasvuruKategorisi.objects.create(ad="Numara Taşıma")
+
+        self.genc = Tarife.objects.create(operator=self.operator, ad="Genç Tarife")
+        self.genc.kategoriler.add(self.kategori)
+        self.taseron = Tarife.objects.create(operator=self.operator, ad="Taşıma Paketi")
+        self.taseron.kategoriler.add(self.diger)
+
+        self.alan = KategoriAlani.objects.create(
+            kategori=self.kategori, kod="ogrenci_no", etiket="Öğrenci No",
+            tip=AlanTipi.METIN, sira=5,
+        )
+
+    def _adres(self):
+        return f"/yonetim/katalog/kategorialani/{self.alan.pk}/change/"
+
+    def _veri(self, **degisiklikler):
+        veri = {
+            "kategori": self.kategori.pk,
+            "etiket": "Öğrenci No",
+            "kod": "ogrenci_no",
+            "tip": AlanTipi.METIN,
+            "cekirdek_alan": "",
+            "grup": "",
+            "zorunlu": "on",
+            "yardim_metni": "",
+            "placeholder": "",
+            "secenekler": "",
+            "dogrulama_deseni": "",
+            "min_uzunluk": "",
+            "max_uzunluk": "",
+            "kosul_alani": "",
+            "kosul_degeri": "",
+            "sira": 5,
+            "aktif": "on",
+        }
+        veri.update(degisiklikler)
+        return veri
+
+    def test_kategoride_gecerli_tarife_kaydedilir(self):
+        self.client.post(self._adres(), self._veri(tarifeler=[self.genc.pk]))
+
+        self.assertEqual(list(self.alan.tarifeler.all()), [self.genc])
+
+    def test_baska_kategorinin_tarifesi_reddedilir(self):
+        """Koşul hiçbir zaman sağlanmayacaksa kayıt tutulmamalı."""
+        yanit = self.client.post(self._adres(), self._veri(tarifeler=[self.taseron.pk]))
+
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn("tarifeler", yanit.context["adminform"].form.errors)
+        self.assertEqual(self.alan.tarifeler.count(), 0)
+
+    def test_kutu_kategorinin_tarifeleriyle_sinirli(self):
+        yanit = self.client.get(self._adres())
+
+        secenekler = yanit.context["adminform"].form.fields["tarifeler"].queryset
+        self.assertIn(self.genc, secenekler)
+        self.assertNotIn(self.taseron, secenekler)
+
+    def test_listede_kosul_gorunur(self):
+        self.alan.tarifeler.add(self.genc)
+
+        yanit = self.client.get("/yonetim/katalog/kategorialani/")
+
+        self.assertContains(yanit, "Genç Tarife")
+
+    def test_kosulsuz_alan_listede_her_tarifede_yazar(self):
+        yanit = self.client.get("/yonetim/katalog/kategorialani/")
+
+        self.assertContains(yanit, "her tarifede")
+
+
 class UrlYapisiTestleri(TestCase):
     """URL'ler okunur olmalı: kategori slug'ı, başvuru referans numarası."""
 
