@@ -156,33 +156,54 @@ class SiparisAdmin(ModelAdmin):
     # siparişte de "Teslim edildi" duruyordu. Adresler `get_urls` ile
     # tanımlanır, düğme sütunda koşullu çizilir.
 
+    # Düğmelerin ortak görünümü; biri form gönderir, biri sayfa açar.
+    DUGME_STILI = (
+        "border:1px solid #e3e8f0;border-radius:.375rem;padding:.25rem .6rem;"
+        "font-size:.75rem;font-weight:600;white-space:nowrap;text-decoration:none;"
+        "background:transparent;cursor:pointer;color:{}"
+    )
+
     @display(description="")
     def karar_dugmeleri(self, obj):
-        if obj.bekliyor:
-            dugmeler = (
-                ("teslim-edildi", "#0F8A4D", "Teslim edildi"),
-                ("iptal-et", "#D42046", "İptal et"),
-            )
-        elif obj.durum == SiparisDurumu.TESLIM:
-            # Ürün geri geldiyse iptal parayı da geri verir.
-            dugmeler = (("iptal-et", "#D42046", "İptal et"),)
-        else:
-            return ""
+        """Teslim POST'lar, iptal onay ekranı açar.
 
-        return format_html_join(
-            " ",
-            '<a href="{}" style="border:1px solid #e3e8f0;border-radius:.375rem;'
-            'padding:.25rem .6rem;font-size:.75rem;font-weight:600;'
-            'white-space:nowrap;text-decoration:none;color:{}">{}</a>',
-            (
-                (
-                    reverse(f"admin:magaza_siparis_{yol.replace('-', '_')}", args=[obj.pk]),
-                    renk,
-                    etiket,
+        **Teslim düğmesi bağlantı değildir.** Kaydı değiştiren bir GET,
+        yöneticinin açtığı herhangi bir sayfanın (gömülü bir `<img>`in bile)
+        siparişi teslim edilmiş yapmasına izin verirdi; bekleyen iş rozetten
+        düşer ve kimse fark etmez. Düğme, listenin kendi formunu (`changelist-form`)
+        bu adrese POST'lar — CSRF anahtarı o formdan gelir, günlük iş yine
+        tek tık kalır, ikinci bir onay ekranına gerek olmaz.
+
+        İptal para oynattığı için ayrı: bağlantı yalnızca ne olacağını yazan
+        onay ekranını açar, iş orada POST ile yapılır.
+        """
+        parcalar = []
+
+        if obj.bekliyor:
+            parcalar.append(
+                format_html(
+                    '<button type="submit" form="changelist-form" formmethod="post" '
+                    'formaction="{}" style="{}">Teslim edildi</button>',
+                    reverse("admin:magaza_siparis_teslim_edildi", args=[obj.pk]),
+                    format_html(self.DUGME_STILI, "#0F8A4D"),
                 )
-                for yol, renk, etiket in dugmeler
-            ),
-        )
+            )
+
+        # Ürün geri geldiyse teslim edilmiş sipariş de iptal edilebilir;
+        # para o zaman bayinin bakiyesine döner.
+        if obj.bekliyor or obj.durum == SiparisDurumu.TESLIM:
+            parcalar.append(
+                format_html(
+                    '<a href="{}" style="{}">İptal et</a>',
+                    reverse("admin:magaza_siparis_iptal_et", args=[obj.pk]),
+                    format_html(self.DUGME_STILI, "#D42046"),
+                )
+            )
+
+        if not parcalar:
+            return ""
+        # `"".join(...)` düz str döndürür ve dıştaki format_html onu kaçışlar.
+        return format_html_join(" ", "{}", ((parca,) for parca in parcalar))
 
     def get_urls(self):
         return [
@@ -200,7 +221,14 @@ class SiparisAdmin(ModelAdmin):
         ]
 
     def teslim_edildi(self, request, object_id):
-        """Siparişi teslim edildi işaretler. Para hareketi yoktur."""
+        """Siparişi teslim edildi işaretler. Para hareketi yoktur.
+
+        Yalnızca POST: kaydı değiştiren bir GET adresi, yöneticinin açtığı
+        başka bir sayfadan tetiklenebilirdi.
+        """
+        if request.method != "POST":
+            return redirect("admin:magaza_siparis_changelist")
+
         siparis = self.get_object(request, object_id)
         if siparis is None:
             raise Http404("Sipariş bulunamadı.")

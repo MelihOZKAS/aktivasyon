@@ -262,7 +262,7 @@ class SiparisYonetimEkrani(TestCase):
         self.assertEqual(self.cuzdan.bakiye, Decimal("1000.00"))
 
     def test_teslim_paraya_dokunmaz(self):
-        self.client.get(self._adres("teslim-edildi"))
+        self.client.post(self._adres("teslim-edildi"))
 
         self.siparis.refresh_from_db()
         self.cuzdan.refresh_from_db()
@@ -313,9 +313,28 @@ class SiparisYonetimEkrani(TestCase):
         self.assertEqual(self.siparis.durum, SiparisDurumu.IPTAL)
         self.assertEqual(self.cuzdan.bakiye, Decimal("10.00"))
 
+    def test_teslim_get_ile_isaretlenemez(self):
+        """Kaydı değiştiren GET, yöneticinin açtığı sayfadan tetiklenebilirdi.
+
+        Gömülü bir <img> bile siparişi teslim edilmiş yapar, bekleyen iş
+        rozetten düşer ve kimse fark etmezdi.
+        """
+        yanit = self.client.get(self._adres("teslim-edildi"))
+
+        self.assertEqual(yanit.status_code, 302)
+        self.siparis.refresh_from_db()
+        self.assertEqual(self.siparis.durum, SiparisDurumu.VERILDI)
+
+    def test_teslim_dugmesi_baglanti_degil(self):
+        """Listedeki düğme changelist formunu POST'lamalı."""
+        yanit = self.client.get("/yonetim/magaza/siparis/")
+
+        self.assertContains(yanit, 'formaction="%s"' % self._adres("teslim-edildi"))
+        self.assertNotContains(yanit, 'href="%s"' % self._adres("teslim-edildi"))
+
     def test_rozet_bekleyen_siparisi_sayar(self):
         from apps.rozetler import bekleyen_siparisler
 
         self.assertEqual(bekleyen_siparisler(None), "1")
-        self.client.get(self._adres("teslim-edildi"))
+        self.client.post(self._adres("teslim-edildi"))
         self.assertEqual(bekleyen_siparisler(None), "")
