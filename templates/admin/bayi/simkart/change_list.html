@@ -1,0 +1,25 @@
+{% extends "admin/change_list.html" %}
+
+{% comment %}
+  SIM kartlar operatörden koli koli geliyor; tekli "Ekle" düğmesinin yanında
+  listeden toplu giriş yapılan ekranın düğmesi de dursun.
+
+  Sınıflar unfold'un derlenmiş CSS'inde var olanlarla sınırlı — bizim
+  static/app.css yönetim panelinde yüklü değil, uydurulan sınıf sessizce
+  çalışmaz. Karşılığı olmayan ölçüler (yatay boşluk, ikon boyu) satır içi
+  stille yazılıyor.
+{% endcomment %}
+
+{% block object-tools-items %}
+    <div class="flex flex-row items-center gap-2">
+        <a href="{% url 'admin:bayi_simkart_toplu_ekle' %}"
+           class="flex flex-row items-center gap-1 h-[38px] -my-1 rounded-full border border-base-200 bg-white text-sm font-medium whitespace-nowrap hover:text-primary-600 dark:bg-base-900 dark:border-base-700 dark:hover:text-primary-500"
+           style="padding-inline:.9rem"
+           title="Listeden toplu SIM kart ekle">
+            <span class="material-symbols-outlined md-18">playlist_add</span>
+            Toplu ekle
+        </a>
+
+        {{ block.super }}
+    </div>
+{% endblock %}

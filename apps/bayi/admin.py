@@ -1,4 +1,5 @@
 import logging
+import re
 
 from django import forms
 from django.contrib import admin, messages
@@ -9,12 +10,17 @@ from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, StackedInline
 from unfold.decorators import action as unfold_islem
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
-from unfold.widgets import UnfoldAdminCheckboxSelectMultipleWidget
+from unfold.widgets import (
+    UnfoldAdminCheckboxSelectMultipleWidget,
+    UnfoldAdminSelectWidget,
+    UnfoldAdminTextareaWidget,
+    UnfoldAdminTextInputWidget,
+)
 
 from django.contrib.auth import update_session_auth_hash
 from django.http import Http404
 from django.shortcuts import redirect, render
-from django.urls import reverse
+from django.urls import path, reverse
 
 from apps.bayi.models import (
     BayiBasvuruDurumu,
@@ -286,6 +292,86 @@ class SimAtamaFormu(forms.Form):
     )
 
 
+class TopluSimFormu(forms.Form):
+    """Listeden toplu SIM kart girişi.
+
+    Kartlar operatörden koli koli geliyor; yüzlerce IMEI'yi tek tek "Ekle"
+    ekranından girmek günlük işi kilitliyordu. Liste operatörün gönderdiği
+    dosyadan kopyalanıp yapıştırılır: satır, virgül, noktalı virgül ya da
+    boşluk — hepsi ayraç sayılır, çünkü kopyalanan biçim her seferinde aynı
+    olmuyor.
+
+    Operatör tekli eklemedeki gibi zorunludur: operatörsüz kart başvuru
+    formundaki stok kutusunda süzülemez.
+    """
+
+    # Ayraç olarak boşluk ve noktalama kabul edilir; IMEI'nin kendi içinde
+    # tire geçebildiği için tire ayraç sayılmaz.
+    AYIRAC = re.compile(r"[\s,;|]+")
+
+    operator = forms.ModelChoiceField(
+        label="Operatör",
+        queryset=Operator.objects.filter(aktif=True),
+        widget=UnfoldAdminSelectWidget,
+        help_text="Listedeki kartların hepsi bu operatöre yazılır.",
+    )
+    bayi = forms.ModelChoiceField(
+        label="Zimmetlenecek bayi",
+        queryset=User.objects.filter(is_active=True).order_by("username"),
+        required=False,
+        widget=UnfoldAdminSelectWidget,
+        help_text=(
+            "Boş bırakılırsa kartlar “Beklemede” olarak stoğa girer; "
+            "sonradan listeden seçilip zimmetlenebilir."
+        ),
+    )
+    aciklama = forms.CharField(
+        label="Açıklama",
+        max_length=255,
+        required=False,
+        widget=UnfoldAdminTextInputWidget(
+            attrs={"placeholder": "Örn: 12 Eylül Turkcell kolisi"}
+        ),
+        help_text="Listedeki her karta aynı açıklama yazılır.",
+    )
+    imeiler = forms.CharField(
+        label="SIM / IMEI listesi",
+        widget=UnfoldAdminTextareaWidget(
+            attrs={
+                "rows": 12,
+                "placeholder": "8990011122233344455\n8990011122233344456\n8990011122233344457",
+            }
+        ),
+    )
+
+    def clean_imeiler(self):
+        """Listeyi ayrıştırır; kendi içindeki tekrarları eler.
+
+        Aynı numaranın listede iki kez geçmesi kopyala-yapıştırın olağan
+        sonucu; hata verip bütün listeyi geri çevirmek yerine tekrarı bir
+        kez alıp kaç tanesinin elendiğini söylüyoruz.
+        """
+        numaralar = []
+        self.tekrar_edenler = []
+        for parca in self.AYIRAC.split(self.cleaned_data["imeiler"]):
+            parca = parca.strip()
+            if not parca:
+                continue
+            if len(parca) > 40:
+                raise forms.ValidationError(
+                    f"“{parca[:40]}…” 40 karakterden uzun; bu bir IMEI değil. "
+                    "Listede sütun başlığı ya da yapıştırma artığı olabilir."
+                )
+            if parca in numaralar:
+                self.tekrar_edenler.append(parca)
+                continue
+            numaralar.append(parca)
+
+        if not numaralar:
+            raise forms.ValidationError("Listede hiç numara yok.")
+        return numaralar
+
+
 @admin.register(SimKart)
 class SimKartAdmin(ModelAdmin):
     list_display = (
@@ -296,11 +382,129 @@ class SimKartAdmin(ModelAdmin):
     autocomplete_fields = ("bayi", "operator", "basvuru")
     date_hierarchy = "olusturma_tarihi"
     actions = ("bayiye_ata", "bayiden_geri_al", "arizali_isaretle")
+    # Listenin üstünde "Ekle"nin yanında "Toplu ekle" düğmesi çizilsin.
+    change_list_template = "admin/bayi/simkart/change_list.html"
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related(
             "bayi", "bayi__bayi_profili", "operator", "basvuru"
         )
+
+    # -- toplu ekleme -----------------------------------------------------
+
+    def get_urls(self):
+        return [
+            path(
+                "toplu-ekle/",
+                self.admin_site.admin_view(self.toplu_ekle),
+                name="bayi_simkart_toplu_ekle",
+            ),
+            *super().get_urls(),
+        ]
+
+    def toplu_ekle(self, request):
+        """Yapıştırılan listeden tek seferde çok sayıda SIM kart açar.
+
+        Kartlar operatörden koli koli geliyor; her IMEI için ayrı ekleme
+        ekranı açmak günlük işi kilitliyordu.
+
+        Zaten kayıtlı numaralar **hata değil, atlanan satırdır**: yönetici
+        çoğu zaman bir kolinin devamını yapıştırıyor ve araya önceden
+        girilmiş birkaç kart karışıyor. Bütün listeyi geri çevirmek, hangi
+        satırın tekrar olduğunu elle aramak demekti — kaç tanesinin neden
+        atlandığı yazılır, kalanı girilir.
+        """
+        if not self.has_add_permission(request):
+            raise Http404("Bu ekrana erişim yetkiniz yok.")
+
+        if request.method == "POST":
+            form = TopluSimFormu(request.POST)
+            if form.is_valid():
+                return self._toplu_kaydet(request, form)
+        else:
+            form = TopluSimFormu()
+
+        return render(
+            request,
+            "admin/bayi/toplu_sim.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "Toplu SIM kart ekle",
+                "form": form,
+                "opts": self.model._meta,
+            },
+        )
+
+    def _toplu_kaydet(self, request, form):
+        numaralar = form.cleaned_data["imeiler"]
+        bayi = form.cleaned_data["bayi"]
+
+        # Veritabanında olanlar atlanır; `imei` tekil olduğu için bunları
+        # yazmaya çalışmak bütün işlemi düşürürdü.
+        kayitli = set(
+            SimKart.objects.filter(imei__in=numaralar).values_list("imei", flat=True)
+        )
+        yeniler = [n for n in numaralar if n not in kayitli]
+
+        # Durum `save()` ile aynı kurala uyar: bayisi olan kart "Bayiye
+        # Atandı", olmayan "Beklemede". `bulk_create` model `save()`'ini
+        # çağırmadığı için burada elle yazılıyor.
+        durum = SimKartDurumu.ATANDI if bayi else SimKartDurumu.BEKLEMEDE
+        SimKart.objects.bulk_create(
+            [
+                SimKart(
+                    imei=imei,
+                    operator=form.cleaned_data["operator"],
+                    bayi=bayi,
+                    durum=durum,
+                    aciklama=form.cleaned_data["aciklama"],
+                )
+                for imei in yeniler
+            ]
+        )
+
+        if yeniler:
+            nereye = (
+                f"{bayi.get_username()} bayisine zimmetli"
+                if bayi
+                else "stoğa (Beklemede)"
+            )
+            self.message_user(
+                request,
+                f"{len(yeniler)} SIM kart {nereye} eklendi.",
+                messages.SUCCESS,
+            )
+        else:
+            self.message_user(
+                request, "Hiç yeni kart eklenmedi.", messages.WARNING
+            )
+
+        # Atlananlar adıyla söylenir: yönetici hangi satırın neden girmediğini
+        # listeyi tarayarak aramasın.
+        if kayitli:
+            self.message_user(
+                request,
+                f"{len(kayitli)} numara zaten kayıtlı olduğu için atlandı: "
+                + self._numara_ozeti(sorted(kayitli)),
+                messages.WARNING,
+            )
+        tekrar = getattr(form, "tekrar_edenler", [])
+        if tekrar:
+            self.message_user(
+                request,
+                f"{len(tekrar)} numara listede birden çok kez yazılmıştı, "
+                "bir kez alındı: " + self._numara_ozeti(tekrar),
+                messages.INFO,
+            )
+
+        return redirect("admin:bayi_simkart_changelist")
+
+    @staticmethod
+    def _numara_ozeti(numaralar, sinir=15):
+        """Uyarı mesajı ekranı kaplamasın: ilk birkaçını yazıp kalanını sayar."""
+        gosterilen = ", ".join(numaralar[:sinir])
+        kalan = len(numaralar) - sinir
+        return f"{gosterilen} (+{kalan} tane daha)" if kalan > 0 else gosterilen
 
     @admin.display(description="Zimmetli Bayi", ordering="bayi__username")
     def zimmetli_bayi(self, obj):

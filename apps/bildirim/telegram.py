@@ -104,17 +104,24 @@ def _satir(etiket, deger):
     return f"<b>{escape(etiket)}:</b> {escape(str(deger))}" if deger else None
 
 
+def _bayi_adi(kullanici):
+    """Bildirimlerde bayi ünvanıyla anılır.
+
+    Kullanıcı adı telefon numarasıdır; numara tek başına hangi firma olduğunu
+    anlatmıyor. Ünvan yoksa numaraya düşülür.
+    """
+    profil = getattr(kullanici, "bayi_profili", None)
+    if profil and profil.unvan:
+        return profil.unvan
+    return kullanici.get_username()
+
+
 def basvuru_bildir(basvuru, yeni=False):
     """Yeni başvuru ya da durum değişikliği için operasyon grubuna mesaj atar."""
     if not yapilandirilmis_mi():
         return
 
-    bayi_adi = ""
-    profil = getattr(basvuru.bayi, "bayi_profili", None)
-    if profil and profil.unvan:
-        bayi_adi = profil.unvan
-    else:
-        bayi_adi = basvuru.bayi.get_username()
+    bayi_adi = _bayi_adi(basvuru.bayi)
 
     baslik = (
         f"🆕 <b>Yeni başvuru</b> · {escape(basvuru.kategori.ad)}"
@@ -149,19 +156,43 @@ def destek_talebi_bildir(talep):
     Yanıtlar bildirilmez: açık bir talebin devamı zaten yönetim panelinde
     rozetle sayılıyor, her mesajda grup dolmasın.
     """
-    profil = getattr(talep.bayi, "bayi_profili", None)
-    unvan = profil.unvan if profil and profil.unvan else talep.bayi.get_username()
     mesaj_gonder(
         "\n".join(
             [
                 "💬 <b>Yeni destek talebi</b>",
                 "",
                 _satir("Talep No", talep.referans_no),
-                _satir("Bayi", unvan),
+                _satir("Bayi", _bayi_adi(talep.bayi)),
                 _satir("Konu", talep.konu),
             ]
         )
     )
+
+
+def odeme_bildirimi_bildir(bildirim):
+    """Bayi havale yaptığını bildirdiğinde operasyon grubuna haber verir.
+
+    Bildirim para hareketi değildir: onaylanana kadar cüzdana dokunulmaz.
+    Yani bayi parayı gönderip beklemeye geçiyor ve kimse panele bakmazsa
+    bakiyesi saatlerce yüklenmiyordu — mesaj tam da bu bekleyişi kısaltmak
+    için var, o yüzden "kontrol et" diye biter.
+
+    Karar (onay/red) bildirilmez: bekleyenler yan menüde zaten rozetle
+    sayılıyor, kararı veren de yönetimin kendisi.
+    """
+    satirlar = [
+        "💸 <b>Yeni ödeme bildirimi</b>",
+        "",
+        _satir("Bayi", _bayi_adi(bildirim.bayi)),
+        _satir("Tutar", f"{bildirim.tutar} ₺"),
+        _satir("Yatırılan Hesap", bildirim.banka.banka_adi if bildirim.banka else ""),
+        _satir("Gönderen", bildirim.gonderen_adi),
+        _satir("Açıklama", bildirim.aciklama),
+        "",
+        "Havale hesaba geçtiyse panelden onayla — onaylanana kadar bayinin "
+        "bakiyesine yazılmaz.",
+    ]
+    mesaj_gonder("\n".join(s for s in satirlar if s is not None))
 
 
 def bayi_basvurusu_bildir(basvuru):

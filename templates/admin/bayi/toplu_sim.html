@@ -1,0 +1,102 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Toplu SIM kart girişi. Girdiler unfold'un kendi bileşenleri; sınıflar
+  unfold'un derlenmiş CSS'inden gelir — bizim static/app.css burada yüklü
+  değildir, yeni sınıf uydurulamaz.
+
+  Ekranın tamamı tek sütun: yönetici kartları çoğu zaman depoda, telefondan
+  giriyor. Liste kutusu ekranın çoğunu kaplar, ayarlar üstünde durur.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-3xl">
+  <form method="post"
+        class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    {% csrf_token %}
+
+    {% if form.errors %}
+    <div class="mb-4 rounded-default border p-4 text-sm" style="border-color:#d42046;color:#d42046">
+      {% for alan in form %}{% for hata in alan.errors %}<div>{{ alan.label }}: {{ hata }}</div>{% endfor %}{% endfor %}
+      {% for hata in form.non_field_errors %}<div>{{ hata }}</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    <p class="mb-5 text-sm leading-relaxed text-base-500">
+      Operatörden gelen listeyi olduğu gibi yapıştırın. Satır, virgül, noktalı
+      virgül ve boşluk ayraç sayılır. Zaten kayıtlı numaralar atlanır, kalanı
+      eklenir; kaç tanesinin neden atlandığı sonunda yazılır.
+    </p>
+
+    <div class="mb-5 grid gap-5 lg:grid-cols-2">
+      <div>
+        <label for="{{ form.operator.id_for_label }}"
+               class="mb-2 block text-sm font-semibold text-font-important-light dark:text-font-important-dark">
+          Operatör
+        </label>
+        {{ form.operator }}
+        <div class="mt-2 text-xs text-base-500">{{ form.operator.help_text }}</div>
+      </div>
+
+      <div>
+        <label for="{{ form.bayi.id_for_label }}"
+               class="mb-2 block text-sm font-semibold text-font-important-light dark:text-font-important-dark">
+          Zimmetlenecek bayi
+        </label>
+        {{ form.bayi }}
+        <div class="mt-2 text-xs text-base-500">{{ form.bayi.help_text }}</div>
+      </div>
+    </div>
+
+    <div class="mb-5">
+      <label for="{{ form.aciklama.id_for_label }}"
+             class="mb-2 block text-sm font-semibold text-font-important-light dark:text-font-important-dark">
+        Açıklama
+      </label>
+      {{ form.aciklama }}
+      <div class="mt-2 text-xs text-base-500">{{ form.aciklama.help_text }}</div>
+    </div>
+
+    <div class="mb-6">
+      <label for="{{ form.imeiler.id_for_label }}"
+             class="mb-2 block text-sm font-semibold text-font-important-light dark:text-font-important-dark">
+        SIM / IMEI listesi
+      </label>
+      {{ form.imeiler }}
+      <div class="mt-2 text-xs text-base-500">
+        Her satıra bir numara; <span id="sim-sayaci">0</span> numara okundu.
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      <button type="submit"
+              class="rounded-default bg-primary-600 px-4 py-2 font-medium text-white">
+        Kartları ekle
+      </button>
+      <a href="{% url 'admin:bayi_simkart_changelist' %}"
+         class="rounded-default border border-base-200 px-4 py-2 font-medium hover:bg-base-100 dark:border-base-700">
+        Vazgeç
+      </a>
+    </div>
+  </form>
+</div>
+
+{% comment %}
+  Kaç numara yapıştırıldığı yazılsın: koli sayısı tutmuyorsa yönetici bunu
+  kaydetmeden önce görsün. Sayım sunucudaki ayraçların aynısını kullanır.
+{% endcomment %}
+<script>
+  (function () {
+    var kutu = document.getElementById("{{ form.imeiler.auto_id }}");
+    var sayac = document.getElementById("sim-sayaci");
+    if (!kutu || !sayac) return;
+
+    function say() {
+      var parcalar = kutu.value.split(/[\s,;|]+/).filter(function (p) { return p; });
+      sayac.textContent = new Set(parcalar).size;
+    }
+    kutu.addEventListener("input", say);
+    say();
+  })();
+</script>
+{% endblock %}

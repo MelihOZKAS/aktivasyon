@@ -885,6 +885,171 @@ class SimKartOperatoru(TestCase):
         self.assertEqual(SimKart.objects.get().operator, self.operator)
 
 
+class TopluSimEkleme(TestCase):
+    """Kartlar koli koli geliyor; liste tek seferde girilebilmeli.
+
+    Zaten kayıtlı numaralar hata değil atlanan satırdır: yönetici çoğu zaman
+    bir kolinin devamını yapıştırıyor ve araya önceden girilmiş kartlar
+    karışıyor. Bütün listeyi geri çevirmek hangi satırın tekrar olduğunu elle
+    aramak demekti.
+    """
+
+    ADRES = "/yonetim/bayi/simkart/toplu-ekle/"
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.katalog.models import Operator
+
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.bayi = User.objects.create_user("5321112233", password="parola12345")
+        self.yonetici = User.objects.create_superuser(
+            "yonetici", password="Panel-2026x"
+        )
+        self.client.force_login(self.yonetici)
+
+    def _gonder(self, imeiler, **fazladan):
+        veri = {"operator": self.operator.pk, "imeiler": imeiler, "aciklama": ""}
+        veri.update(fazladan)
+        return self.client.post(self.ADRES, veri, follow=True)
+
+    def test_dugme_listede_gorunur(self):
+        cevap = self.client.get("/yonetim/bayi/simkart/")
+        self.assertContains(cevap, self.ADRES)
+
+    def test_liste_toplu_eklenir(self):
+        from apps.bayi.models import SimKart, SimKartDurumu
+
+        self._gonder("1111111111\n2222222222\n3333333333")
+
+        self.assertEqual(SimKart.objects.count(), 3)
+        kart = SimKart.objects.get(imei="2222222222")
+        self.assertEqual(kart.operator, self.operator)
+        self.assertEqual(kart.durum, SimKartDurumu.BEKLEMEDE)
+
+    def test_ayrac_ne_olursa_olsun_ayristirilir(self):
+        from apps.bayi.models import SimKart
+
+        self._gonder("1111111111, 2222222222; 3333333333\n4444444444")
+
+        self.assertEqual(SimKart.objects.count(), 4)
+
+    def test_bayi_secilirse_zimmetlenir(self):
+        from apps.bayi.models import SimKart, SimKartDurumu
+
+        self._gonder("1111111111\n2222222222", bayi=self.bayi.pk)
+
+        for kart in SimKart.objects.all():
+            self.assertEqual(kart.bayi, self.bayi)
+            self.assertEqual(kart.durum, SimKartDurumu.ATANDI)
+
+    def test_kayitli_numara_atlanir_kalani_eklenir(self):
+        from apps.bayi.models import SimKart
+
+        SimKart.objects.create(imei="1111111111", operator=self.operator)
+
+        cevap = self._gonder("1111111111\n2222222222")
+
+        self.assertEqual(SimKart.objects.count(), 2)
+        self.assertContains(cevap, "zaten kayıtlı")
+
+    def test_listedeki_tekrar_bir_kez_alinir(self):
+        from apps.bayi.models import SimKart
+
+        self._gonder("1111111111\n1111111111\n2222222222")
+
+        self.assertEqual(SimKart.objects.count(), 2)
+
+    def test_numara_icermeyen_liste_kabul_edilmez(self):
+        """Yalnızca ayraç içeren yapıştırma sessizce "0 kart eklendi" olmasın."""
+        from apps.bayi.models import SimKart
+
+        cevap = self._gonder(" , ; ")
+
+        self.assertEqual(SimKart.objects.count(), 0)
+        self.assertContains(cevap, "hiç numara yok")
+
+    def test_bos_liste_kabul_edilmez(self):
+        from apps.bayi.models import SimKart
+
+        self._gonder("   ")
+
+        self.assertEqual(SimKart.objects.count(), 0)
+
+    def test_operatorsuz_liste_kabul_edilmez(self):
+        from apps.bayi.models import SimKart
+
+        self.client.post(self.ADRES, {"imeiler": "1111111111", "aciklama": ""})
+
+        self.assertEqual(SimKart.objects.count(), 0)
+
+    def test_personel_olmayan_giremez(self):
+        self.client.force_login(self.bayi)
+
+        cevap = self.client.get(self.ADRES)
+
+        self.assertNotEqual(cevap.status_code, 200)
+
+
+class OdemeBildirimiTelegram(TestCase):
+    """Bayi havaleyi bildirdiğinde operasyon grubuna haber gitmeli.
+
+    Bildirim para hareketi değil: onaylanana kadar cüzdana dokunulmuyor.
+    Kimse panele bakmazsa bayinin bakiyesi askıda kalıyordu.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.finans.models import Banka
+
+        self.bayi = User.objects.create_user("5321112233", password="parola12345")
+        self.banka = Banka.objects.create(
+            banka_adi="Ziraat", hesap_sahibi="Aktivasyon A.Ş.", iban="TR000000000000000000000001"
+        )
+        self.client.force_login(self.bayi)
+
+    def _bildir(self):
+        return self.client.post(
+            "/cuzdan/odeme-bildirimi/",
+            {
+                "banka": self.banka.pk,
+                "tutar": "1500.00",
+                "gonderen_adi": "Melih Özkas",
+                "aciklama": "havale",
+            },
+        )
+
+    def test_bildirim_gonderilir(self):
+        from unittest.mock import patch
+
+        from apps.finans.models import OdemeBildirimi
+
+        with patch("apps.bayi.views.odeme_bildirimi_bildir") as haber:
+            self._bildir()
+
+        self.assertEqual(OdemeBildirimi.objects.count(), 1)
+        haber.assert_called_once_with(OdemeBildirimi.objects.get())
+
+    def test_mesajda_bayi_tutar_ve_hesap_gecer(self):
+        from unittest.mock import patch
+
+        from apps.bayi.models import BayiProfili
+        from apps.bildirim.telegram import odeme_bildirimi_bildir
+        from apps.finans.models import OdemeBildirimi
+
+        BayiProfili.objects.create(kullanici=self.bayi, unvan="Melih İletişim")
+        self._bildir()
+
+        with patch("apps.bildirim.telegram.mesaj_gonder") as gonder:
+            odeme_bildirimi_bildir(OdemeBildirimi.objects.get())
+
+        metin = gonder.call_args.args[0]
+        self.assertIn("Melih İletişim", metin)
+        self.assertIn("1500.00 ₺", metin)
+        self.assertIn("Ziraat", metin)
+
+
 class YanMenuRozetleri(TestCase):
     """Bekleyen iş sayısı yan menüde görünmeli; iş yokken rozet çizilmemeli."""
 

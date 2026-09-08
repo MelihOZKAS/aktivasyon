@@ -17,7 +17,7 @@ from apps.basvurular.models import Basvuru, BasvuruDurumu
 from apps.bayi.forms import BayiBasvuruFormu, GirisFormu
 from apps.bayi.models import Duyuru
 from apps.bayi.yetki import bayi_gerekli, baslangic_sayfasi, tedarikci_gerekli
-from apps.bildirim.telegram import bayi_basvurusu_bildir
+from apps.bildirim.telegram import bayi_basvurusu_bildir, odeme_bildirimi_bildir
 from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
 from apps.bayi.kategoriler import acik_kategoriler, kapali_kategori_idleri
 from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
@@ -343,6 +343,9 @@ def odeme_bildirimi(request):
         bildirim = form.save(commit=False)
         bildirim.bayi = request.user
         bildirim.save()
+        # Bildirim onaylanana kadar cüzdana dokunulmuyor; bayi bekliyor.
+        # Grup haberdar olsun ki bakiye panele bakılana kadar askıda kalmasın.
+        odeme_bildirimi_bildir(bildirim)
         messages.success(
             request,
             "Ödeme bildirimin alındı. Yönetici havaleyi gördüğünde bakiyene "

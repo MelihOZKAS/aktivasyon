@@ -574,6 +574,19 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kimden beklendiği yazılamaz. Alan modelde `null=True` kalır — operatör
   kaydı silinirse kartlar da silinmesin diye (`SET_NULL`) — ama `blank=False`
   olduğu için form boş bırakmaya izin vermez.
+- **SIM kartlar listeyle toplu eklenir.** Kartlar operatörden koli koli
+  geliyor; her IMEI için ayrı ekleme ekranı açmak günlük işi kilitliyordu.
+  SIM listesinin üstünde "Ekle"nin yanında **Toplu ekle** düğmesi var
+  (`SimKartAdmin.toplu_ekle`); operatörden gelen dosya olduğu gibi
+  yapıştırılır, satır/virgül/noktalı virgül/boşluk ayraç sayılır — kopyalanan
+  biçim her seferinde aynı olmuyor. Bayi seçilirse kartlar zimmetli
+  ("Bayiye Atandı"), seçilmezse stoğa ("Beklemede") girer; `bulk_create`
+  model `save()`'ini çağırmadığı için bu kural serviste elle yazılır.
+  **Zaten kayıtlı numara hata değil, atlanan satırdır:** yönetici çoğu zaman
+  bir kolinin devamını yapıştırıyor ve araya önceden girilmiş kartlar
+  karışıyor. Bütün listeyi geri çevirmek hangi satırın tekrar olduğunu elle
+  aramak demekti — atlananlar (ve listenin kendi içindeki tekrarlar) adıyla
+  sayılıp yazılır, kalanı girilir.
 - **SIM kartlar bayiye zimmetlidir.** Bayi yalnızca kendisine atanmış ve
   "Bayiye Atandı" durumundaki kartlarla başvuru girebilir. Başvuru olumsuz
   sonuçlanınca kart otomatik olarak stoğa döner; kart fiziksel olarak bayide
@@ -670,6 +683,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `requests.get()` view içindeydi ve Telegram çöktüğünde başvuru kaydedilmiş
   olmasına rağmen bayi hata sayfası görüyordu.
 - Mesaja giren kullanıcı verisi HTML olarak kaçışlanır.
+- **Ödeme bildirimi geldiğinde Telegram'a haber gider**
+  (`odeme_bildirimi_bildir`). Bildirim para hareketi değil: onaylanana kadar
+  cüzdana dokunulmuyor, yani bayi havaleyi yapıp bekliyor ve panele bakan
+  olmazsa bakiyesi askıda kalıyordu. Mesaj bayiyi, tutarı, yatırılan hesabı
+  ve gönderen adını taşır. **Karar bildirilmez** — bekleyenler yan menüde
+  zaten rozetle sayılıyor, onayı veren de yönetimin kendisi.
 - Hangi durumların bildireceğini admin seçer (`BasvuruDurumu.bildirim_gonder`).
 
 ## Yönetim paneli
