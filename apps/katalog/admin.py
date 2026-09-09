@@ -8,7 +8,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from unfold.widgets import UnfoldAdminCheckboxSelectMultipleWidget
 
-from apps.finans.admin import TarifeParaKuraliInline
+from apps.finans.admin import TarifeParaKuraliInline, kapsami_dusen_kurallar
 from apps.finans.models import KuralYonu
 from apps.katalog.models import (
     BasvuruKategorisi,
@@ -196,6 +196,30 @@ class TarifeAdmin(ModelAdmin):
             .select_related("operator")
             .prefetch_related("kategoriler")
         )
+
+    def save_related(self, request, form, formsets, change):
+        """Kapsamı düşmüş para kuralını kayıttan sonra söyler.
+
+        “Bu tarifenin parası” tablosu kuralın kategorisini göstermez; oraya
+        düşen bir hata satırı kilitler ama düzeltilecek yeri göstermez.
+        Kilit yerine uyarı: kural kaydedilir, hiç işlemeyeceği adıyla yazılır.
+
+        `save_model` değil `save_related`: kategoriler o sırada kaydedilmiş
+        oluyor. Yönetici kuralın beklediği kategoriyi bu kayıtta eklediyse
+        kural düzelmiş demektir ve boşuna uyarı çıkmaz.
+        """
+        super().save_related(request, form, formsets, change)
+
+        dusenler = kapsami_dusen_kurallar(form.instance)
+        if dusenler:
+            self.message_user(
+                request,
+                "Şu para kuralları bu tarifede hiç işlemez: "
+                + "; ".join(dusenler)
+                + ". Kategoriyi tarifeye ekleyin ya da kuralın kapsamını "
+                "Ücret ve Hakediş Kuralları ekranından düzeltin.",
+                messages.WARNING,
+            )
 
     @admin.display(description="Kategoriler")
     def kategori_listesi(self, obj):

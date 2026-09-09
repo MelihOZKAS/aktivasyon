@@ -4,6 +4,7 @@ import io
 import os
 import shutil
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -831,6 +832,148 @@ class AyniAdliTarifelerGecisiBozmaz(TestCase):
         for kategori in (tasima, yeni_hat):
             secilebilir = Tarife.objects.filter(kategoriler=kategori, aktif=True)
             self.assertEqual(list(secilebilir), [kalan])
+
+
+class KapsamiDusenKuralTarifeyiKilitlemez(TestCase):
+    """Kuralın kapsamı tarifeden düşünce tarife sayfası kaydedilemez oluyordu.
+
+    “Bu tarifenin parası” tablosu kuralın kategorisini göstermez, tarifeyi de
+    gizli alanda taşır. Kategorisi tarifeden düşmüş bir kuralda model
+    doğrulaması hatayı o gizli alana yazıyor, unfold hiçbir yerde çizmiyordu:
+    sayfanın üstünde “Lütfen aşağıdaki hatayı düzeltin” yazıyor, aşağıda
+    düzeltilecek bir şey görünmüyordu. Yönetici ne tarifeye ikinci kategoriyi
+    ekleyebiliyor ne fiyatı güncelleyebiliyordu. Kural formda hiç olmayan bir
+    alana (kampanya) hata yazınca da sayfa ValueError ile çöküyordu.
+    """
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+
+        from apps.basvurular.models import BasvuruDurumu
+        from apps.katalog.models import BasvuruKategorisi, Operator, Tarife
+
+        self.yonetici = User.objects.create_superuser("5000000000", password="parola12345")
+        self.client.force_login(self.yonetici)
+
+        self.operator = Operator.objects.create(ad="Vodafone")
+        self.tasima = BasvuruKategorisi.objects.create(ad="Faturalı Numara Taşıma")
+        self.yeni_hat = BasvuruKategorisi.objects.create(ad="Faturalı Yeni Hat")
+        self.kontorlu = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat")
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True
+        )
+        self.tarife = Tarife.objects.create(operator=self.operator, ad="Red Sınırsız")
+        self.tarife.kategoriler.add(self.tasima)
+
+    def kural_ac(self, **fazlasi):
+        from apps.finans.models import KuralYonu, UcretKurali
+
+        return UcretKurali.objects.create(
+            yon=KuralYonu.HAKEDIS,
+            tutar=Decimal("200.00"),
+            operator=self.operator,
+            tarife=self.tarife,
+            tetikleyici_durum=self.aktif,
+            **fazlasi,
+        )
+
+    def gonder(self, kural, kategoriler, tutar="250.00"):
+        veri = {
+            "kategoriler": [str(k.pk) for k in kategoriler],
+            "operator": str(self.operator.pk),
+            "ad": "Red Sınırsız",
+            "musteri_tipi": self.tarife.musteri_tipi,
+            "kisa_aciklama": "",
+            "aciklama": "",
+            "sira": "0",
+            "bayiye_gorunur": "on",
+            "aktif": "on",
+            "ucret_kurallari-TOTAL_FORMS": "1",
+            "ucret_kurallari-INITIAL_FORMS": "1",
+            "ucret_kurallari-MIN_NUM_FORMS": "0",
+            "ucret_kurallari-MAX_NUM_FORMS": "1000",
+            "ucret_kurallari-0-id": str(kural.pk),
+            "ucret_kurallari-0-tarife": str(self.tarife.pk),
+            "ucret_kurallari-0-yon": kural.yon,
+            "ucret_kurallari-0-tutar": tutar,
+            "ucret_kurallari-0-tedarikci": "",
+            "ucret_kurallari-0-bayi_grubu": "",
+            "ucret_kurallari-0-tetikleyici_durum": str(kural.tetikleyici_durum_id),
+            "ucret_kurallari-0-aktif": "on",
+            "kampanyalar-TOTAL_FORMS": "0",
+            "kampanyalar-INITIAL_FORMS": "0",
+            "kampanyalar-MIN_NUM_FORMS": "0",
+            "kampanyalar-MAX_NUM_FORMS": "1000",
+        }
+        return self.client.post(
+            f"/yonetim/katalog/tarife/{self.tarife.pk}/change/", veri, follow=True
+        )
+
+    def test_dusmus_kategoriye_ragmen_ikinci_kategori_eklenir(self):
+        from apps.katalog.models import Tarife
+
+        kural = self.kural_ac(kategori=self.kontorlu)
+        yanit = self.gonder(kural, [self.tasima, self.yeni_hat])
+
+        self.assertEqual(yanit.status_code, 200)
+        kategoriler = Tarife.objects.get(pk=self.tarife.pk).kategoriler.all()
+        self.assertIn(self.yeni_hat, kategoriler)
+
+    def test_dusmus_kategoriye_ragmen_fiyat_guncellenir(self):
+        from apps.finans.models import UcretKurali
+
+        kural = self.kural_ac(kategori=self.kontorlu)
+        self.gonder(kural, [self.tasima], tutar="275.00")
+
+        self.assertEqual(
+            UcretKurali.objects.get(pk=kural.pk).tutar, Decimal("275.00")
+        )
+
+    def test_dusmus_kapsam_uyari_olarak_yazilir(self):
+        kural = self.kural_ac(kategori=self.kontorlu)
+        yanit = self.gonder(kural, [self.tasima])
+
+        mesajlar = [str(m) for m in yanit.context["messages"]]
+        self.assertTrue(
+            any("hiç işlemez" in m and "Kontörlü Yeni Hat" in m for m in mesajlar),
+            mesajlar,
+        )
+
+    def test_eksik_kategori_eklenince_uyari_cikmaz(self):
+        """Yönetici kuralın beklediği kategoriyi eklediyse kural düzelmiştir."""
+        kural = self.kural_ac(kategori=self.yeni_hat)
+        yanit = self.gonder(kural, [self.tasima, self.yeni_hat])
+
+        mesajlar = [str(m) for m in yanit.context["messages"]]
+        self.assertFalse([m for m in mesajlar if "hiç işlemez" in m], mesajlar)
+
+    def test_baska_tarifenin_kampanyasi_sayfayi_cokertmez(self):
+        from apps.katalog.models import Kampanya, Tarife
+
+        baska = Tarife.objects.create(operator=self.operator, ad="Red 20 GB")
+        baska.kategoriler.add(self.tasima)
+        kampanya = Kampanya.objects.create(tarife=baska, ad="Yaz Kampanyası")
+        kural = self.kural_ac(kategori=self.tasima, kampanya=kampanya)
+
+        yanit = self.gonder(kural, [self.tasima, self.yeni_hat])
+
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn(
+            self.yeni_hat, Tarife.objects.get(pk=self.tarife.pk).kategoriler.all()
+        )
+
+    def test_bu_tabloda_duzeltilebilen_hata_hala_bloklar(self):
+        """Tetikleyici durum bu tabloda seçiliyor; hatası görünür ve bloklar."""
+        from apps.basvurular.models import BasvuruDurumu
+
+        islemde = BasvuruDurumu.objects.create(ad="İşlemde", slug="islemde")
+        kural = self.kural_ac(kategori=self.tasima)
+        kural.tetikleyici_durum = islemde
+        kural.save(update_fields=["tetikleyici_durum"])
+
+        yanit = self.gonder(kural, [self.tasima, self.yeni_hat])
+
+        self.assertContains(yanit, "hiçbir zaman işlemez")
 
 
 class BaslangicDurumuIkiyeKatlanmaz(TestCase):

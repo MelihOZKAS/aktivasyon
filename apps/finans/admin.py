@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from django import forms
 from django.contrib import admin, messages
+from django.core.exceptions import NON_FIELD_ERRORS, ValidationError
 from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
@@ -60,6 +61,74 @@ def _kullanici_kutusunu_sadelestir(alan):
 
 
 
+def kapsami_dusen_kurallar(tarife):
+    """Tarifenin artık hiç eşleşmeyecek para kuralları.
+
+    Kural kapsamındaki kategori tarifeden çıkarılırsa (ya da kural başka bir
+    tarifenin kampanyasına bağlıysa) motor onu hiçbir başvuruda bulamaz.
+    Kayıt silinmez — hangi fiyatın doğru olduğuna yönetici karar verir; tek
+    yapılan, sessizce ölmüş kuralı adıyla söylemek.
+    """
+    kategoriler = set(tarife.kategoriler.values_list("pk", flat=True))
+    dusenler = []
+    for kural in tarife.ucret_kurallari.select_related("kategori", "kampanya"):
+        if kural.kategori_id and kural.kategori_id not in kategoriler:
+            dusenler.append(
+                f"“{kural.ad}” → “{kural.kategori}” kategorisi bu tarifede yok"
+            )
+        elif kural.kampanya_id and kural.kampanya.tarife_id != tarife.pk:
+            dusenler.append(
+                f"“{kural.ad}” → “{kural.kampanya}” kampanyası başka tarifenin"
+            )
+    return dusenler
+
+
+class TarifeParaKuraliFormu(forms.ModelForm):
+    """Bu tabloda düzeltilemeyen bir hata tarife sayfasını kilitlemesin.
+
+    Kuralın kapsamı bu tabloda tam görünmez: kategori ve kampanya alanları
+    burada yok, tarife de gizli. Model doğrulaması o alanlardan birine hata
+    yazınca iki şey oluyordu:
+
+    · Gizli alana düşen hata hiçbir yerde çizilmiyor — sayfanın üstünde
+      “Lütfen aşağıdaki hatayı düzeltin” yazıyor, aşağıda düzeltilecek bir
+      şey görünmüyordu. Kategorisi tarifeden düşmüş tek bir eski kural
+      tarife sayfasını temelli kaydedilemez hâle getiriyordu: yönetici ne
+      ikinci kategoriyi ekleyebiliyor ne fiyatı güncelleyebiliyordu.
+    · Formda hiç olmayan alana (kampanya) yazınca Django `add_error`a hiç
+      varmadan `ValueError` atıp sayfayı çökertiyordu.
+
+    Bu tabloda gösterilemeyen hata satırı bloklamaz; kayıttan sonra hâlâ
+    duruyorsa `TarifeAdmin.save_related` uyarı olarak yazar. Blokladığı
+    hâlde düzeltilemeyen bir ekran, uyarı okunmamasından beterdir: burada
+    düzeltmenin yolu kuralın kendi ekranından geçer.
+    """
+
+    class Meta:
+        model = UcretKurali
+        fields = "__all__"
+
+    def _gosterilebilir_mi(self, alan):
+        """Hata bu satırda çizilip düzeltilebiliyor mu?"""
+        if alan == NON_FIELD_ERRORS:
+            return True
+        kutu = self.fields.get(alan)
+        return kutu is not None and not kutu.widget.is_hidden
+
+    def _update_errors(self, errors):
+        # Model doğrulamasından gelen hatalar buradan geçiyor.
+        if hasattr(errors, "error_dict"):
+            kalan = {
+                alan: hatalar
+                for alan, hatalar in errors.error_dict.items()
+                if self._gosterilebilir_mi(alan)
+            }
+            if not kalan:
+                return
+            errors = ValidationError(kalan)
+        super()._update_errors(errors)
+
+
 class TarifeParaKuraliInline(TabularInline):
     """Tarifenin parası tarifenin sayfasında girilir.
 
@@ -71,6 +140,7 @@ class TarifeParaKuraliInline(TabularInline):
     """
 
     model = UcretKurali
+    form = TarifeParaKuraliFormu
     fk_name = "tarife"
     extra = 0
     verbose_name = "Para kuralı"

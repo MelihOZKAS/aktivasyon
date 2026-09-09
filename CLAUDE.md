@@ -615,6 +615,22 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   tedarikçiden alış fiyatı panelden hiç girilemiyordu. Hem kural admin'inde hem
   satır içi tabloda alan artık var; kullanıcı seçen kutuların ekle/düzenle/sil
   düğmeleri `_kullanici_kutusunu_sadelestir` ile kapatılır.
+  **Bu tabloda gösterilemeyen hata tarife sayfasını kilitlemez.** Kuralın
+  kapsamı satır içi tabloda tam görünmez: kategori ve kampanya alanları orada
+  yok, tarife gizli alanda taşınır. Kategorisi tarifeden düşmüş **tek bir eski
+  kural** yüzünden model doğrulaması hatayı gizli `tarife` alanına yazıyor,
+  unfold da onu hiçbir yerde çizmiyordu: sayfanın üstünde "Lütfen aşağıdaki
+  hatayı düzeltin" yazıyor, aşağıda düzeltilecek bir şey görünmüyordu. Tarife
+  o günden sonra hiç kaydedilemiyordu — ne ikinci kategori eklenebiliyor ne
+  fiyat güncellenebiliyordu. Formda hiç olmayan alana (kampanya) yazılan hata
+  ise sayfayı `ValueError` ile çökertiyordu. `TarifeParaKuraliFormu` bu tabloda
+  çizilmeyen alanlara düşen hataları eler; kayıttan sonra `kapsami_dusen_kurallar`
+  hâlâ duruyorsa kuralı adıyla uyarı olarak yazar. Kilit yerine uyarı, çünkü
+  düzeltmenin yeri bu ekran değil kuralın kendi ekranı: düzeltilemeyen bir
+  kilit, okunmayan bir uyarıdan beterdir. Bu tabloda **düzeltilebilen** hata
+  (tetikleyici durum) blokamaya devam eder. Satır içi tabloya modelin
+  `clean`'inin dokunduğu yeni bir alan eklersen ya alanı tabloya koy ya da
+  aynı yoldan geçir.
 - **SIM kart eklenirken operatör zorunludur.** Operatörsüz kart başvuru
   formundaki stok kutusunda doğru operatöre süzülemez ve SIM alacağının
   kimden beklendiği yazılamaz. Alan modelde `null=True` kalır — operatör
