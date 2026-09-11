@@ -20,3 +20,13 @@ def lira(deger):
     except (TypeError, ValueError):
         return deger
     return f"{sayi:,}".replace(",", ".")
+
+
+@register.filter
+def qr(ac, olcek=3):
+    """Aktivasyon kodundan QR (SVG data URI). Listede küçük, teslim sayfasında büyük."""
+    if not ac:
+        return ""
+    import segno
+
+    return segno.make(ac, error="m").svg_data_uri(scale=int(olcek), border=1, dark="#111")

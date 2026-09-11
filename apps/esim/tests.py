@@ -870,6 +870,14 @@ class MusteriEtiketiTestleri(Temel):
         self.assertEqual(self.teslimat.musteri_adi, "Ayşe Yılmaz")
         self.assertEqual(self.teslimat.musteri_telefonu, "5321234567")
 
+    def test_listede_qr_ve_yukle_kisayolu(self):
+        icerik = self.client.get(reverse("esim:siparisler")).content.decode()
+        self.assertIn("data:image/svg+xml", icerik)
+        self.assertIn(reverse("esim:yukle", args=[self.teslimat.siparis.referans_no]), icerik)
+        # Teslim sayfasında tam aktivasyon dizgisi görünür.
+        icerik = self.client.get(reverse("esim:siparis", args=[self.teslimat.siparis.referans_no])).content.decode()
+        self.assertIn("LPA:1$rsp.example.com$KOD-ABC", icerik)
+
     def test_listede_ad_ve_telefonla_bulunur(self):
         musteri_etiketle(self.teslimat, ad="Ayşe Yılmaz", telefon="5321234567")
         referans = self.teslimat.siparis.referans_no

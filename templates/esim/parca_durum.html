@@ -26,6 +26,10 @@
         {% endif %}
         <dl class="mt-4 space-y-2">
           <div>
+            <dt class="text-xs font-semibold text-soluk">Aktivasyon kodu (tam)</dt>
+            <dd class="rakam break-all text-xs font-medium">{{ teslimat.ac }}</dd>
+          </div>
+          <div>
             <dt class="text-xs font-semibold text-soluk">SM-DP+ adresi</dt>
             <dd class="rakam break-all font-medium">{{ teslimat.smdp_adresi|default:"—" }}</dd>
           </div>
