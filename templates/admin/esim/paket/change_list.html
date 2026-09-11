@@ -27,8 +27,8 @@
             · <b style="color:#B45309">Katalog {% if son_esitleme %}{{ son_esitleme|date:"d.m.Y" }}{% else %}hiç{% endif %} eşitlendi — Eşitle'ye bas</b>
           {% endif %}
           {% if grup_oranlari %}
-            · Grup oranları: {% for ad, oran in grup_oranlari %}<b>{{ ad }}</b> %{{ oran }}{% if not forloop.last %}, {% endif %}{% endfor %}
-            <span class="text-base-400">(paket oranını ezer)</span>
+            · Grup farkları: {% for ad, oran in grup_oranlari %}<b>{{ ad }}</b> {% if oran > 0 %}+{% endif %}%{{ oran }}{% if not forloop.last %}, {% endif %}{% endfor %}
+            <span class="text-base-400">(satış fiyatının üzerine)</span>
           {% endif %}
         </span>
 

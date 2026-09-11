@@ -40,13 +40,18 @@ def tam_lira(tutar):
     return Decimal(tutar).quantize(Decimal("1"), rounding=ROUND_DOWN)
 
 
-def satis_fiyati_hesapla(alis_usd, kar_orani, kur):
+def satis_fiyati_hesapla(alis_usd, kar_orani, kur, grup_orani=None):
     """Alış (USD) → bayiye satış (₺), tam lira.
 
-    Kur sıfırsa fiyat da sıfırdır — satış kapalı demektir, servis bunu
-    ayrıca denetler.
+    Önce bizim fiyat: alış × kur × (1 + kâr%), küsurat atılır. Bayi
+    grubunun farkı varsa **o fiyatın üzerine** eklenir ve yine küsurat
+    atılır (34 ₺, +%10 → 37 ₺). Kur sıfırsa fiyat da sıfırdır — satış
+    kapalı demektir, servis bunu ayrıca denetler.
     """
-    return tam_lira(Decimal(alis_usd) * Decimal(kur) * (Decimal(1) + Decimal(kar_orani) / YUZ))
+    fiyat = tam_lira(Decimal(alis_usd) * Decimal(kur) * (Decimal(1) + Decimal(kar_orani) / YUZ))
+    if grup_orani:
+        fiyat = tam_lira(fiyat * (Decimal(1) + Decimal(grup_orani) / YUZ))
+    return fiyat
 
 
 def tavsiye_fiyati_hesapla(satis, tavsiye_orani):
@@ -247,10 +252,9 @@ class Paket(ZamanDamgali):
     def alis_tl(self, kur):
         return (self.alis_usd * Decimal(kur)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    def satis_fiyati(self, kur, kar_orani=None):
-        """Bayi grubunun oranı verilmişse o, yoksa paketin kendi oranı."""
-        oran = self.kar_orani if kar_orani is None else kar_orani
-        return satis_fiyati_hesapla(self.alis_usd, oran, kur)
+    def satis_fiyati(self, kur, grup_orani=None):
+        """Paketin oranıyla bizim fiyat; grup farkı varsa üzerine."""
+        return satis_fiyati_hesapla(self.alis_usd, self.kar_orani, kur, grup_orani)
 
 
 class TeslimatDurumu(models.TextChoices):
@@ -311,6 +315,12 @@ class Teslimat(ZamanDamgali):
         decimal_places=2,
         default=SIFIR,
         help_text="Sipariş anında bayinin grubundan ya da paketten alınan oran.",
+    )
+    grup_orani = models.IntegerField(
+        "Uygulanan Grup Farkı (%)",
+        null=True,
+        blank=True,
+        help_text="Sipariş anında bayi grubundan gelen fark; boşsa fark yoktu.",
     )
     tavsiye_fiyati = models.DecimalField(
         "Tavsiye Edilen Satış (₺)",
@@ -402,6 +412,7 @@ class Yukleme(ZamanDamgali):
     kur = models.DecimalField("Kur", max_digits=10, decimal_places=4)
     alis_tl = models.DecimalField("Alış (₺)", max_digits=12, decimal_places=2)
     kar_orani = models.DecimalField("Uygulanan Kâr Oranı (%)", max_digits=6, decimal_places=2, default=SIFIR)
+    grup_orani = models.IntegerField("Uygulanan Grup Farkı (%)", null=True, blank=True)
     toplam_hacim_bayt = models.BigIntegerField("Yükleme Sonrası Toplam Hacim", default=0)
     son_kullanma = models.CharField("Yeni Son Kullanma", max_length=40, blank=True)
 

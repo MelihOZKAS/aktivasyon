@@ -324,8 +324,8 @@ class PaketAdmin(ModelAdmin):
                 "description": (
                     "Sağlayıcıdan gelen alanlar eşitlemede yazılır, elle değiştirilmez. "
                     "Burada karar verilen iki şey var: kâr oranı ve satışta olup olmadığı. "
-                    "<b>Bayi grubunda eSIM kâr oranı girildiyse o gruptaki bayi için "
-                    "buradaki oran yerine grubunki geçer</b> (Finans → Bayi Grupları)."
+                    "<b>Bayi grubunda eSIM fiyat farkı girildiyse o gruptaki bayi bu "
+                    "fiyatın üzerine o yüzdeyi eklenmiş görür</b> (Finans → Bayi Grupları)."
                 ),
             },
         ),
@@ -365,7 +365,7 @@ class PaketAdmin(ModelAdmin):
 
         extra_context = {
             **(extra_context or {}),
-            # Grup oranı paketinkini ezer; liste hangi kademenin ne gördüğünü söylesin.
+            # Grup farkı bayi fiyatının üzerine eklenir; liste hangi kademenin ne gördüğünü söylesin.
             "grup_oranlari": list(
                 BayiGrubu.objects.filter(aktif=True, esim_kar_orani__isnull=False)
                 .order_by("ad")
@@ -396,7 +396,7 @@ class PaketAdmin(ModelAdmin):
         kur = _kur_ya_da_none()
         return f"{obj.alis_tl(kur)} ₺" if kur else "—"
 
-    @display(description="Satış (₺, paket oranı)")
+    @display(description="Satış (₺)")
     def satis_gosterimi(self, obj):
         kur = _kur_ya_da_none()
         if not kur:
@@ -544,7 +544,7 @@ class TeslimatAdmin(ModelAdmin):
                 ),
             },
         ),
-        ("Para", {"fields": (("alis_usd", "kur", "alis_tl"), ("kar_orani", "tavsiye_fiyati"), "kar")}),
+        ("Para", {"fields": (("alis_usd", "kur", "alis_tl"), ("kar_orani", "grup_orani", "tavsiye_fiyati"), "kar")}),
         (
             "Müşteri",
             {

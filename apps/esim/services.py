@@ -165,11 +165,12 @@ def fiyatlari_guncelle(saglayici):
 # -- Bayiye gösterilen liste --------------------------------------------
 
 
-def bayi_kar_orani(bayi):
-    """Bayinin fiyat kademesinden gelen eSIM kâr oranı; yoksa `None` (paketinki geçer).
+def bayi_grup_orani(bayi):
+    """Bayinin fiyat kademesinden gelen eSIM fiyat farkı (%); yoksa `None`.
 
-    Kademe cüzdanda yaşar (`Cuzdan.grup`), başvuru fiyatlarıyla aynı yer.
-    Cüzdanı ya da grubu olmayan bayi paket oranını görür.
+    Fark **bizim fiyatın üzerine** eklenir, alışın değil. Kademe cüzdanda
+    yaşar (`Cuzdan.grup`), başvuru fiyatlarıyla aynı yer. Cüzdanı ya da
+    grubu olmayan bayi normal fiyatı görür.
     """
     cuzdan = getattr(bayi, "cuzdan", None)
     grup = getattr(cuzdan, "grup", None) if cuzdan else None
@@ -185,12 +186,12 @@ def tavsiye_orani():
     return GenelAyarlar.getir().esim_tavsiye_kar_orani or Decimal(0)
 
 
-def fiyatlandir(paketler, kur, kar_orani=None, tavsiye=None):
+def fiyatlandir(paketler, kur, grup_orani=None, tavsiye=None):
     """Her pakete `satis` (bayiye), oran varsa `tavsiye` (müşteriye) ve `kazanc` yazar."""
     if tavsiye is None:
         tavsiye = tavsiye_orani()
     for paket in paketler:
-        paket.satis = paket.satis_fiyati(kur, kar_orani)
+        paket.satis = paket.satis_fiyati(kur, grup_orani)
         paket.tavsiye = tavsiye_fiyati_hesapla(paket.satis, tavsiye) if tavsiye > 0 else None
         paket.kazanc = (paket.tavsiye - paket.satis) if paket.tavsiye is not None else None
     return paketler
@@ -211,7 +212,7 @@ def en_ucuzlar(paketler):
     return list(secilen.values())
 
 
-def ulke_paketleri(ulke, kur, kar_orani=None):
+def ulke_paketleri(ulke, kur, grup_orani=None):
     """Bir ülke sayfası: ülkeye özel paketler ve o ülkeyi kapsayan bölgesel paketler."""
     paketler = en_ucuzlar(
         Paket.objects.satilabilir()
@@ -219,21 +220,21 @@ def ulke_paketleri(ulke, kur, kar_orani=None):
         .select_related("saglayici")
     )
     tavsiye = tavsiye_orani()
-    tekil = fiyatlandir([p for p in paketler if not p.bolgesel], kur, kar_orani, tavsiye)
-    bolgesel = fiyatlandir([p for p in paketler if p.bolgesel], kur, kar_orani, tavsiye)
+    tekil = fiyatlandir([p for p in paketler if not p.bolgesel], kur, grup_orani, tavsiye)
+    bolgesel = fiyatlandir([p for p in paketler if p.bolgesel], kur, grup_orani, tavsiye)
     bolgesel.sort(key=lambda p: (p.ulke_sayisi, p.hacim_bayt, p.sure_gun))
     return tekil, bolgesel
 
 
-def bolgesel_paketler(kur, kar_orani=None):
+def bolgesel_paketler(kur, grup_orani=None):
     paketler = en_ucuzlar(
         Paket.objects.satilabilir().filter(ulke_sayisi__gt=1).select_related("saglayici")
     )
     paketler.sort(key=lambda p: (p.ulke_sayisi, p.hacim_bayt, p.sure_gun))
-    return fiyatlandir(paketler, kur, kar_orani)
+    return fiyatlandir(paketler, kur, grup_orani)
 
 
-def ulke_listesi(kur, kar_orani=None):
+def ulke_listesi(kur, grup_orani=None):
     """Satılabilir paketi olan ülkeler, en ucuz paketinin satış fiyatıyla."""
     ulkeler = {}
     paketler = (
@@ -242,7 +243,7 @@ def ulke_listesi(kur, kar_orani=None):
         .values_list("ulkeler__kod", "ulkeler__ad", "alis_usd", "kar_orani")
     )
     for kod, ad, alis, kar in paketler:
-        fiyat = satis_fiyati_hesapla(alis, kar if kar_orani is None else kar_orani, kur)
+        fiyat = satis_fiyati_hesapla(alis, kar, kur, grup_orani)
         kayit = ulkeler.get(kod)
         if kayit is None:
             ulkeler[kod] = {"kod": kod, "ad": ad, "slug": kod.lower(), "en_dusuk": fiyat}
@@ -275,9 +276,8 @@ def esim_siparisi_ver(bayi, paket, *, anahtar=None, olusturan=None):
         raise SiparisVerilemez("Bu paket şu an satışta değil.")
 
     kur = kur_getir()
-    grup_orani = bayi_kar_orani(bayi)
-    oran = paket.kar_orani if grup_orani is None else grup_orani
-    satis = paket.satis_fiyati(kur, oran)
+    grup_orani = bayi_grup_orani(bayi)
+    satis = paket.satis_fiyati(kur, grup_orani)
     if satis <= 0:
         raise SiparisVerilemez("Bu paketin fiyatı hesaplanamadı.")
 
@@ -306,7 +306,8 @@ def esim_siparisi_ver(bayi, paket, *, anahtar=None, olusturan=None):
             alis_usd=paket.alis_usd,
             kur=kur,
             alis_tl=paket.alis_tl(kur),
-            kar_orani=oran,
+            kar_orani=paket.kar_orani,
+            grup_orani=grup_orani,
             tavsiye_fiyati=(
                 tavsiye_fiyati_hesapla(satis, tavsiye) if (tavsiye := tavsiye_orani()) > 0 else 0
             ),
@@ -461,10 +462,8 @@ def saglayici_var_mi():
 # varsayılanı. Para yine önce düşer, sağlayıcı reddederse geri döner.
 
 
-def yukleme_orani(teslimat, bayi):
-    grup_orani = bayi_kar_orani(bayi)
-    if grup_orani is not None:
-        return grup_orani
+def yukleme_orani(teslimat):
+    """Yükleme paketinin kâr oranı: asıl paketinki, o yoksa sağlayıcının varsayılanı."""
     if teslimat.paket is not None:
         return teslimat.paket.kar_orani
     return teslimat.saglayici.varsayilan_kar_orani
@@ -475,10 +474,11 @@ def yukleme_paketleri(teslimat, bayi, kur):
     veriler = teslimat.saglayici.adaptor().yukleme_paketleri(
         teslimat.esim_no, iccid=teslimat.iccid, paket_kodu=teslimat.paket_kodu
     )
-    oran = yukleme_orani(teslimat, bayi)
+    oran = yukleme_orani(teslimat)
+    grup_orani = bayi_grup_orani(bayi)
     tavsiye = tavsiye_orani()
     for veri in veriler:
-        veri.satis = satis_fiyati_hesapla(veri.alis_usd, oran, kur)
+        veri.satis = satis_fiyati_hesapla(veri.alis_usd, oran, kur, grup_orani)
         veri.tavsiye = tavsiye_fiyati_hesapla(veri.satis, tavsiye) if tavsiye > 0 else None
     veriler.sort(key=lambda v: (v.hacim_bayt, v.sure_gun, v.alis_usd))
     return veriler
@@ -533,7 +533,8 @@ def esim_yukle(bayi, teslimat, yukleme_kodu, *, anahtar=None, olusturan=None):
             alis_usd=veri.alis_usd,
             kur=kur,
             alis_tl=(veri.alis_usd * kur).quantize(Decimal("0.01")),
-            kar_orani=yukleme_orani(teslimat, bayi),
+            kar_orani=yukleme_orani(teslimat),
+            grup_orani=bayi_grup_orani(bayi),
         )
         siparis_odemesini_isle(siparis, olusturan=olusturan or bayi)
         siparis.refresh_from_db()

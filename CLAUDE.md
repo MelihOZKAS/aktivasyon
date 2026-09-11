@@ -221,15 +221,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kapalıdır ve bayi sebebini görür. **Cron yok, güncelleme elle**: kur ya da
   katalog bir günden eskiyse paket listesinin başlığı uyarır
   (`PaketAdmin.changelist_view`), yönetici düğmeye basar.
-  · **Fiyat kademesi bayi grubundadır.** `BayiGrubu.esim_kar_orani`
-  doluysa o gruptaki bayi bütün paketleri o oranla görür (Standart %88,
-  Anlaşmalı %44, VIP %10); boşsa paketin kendi oranı geçer. Grup cüzdanda
-  yaşar (`Cuzdan.grup`), başvuru fiyatlarıyla aynı yer — bayi grubunu
-  değiştirmek iki fiyat listesini birden değiştirir. Tek kapı
-  `services.bayi_kar_orani`; bayiye fiyat gösteren her yer oradan geçer,
-  `Teslimat.kar_orani` sipariş anında uygulanan oranı saklar. Paket
-  listesindeki "Satış" sütunu paket oranıyladır; başlık grup oranlarını
-  yazar ki yönetici "bayi neden başka fiyat görüyor" diye aramasın.
+  · **Fiyat kademesi bayi grubundadır ve bizim fiyatın ÜZERİNE eklenir.**
+  `BayiGrubu.esim_kar_orani` tam sayı yüzdedir: sağlayıcı oranıyla
+  hesaplanan bayi fiyatı 34 ₺ ise +10'luk grup 37 ₺ görür, −20 indirimdir,
+  boşsa fark yok. Alışın üzerine değil — bir süre öyleydi ve yönetici "%10
+  yazdım, fiyat düştü" dedi. Grup cüzdanda yaşar (`Cuzdan.grup`), başvuru
+  fiyatlarıyla aynı yer. Tek kapı `services.bayi_grup_orani` →
+  `satis_fiyati_hesapla(..., grup_orani)`; bayiye fiyat gösteren her yer
+  oradan geçer. Fiyat saklanmadığı için grubu kaydetmek bayi ekranında
+  anında geçerlidir. `Teslimat.kar_orani` paketin oranını, `grup_orani`
+  grup farkını sipariş anında saklar. Paket listesindeki "Satış" sütunu
+  farksız fiyattır; başlık grup farklarını yazar ki yönetici "bayi neden
+  başka fiyat görüyor" diye aramasın.
   Kâr oranı paket başına durur ama **günlük iş sağlayıcı düzeyindedir**:
   sağlayıcıya bir oran yazılır, listedeki **Fiyatları güncelle** düğmesi
   (`fiyatlari_guncelle`, POST) bütün paketleri o orana çeker. Oran yalnızca
@@ -263,8 +266,8 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Yükleme paketleri kataloğa yazılmaz: hangi paketin hangi eSIM'e uyduğunu
   sağlayıcı bilir, liste her açılışta ondan alınır (`yukleme_paketleri`)
   ve POST'ta kod yeniden doğrulanır — elle gönderilen kod listede yoksa
-  reddedilir. Fiyat kuralı satıştaki gibi (grup oranı → asıl paketin oranı
-  → sağlayıcı varsayılanı), para yine `magaza.Siparis` (`urun_adi="eSIM
+  reddedilir. Fiyat kuralı satıştaki gibi (asıl paketin oranı, o yoksa
+  sağlayıcı varsayılanı; üzerine grup farkı), para yine `magaza.Siparis` (`urun_adi="eSIM
   yükleme · …"`) ile önce düşer, sağlayıcı reddederse döner. Sağlayıcıda
   yükleme **geri alınamaz**; mağaza admin'inde iptal yönetimin bilinçli
   kararıdır (iade bizden çıkar), teslim düğmesi yoktur. Desteklemeyen

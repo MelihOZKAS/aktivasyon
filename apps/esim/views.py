@@ -21,7 +21,7 @@ from apps.esim.models import Paket, Teslimat, Ulke
 from apps.esim.saglayicilar import SaglayiciHatasi
 from apps.esim.services import (
     KurTanimsiz,
-    bayi_kar_orani,
+    bayi_grup_orani,
     bolgesel_paketler,
     esim_siparisi_ver,
     esim_yukle,
@@ -81,7 +81,7 @@ def ulkeler(request):
         request,
         "esim/ulkeler.html",
         {
-            "ulkeler": ulke_listesi(kur, bayi_kar_orani(request.user)),
+            "ulkeler": ulke_listesi(kur, bayi_grup_orani(request.user)),
             "bakiye": _bakiye(request),
             "son_siparisler": _esim_siparisleri(request)[:SON_SIPARIS_ADEDI],
         },
@@ -131,7 +131,7 @@ def bolgesel(request):
         {
             "baslik": "Bölgesel ve global paketler",
             "tekil": [],
-            "bolgesel": bolgesel_paketler(kur, bayi_kar_orani(request.user)),
+            "bolgesel": bolgesel_paketler(kur, bayi_grup_orani(request.user)),
             "bakiye": _bakiye(request),
         },
     )
@@ -144,7 +144,7 @@ def ulke(request, kod):
     if kapali:
         return kapali
     ulke_kaydi = get_object_or_404(Ulke, kod=kod.upper(), aktif=True)
-    tekil, bolgesel_liste = ulke_paketleri(ulke_kaydi, kur, bayi_kar_orani(request.user))
+    tekil, bolgesel_liste = ulke_paketleri(ulke_kaydi, kur, bayi_grup_orani(request.user))
     return render(
         request,
         "esim/ulke.html",
@@ -187,7 +187,7 @@ def paket(request, kod, pk):
     if kapali:
         return kapali
     ulke_kaydi, paket_kaydi = _paket_bul(kod, pk)
-    fiyatlandir([paket_kaydi], kur, bayi_kar_orani(request.user))
+    fiyatlandir([paket_kaydi], kur, bayi_grup_orani(request.user))
     bakiye = _bakiye(request)
     return render(
         request,

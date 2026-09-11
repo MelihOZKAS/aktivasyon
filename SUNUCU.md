@@ -220,7 +220,7 @@ kalan dördü panelden girilir — **sıra önemli**, her adım öncekine dayan�
 | + | SIM Stoğu | Kartları tek tek gir, bayilere zimmetle |
 | + | eSIM → Sağlayıcılar | eSIM Access hesabının erişim kodu ve gizli anahtarı, varsayılan kâr oranı. Kaydedince satırdaki **Eşitle** kataloğu çeker |
 | + | eSIM → Paketler | Üstteki **Kuru güncelle** TCMB'den USD kurunu alır — kur girilmeden eSIM satışı kapalıdır. İstenmeyen ülke/paket kapatılır, kâr oranı toplu işlemle değiştirilir |
-| + | Bayi Grupları → eSIM Kâr Oranı | Kademe başına tek yüzde (Standart %88, Anlaşmalı %44…); gruptaki bayi bütün paketleri o oranla görür. Boş bırakılan grup paketin oranını kullanır |
+| + | Bayi Grupları → eSIM Fiyat Farkı | Kademe başına tam sayı yüzde, normal bayi fiyatının **üzerine** (+10 → 34 ₺ olan paket 37 ₺; −20 indirim). Boş bırakılan grupta fark yok |
 | + | Genel Ayarlar → eSIM | Tavsiye edilen satış kâr oranı: bayi "müşteriye şu fiyata sat" rakamını ve kazancını görür (küsurat atılır). 0 ise gösterilmez |
 
 Bunlar bitince günlük işte elle yapılan tek şey **başvuru durumunu
