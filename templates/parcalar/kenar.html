@@ -44,6 +44,7 @@
       {% url 'bayi:hakedisler' as u_hakedisler %}
       {% url 'bayi:cuzdan' as u_cuzdan %}
       {% url 'magaza:liste' as u_magaza %}
+      {% url 'esim:ulkeler' as u_esim %}
 
       {% if tedarikci_mi %}
       <a href="{{ u_tedarikci }}"
@@ -117,6 +118,17 @@
                 {% if request.path == u_magaza %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
         <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6h15l-1.5 9h-12zM6 6L5 3H2M9 20a1 1 0 100-2 1 1 0 000 2zM18 20a1 1 0 100-2 1 1 0 000 2z"/></svg>
         Mağaza
+      </a>
+
+      {% comment %}
+        eSIM mağazadan ayrı: ürün değil, ülke seçilip anında teslim edilen
+        bir hizmet. Altındaki bütün adresler /esim/ ile başlar.
+      {% endcomment %}
+      <a href="{{ u_esim }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path|slice:":6" == u_esim %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+        eSIM
       </a>
       {% endif %}
     </nav>

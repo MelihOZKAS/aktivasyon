@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block baslik %}eSIM siparişlerim{% endblock %}
+{% block sayfa_basligi %}eSIM{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl">
+  <a href="{% url 'esim:ulkeler' %}" class="mb-5 inline-flex text-sm font-medium text-soluk">← eSIM</a>
+  <h2 class="baslik mb-4 text-2xl font-bold">eSIM siparişlerim</h2>
+
+  <form method="get" class="mb-4 flex gap-2">
+    <input type="search" name="q" value="{{ q }}" class="girdi flex-1"
+           placeholder="Müşteri adı, telefon, ICCID…" autocomplete="off">
+    <button type="submit" class="dugme dugme-sessiz text-sm">Ara</button>
+  </form>
+
+  {% if sayfa.object_list %}
+  <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+    {% for siparis in sayfa %}
+    {% include "esim/parca_siparis.html" %}
+    {% endfor %}
+  </div>
+
+  {% if sayfa.has_other_pages %}
+  <div class="mt-4 flex items-center justify-between text-sm">
+    {% if sayfa.has_previous %}
+    <a href="?sayfa={{ sayfa.previous_page_number }}" class="dugme dugme-sessiz">← Önceki</a>
+    {% else %}<span></span>{% endif %}
+    <span class="text-soluk">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
+    {% if sayfa.has_next %}
+    <a href="?sayfa={{ sayfa.next_page_number }}" class="dugme dugme-sessiz">Sonraki →</a>
+    {% else %}<span></span>{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">{% if q %}Aramaya uyan eSIM yok.{% else %}Henüz eSIM siparişin yok.{% endif %}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -630,6 +630,29 @@ class GenelAyarlarAdmin(ModelAdmin):
                 ),
             },
         ),
+        (
+            "eSIM",
+            {
+                "fields": ("esim_tavsiye_kar_orani",),
+                "description": (
+                    "Bayi paket sayfasında “müşteriye tavsiye edilen fiyat”ı görür: bizden "
+                    "aldığı fiyatın üzerine bu yüzde eklenir, küsurat atılır (41,53 ₺ → 41 ₺). "
+                    "Bayinin kendi kazancı da yanında yazar."
+                ),
+            },
+        ),
+        (
+            "Döviz kuru",
+            {
+                "fields": ("usd_kuru", "usd_kuru_tarihi"),
+                "description": (
+                    "eSIM paketleri sağlayıcıdan dolarla alınır, bayiye lirayla "
+                    "satılır. Kur eskirse fiyat maliyetin altına düşebilir; "
+                    "eSIM Paketleri ekranındaki <b>Kuru güncelle</b> düğmesi "
+                    "TCMB satış kurunu çeker. Elle de yazılabilir."
+                ),
+            },
+        ),
     )
 
     def has_add_permission(self, request):

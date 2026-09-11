@@ -28,6 +28,20 @@ class BayiGrubu(ZamanDamgali):
     ad = models.CharField("Grup Adı", max_length=100, unique=True)
     aciklama = models.TextField("Açıklama", blank=True)
     aktif = models.BooleanField("Aktif", default=True)
+    # eSIM'de fiyat paket başına değil, kademe başına farklılaşır: Standart
+    # %88, Anlaşmalı %44, VIP %10 gibi. Boşsa paketin kendi oranı geçerli.
+    esim_kar_orani = models.DecimalField(
+        "eSIM Kâr Oranı (%)",
+        max_digits=6,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+        help_text=(
+            "Bu gruptaki bayilere eSIM paketleri alışın üzerine bu yüzdeyle satılır "
+            "(44 → alış × 1,44). Boş bırakılırsa her paketin kendi kâr oranı geçerlidir."
+        ),
+    )
 
     class Meta:
         verbose_name = "Bayi Grubu"

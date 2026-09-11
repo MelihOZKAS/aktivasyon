@@ -1,0 +1,53 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  eSIM iptali iki yerde para oynatır: sağlayıcı alış bedelini bize iade
+  eder, biz satış bedelini bayiye. Sıra önemli — sağlayıcı reddederse
+  (profil kurulmuş, veri kullanılmış) bayiye de iade yapılmaz.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+
+    <p class="mb-4 text-sm leading-relaxed text-base-500">
+      <b>{{ siparis.referans_no }}</b> numaralı eSIM iptal edilecek: {{ siparis.urun_adi }}.
+    </p>
+
+    <ul class="mb-6 space-y-2 text-sm">
+      <li class="flex justify-between border-b border-base-100 py-1.5 dark:border-base-800">
+        <span class="text-base-500">Bayi</span>
+        <span class="font-medium">{{ siparis.bayi.bayi_profili.unvan|default:siparis.bayi.get_username }}</span>
+      </li>
+      <li class="flex justify-between border-b border-base-100 py-1.5 dark:border-base-800">
+        <span class="text-base-500">Sağlayıcıdan bize dönecek</span>
+        <span class="font-medium">{{ teslimat.alis_usd }} $</span>
+      </li>
+      <li class="flex justify-between border-b border-base-100 py-1.5 dark:border-base-800">
+        <span class="text-base-500">Bayinin bakiyesine geri yazılacak</span>
+        <span class="font-semibold" style="color:#0F8A4D">{{ siparis.tutar }} ₺</span>
+      </li>
+      <li class="flex justify-between py-1.5">
+        <span class="text-base-500">ICCID</span>
+        <span class="font-mono">{{ teslimat.iccid }}</span>
+      </li>
+    </ul>
+
+    <p class="mb-6 text-sm leading-relaxed text-base-500">
+      Sağlayıcı yalnızca <b>kurulmamış</b> profili iptal eder. Müşteri QR'ı
+      telefonuna okuttuysa sağlayıcı reddeder ve para iade edilmez.
+    </p>
+
+    <form method="post" class="flex flex-wrap gap-3">
+      {% csrf_token %}
+      <button type="submit" class="rounded-default px-4 py-2 font-medium text-white" style="background:#D42046">
+        Sağlayıcıda iptal et ve parayı iade et
+      </button>
+      <a href="{% url 'admin:esim_teslimat_changelist' %}"
+         class="rounded-default border border-base-200 px-4 py-2 font-medium hover:bg-base-100 dark:border-base-700">
+        Vazgeç
+      </a>
+    </form>
+  </div>
+</div>
+{% endblock %}

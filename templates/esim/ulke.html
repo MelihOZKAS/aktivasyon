@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}eSIM — {{ baslik }}{% endblock %}
+{% block sayfa_basligi %}eSIM{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl">
+
+  <a href="{% url 'esim:ulkeler' %}" class="mb-5 inline-flex text-sm font-medium text-soluk">← Ülkeler</a>
+
+  <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <h2 class="baslik text-2xl font-bold">{{ baslik }}</h2>
+    <div class="sim shrink-0 rounded-kart border border-cizgi bg-yuzey px-4 py-3">
+      <p class="text-xs font-semibold text-soluk">Bakiyen</p>
+      <p class="rakam mt-0.5 text-xl font-bold">{{ bakiye|para }} ₺</p>
+    </div>
+  </div>
+
+  {% if tekil %}
+  <div class="grid gap-3">
+    {% for paket in tekil %}
+      {% include "esim/parca_paket.html" with ulke_slug=ulke.slug %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if bolgesel %}
+  <section class="{% if tekil %}mt-8{% endif %}">
+    {% if ulke %}
+    <h3 class="baslik mb-1 font-semibold">Bölgesel paketler</h3>
+    <p class="mb-3 text-sm text-soluk">{{ ulke.ad }} dahil birden çok ülkede geçerli.</p>
+    {% endif %}
+    <div class="grid gap-3">
+      {% for paket in bolgesel %}
+        {% include "esim/parca_paket.html" with ulke_slug=ulke.slug|default:"bolgesel" %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if not tekil and not bolgesel %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">Bu ülke için şu an paket yok.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

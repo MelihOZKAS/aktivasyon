@@ -8,6 +8,8 @@ from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin
 from unfold.decorators import display
 
+from apps.esim.saglayicilar import SaglayiciHatasi
+from apps.esim.services import esim_siparisi_iptal_et
 from apps.finans.services import (
     SiparisVerilemez,
     siparis_durumunu_uygula,
@@ -65,6 +67,7 @@ class SiparisAdmin(ModelAdmin):
         "adet",
         "tutar_gosterimi",
         "durum_rozeti",
+        "esim_gosterimi",
         "karar_dugmeleri",
     )
     list_filter = ("durum", "urun")
@@ -113,7 +116,24 @@ class SiparisAdmin(ModelAdmin):
     def get_queryset(self, request):
         return (
             super().get_queryset(request)
-            .select_related("bayi", "bayi__bayi_profili", "urun")
+            .select_related("bayi", "bayi__bayi_profili", "urun", "esim", "esim_yukleme")
+        )
+
+    @display(description="eSIM")
+    def esim_gosterimi(self, obj):
+        """eSIM siparişinin sağlayıcı tarafı ayrı ekranda; buradan oraya geçilir."""
+        if obj.esim_yukleme_mi:
+            return format_html(
+                '<a href="{}" style="font-size:.75rem;font-weight:600;text-decoration:underline">yükleme · {}</a>',
+                reverse("admin:esim_yukleme_change", args=[obj.esim_yukleme.pk]),
+                obj.esim_yukleme.get_durum_display(),
+            )
+        if not obj.esim_mi:
+            return ""
+        return format_html(
+            '<a href="{}" style="font-size:.75rem;font-weight:600;text-decoration:underline">{}</a>',
+            reverse("admin:esim_teslimat_change", args=[obj.esim.pk]),
+            obj.esim.get_durum_display(),
         )
 
     @display(description="Bayi", ordering="bayi__username")
@@ -179,7 +199,22 @@ class SiparisAdmin(ModelAdmin):
         """
         parcalar = []
 
-        if obj.bekliyor:
+        # eSIM'de teslim otomatik (profil gelince), iptal ise önce sağlayıcıda
+        # yapılmalı: düğme teslimat ekranının onayına gider.
+        if obj.esim_mi:
+            if obj.esim.iptal_edilebilir:
+                parcalar.append(
+                    format_html(
+                        '<a href="{}" style="{}">İptal et</a>',
+                        reverse("admin:esim_teslimat_iptal", args=[obj.esim.pk]),
+                        format_html(self.DUGME_STILI, "#D42046"),
+                    )
+                )
+            return format_html_join(" ", "{}", ((parca,) for parca in parcalar)) if parcalar else ""
+
+        # Yükleme sağlayıcıda geri alınamaz; iptal yalnızca yönetimin bilinçli
+        # kararı (bayiye iade bizden çıkar). Teslim düğmesi yok: yükleme anında teslim.
+        if obj.bekliyor and not obj.esim_yukleme_mi:
             parcalar.append(
                 format_html(
                     '<button type="submit" form="changelist-form" formmethod="post" '
@@ -260,6 +295,10 @@ class SiparisAdmin(ModelAdmin):
             self.message_user(request, "Bu sipariş zaten iptal edilmiş.", messages.INFO)
             return redirect("admin:magaza_siparis_changelist")
 
+        if siparis.esim_mi:
+            # Sağlayıcı atlanmaz: iade ancak profil sağlayıcıda iptal edilince.
+            return redirect("admin:esim_teslimat_iptal", siparis.esim.pk)
+
         if request.method == "POST":
             siparis.durum = SiparisDurumu.IPTAL
             siparis.save(update_fields=["durum", "guncelleme_tarihi"])
@@ -291,6 +330,10 @@ class SiparisAdmin(ModelAdmin):
         kaydedince sipariş iptal **görünüp** para bayide kalmasın diye
         servis burada da çağrılır. Ödeme bildirimindeki kuralın aynısı.
         """
+        if change and obj.esim_mi:
+            self._esim_kaydet(request, obj, form)
+            return
+
         super().save_model(request, obj, form, change)
         try:
             siparis_durumunu_uygula(obj, olusturan=request.user)
@@ -305,3 +348,45 @@ class SiparisAdmin(ModelAdmin):
                 messages.ERROR,
             )
         obj.refresh_from_db()
+
+    def _esim_kaydet(self, request, obj, form):
+        """eSIM siparişinde durum formdan değişmez; iptal sağlayıcıdan geçer.
+
+        "İptal edildi" seçilirse sağlayıcıda iptal denenir: kabul ederse para
+        bayiye döner, reddederse durum eski hâline alınır ve yönetici sebebini
+        görür. Teslim/verildi geçişi elle yapılmaz — profil gelince kendiliğinden
+        teslim olur. Diğer alanlar (yönetim notu) serbestçe kaydedilir.
+        """
+        if "durum" not in form.changed_data:
+            super().save_model(request, obj, form, True)
+            return
+
+        eski_durum = form.initial.get("durum")
+        if obj.durum == SiparisDurumu.IPTAL and obj.esim.iptal_edilebilir:
+            obj.durum = eski_durum
+            super().save_model(request, obj, form, True)
+            try:
+                esim_siparisi_iptal_et(obj, olusturan=request.user)
+            except SaglayiciHatasi as hata:
+                self.message_user(
+                    request,
+                    f"Sağlayıcı iptali kabul etmedi, sipariş açık kaldı: {hata}",
+                    messages.ERROR,
+                )
+            else:
+                self.message_user(
+                    request,
+                    f"{obj.referans_no} sağlayıcıda iptal edildi; {obj.tutar} ₺ bayiye geri yazıldı.",
+                    messages.WARNING,
+                )
+            obj.refresh_from_db()
+            return
+
+        obj.durum = eski_durum
+        super().save_model(request, obj, form, True)
+        self.message_user(
+            request,
+            "eSIM siparişinin durumu elle değiştirilmez: teslim profil gelince kendiliğinden "
+            "olur, iptal yalnızca hazır (kurulmamış) profilde ve sağlayıcı üzerinden yapılır.",
+            messages.ERROR,
+        )

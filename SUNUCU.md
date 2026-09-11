@@ -218,6 +218,10 @@ kalan dördü panelden girilir — **sıra önemli**, her adım öncekine dayan�
 | 8 | Kullanıcılar | Her bayi için hesap; cüzdan ve profil satır içi doldurulur |
 | + | Banka Hesapları | Bayiler bakiye yüklerken görecek |
 | + | SIM Stoğu | Kartları tek tek gir, bayilere zimmetle |
+| + | eSIM → Sağlayıcılar | eSIM Access hesabının erişim kodu ve gizli anahtarı, varsayılan kâr oranı. Kaydedince satırdaki **Eşitle** kataloğu çeker |
+| + | eSIM → Paketler | Üstteki **Kuru güncelle** TCMB'den USD kurunu alır — kur girilmeden eSIM satışı kapalıdır. İstenmeyen ülke/paket kapatılır, kâr oranı toplu işlemle değiştirilir |
+| + | Bayi Grupları → eSIM Kâr Oranı | Kademe başına tek yüzde (Standart %88, Anlaşmalı %44…); gruptaki bayi bütün paketleri o oranla görür. Boş bırakılan grup paketin oranını kullanır |
+| + | Genel Ayarlar → eSIM | Tavsiye edilen satış kâr oranı: bayi "müşteriye şu fiyata sat" rakamını ve kazancını görür (küsurat atılır). 0 ise gösterilmez |
 
 Bunlar bitince günlük işte elle yapılan tek şey **başvuru durumunu
 değiştirmek** kalır. Para hareketi, SIM stoğu, belge silme ve bildirimler
@@ -229,6 +233,19 @@ Nasıl görüneceğini merak edersen kendi bilgisayarında dene — sunucuda
 ```bash
 .venv/bin/python manage.py kurulum --sifirla --ornek
 ```
+
+### eSIM: kur ve katalog elle güncellenir
+
+eSIM satış fiyatı **USD kuru × alış × kâr** ile hesaplanır; kur eskirse
+fiyat maliyetin altına düşer, sağlayıcı da fiyatı değiştirebilir. Cron
+yok — panelde eSIM Paketleri'nin üstündeki iki düğme aynı işi yapar:
+**Kuru güncelle** (TCMB) ve **Eşitle** (sağlayıcı kataloğu). Kur ya da
+katalog bir günden eskiyse liste başlığı bunu turuncu yazar; sabah panele
+girince iki düğmeye basmak yeter.
+
+Sağlayıcıdaki dolar bakiyesi bitince sipariş "the balance is insufficient"
+ile düşer ve bayiye para kendiliğinden iade edilir; bakiyeyi eSIM Access
+panelinden yüklersin, sistemde bir şey yapmak gerekmez.
 
 ---
 

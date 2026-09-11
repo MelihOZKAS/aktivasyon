@@ -31,6 +31,33 @@ def bekleyen_basvurular(request):
     return _sayi(Basvuru.objects.filter(durum__baslangic_durumu=True))
 
 
+def takilan_esimler(request):
+    """Sağlayıcıdan profili gelmemiş ya da hataya düşmüş eSIM teslimatları.
+
+    Hazırlanıyor birkaç saniye sürer; dakikalarca sürüyorsa sağlayıcıda
+    sorun var, yönetici baksın. Hata zaten iade edilmiştir ama sebebini
+    okuyan olmalı — sürekli aynı hata bakiye bitti demektir. Hata kaydı
+    durumunu hiç değiştirmediği için yalnızca son bir günün hataları
+    sayılır; rozet arşiv değil, bugünkü iş.
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.esim.models import Teslimat, TeslimatDurumu
+
+    simdi = timezone.now()
+    return _sayi(
+        Teslimat.objects.filter(
+            durum=TeslimatDurumu.HATA, olusturma_tarihi__gte=simdi - timedelta(days=1)
+        )
+        | Teslimat.objects.filter(
+            durum__in=(TeslimatDurumu.BEKLIYOR, TeslimatDurumu.HAZIRLANIYOR),
+            olusturma_tarihi__lt=simdi - timedelta(minutes=5),
+        )
+    )
+
+
 def _sayi(sorgu):
     adet = sorgu.count()
     if not adet:

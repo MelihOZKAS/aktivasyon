@@ -18,6 +18,7 @@ urlpatterns = [
     path("", include("apps.bayi.urls", namespace="bayi")),
     path("basvuru/", include("apps.basvurular.urls", namespace="basvurular")),
     path("destek/", include("apps.destek.urls", namespace="destek")),
+    path("", include("apps.esim.urls", namespace="esim")),
     path("", include("apps.magaza.urls", namespace="magaza")),
 ]
 

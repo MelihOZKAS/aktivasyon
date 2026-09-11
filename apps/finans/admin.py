@@ -171,9 +171,25 @@ class TarifeParaKuraliInline(TabularInline):
 
 @admin.register(BayiGrubu)
 class BayiGrubuAdmin(ModelAdmin):
-    list_display = ("ad", "bayi_sayisi", "aktif")
+    list_display = ("ad", "bayi_sayisi", "esim_kar_orani", "aktif")
+    list_editable = ("esim_kar_orani",)
     search_fields = ("ad",)
     list_filter = ("aktif",)
+    fieldsets = (
+        ("Grup", {"fields": ("ad", "aciklama", "aktif")}),
+        (
+            "eSIM",
+            {
+                "fields": ("esim_kar_orani",),
+                "description": (
+                    "Başvuru fiyatları <i>Ücret ve Hakediş Kuralları</i>'nda grup başına "
+                    "tanımlanır. eSIM'de ise tek rakam yeter: bu gruptaki bayi bütün "
+                    "eSIM paketlerini alışın üzerine bu yüzdeyle görür. Boşsa paketin "
+                    "kendi kâr oranı (eSIM Paketleri ekranı) geçerlidir."
+                ),
+            },
+        ),
+    )
 
     @admin.display(description="Bayi Sayısı")
     def bayi_sayisi(self, obj):

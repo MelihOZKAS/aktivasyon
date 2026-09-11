@@ -42,9 +42,10 @@ def magaza(request):
         {
             "urunler": Urun.objects.filter(aktif=True),
             "bakiye": bakiye,
-            "son_siparisler": Siparis.objects.filter(bayi=request.user)[
-                :SON_SIPARIS_ADEDI
-            ],
+            # eSIM siparişleri kendi bölümünde listelenir.
+            "son_siparisler": Siparis.objects.filter(
+                bayi=request.user, esim__isnull=True, esim_yukleme__isnull=True
+            )[:SON_SIPARIS_ADEDI],
         },
     )
 
@@ -113,7 +114,9 @@ def satin_al(request, slug):
 @bayi_gerekli
 def siparislerim(request):
     """Bayinin bütün siparişleri."""
-    sayfalayici = Paginator(Siparis.objects.filter(bayi=request.user), 20)
+    sayfalayici = Paginator(
+        Siparis.objects.filter(bayi=request.user, esim__isnull=True, esim_yukleme__isnull=True), 20
+    )
     return render(
         request,
         "magaza/siparislerim.html",

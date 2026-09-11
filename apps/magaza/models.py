@@ -198,3 +198,13 @@ class Siparis(ZamanDamgali):
     def bekliyor(self):
         """Henüz teslim edilmemiş, iptal de edilmemiş sipariş."""
         return self.durum == SiparisDurumu.VERILDI
+
+    @property
+    def esim_mi(self):
+        """eSIM siparişinin sağlayıcı tarafı `esim.Teslimat` kaydındadır."""
+        return hasattr(self, "esim")
+
+    @property
+    def esim_yukleme_mi(self):
+        """Satılmış eSIM'e yükleme; sağlayıcıda geri alınamaz, iptal yönetim kararıdır."""
+        return hasattr(self, "esim_yukleme")

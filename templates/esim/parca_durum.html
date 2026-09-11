@@ -1,0 +1,110 @@
+{% load panel esim %}
+{% comment %}
+  Teslimatın durumu. Profil hazırlanırken kutu birkaç saniyede bir kendini
+  yeniler (HTMX); hazır olunca hx- öznitelikleri düşer ve sorgu durur.
+  QR bizim ürettiğimiz SVG: sağlayıcının görsel sunucusuna bağımlı değil.
+{% endcomment %}
+<div id="esim-durum"
+     {% if teslimat.bekliyor %}hx-get="{% url 'esim:siparis-durum' siparis.referans_no %}" hx-trigger="every 4s" hx-swap="outerHTML"{% endif %}>
+
+  {% if teslimat.hazir %}
+  <div class="yuzey rounded-kart border border-cizgi p-5 sm:p-6">
+    <div class="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
+      <div class="shrink-0 rounded-kart border border-cizgi bg-white p-2">
+        <img src="{{ qr }}" alt="eSIM QR kodu" width="220" height="220" class="block h-[220px] w-[220px]">
+      </div>
+      <div class="min-w-0 flex-1 text-sm">
+        <p class="baslik text-lg font-bold text-olumlu">eSIM hazır</p>
+        <p class="mt-1 leading-relaxed text-murekkep-yumusak">
+          Müşteri telefonunda <b>Ayarlar → Hücresel → eSIM ekle</b> deyip bu kodu
+          okutsun. Kod bir kez kurulur.
+        </p>
+        {% if teslimat.tavsiye_fiyati %}
+        <p class="mt-2 text-sm text-murekkep-yumusak">
+          Müşteriye tavsiye edilen fiyat <b class="rakam">{{ teslimat.tavsiye_fiyati|lira }} ₺</b>
+        </p>
+        {% endif %}
+        <dl class="mt-4 space-y-2">
+          <div>
+            <dt class="text-xs font-semibold text-soluk">SM-DP+ adresi</dt>
+            <dd class="rakam break-all font-medium">{{ teslimat.smdp_adresi|default:"—" }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs font-semibold text-soluk">Aktivasyon kodu</dt>
+            <dd class="rakam break-all font-medium">{{ teslimat.aktivasyon_kodu|default:"—" }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs font-semibold text-soluk">ICCID</dt>
+            <dd class="rakam break-all">{{ teslimat.iccid|default:"—" }}</dd>
+          </div>
+          {% if teslimat.apn %}
+          <div>
+            <dt class="text-xs font-semibold text-soluk">APN</dt>
+            <dd class="rakam">{{ teslimat.apn }}</dd>
+          </div>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+
+    {% comment %}
+      Müşteri dükkânda değilse: mesajla gönder. LPA dizgisi kopyalanır,
+      WhatsApp bağlantısı hazır metni açar. Kısa bağlantı sağlayıcıdan
+      geliyorsa mesaja o da girer — QR'ı oradan da okutabilir.
+    {% endcomment %}
+    <div class="mt-5 flex flex-wrap gap-3 border-t border-cizgi pt-5">
+      <button type="button" class="dugme dugme-sessiz text-sm" data-kopyala="{{ teslimat.ac }}">
+        Aktivasyon kodunu kopyala
+      </button>
+      <a class="dugme dugme-sessiz text-sm" target="_blank" rel="noopener"
+         href="https://wa.me/?text={% filter urlencode %}eSIM kurulum bilgileri ({{ siparis.urun_adi }}):
+SM-DP+ adresi: {{ teslimat.smdp_adresi }}
+Aktivasyon kodu: {{ teslimat.aktivasyon_kodu }}{% if teslimat.kisa_url %}
+QR kod: {{ teslimat.kisa_url }}{% endif %}
+Ayarlar → Hücresel → eSIM ekle → elle gir.{% endfilter %}">
+        WhatsApp ile gönder
+      </a>
+    </div>
+  </div>
+
+  {% elif teslimat.bekliyor %}
+  <div class="yuzey rounded-kart border border-cizgi p-6 text-center">
+    <p class="baslik font-semibold">Profil hazırlanıyor…</p>
+    <p class="mt-1 text-sm text-soluk">
+      Sağlayıcı eSIM'i oluşturuyor; genellikle birkaç saniye sürer. Sayfa
+      kendini yeniler, bekleyebilirsin.
+    </p>
+  </div>
+
+  {% elif teslimat.durum == "hata" %}
+  <div class="sim rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-5">
+    <p class="text-sm font-semibold text-olumsuz">Sağlayıcı siparişi kabul etmedi</p>
+    <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
+      Tutar bakiyene geri yazıldı. Sebep: {{ teslimat.hata }}
+    </p>
+  </div>
+
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-6">
+    <p class="text-sm font-semibold">Bu eSIM iptal edildi</p>
+    {% if siparis.yonetim_notu %}<p class="mt-1 text-sm text-murekkep-yumusak">{{ siparis.yonetim_notu }}</p>{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    // Parça HTMX ile yeniden geldiğinde dinleyici ikinci kez bağlanmasın.
+    if (window.esimKopyalaBagli) return;
+    window.esimKopyalaBagli = true;
+    document.addEventListener("click", function (olay) {
+      var dugme = olay.target.closest("[data-kopyala]");
+      if (!dugme || !navigator.clipboard) return;
+      navigator.clipboard.writeText(dugme.dataset.kopyala).then(function () {
+        var eski = dugme.textContent;
+        dugme.textContent = "Kopyalandı";
+        setTimeout(function () { dugme.textContent = eski; }, 1500);
+      });
+    });
+  })();
+</script>

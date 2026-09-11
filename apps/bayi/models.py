@@ -215,6 +215,31 @@ class GenelAyarlar(ZamanDamgali):
         blank=True,
         help_text="Sitede tıklanabilir olarak görünür.",
     )
+    # eSIM alışları USD; satış fiyatı bu kurla hesaplanır. Sıfırsa eSIM
+    # satışı kapalıdır. `manage.py kur_guncelle` TCMB'den çeker.
+    usd_kuru = models.DecimalField(
+        "USD Kuru (₺)",
+        max_digits=10,
+        decimal_places=4,
+        default=0,
+        help_text=(
+            "1 dolar kaç lira. eSIM paketlerinin satış fiyatı bu kurla hesaplanır; "
+            "sıfırsa eSIM satışı kapalıdır. eSIM paket listesindeki düğme TCMB'den çeker."
+        ),
+    )
+    usd_kuru_tarihi = models.DateTimeField("Kur Güncelleme Tarihi", null=True, blank=True)
+    # Bayinin müşteriye satarken görmesi için: bizden aldığı fiyatın üzerine
+    # bu yüzde eklenir, küsurat atılır (41,53 → 41). Sıfırsa gösterilmez.
+    esim_tavsiye_kar_orani = models.DecimalField(
+        "eSIM Tavsiye Edilen Satış Kâr Oranı (%)",
+        max_digits=6,
+        decimal_places=2,
+        default=0,
+        help_text=(
+            "Bayiye “müşteriye şu fiyata sat” diye gösterilen rakam: bayinin bizden aldığı "
+            "fiyat × (1 + bu yüzde), küsurat atılır. 0 ise tavsiye fiyatı gösterilmez."
+        ),
+    )
 
     class Meta:
         verbose_name = "Genel Ayar"

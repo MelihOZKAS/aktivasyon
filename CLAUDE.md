@@ -31,6 +31,7 @@ Bu ilkeyi bozan bir çözüm önerme.
 | Bildirim | `apps/bildirim` | Telegram |
 | Destek | `apps/destek` | Bayi–yönetim yazışması |
 | Mağaza | `apps/magaza` | Bayinin hakedişiyle aldığı ürünler |
+| eSIM | `apps/esim` | Sağlayıcı API'lerinden çekilen yurt dışı internet paketleri, kur ve kâr oranıyla satış, QR teslimi |
 
 ## Kurulum sırası
 
@@ -195,6 +196,83 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   siparişin ikinci kez açılmasını engeller.
   Durum bilinçli olarak üç tanedir (verildi / teslim / iptal): kargo yok,
   ara durumlar takip edilecek bir şey anlatmıyor.
+- **eSIM mağazadan ayrı bir bölümdür** (`apps/esim`, `/esim/…`, menüde
+  kendi maddesi). Ürün değil, ülke seçilip anında teslim edilen bir hizmet;
+  mağazanın sipariş listesine girmez (`esim__isnull=True`), kendi listesi
+  vardır. **Para yine `magaza.Siparis` üzerinden yürür**: eSIM siparişi
+  `urun=None`, `urun_adi="eSIM · …"` olan bir sipariştir, cüzdan kuralları
+  (bakiyeden düşer, borca yazılmaz, iptalde ters kayıt, `para_surumu`) aynen
+  geçerlidir. `esim.Teslimat` o siparişin sağlayıcı tarafını tutar.
+  · **Sağlayıcı adaptörü koddur, gerisi veridir.** `apps/esim/saglayicilar/`
+  altında her sağlayıcı bir sınıf (`Adaptor`: paketleri getir, bakiye,
+  sipariş ver, profil getir, iptal et); anahtarlar, kâr oranı ve açık/kapalı
+  hâli panelden (`Saglayici`). eSIM Access canlı anahtarla denendi; eSIM Go
+  ve Airalo **belgeden yazıldı** (`denenmedi = True`, panel satırda uyarır) —
+  anahtar gelince ilk eşitleme ve ilk sipariş göz önünde yapılır. Yeni
+  sağlayıcı = bir adaptör dosyası + `_kayit()`e bir satır.
+  · **Sağlayıcı seçimi fiyatla yapılır, elle değil.** Aynı kapsam
+  (ülke listesi), hacim ve süredeki paketlerden yalnızca alışı en ucuz olan
+  bayiye gösterilir (`services.en_ucuzlar`); sipariş o sağlayıcıya gider.
+  · **Satış fiyatı saklanmaz, hesaplanır:** `alış_usd × kur × (1 + kâr%)`,
+  **küsurat atılır** (`tam_lira`: 41,53 → 41, yukarı değil aşağı — bayi
+  öyle istedi; her eSIM fiyatı aynı kuraldan geçer, iki rakam birbirini
+  tutar). Kur `GenelAyarlar.usd_kuru` (TCMB'den; panelde
+  **Kuru güncelle** düğmesi, komut `kur_guncelle`); kur sıfırsa satış
+  kapalıdır ve bayi sebebini görür. **Cron yok, güncelleme elle**: kur ya da
+  katalog bir günden eskiyse paket listesinin başlığı uyarır
+  (`PaketAdmin.changelist_view`), yönetici düğmeye basar.
+  · **Fiyat kademesi bayi grubundadır.** `BayiGrubu.esim_kar_orani`
+  doluysa o gruptaki bayi bütün paketleri o oranla görür (Standart %88,
+  Anlaşmalı %44, VIP %10); boşsa paketin kendi oranı geçer. Grup cüzdanda
+  yaşar (`Cuzdan.grup`), başvuru fiyatlarıyla aynı yer — bayi grubunu
+  değiştirmek iki fiyat listesini birden değiştirir. Tek kapı
+  `services.bayi_kar_orani`; bayiye fiyat gösteren her yer oradan geçer,
+  `Teslimat.kar_orani` sipariş anında uygulanan oranı saklar. Paket
+  listesindeki "Satış" sütunu paket oranıyladır; başlık grup oranlarını
+  yazar ki yönetici "bayi neden başka fiyat görüyor" diye aramasın. Kâr oranı paket başına durur, sağlayıcının
+  `varsayilan_kar_orani` yeni paketlere uygulanır, toplu değişiklik paket
+  listesindeki işlemle. Eşitleme sağlayıcı verisini (ad, hacim, alış)
+  günceller, yönetimin kararını (kâr, aktif) **korur**; listeden düşen paket
+  silinmez, `saglayicida_var` kapanır.
+  · **Sipariş iki adımdır:** önce para düşer ve kayıt açılır (transaction),
+  sonra sağlayıcıya gidilir (transaction dışı — HTTP beklerken kilit
+  tutulmaz). Sağlayıcı reddederse (`SaglayiciHatasi`) sipariş iptale çekilip
+  para **kendiliğinden iade edilir**, sebep `Teslimat.hata`da ve bayinin
+  ekranında. Profil eşzamansız gelirse (eSIM Access) bayinin sayfası HTMX ile
+  4 sn'de bir sorar (`profili_getir`, sağlayıcıya 3 sn'den sık gidilmez);
+  eşzamanlı sağlayıcı (eSIM Go, Airalo) profili siparişle döndürür. Webhook
+  bilinçli olarak yok.
+  · **İptal önce sağlayıcıda, sonra cüzdanda.** Sağlayıcı reddederse (profil
+  kurulmuş) para iade edilmez. Mağaza admin'indeki iptal düğmesi ve durum
+  alanı eSIM siparişinde `esim_siparisi_iptal_et`e yönlenir; sağlayıcı
+  atlanamaz. Airalo iadeyi elle incelediği için adaptör talebi iletip hata
+  yükseltir — otomatik iade olmaz, yönetici cüzdan işlemiyle yapar.
+  · **Tavsiye edilen satış fiyatı** bayinin müşteriye ne diyeceğidir:
+  bayiye satış × (1 + `GenelAyarlar.esim_tavsiye_kar_orani`), küsurat
+  atılmış. Paket kartında, paket sayfasında ("kazancın 7 ₺" ile) ve sipariş
+  sayfasında görünür; oran sıfırsa hiç çizilmez. Sipariş anındaki değer
+  `Teslimat.tavsiye_fiyati`nda saklanır — oran sonra değişse de bayinin o
+  gün gördüğü rakam kayıtta kalır. Tek hesap `fiyatlandir()`; bayiye fiyat
+  yazan her ekran oradan geçer.
+  · **Yükleme (top-up) satılmış eSIM'e yeni pakettir** (`esim.Yukleme`).
+  Yükleme paketleri kataloğa yazılmaz: hangi paketin hangi eSIM'e uyduğunu
+  sağlayıcı bilir, liste her açılışta ondan alınır (`yukleme_paketleri`)
+  ve POST'ta kod yeniden doğrulanır — elle gönderilen kod listede yoksa
+  reddedilir. Fiyat kuralı satıştaki gibi (grup oranı → asıl paketin oranı
+  → sağlayıcı varsayılanı), para yine `magaza.Siparis` (`urun_adi="eSIM
+  yükleme · …"`) ile önce düşer, sağlayıcı reddederse döner. Sağlayıcıda
+  yükleme **geri alınamaz**; mağaza admin'inde iptal yönetimin bilinçli
+  kararıdır (iade bizden çıkar), teslim düğmesi yoktur. Desteklemeyen
+  adaptör `SaglayiciHatasi` yükseltir, ekran sebebini yazar. Yükleme
+  siparişleri eSIM listesinde durur, mağazanınkinde değil.
+  · **Müşteri etiketi** (`Teslimat.musteri_adi/telefonu`) bayinin kendi
+  notudur: müşteri aylar sonra "paketim bitti" diye arayınca bayi eSIM'i
+  adla, telefonla ya da ICCID ile bulsun (`/esim/siparisler/?q=`). Telefon
+  `apps.bayi.telefon.normalize`den geçer. Sağlayıcıya gitmez.
+  · QR bizim ürettiğimiz SVG'dir (`segno`, aktivasyon kodundan); sağlayıcının
+  görsel sunucusuna bağımlı değil. Sağlayıcı adı bayiye gösterilmez.
+  · Sadece sabit paketler alınır; günlük (dataType 2) paketler kademeli
+  indirimle fiyatlandığı için bu sürümde katalogda yok.
 - **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme
   bildiriminin `durum` alanı formda düzenlenebilir; yönetici "Onaylandı"
   seçip kaydedince bildirim onaylanmış **görünüyor** ama para hiç hareket

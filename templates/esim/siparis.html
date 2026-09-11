@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load esim %}
+
+{% block baslik %}eSIM · {{ siparis.referans_no }}{% endblock %}
+{% block sayfa_basligi %}eSIM{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl">
+  <a href="{% url 'esim:siparisler' %}" class="mb-5 inline-flex text-sm font-medium text-soluk">← eSIM siparişlerim</a>
+
+  <div class="mb-4">
+    <h2 class="baslik text-2xl font-bold">{{ siparis.urun_adi }}</h2>
+    <p class="mt-1 text-sm text-soluk">{{ siparis.referans_no }} · {{ siparis.olusturma_tarihi|date:"d F Y H:i" }}</p>
+  </div>
+
+  {% include "esim/parca_durum.html" %}
+
+  {% if teslimat.hazir %}
+  {% comment %}
+    Müşteri etiketi bayinin kendi notu: müşteri "paketim bitti" diye
+    arayınca bayi listede adla ya da telefonla bulsun. Sağlayıcıya gitmez.
+  {% endcomment %}
+  <form method="post" action="{% url 'esim:etiket' siparis.referans_no %}"
+        class="yuzey mt-4 rounded-kart border border-cizgi p-4 sm:p-5">
+    {% csrf_token %}
+    <p class="baslik font-semibold">Müşteri bilgisi</p>
+    <p class="mt-0.5 text-xs text-soluk">Müşteri sonra aradığında bu eSIM'i adıyla ya da numarasıyla bulursun.</p>
+    <div class="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+      <input type="text" name="musteri_adi" value="{{ teslimat.musteri_adi }}" maxlength="120"
+             class="girdi" placeholder="Ad Soyad" autocomplete="off">
+      <input type="tel" name="musteri_telefonu" value="{{ teslimat.musteri_telefonu }}" maxlength="30"
+             class="girdi" placeholder="Telefon" inputmode="tel" autocomplete="off">
+      <button type="submit" class="dugme dugme-sessiz text-sm">Kaydet</button>
+    </div>
+  </form>
+
+  <div class="yuzey mt-4 rounded-kart border border-cizgi p-4 sm:p-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="baslik font-semibold">Paket yükle</p>
+        <p class="mt-0.5 text-xs text-soluk">Müşterinin paketi bitince aynı eSIM'e yeni paket; tutar bakiyenden düşer.</p>
+      </div>
+      <a href="{% url 'esim:yukle' siparis.referans_no %}" class="dugme dugme-birincil text-sm">Paket yükle</a>
+    </div>
+    {% if yuklemeler %}
+    <div class="mt-4 divide-y divide-cizgi border-t border-cizgi text-sm">
+      {% for y in yuklemeler %}
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5">
+        <div class="min-w-0 flex-1">
+          <p class="font-medium">{{ y.paket_adi }}</p>
+          <p class="text-xs text-soluk">{{ y.olusturma_tarihi|date:"d F Y H:i" }} · {{ y.siparis.referans_no }}</p>
+        </div>
+        <p class="rakam font-semibold {% if y.durum != 'tamam' %}text-silik line-through{% endif %}">{{ y.siparis.tutar|lira }} ₺</p>
+        <span class="rounded-full px-2.5 py-1 text-xs font-semibold text-white {% if y.durum == 'tamam' %}bg-olumlu{% elif y.durum == 'bekliyor' %}bg-uyari{% else %}bg-olumsuz{% endif %}">
+          {{ y.get_durum_display }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

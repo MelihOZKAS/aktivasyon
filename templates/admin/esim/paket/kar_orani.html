@@ -1,0 +1,55 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+
+    <p class="mb-4 text-sm leading-relaxed text-base-500">
+      Seçilen <b>{{ adet }}</b> paketin kâr oranı değişecek. Satış fiyatı
+      <b>alış × kur × (1 + oran)</b> ile hesaplanır ve tam liraya yuvarlanır;
+      kur değişince fiyat da kendiliğinden değişir.
+    </p>
+
+    {% if ornek and kur %}
+    <p class="mb-5 text-sm text-base-500">
+      Örnek: <b>{{ ornek.ad }}</b> alışı {{ ornek.alis_usd }} $ = {{ ornek.alis_tl }} ₺
+      (kur {{ kur }}). %88 ile satış ≈ <b>{{ ornek.alis_usd|floatformat:2 }} × {{ kur }} × 1,88</b>.
+    </p>
+    {% endif %}
+
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+      {% for paket in paketler %}
+      <input type="hidden" name="{{ action_checkbox_name }}" value="{{ paket.pk }}">
+      {% endfor %}
+      <input type="hidden" name="action" value="kar_orani_uygula_islemi">
+
+      {% if form.errors %}
+      <div class="rounded-default border p-3 text-sm" style="border-color:#d42046;color:#d42046">
+        {% for alan in form %}{% for hata in alan.errors %}<div>{{ alan.label }}: {{ hata }}</div>{% endfor %}{% endfor %}
+      </div>
+      {% endif %}
+
+      <div>
+        <label for="{{ form.oran.id_for_label }}"
+               class="mb-2 block text-sm font-semibold text-font-important-light dark:text-font-important-dark">
+          {{ form.oran.label }}
+        </label>
+        {{ form.oran }}
+        <div class="mt-2 text-xs text-base-500">{{ form.oran.help_text }}</div>
+      </div>
+
+      <div class="flex flex-wrap gap-3 pt-2">
+        <button type="submit" name="uygula" value="1"
+                class="rounded-default bg-primary-600 px-4 py-2 font-medium text-white">
+          Uygula
+        </button>
+        <a href="{% url 'admin:esim_paket_changelist' %}"
+           class="rounded-default border border-base-200 px-4 py-2 font-medium hover:bg-base-100 dark:border-base-700">
+          Vazgeç
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

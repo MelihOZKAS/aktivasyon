@@ -1,0 +1,57 @@
+{% extends "admin/change_list.html" %}
+
+{% comment %}
+  Paket listesinin üstünde iki düğme: sağlayıcıdan kataloğu çek, kuru
+  TCMB'den al. İkisi de kaydı değiştirdiği için POST formudur; bağlantı
+  olsaydı yöneticinin açtığı herhangi bir sayfa eşitleme başlatabilirdi.
+  Kur bilgisi de burada: eSIM fiyatının yarısı kurdur, yönetici listeye
+  bakarken hangi kurla baktığını görsün.
+
+  Sınıflar unfold'un derlenmiş CSS'inden; static/app.css burada yüklü değil.
+{% endcomment %}
+
+{% block object-tools-items %}
+    <div class="flex flex-row flex-wrap items-center gap-2">
+        {% comment %}
+          Cron yok: kur ve katalog elle güncellenir. Bir günden eskiyse
+          turuncu yazar — yönetici sabah listeye bakınca görsün.
+        {% endcomment %}
+        <span class="text-sm text-base-500" style="margin-inline-end:.5rem">
+          {% if kur %}
+            Kur: <b{% if kur_bayat %} style="color:#B45309"{% endif %}>{{ kur }} ₺</b>
+            {% if kur_tarihi %}<span {% if kur_bayat %}style="color:#B45309"{% else %}class="text-base-400"{% endif %}>({{ kur_tarihi|date:"d.m.Y H:i" }}{% if kur_bayat %} — eski, güncelle{% endif %})</span>{% endif %}
+          {% else %}
+            <b style="color:#D42046">USD kuru girilmemiş — satış kapalı</b>
+          {% endif %}
+          {% if esitleme_bayat %}
+            · <b style="color:#B45309">Katalog {% if son_esitleme %}{{ son_esitleme|date:"d.m.Y" }}{% else %}hiç{% endif %} eşitlendi — Eşitle'ye bas</b>
+          {% endif %}
+          {% if grup_oranlari %}
+            · Grup oranları: {% for ad, oran in grup_oranlari %}<b>{{ ad }}</b> %{{ oran }}{% if not forloop.last %}, {% endif %}{% endfor %}
+            <span class="text-base-400">(paket oranını ezer)</span>
+          {% endif %}
+        </span>
+
+        <form method="post" action="{% url 'admin:esim_paket_kur_guncelle' %}">
+            {% csrf_token %}
+            <button type="submit"
+                    class="flex flex-row items-center gap-1 h-[38px] -my-1 rounded-full border border-base-200 bg-white text-sm font-medium whitespace-nowrap hover:text-primary-600 dark:bg-base-900 dark:border-base-700 dark:hover:text-primary-500"
+                    style="padding-inline:.9rem" title="TCMB döviz satış kurunu çek">
+                <span class="material-symbols-outlined md-18">currency_exchange</span>
+                Kuru güncelle
+            </button>
+        </form>
+
+        <form method="post" action="{% url 'admin:esim_paket_esitle' %}">
+            {% csrf_token %}
+            <button type="submit"
+                    class="flex flex-row items-center gap-1 h-[38px] -my-1 rounded-full border border-base-200 bg-white text-sm font-medium whitespace-nowrap hover:text-primary-600 dark:bg-base-900 dark:border-base-700 dark:hover:text-primary-500"
+                    style="padding-inline:.9rem" title="Aktif sağlayıcıların kataloğunu çek">
+                <span class="material-symbols-outlined md-18">sync</span>
+                Eşitle
+            </button>
+        </form>
+
+        {{ block.super }}
+    </div>
+{% endblock %}

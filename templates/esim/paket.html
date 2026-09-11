@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load panel esim %}
+
+{% block baslik %}{{ paket.hacim_bayt|hacim }} · {{ paket.sure_gun }} gün{% endblock %}
+{% block sayfa_basligi %}eSIM{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl">
+
+  {% if ulke %}
+  <a href="{% url 'esim:ulke' ulke.slug %}" class="mb-5 inline-flex text-sm font-medium text-soluk">← {{ ulke.ad }}</a>
+  {% else %}
+  <a href="{% url 'esim:bolgesel' %}" class="mb-5 inline-flex text-sm font-medium text-soluk">← Bölgesel paketler</a>
+  {% endif %}
+
+  <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+    <div class="p-5 sm:p-6">
+      <p class="text-sm text-soluk">{% if ulke %}{{ ulke.bayrak }} {{ ulke.ad }}{% else %}{{ paket.ulke_sayisi }} ülke{% endif %}</p>
+      <h2 class="baslik mt-1 text-2xl font-bold">
+        {{ paket.hacim_bayt|hacim }} <span class="text-lg font-medium text-soluk">· {{ paket.sure_gun }} gün</span>
+      </h2>
+      <p class="rakam mt-2 text-2xl font-bold">{{ paket.satis|lira }} ₺</p>
+      {% comment %}
+        Tavsiye fiyat: bayinin bizden aldığının üzerine yönetimin belirlediği
+        yüzde, küsurat atılmış. Bayi müşteriye ne diyeceğini ve ne
+        kazanacağını burada görür. Oran sıfırsa satır hiç çizilmez.
+      {% endcomment %}
+      {% if paket.tavsiye %}
+      <p class="mt-1 text-sm text-murekkep-yumusak">
+        Müşteriye tavsiye edilen fiyat <b class="rakam">{{ paket.tavsiye|lira }} ₺</b>
+        <span class="text-soluk">· kazancın {{ paket.kazanc|lira }} ₺</span>
+      </p>
+      {% endif %}
+
+      <dl class="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+        {% if paket.hiz %}
+        <div class="flex justify-between gap-4 border-b border-cizgi py-1.5">
+          <dt class="text-soluk">Hız</dt><dd class="font-medium">{{ paket.hiz }}</dd>
+        </div>
+        {% endif %}
+        {% if paket.operatorler %}
+        <div class="flex justify-between gap-4 border-b border-cizgi py-1.5">
+          <dt class="text-soluk">Operatörler</dt><dd class="text-right font-medium">{{ paket.operatorler }}</dd>
+        </div>
+        {% endif %}
+        <div class="flex justify-between gap-4 border-b border-cizgi py-1.5">
+          <dt class="text-soluk">Geçerlilik</dt><dd class="font-medium">İlk bağlantıdan itibaren {{ paket.sure_gun }} gün</dd>
+        </div>
+        <div class="flex justify-between gap-4 border-b border-cizgi py-1.5">
+          <dt class="text-soluk">Teslim</dt><dd class="font-medium">QR kod, anında</dd>
+        </div>
+      </dl>
+
+      {% if ulkeler %}
+      <details class="mt-4 text-sm">
+        <summary class="cursor-pointer font-medium text-vurgu">Geçerli olduğu {{ paket.ulke_sayisi }} ülke</summary>
+        <p class="mt-2 leading-relaxed text-murekkep-yumusak">
+          {% for u in ulkeler %}{{ u.bayrak }} {{ u.ad }}{% if not forloop.last %}, {% endif %}{% endfor %}
+        </p>
+      </details>
+      {% endif %}
+
+      {% if paket.aciklama and paket.aciklama != paket.ad %}
+      <p class="mt-4 whitespace-pre-line text-sm leading-relaxed text-murekkep-yumusak">{{ paket.aciklama }}</p>
+      {% endif %}
+
+      <div class="sim mt-5 rounded-kart border border-cizgi bg-zemin p-4 text-sm leading-relaxed text-murekkep-yumusak">
+        <p class="font-semibold text-murekkep">Müşteriye söylenecekler</p>
+        <ul class="mt-1 list-disc space-y-1 pl-5">
+          <li>Telefon eSIM desteklemeli ve <b>kilitsiz</b> olmalı.</li>
+          <li>QR kod <b>bir kez</b> kurulur; sildikten sonra yeniden kurulamaz.</li>
+          <li>Paket ilk bağlantıda başlar, yurda dönünce kalan kullanılmaz.</li>
+        </ul>
+      </div>
+
+      {% if not yeterli %}
+      <div class="sim mt-5 rounded-kart border border-uyari/40 bg-uyari/5 p-4">
+        <p class="text-sm font-semibold text-uyari">Bakiyen bu pakete yetmiyor</p>
+        <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
+          Bakiyen <b>{{ bakiye|para }} ₺</b>, paket <b>{{ paket.satis|lira }} ₺</b>.
+          eSIM bakiyeden alınır, borca yazılmaz.
+        </p>
+        <a href="{% url 'bayi:cuzdan' %}" class="dugme dugme-sessiz mt-3 inline-flex text-sm">Cüzdana git</a>
+      </div>
+      {% else %}
+      <form method="post" action="{% url 'esim:satin-al' kod paket.pk %}" class="mt-6">
+        {% csrf_token %}
+        <input type="hidden" name="islem_anahtari" value="{{ islem_anahtari }}">
+        <div class="sim mb-4 rounded-kart border border-cizgi bg-zemin p-4">
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-soluk">Bakiyenden düşecek</span>
+            <span class="rakam text-xl font-bold">{{ paket.satis|lira }} ₺</span>
+          </div>
+        </div>
+        <button type="submit" class="dugme dugme-birincil w-full sm:w-auto">Satın al ve QR'ı getir</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

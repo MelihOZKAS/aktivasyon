@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load panel esim %}
+
+{% block baslik %}Paket yükle · {{ siparis.referans_no }}{% endblock %}
+{% block sayfa_basligi %}eSIM{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl">
+  <a href="{% url 'esim:siparis' siparis.referans_no %}" class="mb-5 inline-flex text-sm font-medium text-soluk">← {{ siparis.referans_no }}</a>
+
+  <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h2 class="baslik text-2xl font-bold">Bu eSIM'e paket yükle</h2>
+      <p class="mt-1 text-sm text-soluk">
+        {{ siparis.urun_adi }}{% if teslimat.musteri_adi %} · {{ teslimat.musteri_adi }}{% endif %}
+        · ICCID {{ teslimat.iccid }}
+      </p>
+    </div>
+    <div class="sim shrink-0 rounded-kart border border-cizgi bg-yuzey px-4 py-3">
+      <p class="text-xs font-semibold text-soluk">Bakiyen</p>
+      <p class="rakam mt-0.5 text-xl font-bold">{{ bakiye|para }} ₺</p>
+    </div>
+  </div>
+
+  {% if sebep %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">{{ sebep }}</p>
+  </div>
+  {% elif paketler %}
+  {% comment %}
+    Her satır kendi formu: seçilen paket POST ile yüklenir, tutar bakiyeden
+    anında düşer. Bakiyesi yetmeyen satırda düğme yerine sebep durur.
+  {% endcomment %}
+  <div class="grid gap-3">
+    {% for paket in paketler %}
+    <div class="yuzey flex flex-wrap items-center gap-4 rounded-kart border border-cizgi p-4">
+      <div class="min-w-0 flex-1">
+        <p class="baslik text-lg font-bold">{{ paket.hacim_bayt|hacim }}
+          <span class="text-sm font-medium text-soluk">· {{ paket.sure_gun }} gün</span>
+        </p>
+        <p class="mt-0.5 truncate text-xs text-soluk">{{ paket.ad }}</p>
+      </div>
+      <div class="text-right">
+        <p class="rakam text-lg font-bold">{{ paket.satis|lira }} ₺</p>
+        {% if paket.tavsiye %}<p class="text-xs text-soluk">Tavsiye satış {{ paket.tavsiye|lira }} ₺</p>{% endif %}
+      </div>
+      {% if paket.satis > bakiye %}
+      <p class="w-full text-xs text-uyari sm:w-auto">Bakiyen yetmiyor</p>
+      {% else %}
+      <form method="post" class="w-full sm:w-auto">
+        {% csrf_token %}
+        <input type="hidden" name="paket" value="{{ paket.kod }}">
+        <input type="hidden" name="islem_anahtari" value="{{ islem_anahtari }}">
+        <button type="submit" class="dugme dugme-birincil w-full text-sm sm:w-auto">Yükle</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">Bu eSIM için yükleme paketi yok.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

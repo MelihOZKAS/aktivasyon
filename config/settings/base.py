@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "apps.bildirim",
     "apps.destek",
     "apps.magaza",
+    "apps.esim",
 ]
 
 MIDDLEWARE = [
@@ -332,6 +333,23 @@ UNFOLD = {
                         # Verilmiş ama teslim edilmemiş siparişler: hazırlanacak iş.
                         "badge": "apps.rozetler.bekleyen_siparisler",
                     },
+                ],
+            },
+            {
+                "title": "eSIM",
+                "separator": True,
+                "items": [
+                    {"title": "Paketler", "icon": "public", "link": "/yonetim/esim/paket/"},
+                    {
+                        "title": "Teslimatlar",
+                        "icon": "qr_code_2",
+                        "link": "/yonetim/esim/teslimat/",
+                        # Hazırlanmakta takılan ya da hataya düşen teslimat: bakılacak iş.
+                        "badge": "apps.rozetler.takilan_esimler",
+                    },
+                    {"title": "Yüklemeler", "icon": "add_circle", "link": "/yonetim/esim/yukleme/"},
+                    {"title": "Ülkeler", "icon": "flag", "link": "/yonetim/esim/ulke/"},
+                    {"title": "Sağlayıcılar", "icon": "hub", "link": "/yonetim/esim/saglayici/"},
                 ],
             },
             {
