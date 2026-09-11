@@ -277,6 +277,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   notudur: müşteri aylar sonra "paketim bitti" diye arayınca bayi eSIM'i
   adla, telefonla ya da ICCID ile bulsun (`/esim/siparisler/?q=`). Telefon
   `apps.bayi.telefon.normalize`den geçer. Sağlayıcıya gitmez.
+  · **Kâr iki yerde okunur, saklanmaz** (`apps/esim/rapor.py`). Yönetim:
+  Kârlılık Raporu'nda ayrı "eSIM" bölümü — sağlayıcıdan alış (sipariş günkü
+  kurla `alis_tl`), bayiye satış, kâr; sağlayıcı ve bayi kırılımı; başvuru
+  kalemleriyle karıştırılmaz. Bayi: eSIM sayfasının üstünde bu ayın özeti —
+  ödediği, tavsiye fiyatla satış, kazancı. Yalnızca tamamlanmış teslimat ve
+  yükleme sayılır, iade edilen girmez. **Bayinin kazancı hakediş değildir**:
+  biz ödemiyoruz, bayi müşteriden alıyor; bu yüzden hakediş sayfasına ve
+  cüzdana girmez, "tavsiye fiyatla" diye nitelenir.
   · QR bizim ürettiğimiz SVG'dir (`segno`, aktivasyon kodundan); sağlayıcının
   görsel sunucusuna bağımlı değil. Sağlayıcı adı bayiye gösterilmez.
   · Sadece sabit paketler alınır; günlük (dataType 2) paketler kademeli

@@ -903,3 +903,65 @@ class FiyatGuncelleTestleri(Temel):
         self.assertEqual(Paket.objects.get(kod="P2").kar_orani, TL("100.00"))
         # Düğme listede paket olan sağlayıcıda görünür.
         self.assertContains(self.client.get(reverse("admin:esim_saglayici_changelist")), "Fiyatları güncelle")
+
+
+class RaporTestleri(Temel):
+    """Yönetim: alış / satış / kâr; bayi: bu ayki kazancı."""
+
+    def setUp(self):
+        super().setUp()
+        GenelAyarlar.objects.filter(pk=1).update(esim_tavsiye_kar_orani=TL("22"))
+        self._esitle(paket_verisi("P1", ["TR"], 1, 7, "0.46"))
+        self.paket = Paket.objects.get(kod="P1")
+        # 34 ₺ satış, 18,40 alış; tavsiye 41. Yükleme: 106 satış, 56,80 alış; tavsiye 129.
+        self.teslimat = esim_siparisi_ver(self.bayi, self.paket)
+        esim_yukle(self.bayi, self.teslimat, "TOPUP_1")
+        # İade edilen sayılmaz.
+        DURUM["reddet"] = "insufficient"
+        esim_siparisi_ver(self.bayi, self.paket)
+        DURUM["reddet"] = ""
+
+    def test_yonetim_raporu(self):
+        from apps.esim.rapor import esim_raporu
+
+        simdi = timezone.now()
+        rapor = esim_raporu(simdi - timedelta(days=1), simdi + timedelta(days=1))
+        self.assertEqual(rapor["toplam"]["adet"], 2)
+        self.assertEqual(rapor["toplam"]["yukleme_adedi"], 1)
+        self.assertEqual(rapor["toplam"]["satis"], TL("140.00"))
+        self.assertEqual(rapor["toplam"]["alis"], TL("75.20"))
+        self.assertEqual(rapor["toplam"]["kar"], TL("64.80"))
+        saglayici = rapor["kirilimlar"][0]["satirlar"]
+        self.assertEqual((saglayici[0]["etiket"], saglayici[0]["kar"]), ("Sahte", TL("64.80")))
+        bayi = rapor["kirilimlar"][1]["satirlar"]
+        self.assertEqual(bayi[0]["etiket"], "5321112233")  # ünvan yok → numara
+
+    def test_rapor_sayfasi_esim_bolumu(self):
+        self.client.force_login(User.objects.create_superuser("yonetici", password="parola12345"))
+        icerik = self.client.get(reverse("karlilik-raporu")).content.decode()
+        self.assertIn("eSIM kârı", icerik)
+        self.assertIn("64,80 ₺", icerik)  # Türkçe yerel ayar
+
+    def test_bayi_aylik_ozet(self):
+        from apps.esim.rapor import bayi_aylik_ozet
+
+        ozet = bayi_aylik_ozet(self.bayi)
+        self.assertEqual(ozet["adet"], 2)
+        self.assertEqual(ozet["satis"], TL("140.00"))
+        self.assertEqual(ozet["tavsiye"], TL("170.00"))
+        self.assertEqual(ozet["kazanc"], TL("30.00"))
+        self.client.force_login(self.bayi)
+        icerik = self.client.get(reverse("esim:ulkeler")).content.decode()
+        self.assertIn("Kazancın", icerik)
+        self.assertIn("30 ₺", icerik)
+
+    def test_tavsiye_yokken_kazanc_yazilmaz(self):
+        from apps.esim.rapor import bayi_aylik_ozet
+
+        GenelAyarlar.objects.filter(pk=1).update(esim_tavsiye_kar_orani=0)
+        # Tavsiye kayıtta sipariş anında yazılır; bu testte hepsi tavsiyeli açıldı,
+        # yeni bir bayi ile sıfırdan bak.
+        yeni = User.objects.create_user("5320000000", password="parola12345")
+        Cuzdan.objects.create(bayi=yeni, bakiye=TL("1000"))
+        esim_siparisi_ver(yeni, self.paket)
+        self.assertIsNone(bayi_aylik_ozet(yeni)["kazanc"])

@@ -535,6 +535,7 @@ def esim_yukle(bayi, teslimat, yukleme_kodu, *, anahtar=None, olusturan=None):
             alis_tl=(veri.alis_usd * kur).quantize(Decimal("0.01")),
             kar_orani=yukleme_orani(teslimat),
             grup_orani=bayi_grup_orani(bayi),
+            tavsiye_fiyati=veri.tavsiye or 0,
         )
         siparis_odemesini_isle(siparis, olusturan=olusturan or bayi)
         siparis.refresh_from_db()

@@ -171,6 +171,14 @@ def karlilik(request):
     ham = _toplamlar(sorgu)
     liste = reverse("admin:basvurular_basvuru_changelist")
 
+    # eSIM ayrı bir kalem: sağlayıcıdan alış, bayiye satış. Aynı aralık,
+    # tamamlanmış teslimat ve yüklemeler (`apps.esim.rapor`).
+    from apps.esim.rapor import esim_raporu
+
+    esim = esim_raporu(
+        _gun_baslangici(baslangic), _gun_baslangici(bitis) + timedelta(days=1)
+    )
+
     return render(
         request,
         "admin/rapor.html",
@@ -183,6 +191,7 @@ def karlilik(request):
             "gun_sayisi": (bitis - baslangic).days + 1,
             "en_uzun_aralik": EN_UZUN_ARALIK,
             "toplam": _satir(ham, adet=ham["adet"] or 0),
+            "esim": esim,
             # Kırılımlar aynı tabloyu paylaşır; şablonda tek döngü var.
             "kirilimlar": [
                 {

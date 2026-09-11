@@ -413,6 +413,9 @@ class Yukleme(ZamanDamgali):
     alis_tl = models.DecimalField("Alış (₺)", max_digits=12, decimal_places=2)
     kar_orani = models.DecimalField("Uygulanan Kâr Oranı (%)", max_digits=6, decimal_places=2, default=SIFIR)
     grup_orani = models.IntegerField("Uygulanan Grup Farkı (%)", null=True, blank=True)
+    tavsiye_fiyati = models.DecimalField(
+        "Tavsiye Edilen Satış (₺)", max_digits=12, decimal_places=2, default=SIFIR
+    )
     toplam_hacim_bayt = models.BigIntegerField("Yükleme Sonrası Toplam Hacim", default=0)
     son_kullanma = models.CharField("Yeni Son Kullanma", max_length=40, blank=True)
 

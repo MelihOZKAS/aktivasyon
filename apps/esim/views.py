@@ -18,6 +18,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from apps.bayi.yetki import bayi_gerekli
 from apps.bildirim.telegram import siparis_bildir
 from apps.esim.models import Paket, Teslimat, Ulke
+from apps.esim.rapor import bayi_aylik_ozet
 from apps.esim.saglayicilar import SaglayiciHatasi
 from apps.esim.services import (
     KurTanimsiz,
@@ -84,6 +85,7 @@ def ulkeler(request):
             "ulkeler": ulke_listesi(kur, bayi_grup_orani(request.user)),
             "bakiye": _bakiye(request),
             "son_siparisler": _esim_siparisleri(request)[:SON_SIPARIS_ADEDI],
+            "aylik": bayi_aylik_ozet(request.user),
         },
     )
 
@@ -115,7 +117,11 @@ def siparisler(request):
     return render(
         request,
         "esim/siparisler.html",
-        {"sayfa": sayfalayici.get_page(request.GET.get("sayfa")), "q": q},
+        {
+            "sayfa": sayfalayici.get_page(request.GET.get("sayfa")),
+            "q": q,
+            "aylik": bayi_aylik_ozet(request.user),
+        },
     )
 
 

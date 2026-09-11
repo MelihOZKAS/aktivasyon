@@ -1,0 +1,19 @@
+{% load esim %}
+{% comment %}
+  Bu ayın özeti. "Kazancın" tavsiye fiyatla satıldığı varsayımıyla: bayi
+  müşteriye başka fiyat verdiyse gerçek kazancı farklı. Bu para bizim
+  ödediğimiz bir hakediş değil — bayi müşteriden alır, fark cebinde kalır.
+{% endcomment %}
+{% if aylik.adet %}
+<div class="sim mb-6 rounded-kart border border-cizgi bg-yuzey p-4">
+  <p class="text-xs font-semibold text-soluk">Bu ay ({{ aylik.ay|date:"F" }})</p>
+  <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+    <div><dt class="text-soluk">eSIM + yükleme</dt><dd class="rakam font-semibold">{{ aylik.adet }}</dd></div>
+    <div><dt class="text-soluk">Ödediğin</dt><dd class="rakam font-semibold">{{ aylik.satis|lira }} ₺</dd></div>
+    {% if aylik.kazanc is not None %}
+    <div><dt class="text-soluk">Tavsiye fiyatla satış</dt><dd class="rakam font-semibold">{{ aylik.tavsiye|lira }} ₺</dd></div>
+    <div><dt class="text-soluk">Kazancın</dt><dd class="rakam font-semibold text-olumlu">{{ aylik.kazanc|lira }} ₺</dd></div>
+    {% endif %}
+  </dl>
+</div>
+{% endif %}

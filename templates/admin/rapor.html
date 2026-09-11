@@ -103,6 +103,67 @@
   </dl>
 </section>
 
+{% comment %}
+  eSIM ayrı bölüm: başvuru kalemleriyle karışmaz. Sağlayıcıdan alış (₺,
+  sipariş günkü kurla), bayiye satış, aradaki bizim kârımız. Yalnızca
+  tamamlanmış teslimat ve yüklemeler; iade edilenler girmez.
+{% endcomment %}
+<section class="mb-6 rounded-default border border-base-200 bg-white p-5
+                dark:border-base-800 dark:bg-base-900">
+  <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
+    eSIM
+  </h2>
+  <p class="mb-4 text-sm text-base-500">
+    Aralıkta teslim edilen eSIM'ler ve yüklemeler: sağlayıcıdan alışımız,
+    bayiye satışımız, aradaki kâr. İade edilenler sayılmaz.
+  </p>
+  <div class="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-xl border border-base-200 p-4 dark:border-base-800">
+      <p class="text-xs text-base-500">eSIM · yükleme</p>
+      <p class="mt-1 text-xl font-semibold">{{ esim.toplam.adet }} <span class="text-sm font-normal text-base-500">({{ esim.toplam.yukleme_adedi }} yükleme)</span></p>
+    </div>
+    <div class="rounded-xl border border-base-200 p-4 dark:border-base-800">
+      <p class="text-xs text-base-500">Bayiye satış</p>
+      <p class="mt-1 text-xl font-semibold text-green-600">{{ esim.toplam.satis }} ₺</p>
+    </div>
+    <div class="rounded-xl border border-base-200 p-4 dark:border-base-800">
+      <p class="text-xs text-base-500">Sağlayıcıdan alış</p>
+      <p class="mt-1 text-xl font-semibold text-red-600">{{ esim.toplam.alis }} ₺</p>
+    </div>
+    <div class="rounded-xl border border-primary-600 bg-primary-50 p-4 dark:bg-base-900">
+      <p class="text-xs text-primary-700 dark:text-primary-400">eSIM kârı</p>
+      <p class="mt-1 text-xl font-bold text-primary-700 dark:text-primary-400">{{ esim.toplam.kar }} ₺</p>
+    </div>
+  </div>
+  {% for bolum in esim.kirilimlar %}
+  <h3 class="mb-2 mt-4 font-semibold text-font-important-light dark:text-font-important-dark">{{ bolum.baslik }}</h3>
+  {% if bolum.satirlar %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <tr class="text-left text-base-500">
+        <th class="py-1 pr-4 font-medium">{{ bolum.sutun }}</th>
+        <th class="py-1 pr-4 text-right font-medium">Adet</th>
+        <th class="py-1 pr-4 text-right font-medium">Satış</th>
+        <th class="py-1 pr-4 text-right font-medium">Alış</th>
+        <th class="py-1 text-right font-medium">Kâr</th>
+      </tr>
+      {% for satir in bolum.satirlar %}
+      <tr class="border-t border-base-100 dark:border-base-800">
+        <td class="py-1.5 pr-4">{{ satir.etiket }}</td>
+        <td class="py-1.5 pr-4 text-right">{{ satir.adet }}</td>
+        <td class="py-1.5 pr-4 text-right text-green-600">{{ satir.satis }} ₺</td>
+        <td class="py-1.5 pr-4 text-right text-red-600">{{ satir.alis }} ₺</td>
+        <td class="py-1.5 text-right font-semibold {% if satir.kar < 0 %}text-red-600{% else %}text-green-600{% endif %}">{{ satir.kar }} ₺</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <p class="text-sm text-base-500">Bu aralıkta teslim edilen eSIM yok.</p>
+  {% endif %}
+  {% endfor %}
+</section>
+
 {% comment %} Kırılımlar aynı tabloyu paylaşır; biri değişince hepsi değişsin. {% endcomment %}
 {% for bolum in kirilimlar %}
 <section class="mb-6 rounded-default border border-base-200 bg-white p-5
