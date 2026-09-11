@@ -32,6 +32,7 @@ from apps.esim.services import (
     paketleri_esitle,
     profili_getir,
     teslimati_iptal_et,
+    varsayilani_yay,
 )
 
 DUGME_STILI = (
@@ -111,6 +112,31 @@ class SaglayiciAdmin(ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(_paket_sayisi=Count("paketler"))
+
+    def save_model(self, request, obj, form, change):
+        """Varsayılan oran değişince eski varsayılanda duran paketler de değişsin.
+
+        Yönetici oranı düzeltip kaydediyor ve paketlerin hâlâ eski oranla
+        satıldığını görüyordu; kaç paketin taşındığı, kaçının elle verilmiş
+        oranla yerinde kaldığı mesajda yazar.
+        """
+        eski = form.initial.get("varsayilan_kar_orani") if change else None
+        super().save_model(request, obj, form, change)
+        if not change or "varsayilan_kar_orani" not in form.changed_data:
+            return
+        tasinan = varsayilani_yay(obj, eski, obj.varsayilan_kar_orani)
+        kalan = obj.paketler.exclude(kar_orani=obj.varsayilan_kar_orani).count()
+        self.message_user(
+            request,
+            f"{tasinan} paket %{obj.varsayilan_kar_orani} oranına geçti"
+            + (
+                f"; elle farklı oran verilmiş {kalan} paket yerinde kaldı "
+                "(Paketler ekranından toplu işlemle değiştirilir)."
+                if kalan
+                else "."
+            ),
+            messages.SUCCESS if tasinan else messages.INFO,
+        )
 
     @display(description="Paket", ordering="_paket_sayisi")
     def paket_sayisi(self, obj):

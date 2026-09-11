@@ -23,6 +23,7 @@ from apps.esim.services import (
     esim_yukle,
     kar_orani_uygula,
     musteri_etiketle,
+    varsayilani_yay,
     paketleri_esitle,
     profili_getir,
     teslimati_iptal_et,
@@ -864,3 +865,33 @@ class MusteriEtiketiTestleri(Temel):
         self.client.force_login(digeri)
         adres = reverse("esim:etiket", args=[self.teslimat.siparis.referans_no])
         self.assertEqual(self.client.post(adres, {"musteri_adi": "X"}).status_code, 404)
+
+
+class VarsayilanOranTestleri(Temel):
+    """Sağlayıcının varsayılanı değişince eski varsayılanda duran paketler taşınır."""
+
+    def setUp(self):
+        super().setUp()
+        self._esitle(paket_verisi("P1", ["TR"], 1, 7, "0.46"), paket_verisi("P2", ["TR"], 3, 30, "1.5"))
+        # P2 elle farklı orana çekilmiş: bilinçli karar, dokunulmaz.
+        Paket.objects.filter(kod="P2").update(kar_orani=TL("50"))
+
+    def test_eski_varsayilanda_duranlar_tasinir_elle_verilen_kalir(self):
+        tasinan = varsayilani_yay(self.saglayici, TL("88"), TL("100"))
+        self.assertEqual(tasinan, 1)
+        self.assertEqual(Paket.objects.get(kod="P1").kar_orani, TL("100.00"))
+        self.assertEqual(Paket.objects.get(kod="P2").kar_orani, TL("50.00"))
+
+    def test_admin_formundan_kaydedince_tetiklenir(self):
+        self.client.force_login(User.objects.create_superuser("yonetici", password="parola12345"))
+        adres = reverse("admin:esim_saglayici_change", args=[self.saglayici.pk])
+        yanit = self.client.post(
+            adres,
+            {"ad": "Sahte", "tur": "sahte", "erisim_kodu": "x", "gizli_anahtar": "",
+             "varsayilan_kar_orani": "100", "aktif": "on"},
+            follow=True,
+        )
+        self.assertContains(yanit, "1 paket %100")
+        self.assertContains(yanit, "1 paket yerinde kaldı")
+        self.assertEqual(Paket.objects.get(kod="P1").kar_orani, TL("100.00"))
+        self.assertEqual(Paket.objects.get(kod="P2").kar_orani, TL("50.00"))

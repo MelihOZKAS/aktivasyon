@@ -151,6 +151,19 @@ def kar_orani_uygula(paketler, oran):
     return paketler.update(kar_orani=Decimal(oran), guncelleme_tarihi=timezone.now())
 
 
+def varsayilani_yay(saglayici, eski_oran, yeni_oran):
+    """Sağlayıcının varsayılanı değişince hâlâ eskisinde duran paketleri taşır.
+
+    Varsayılan yalnızca eşitlemede yazılıyordu; yönetici %200'ü %100 yapıp
+    kaydediyor, paketler %200'de kalıyordu. Şimdi eski varsayılanda duran
+    her paket yeni orana geçer; elle başka bir orana çekilmiş paket
+    **yerinde kalır** — o karar bilinçli verilmişti. Dönüş: taşınan sayısı.
+    """
+    if eski_oran is None or Decimal(eski_oran) == Decimal(yeni_oran):
+        return 0
+    return kar_orani_uygula(saglayici.paketler.filter(kar_orani=eski_oran), yeni_oran)
+
+
 # -- Bayiye gösterilen liste --------------------------------------------
 
 
