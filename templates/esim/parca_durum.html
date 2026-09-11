@@ -17,7 +17,12 @@
         <p class="baslik text-lg font-bold text-olumlu">eSIM hazır</p>
         <p class="mt-1 leading-relaxed text-murekkep-yumusak">
           Müşteri telefonunda <b>Ayarlar → Hücresel → eSIM ekle</b> deyip bu kodu
-          okutsun. Kod bir kez kurulur.
+          okutsun. Kod bir kez kurulur. Kurulunca yeni hatta <b>Veri Dolaşımı'nı
+          açsın</b> — kapalıyken hat "Etkinleştiriliyor"da kalır.
+          {% if teslimat.paket.operatorler %}
+          Şebeke gelmezse <b>Ağ Seçimi</b>'nde otomatiği kapatıp elle seçsin:
+          <b>{{ teslimat.paket.operatorler }}</b>.
+          {% endif %}
         </p>
         {% if teslimat.tavsiye_fiyati %}
         <p class="mt-2 text-sm text-murekkep-yumusak">
@@ -87,7 +92,7 @@
 SM-DP+ adresi: {{ teslimat.smdp_adresi }}
 Aktivasyon kodu: {{ teslimat.aktivasyon_kodu }}{% if teslimat.kisa_url %}
 QR kod: {{ teslimat.kisa_url }}{% endif %}
-Ayarlar → Hücresel → eSIM ekle → elle gir. Kurulunca yeni hatta Veri Dolaşımı'nı açın.{% endfilter %}">
+Ayarlar → Hücresel → eSIM ekle → elle gir. Kurulunca yeni hatta Veri Dolaşımı'nı açın.{% if teslimat.paket.operatorler %} Şebeke gelmezse Ağ Seçimi'nden elle seçin: {{ teslimat.paket.operatorler }}.{% endif %}{% endfilter %}">
         WhatsApp ile gönder
       </a>
     </div>
