@@ -229,9 +229,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `services.bayi_kar_orani`; bayiye fiyat gösteren her yer oradan geçer,
   `Teslimat.kar_orani` sipariş anında uygulanan oranı saklar. Paket
   listesindeki "Satış" sütunu paket oranıyladır; başlık grup oranlarını
-  yazar ki yönetici "bayi neden başka fiyat görüyor" diye aramasın. Kâr oranı paket başına durur, sağlayıcının
-  `varsayilan_kar_orani` yeni paketlere uygulanır, toplu değişiklik paket
-  listesindeki işlemle. Eşitleme sağlayıcı verisini (ad, hacim, alış)
+  yazar ki yönetici "bayi neden başka fiyat görüyor" diye aramasın.
+  Kâr oranı paket başına durur, sağlayıcının `varsayilan_kar_orani` yeni
+  paketlere uygulanır, toplu değişiklik paket listesindeki işlemle.
+  **Varsayılan değişince eski varsayılanda duran paketler de değişir**
+  (`varsayilani_yay`, `SaglayiciAdmin.save_model`): yönetici %200'ü %100
+  yapıp kaydediyor, paketler %200'de kalıyordu. Elle farklı orana çekilmiş
+  paket yerinde kalır — o karar bilinçliydi; mesaj kaçının taşındığını,
+  kaçının kaldığını yazar. Eşitleme sağlayıcı verisini (ad, hacim, alış)
   günceller, yönetimin kararını (kâr, aktif) **korur**; listeden düşen paket
   silinmez, `saglayicida_var` kapanır.
   · **Sipariş iki adımdır:** önce para düşer ve kayıt açılır (transaction),
