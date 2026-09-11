@@ -12,9 +12,14 @@
   </a>
 
   <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+    {% comment %}
+      Listedeki kuralın aynısı: görselin tamamı görünür, kırpılmaz.
+    {% endcomment %}
     {% if urun.gorsel %}
-    <img src="{{ urun.gorsel.url }}" alt="{{ urun.ad }}"
-         class="max-h-80 w-full object-cover">
+    <div class="border-b border-cizgi bg-zemin p-4">
+      <img src="{{ urun.gorsel.url }}" alt="{{ urun.ad }}"
+           class="max-h-96 w-full object-contain">
+    </div>
     {% endif %}
 
     <div class="p-5 sm:p-6">

@@ -26,9 +26,18 @@
     <a href="{{ urun.get_absolute_url }}"
        class="yuzey flex flex-col overflow-hidden rounded-kart border border-cizgi
               transition hover:border-vurgu">
+      {% comment %}
+        Görsel kırpılmaz: ürün fotoğrafı çoğu zaman kare ya da dikey, kutu
+        4:3. `object-cover` kenarları atıyor, ürünün adı ya da kutusu
+        kesik görünüyordu. Kutu sabit kalır (ızgara hizalı), görsel içine
+        sığar. Görsel mutlak konumlu: akışta kalsaydı `aspect-ratio` kutusu
+        içeriğine göre uzar, dikey fotoğraf kartı boydan boya kaplardı.
+      {% endcomment %}
       {% if urun.gorsel %}
-      <img src="{{ urun.gorsel.url }}" alt="{{ urun.ad }}"
-           class="aspect-[4/3] w-full object-cover" loading="lazy">
+      <div class="relative aspect-[4/3] w-full bg-zemin">
+        <img src="{{ urun.gorsel.url }}" alt="{{ urun.ad }}"
+             class="absolute inset-0 h-full w-full object-contain p-3" loading="lazy">
+      </div>
       {% else %}
       <div class="grid aspect-[4/3] w-full place-items-center bg-zemin-koyu text-silik">
         <svg width="32" height="32" viewBox="0 0 24 24" class="h-8 w-8" fill="none"
