@@ -151,17 +151,15 @@ def kar_orani_uygula(paketler, oran):
     return paketler.update(kar_orani=Decimal(oran), guncelleme_tarihi=timezone.now())
 
 
-def varsayilani_yay(saglayici, eski_oran, yeni_oran):
-    """Sağlayıcının varsayılanı değişince hâlâ eskisinde duran paketleri taşır.
+def fiyatlari_guncelle(saglayici):
+    """Sağlayıcının bütün paketlerini onun varsayılan kâr oranına çeker.
 
-    Varsayılan yalnızca eşitlemede yazılıyordu; yönetici %200'ü %100 yapıp
-    kaydediyor, paketler %200'de kalıyordu. Şimdi eski varsayılanda duran
-    her paket yeni orana geçer; elle başka bir orana çekilmiş paket
-    **yerinde kalır** — o karar bilinçli verilmişti. Dönüş: taşınan sayısı.
+    İki bin paketi tek tek yönetmenin anlamı yok: yönetici sağlayıcıya bir
+    oran yazar, **Fiyatları güncelle**'ye basar, hepsi o orana geçer.
+    Paket başına farklı oran verilmişse o da ezilir — düğme bunu söyler.
+    Dönüş: güncellenen paket sayısı.
     """
-    if eski_oran is None or Decimal(eski_oran) == Decimal(yeni_oran):
-        return 0
-    return kar_orani_uygula(saglayici.paketler.filter(kar_orani=eski_oran), yeni_oran)
+    return kar_orani_uygula(saglayici.paketler.all(), saglayici.varsayilan_kar_orani)
 
 
 # -- Bayiye gösterilen liste --------------------------------------------

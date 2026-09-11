@@ -23,7 +23,7 @@ from apps.esim.services import (
     esim_yukle,
     kar_orani_uygula,
     musteri_etiketle,
-    varsayilani_yay,
+    fiyatlari_guncelle,
     paketleri_esitle,
     profili_getir,
     teslimati_iptal_et,
@@ -867,31 +867,27 @@ class MusteriEtiketiTestleri(Temel):
         self.assertEqual(self.client.post(adres, {"musteri_adi": "X"}).status_code, 404)
 
 
-class VarsayilanOranTestleri(Temel):
-    """Sağlayıcının varsayılanı değişince eski varsayılanda duran paketler taşınır."""
+class FiyatGuncelleTestleri(Temel):
+    """Sağlayıcıdaki oran + "Fiyatları güncelle" = bütün paketler o oranda."""
 
     def setUp(self):
         super().setUp()
         self._esitle(paket_verisi("P1", ["TR"], 1, 7, "0.46"), paket_verisi("P2", ["TR"], 3, 30, "1.5"))
-        # P2 elle farklı orana çekilmiş: bilinçli karar, dokunulmaz.
         Paket.objects.filter(kod="P2").update(kar_orani=TL("50"))
+        self.saglayici.varsayilan_kar_orani = TL("100")
+        self.saglayici.save()
 
-    def test_eski_varsayilanda_duranlar_tasinir_elle_verilen_kalir(self):
-        tasinan = varsayilani_yay(self.saglayici, TL("88"), TL("100"))
-        self.assertEqual(tasinan, 1)
-        self.assertEqual(Paket.objects.get(kod="P1").kar_orani, TL("100.00"))
-        self.assertEqual(Paket.objects.get(kod="P2").kar_orani, TL("50.00"))
+    def test_hepsi_varsayilana_ceker(self):
+        self.assertEqual(fiyatlari_guncelle(self.saglayici), 2)
+        self.assertEqual(set(Paket.objects.values_list("kar_orani", flat=True)), {TL("100.00")})
 
-    def test_admin_formundan_kaydedince_tetiklenir(self):
+    def test_dugme_post_ile_calisir_get_ile_degil(self):
         self.client.force_login(User.objects.create_superuser("yonetici", password="parola12345"))
-        adres = reverse("admin:esim_saglayici_change", args=[self.saglayici.pk])
-        yanit = self.client.post(
-            adres,
-            {"ad": "Sahte", "tur": "sahte", "erisim_kodu": "x", "gizli_anahtar": "",
-             "varsayilan_kar_orani": "100", "aktif": "on"},
-            follow=True,
-        )
-        self.assertContains(yanit, "1 paket %100")
-        self.assertContains(yanit, "1 paket yerinde kaldı")
-        self.assertEqual(Paket.objects.get(kod="P1").kar_orani, TL("100.00"))
+        adres = reverse("admin:esim_saglayici_fiyat_guncelle", args=[self.saglayici.pk])
+        self.client.get(adres)
         self.assertEqual(Paket.objects.get(kod="P2").kar_orani, TL("50.00"))
+        yanit = self.client.post(adres, follow=True)
+        self.assertContains(yanit, "2 paketin kâr oranı %100")
+        self.assertEqual(Paket.objects.get(kod="P2").kar_orani, TL("100.00"))
+        # Düğme listede paket olan sağlayıcıda görünür.
+        self.assertContains(self.client.get(reverse("admin:esim_saglayici_changelist")), "Fiyatları güncelle")

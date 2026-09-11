@@ -32,7 +32,7 @@ from apps.esim.services import (
     paketleri_esitle,
     profili_getir,
     teslimati_iptal_et,
-    varsayilani_yay,
+    fiyatlari_guncelle,
 )
 
 DUGME_STILI = (
@@ -94,8 +94,10 @@ class SaglayiciAdmin(ModelAdmin):
                 "description": (
                     "Paketleri aldığımız API. Kaydedip listedeki <b>Eşitle</b> "
                     "düğmesine basınca katalog çekilir; yeni paketler aşağıdaki "
-                    "varsayılan kâr oranıyla <b>aktif</b> açılır. İstemediğiniz "
-                    "ülke ya da paketi kendi ekranından kapatırsınız."
+                    "kâr oranıyla <b>aktif</b> açılır. Oranı sonradan değiştirince "
+                    "listedeki <b>Fiyatları güncelle</b> düğmesi bütün paketleri yeni "
+                    "orana çeker. İstemediğiniz ülke ya da paketi kendi ekranından "
+                    "kapatırsınız."
                 ),
             },
         ),
@@ -112,31 +114,6 @@ class SaglayiciAdmin(ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(_paket_sayisi=Count("paketler"))
-
-    def save_model(self, request, obj, form, change):
-        """Varsayılan oran değişince eski varsayılanda duran paketler de değişsin.
-
-        Yönetici oranı düzeltip kaydediyor ve paketlerin hâlâ eski oranla
-        satıldığını görüyordu; kaç paketin taşındığı, kaçının elle verilmiş
-        oranla yerinde kaldığı mesajda yazar.
-        """
-        eski = form.initial.get("varsayilan_kar_orani") if change else None
-        super().save_model(request, obj, form, change)
-        if not change or "varsayilan_kar_orani" not in form.changed_data:
-            return
-        tasinan = varsayilani_yay(obj, eski, obj.varsayilan_kar_orani)
-        kalan = obj.paketler.exclude(kar_orani=obj.varsayilan_kar_orani).count()
-        self.message_user(
-            request,
-            f"{tasinan} paket %{obj.varsayilan_kar_orani} oranına geçti"
-            + (
-                f"; elle farklı oran verilmiş {kalan} paket yerinde kaldı "
-                "(Paketler ekranından toplu işlemle değiştirilir)."
-                if kalan
-                else "."
-            ),
-            messages.SUCCESS if tasinan else messages.INFO,
-        )
 
     @display(description="Paket", ordering="_paket_sayisi")
     def paket_sayisi(self, obj):
@@ -168,18 +145,28 @@ class SaglayiciAdmin(ModelAdmin):
 
     @display(description="")
     def islem_dugmeleri(self, obj):
-        return format_html_join(
-            " ",
-            "{}",
-            (
-                (_post_dugmesi(reverse("admin:esim_saglayici_esitle", args=[obj.pk]), "Eşitle"),),
+        """Eşitle kataloğu çeker; Fiyatları güncelle varsayılan oranı hepsine yazar.
+
+        Fiyat düğmesi paket gelmeden anlamsız: eşitleme yapılmamış
+        sağlayıcıda çizilmez, sonra çıkar.
+        """
+        dugmeler = [
+            (_post_dugmesi(reverse("admin:esim_saglayici_esitle", args=[obj.pk]), "Eşitle"),),
+        ]
+        if obj._paket_sayisi:
+            dugmeler.append(
                 (
                     _post_dugmesi(
-                        reverse("admin:esim_saglayici_bakiye", args=[obj.pk]), "Bakiye sorgula"
+                        reverse("admin:esim_saglayici_fiyat_guncelle", args=[obj.pk]),
+                        f"Fiyatları güncelle (%{obj.varsayilan_kar_orani:g})",
+                        "#0E5E5B",
                     ),
-                ),
-            ),
+                )
+            )
+        dugmeler.append(
+            (_post_dugmesi(reverse("admin:esim_saglayici_bakiye", args=[obj.pk]), "Bakiye sorgula"),)
         )
+        return format_html_join(" ", "{}", dugmeler)
 
     def get_urls(self):
         return [
@@ -193,8 +180,29 @@ class SaglayiciAdmin(ModelAdmin):
                 self.admin_site.admin_view(self.bakiye),
                 name="esim_saglayici_bakiye",
             ),
+            path(
+                "<int:object_id>/fiyat-guncelle/",
+                self.admin_site.admin_view(self.fiyat_guncelle),
+                name="esim_saglayici_fiyat_guncelle",
+            ),
             *super().get_urls(),
         ]
+
+    def fiyat_guncelle(self, request, object_id):
+        """Sağlayıcının bütün paketlerini varsayılan kâr oranına çeker. Yalnızca POST."""
+        if request.method != "POST":
+            return redirect("admin:esim_saglayici_changelist")
+        saglayici = self.get_object(request, object_id)
+        if saglayici is None:
+            raise Http404("Sağlayıcı bulunamadı.")
+        adet = fiyatlari_guncelle(saglayici)
+        self.message_user(
+            request,
+            f"{saglayici}: {adet} paketin kâr oranı %{saglayici.varsayilan_kar_orani} yapıldı; "
+            "bayi fiyatları bu orana göre hesaplanıyor.",
+            messages.SUCCESS,
+        )
+        return redirect("admin:esim_saglayici_changelist")
 
     def esitle(self, request, object_id):
         if request.method != "POST":

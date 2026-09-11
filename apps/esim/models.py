@@ -94,9 +94,9 @@ class Saglayici(ZamanDamgali):
         default=Decimal("50.00"),
         validators=[MinValueValidator(SIFIR)],
         help_text=(
-            "Bu sağlayıcıdan gelen paketlere uygulanır. Oranı değiştirip kaydedince "
-            "hâlâ eski oranda duran paketler yeni orana geçer; elle farklı oran "
-            "verilmiş paketler yerinde kalır (Paketler ekranından toplu değiştirilir)."
+            "Bu sağlayıcının paketlerine uygulanan kâr oranı. Eşitlemede yeni gelen "
+            "paketlere yazılır; sonradan değiştirince listedeki “Fiyatları güncelle” "
+            "düğmesi bütün paketleri bu orana çeker."
         ),
     )
     aktif = models.BooleanField(
