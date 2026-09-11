@@ -145,7 +145,8 @@ class EsimGo(Adaptor):
             esim_no=esim.get("iccid") or "",
             iccid=esim.get("iccid") or "",
             ac=f"LPA:1${smdp}${eslesme}",
-            durum=esim.get("profileStatus") or "",
+            durum=esim.get("state") or "",
+            kurulum_durumu=esim.get("profileStatus") or "",
         )
 
     def iptal_et(self, esim_no, *, iccid="", paket_kodu=""):

@@ -287,6 +287,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   cüzdana girmez, "tavsiye fiyatla" diye nitelenir.
   · QR bizim ürettiğimiz SVG'dir (`segno`, aktivasyon kodundan); sağlayıcının
   görsel sunucusuna bağımlı değil. Sağlayıcı adı bayiye gösterilmez.
+  **Bizim QR ile sağlayıcınınki farklı görünür ama aynı metindir** — ilk
+  canlı satışta ikisi de çözülüp karşılaştırıldı (`LPA:1$…`, birebir).
+  "QR farklı, kurulum yarım kaldı" şikâyetinde suç QR'da değil: profil
+  telefona inmiş, hat ağa bağlanamamıştır (Veri Dolaşımı kapalı, hat kapalı).
+  · **Telefondaki durum sağlayıcıdan sorulur** (`durumu_sorgula`;
+  `Teslimat.kurulum_durumu/eid/aktivasyon_zamani`). Üç hâl: QR okutulmadı
+  (EID boş), kuruldu ama bağlanmadı (EID dolu, ilk bağlantı boş), bağlandı.
+  Bayinin sipariş sayfasında ve teslimat listesinde **Durumu sorgula**
+  düğmesi; "çalışmıyor" diyen müşteride önce buna bakılır. Profil tek
+  kullanımlıktır: kurulmuş profili telefondan silip yeniden okutmak eSIM'i
+  yakar, sağlayıcı da artık iptal etmez.
   · Sadece sabit paketler alınır; günlük (dataType 2) paketler kademeli
   indirimle fiyatlandığı için bu sürümde katalogda yok.
 - **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme

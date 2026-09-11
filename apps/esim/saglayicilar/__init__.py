@@ -52,7 +52,10 @@ class ProfilVerisi:
     qr_url: str = ""
     kisa_url: str = ""
     apn: str = ""
-    durum: str = ""
+    durum: str = ""  # sağlayıcının paket durumu (GOT_RESOURCE, IN_USE, USED_UP…)
+    kurulum_durumu: str = ""  # SM-DP+ profil durumu (RELEASED, ENABLED, DELETED…)
+    eid: str = ""  # profilin indirildiği cihazın eSIM çipi; boşsa hiç okutulmamış
+    aktivasyon_zamani: str = ""  # ilk ağ bağlantısı; boşsa hat hiç bağlanmamış
 
 
 @dataclass

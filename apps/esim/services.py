@@ -341,6 +341,14 @@ def _saglayiciya_ilet(teslimat, *, olusturan=None):
         _profili_kaydet(teslimat, profil)
 
 
+def _kurulumu_yaz(teslimat, profil):
+    teslimat.kurulum_durumu = profil.kurulum_durumu[:30]
+    teslimat.esim_durumu = profil.durum[:30]
+    teslimat.eid = profil.eid[:40]
+    teslimat.aktivasyon_zamani = profil.aktivasyon_zamani[:40]
+    teslimat.son_durum_sorgusu = timezone.now()
+
+
 def _profili_kaydet(teslimat, profil):
     with transaction.atomic():
         teslimat.esim_no = profil.esim_no
@@ -350,6 +358,7 @@ def _profili_kaydet(teslimat, profil):
         teslimat.kisa_url = profil.kisa_url
         teslimat.apn = profil.apn
         teslimat.durum = TeslimatDurumu.HAZIR
+        _kurulumu_yaz(teslimat, profil)
         teslimat.save()
 
         siparis = teslimat.siparis
@@ -403,6 +412,38 @@ def profili_getir(teslimat, *, zorla=False):
         return teslimat
 
     _profili_kaydet(teslimat, profil)
+    return teslimat
+
+
+def durumu_sorgula(teslimat):
+    """Hazır teslimatın kurulum durumunu sağlayıcıdan yeniler.
+
+    "QR okutuldu mu, hat bağlandı mı" sorusunun cevabı: bayi müşteri
+    "çalışmıyor" deyince önce buna bakar. Sağlayıcıya `SORGU_ARALIGI_SN`
+    içinde ikinci kez gidilmez; hata teslimatı bozmaz.
+    """
+    if not teslimat.hazir or not teslimat.saglayici_siparis_no:
+        return teslimat
+    simdi = timezone.now()
+    if (
+        teslimat.son_durum_sorgusu
+        and (simdi - teslimat.son_durum_sorgusu).total_seconds() < SORGU_ARALIGI_SN
+    ):
+        return teslimat
+    try:
+        profil = teslimat.saglayici.adaptor().profil_getir(teslimat.saglayici_siparis_no)
+    except SaglayiciHatasi as hata:
+        logger.warning("eSIM durumu sorgulanamadı (%s): %s", teslimat.islem_no, hata)
+        return teslimat
+    if profil is None:
+        return teslimat
+    _kurulumu_yaz(teslimat, profil)
+    teslimat.save(
+        update_fields=[
+            "kurulum_durumu", "esim_durumu", "eid", "aktivasyon_zamani",
+            "son_durum_sorgusu", "guncelleme_tarihi",
+        ]
+    )
     return teslimat
 
 

@@ -27,12 +27,13 @@ from apps.esim.saglayicilar import SaglayiciHatasi
 from apps.esim.services import (
     KurTanimsiz,
     bakiyeyi_sorgula,
+    durumu_sorgula,
+    fiyatlari_guncelle,
     kar_orani_uygula,
     kur_getir,
     paketleri_esitle,
     profili_getir,
     teslimati_iptal_et,
-    fiyatlari_guncelle,
 )
 
 DUGME_STILI = (
@@ -516,6 +517,7 @@ class TeslimatAdmin(ModelAdmin):
         "paket_gosterimi",
         "saglayici",
         "durum_rozeti",
+        "kurulum_gosterimi",
         "tutar_gosterimi",
         "iccid",
         "karar_dugmeleri",
@@ -559,6 +561,19 @@ class TeslimatAdmin(ModelAdmin):
                     "islem_no", "saglayici_siparis_no", "esim_no", "iccid",
                     "ac", "smdp_adresi", "aktivasyon_kodu", "qr_url", "kisa_url", "apn",
                     "son_sorgu",
+                ),
+            },
+        ),
+        (
+            "Telefondaki durum",
+            {
+                "fields": (
+                    ("kurulum_durumu", "esim_durumu"), "eid", "aktivasyon_zamani", "son_durum_sorgusu",
+                ),
+                "description": (
+                    "Sağlayıcının gördüğü kurulum. EID doluysa QR bir telefona okutulmuş; "
+                    "ilk bağlantı boşsa hat henüz ağa bağlanmamış (telefonda hat ve Veri Dolaşımı "
+                    "açık olmalı). Listedeki <b>Durumu sorgula</b> yeniler."
                 ),
             },
         ),
@@ -611,6 +626,23 @@ class TeslimatAdmin(ModelAdmin):
             obj.get_durum_display(),
         )
 
+    @display(description="Telefon")
+    def kurulum_gosterimi(self, obj):
+        """QR okutuldu mu, hat bağlandı mı — "çalışmıyor" şikâyetinde ilk bakılan."""
+        if not obj.hazir:
+            return ""
+        if not obj.son_durum_sorgusu and not obj.eid:
+            return format_html('<span style="color:#94A3B8;font-size:.75rem">sorgulanmadı</span>')
+        if obj.hatta_baglandi:
+            return format_html('<span style="color:#0F8A4D;font-weight:600;font-size:.75rem">bağlandı</span>')
+        if obj.telefona_kuruldu:
+            return format_html(
+                '<span style="color:#B45309;font-weight:600;font-size:.75rem" title="EID {}">'
+                "kuruldu, bağlanmadı</span>",
+                obj.eid,
+            )
+        return format_html('<span style="color:#6F7B8F;font-size:.75rem">okutulmadı</span>')
+
     @display(description="Satış / Alış / Kâr")
     def tutar_gosterimi(self, obj):
         if obj.durum in (TeslimatDurumu.HATA, TeslimatDurumu.IPTAL):
@@ -630,6 +662,10 @@ class TeslimatAdmin(ModelAdmin):
         if obj.durum == TeslimatDurumu.HAZIRLANIYOR:
             parcalar.append(
                 _post_dugmesi(reverse("admin:esim_teslimat_profil", args=[obj.pk]), "Profili getir")
+            )
+        if obj.hazir:
+            parcalar.append(
+                _post_dugmesi(reverse("admin:esim_teslimat_durum", args=[obj.pk]), "Durumu sorgula")
             )
         if obj.iptal_edilebilir:
             parcalar.append(
@@ -653,8 +689,33 @@ class TeslimatAdmin(ModelAdmin):
                 self.admin_site.admin_view(self.iptal),
                 name="esim_teslimat_iptal",
             ),
+            path(
+                "<int:object_id>/durum/",
+                self.admin_site.admin_view(self.durum),
+                name="esim_teslimat_durum",
+            ),
             *super().get_urls(),
         ]
+
+    def durum(self, request, object_id):
+        """Sağlayıcıdan kurulum durumunu çeker: okutuldu mu, bağlandı mı."""
+        if request.method != "POST":
+            return redirect("admin:esim_teslimat_changelist")
+        teslimat = self.get_object(request, object_id)
+        if teslimat is None:
+            raise Http404("Teslimat bulunamadı.")
+        teslimat = durumu_sorgula(teslimat)
+        if teslimat.hatta_baglandi:
+            mesaj = f"{teslimat.siparis.referans_no}: telefona kuruldu ve ilk bağlantı {teslimat.aktivasyon_zamani}."
+        elif teslimat.telefona_kuruldu:
+            mesaj = (
+                f"{teslimat.siparis.referans_no}: profil telefona kuruldu (EID {teslimat.eid}) ama hat "
+                "henüz ağa bağlanmadı — telefonda hat açık ve Veri Dolaşımı açık olmalı."
+            )
+        else:
+            mesaj = f"{teslimat.siparis.referans_no}: QR henüz bir telefona okutulmamış."
+        self.message_user(request, mesaj, messages.INFO)
+        return redirect("admin:esim_teslimat_changelist")
 
     def profil(self, request, object_id):
         if request.method != "POST":

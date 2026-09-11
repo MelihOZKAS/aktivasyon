@@ -24,6 +24,7 @@ from apps.esim.services import (
     KurTanimsiz,
     bayi_grup_orani,
     bolgesel_paketler,
+    durumu_sorgula,
     esim_siparisi_ver,
     esim_yukle,
     fiyatlandir,
@@ -360,3 +361,23 @@ def yukle(request, referans):
             "islem_anahtari": uuid4().hex,
         },
     )
+
+
+@login_required
+@bayi_gerekli
+def kurulum(request, referans):
+    """Bayi "müşteri okuttu mu, bağlandı mı" diye sağlayıcıya sorar. POST."""
+    teslimat = _teslimat(request, referans)
+    if request.method == "POST":
+        teslimat = durumu_sorgula(teslimat)
+        if teslimat.hatta_baglandi:
+            messages.success(request, "Telefona kuruldu ve hat bağlandı; paket kullanımda.")
+        elif teslimat.telefona_kuruldu:
+            messages.warning(
+                request,
+                "Profil telefona kuruldu ama hat henüz ağa bağlanmadı. Telefonda hat açık ve "
+                "Veri Dolaşımı açık olmalı; 1–2 dakika bekleyip uçak modunu aç-kapa.",
+            )
+        else:
+            messages.info(request, "QR henüz bir telefona okutulmamış.")
+    return redirect("esim:siparis", referans=referans)

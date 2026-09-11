@@ -334,6 +334,13 @@ class Teslimat(ZamanDamgali):
     # bayinin kendi notu, sağlayıcıya gitmez.
     musteri_adi = models.CharField("Müşteri Adı", max_length=120, blank=True)
     musteri_telefonu = models.CharField("Müşteri Telefonu", max_length=30, blank=True)
+    # Sağlayıcının gördüğü kurulum: "QR hiç okutulmadı" ile "kuruldu ama
+    # hat bağlanmadı" birbirinden ayrılsın. Sorgulandıkça yenilenir.
+    kurulum_durumu = models.CharField("Profil Durumu (SM-DP+)", max_length=30, blank=True)
+    esim_durumu = models.CharField("Paket Durumu", max_length=30, blank=True)
+    eid = models.CharField("Cihaz EID", max_length=40, blank=True)
+    aktivasyon_zamani = models.CharField("İlk Bağlantı", max_length=40, blank=True)
+    son_durum_sorgusu = models.DateTimeField("Son Durum Sorgusu", null=True, blank=True, editable=False)
     son_sorgu = models.DateTimeField("Son Sorgu", null=True, blank=True, editable=False)
 
     class Meta:
@@ -356,6 +363,15 @@ class Teslimat(ZamanDamgali):
     def iptal_edilebilir(self):
         """Kullanılmamış profil sağlayıcıda iptal edilip iade alınabilir."""
         return self.hazir and bool(self.esim_no or self.iccid)
+
+    @property
+    def telefona_kuruldu(self):
+        """Profil bir cihaza indirildi mi? EID dolu ya da SM-DP+ "enabled/installed" diyor."""
+        return bool(self.eid) or self.kurulum_durumu.upper() in ("ENABLED", "INSTALLED", "DOWNLOADED")
+
+    @property
+    def hatta_baglandi(self):
+        return bool(self.aktivasyon_zamani)
 
     @property
     def kar(self):

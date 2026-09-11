@@ -13,6 +13,7 @@ urlpatterns = [
     path("esim/siparis/<str:referans>/", views.siparis, name="siparis"),
     path("esim/siparis/<str:referans>/durum/", views.siparis_durum, name="siparis-durum"),
     path("esim/siparis/<str:referans>/etiket/", views.etiket, name="etiket"),
+    path("esim/siparis/<str:referans>/kurulum/", views.kurulum, name="kurulum"),
     path("esim/siparis/<str:referans>/yukle/", views.yukle, name="yukle"),
     path("esim/<str:kod>/", views.ulke, name="ulke"),
     path("esim/<str:kod>/<int:pk>/", views.paket, name="paket"),

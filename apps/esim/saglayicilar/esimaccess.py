@@ -180,6 +180,9 @@ class EsimAccess(Adaptor):
             kisa_url=esim.get("shortUrl") or "",
             apn=esim.get("apn") or "",
             durum=esim.get("esimStatus") or "",
+            kurulum_durumu=esim.get("smdpStatus") or "",
+            eid=esim.get("eid") or "",
+            aktivasyon_zamani=esim.get("activateTime") or "",
         )
 
     def iptal_et(self, esim_no, *, iccid="", paket_kodu=""):

@@ -52,6 +52,9 @@ def _sifirla():
         yukleme_yok=False,
         yukleme_reddet="",
         yuklemeler=[],
+        kurulum="RELEASED",
+        eid="",
+        aktivasyon="",
     )
 
 
@@ -81,6 +84,9 @@ class SahteAdaptor(Adaptor):
             qr_url="https://ornek/qr.png",
             kisa_url="https://ornek/k",
             apn="internet",
+            kurulum_durumu=DURUM["kurulum"],
+            eid=DURUM["eid"],
+            aktivasyon_zamani=DURUM["aktivasyon"],
         )
 
     def iptal_et(self, esim_no, *, iccid="", paket_kodu=""):
@@ -965,3 +971,43 @@ class RaporTestleri(Temel):
         Cuzdan.objects.create(bayi=yeni, bakiye=TL("1000"))
         esim_siparisi_ver(yeni, self.paket)
         self.assertIsNone(bayi_aylik_ozet(yeni)["kazanc"])
+
+
+class KurulumDurumuTestleri(Temel):
+    """Sağlayıcının gördüğü kurulum: okutulmadı / kuruldu ama bağlanmadı / bağlandı."""
+
+    def setUp(self):
+        super().setUp()
+        self._esitle(paket_verisi("P1", ["TR"], 1, 7, "0.46"))
+        self.teslimat = esim_siparisi_ver(self.bayi, Paket.objects.get(kod="P1"))
+        self.client.force_login(self.bayi)
+        self.adres = reverse("esim:kurulum", args=[self.teslimat.siparis.referans_no])
+
+    def _sorgula(self):
+        Teslimat.objects.filter(pk=self.teslimat.pk).update(son_durum_sorgusu=None)
+        return self.client.post(self.adres, follow=True).content.decode()
+
+    def test_okutulmadi(self):
+        icerik = self._sorgula()
+        self.assertIn("QR henüz okutulmadı", icerik)
+
+    def test_kuruldu_baglanmadi(self):
+        DURUM.update(kurulum="ENABLED", eid="89049032007208888900172717518214")
+        icerik = self._sorgula()
+        self.assertIn("hat henüz bağlanmadı", icerik)
+        self.assertIn("Veri Dolaşımı", icerik)
+        self.teslimat.refresh_from_db()
+        self.assertTrue(self.teslimat.telefona_kuruldu)
+        self.assertFalse(self.teslimat.hatta_baglandi)
+
+    def test_baglandi(self):
+        DURUM.update(kurulum="ENABLED", eid="8904", aktivasyon="2026-09-12T08:00:00+0000")
+        icerik = self._sorgula()
+        self.assertIn("hat bağlandı", icerik)
+
+    def test_yonetim_dugmesi(self):
+        DURUM.update(kurulum="ENABLED", eid="8904")
+        Teslimat.objects.filter(pk=self.teslimat.pk).update(son_durum_sorgusu=None)
+        self.client.force_login(User.objects.create_superuser("yonetici", password="parola12345"))
+        yanit = self.client.post(reverse("admin:esim_teslimat_durum", args=[self.teslimat.pk]), follow=True)
+        self.assertContains(yanit, "kuruldu, bağlanmadı")

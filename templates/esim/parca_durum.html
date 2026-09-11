@@ -52,6 +52,28 @@
       WhatsApp bağlantısı hazır metni açar. Kısa bağlantı sağlayıcıdan
       geliyorsa mesaja o da girer — QR'ı oradan da okutabilir.
     {% endcomment %}
+    {% comment %}
+      Telefondaki durum: sağlayıcının gördüğü. "Çalışmıyor" diyen müşteride
+      bayi önce buna bakar — okutulmamış mı, kurulmuş ama bağlanmamış mı.
+    {% endcomment %}
+    <form method="post" action="{% url 'esim:kurulum' siparis.referans_no %}"
+          class="mt-4 flex flex-wrap items-center gap-3 rounded-kart border border-cizgi bg-zemin px-4 py-3 text-sm">
+      {% csrf_token %}
+      <span class="min-w-0 flex-1">
+        {% if teslimat.hatta_baglandi %}
+          <b class="text-olumlu">Telefona kuruldu, hat bağlandı</b> <span class="text-soluk">· paket kullanımda</span>
+        {% elif teslimat.telefona_kuruldu %}
+          <b class="text-uyari">Telefona kuruldu, hat henüz bağlanmadı</b>
+          <span class="block text-xs text-soluk">Telefonda hat açık ve Veri Dolaşımı açık olmalı.</span>
+        {% elif teslimat.son_durum_sorgusu %}
+          <b>QR henüz okutulmadı</b>
+        {% else %}
+          <span class="text-soluk">Telefona kuruldu mu? Sorgulanmadı.</span>
+        {% endif %}
+      </span>
+      <button type="submit" class="dugme dugme-sessiz text-sm">Durumu sorgula</button>
+    </form>
+
     <div class="mt-5 flex flex-wrap gap-3 border-t border-cizgi pt-5">
       <button type="button" class="dugme dugme-sessiz text-sm" data-kopyala="{{ teslimat.ac }}">
         Aktivasyon kodunu kopyala
