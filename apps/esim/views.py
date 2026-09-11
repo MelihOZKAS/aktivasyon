@@ -242,7 +242,7 @@ def satin_al(request, kod, pk):
 def _teslimat(request, referans):
     """Bayi yalnızca kendi eSIM'ini görür; başkasınınki 404."""
     siparis = get_object_or_404(
-        Siparis.objects.select_related("esim", "esim__saglayici"),
+        Siparis.objects.select_related("esim", "esim__saglayici", "esim__paket"),
         referans_no=referans,
         bayi=request.user,
     )
