@@ -21,15 +21,25 @@
     </div>
   </div>
 
-  {% include "esim/parca_aylik.html" %}
+  {% include "esim/parca_aylik.html" with tum_islemler=True %}
 
   {% if ulkeler %}
+  {% comment %}
+    "Tüm işlemler" her zaman burada: sattığı eSIM'lere, QR'lara ve yüklemeye
+    bayi buradan gider; aylık kart yalnızca işlem varsa çizildiği için
+    oradaki bağlantı yetmez.
+  {% endcomment %}
   <div class="mb-4 flex flex-col gap-3 sm:flex-row">
     <input type="search" id="ulke-ara" class="girdi flex-1" placeholder="Ülke ara… (Almanya, İtalya)"
            autocomplete="off" inputmode="search">
-    <a href="{% url 'esim:bolgesel' %}" class="dugme dugme-sessiz shrink-0 text-sm">
-      Bölgesel / global paketler
-    </a>
+    <div class="flex shrink-0 gap-2">
+      <a href="{% url 'esim:siparisler' %}" class="dugme dugme-birincil flex-1 text-sm sm:flex-none">
+        Tüm işlemler
+      </a>
+      <a href="{% url 'esim:bolgesel' %}" class="dugme dugme-sessiz flex-1 text-sm sm:flex-none">
+        Bölgesel / global
+      </a>
+    </div>
   </div>
 
   {% comment %}

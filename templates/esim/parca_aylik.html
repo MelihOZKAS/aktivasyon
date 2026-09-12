@@ -6,7 +6,12 @@
 {% endcomment %}
 {% if aylik.adet %}
 <div class="sim mb-6 rounded-kart border border-cizgi bg-yuzey p-4">
-  <p class="text-xs font-semibold text-soluk">Bu ay ({{ aylik.ay|date:"F" }})</p>
+  <div class="flex items-center justify-between gap-3">
+    <p class="text-xs font-semibold text-soluk">Bu ay ({{ aylik.ay|date:"F" }})</p>
+    {% if tum_islemler %}
+    <a href="{% url 'esim:siparisler' %}" class="text-sm font-semibold text-vurgu">Tüm işlemler →</a>
+    {% endif %}
+  </div>
   <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
     <div><dt class="text-soluk">eSIM + yükleme</dt><dd class="rakam font-semibold">{{ aylik.adet }}</dd></div>
     <div><dt class="text-soluk">Ödediğin</dt><dd class="rakam font-semibold">{{ aylik.satis|lira }} ₺</dd></div>

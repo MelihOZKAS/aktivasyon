@@ -393,6 +393,8 @@ class BayiEkranTestleri(Temel):
 
     def test_ulke_listesi(self):
         icerik = self.client.get(reverse("esim:ulkeler")).content.decode()
+        self.assertIn("Tüm işlemler", icerik)
+        self.assertIn(reverse("esim:siparisler"), icerik)
         self.assertIn("Türkiye", icerik)
         self.assertIn("Almanya", icerik)
         self.assertIn("🇹🇷", icerik)
