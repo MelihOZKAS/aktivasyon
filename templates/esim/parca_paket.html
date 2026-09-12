@@ -2,24 +2,17 @@
 {% comment %}
   Tek paket kartı. Hacim en büyük yazı: bayi müşteriye "5 GB" diye satıyor,
   paket adı ikincil. Sağlayıcı adı bayiye gösterilmez — hangi API'den
-  alındığı bizim hesabımız.
+  alındığı bizim hesabımız. Fiyat kutusu ayrı parçada (göz düğmesi
+  bağlantının içinde olamaz, kart bu yüzden div).
 {% endcomment %}
-<a href="{% url 'esim:paket' ulke_slug paket.pk %}"
-   class="yuzey flex items-center gap-4 rounded-kart border border-cizgi p-4 transition hover:border-vurgu">
-  <div class="min-w-0 flex-1">
+<div class="yuzey flex items-center gap-4 rounded-kart border border-cizgi p-4 transition hover:border-vurgu">
+  <a href="{% url 'esim:paket' ulke_slug paket.pk %}" class="min-w-0 flex-1">
     <p class="baslik text-lg font-bold">{{ paket.hacim_bayt|hacim }}
       <span class="text-sm font-medium text-soluk">· {{ paket.sure_gun }} gün</span>
     </p>
     <p class="mt-0.5 truncate text-xs text-soluk">
       {% if paket.bolgesel %}{{ paket.ulke_sayisi }} ülke · {% endif %}{% if paket.hiz %}{{ paket.hiz }}{% endif %}{% if paket.operatorler %} · {{ paket.operatorler }}{% endif %}
     </p>
-  </div>
-  <div class="shrink-0 text-right">
-    <p class="rakam text-lg font-bold">{{ paket.satis|lira }} ₺</p>
-    {% if paket.satis > bakiye %}
-    <p class="text-xs text-uyari">Bakiyen yetmiyor</p>
-    {% elif paket.tavsiye %}
-    <p class="text-xs text-soluk">Tavsiye satış {{ paket.tavsiye|lira }} ₺</p>
-    {% endif %}
-  </div>
-</a>
+  </a>
+  {% include "esim/parca_fiyat.html" %}
+</div>

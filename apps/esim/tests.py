@@ -756,19 +756,29 @@ class TavsiyeFiyatiTestleri(Temel):
         teslimat = esim_siparisi_ver(self.bayi, self.paket)
         self.assertEqual(teslimat.tavsiye_fiyati, 0)
 
-    def test_oran_varsa_kesilmis_fiyat_ve_kazanc(self):
+    def test_oran_varsa_musteri_fiyati_buyuk_alis_gozde(self):
         GenelAyarlar.objects.filter(pk=1).update(esim_tavsiye_kar_orani=TL("22"))
         # 34 × 1,22 = 41,48 → 41; kazanç 7
         icerik = self.client.get(reverse("esim:paket", args=["tr", self.paket.pk])).content.decode()
-        self.assertIn("tavsiye edilen fiyat", icerik)
         self.assertIn("41 ₺", icerik)
+        self.assertIn("Alışın", icerik)
+        self.assertIn("data-goz aria-label", icerik)  # göz düğmesi (betik değil)
         self.assertIn("kazancın 7 ₺", icerik)
-        self.assertIn("Tavsiye satış 41 ₺", self.client.get(reverse("esim:ulke", args=["tr"])).content.decode())
+        liste = self.client.get(reverse("esim:ulke", args=["tr"])).content.decode()
+        self.assertIn("41 ₺", liste)
+        self.assertIn("data-alis", liste)
+        # Ülke listesinde "…'den" rakamı da müşteriye dönük.
+        self.assertIn("41 ₺'den", self.client.get(reverse("esim:ulkeler")).content.decode())
 
         teslimat = esim_siparisi_ver(self.bayi, self.paket)
         self.assertEqual(teslimat.tavsiye_fiyati, TL("41"))
         icerik = self.client.get(reverse("esim:siparis", args=[teslimat.siparis.referans_no])).content.decode()
         self.assertIn("41 ₺", icerik)
+
+    def test_oran_yoksa_goz_yok(self):
+        icerik = self.client.get(reverse("esim:ulke", args=["tr"])).content.decode()
+        self.assertNotIn("data-goz aria-label", icerik)
+        self.assertIn("34 ₺", icerik)
 
 
 class YuklemeTestleri(Temel):

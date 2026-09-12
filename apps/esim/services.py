@@ -235,8 +235,13 @@ def bolgesel_paketler(kur, grup_orani=None):
 
 
 def ulke_listesi(kur, grup_orani=None):
-    """Satılabilir paketi olan ülkeler, en ucuz paketinin satış fiyatıyla."""
+    """Satılabilir paketi olan ülkeler, en ucuz paketinin fiyatıyla.
+
+    `en_dusuk` bayinin ödeyeceği, `en_dusuk_tavsiye` müşteriye söyleyeceği
+    (tavsiye oranı yoksa `None`). Ekran müşteriye dönükken ikincisi görünür.
+    """
     ulkeler = {}
+    tavsiye = tavsiye_orani()
     paketler = (
         Paket.objects.satilabilir()
         .filter(ulkeler__aktif=True)
@@ -251,6 +256,9 @@ def ulke_listesi(kur, grup_orani=None):
             kayit["en_dusuk"] = fiyat
     for kayit in ulkeler.values():
         kayit["bayrak"] = bayrak(kayit["kod"])
+        kayit["en_dusuk_tavsiye"] = (
+            tavsiye_fiyati_hesapla(kayit["en_dusuk"], tavsiye) if tavsiye > 0 else None
+        )
     return sorted(ulkeler.values(), key=lambda k: k["ad"])
 
 

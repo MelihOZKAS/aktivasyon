@@ -19,17 +19,25 @@
       <h2 class="baslik mt-1 text-2xl font-bold">
         {{ paket.hacim_bayt|hacim }} <span class="text-lg font-medium text-soluk">· {{ paket.sure_gun }} gün</span>
       </h2>
-      <p class="rakam mt-2 text-2xl font-bold">{{ paket.satis|lira }} ₺</p>
       {% comment %}
-        Tavsiye fiyat: bayinin bizden aldığının üzerine yönetimin belirlediği
-        yüzde, küsurat atılmış. Bayi müşteriye ne diyeceğini ve ne
-        kazanacağını burada görür. Oran sıfırsa satır hiç çizilmez.
+        Tavsiye oranı varsa büyük rakam müşterinin fiyatı; bayinin alışı ve
+        kazancı gözle açılır (müşteri ekrana bakarken görünmesin). Oran
+        yoksa bayinin fiyatı düz yazılır.
       {% endcomment %}
       {% if paket.tavsiye %}
-      <p class="mt-1 text-sm text-murekkep-yumusak">
-        Müşteriye tavsiye edilen fiyat <b class="rakam">{{ paket.tavsiye|lira }} ₺</b>
+      <div class="mt-2 flex items-center gap-2">
+        <p class="rakam text-2xl font-bold">{{ paket.tavsiye|lira }} ₺</p>
+        <button type="button" data-goz aria-label="Alış fiyatını göster/gizle" title="Alışını göster"
+                class="grid h-9 w-9 place-items-center rounded-lg text-soluk hover:bg-zemin-koyu">
+          <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <p data-alis hidden class="mt-1 text-sm text-murekkep-yumusak">
+        Alışın <b class="rakam">{{ paket.satis|lira }} ₺</b>
         <span class="text-soluk">· kazancın {{ paket.kazanc|lira }} ₺</span>
       </p>
+      {% else %}
+      <p class="rakam mt-2 text-2xl font-bold">{{ paket.satis|lira }} ₺</p>
       {% endif %}
 
       <dl class="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
@@ -99,4 +107,30 @@
     </div>
   </div>
 </div>
+
+{% comment %}
+  Göz: bayinin alışını aç/kapa. Bir düğme bütün kartları açar ve tercih
+  oturum boyunca kalır; bayi her kartta ayrı ayrı basmasın.
+{% endcomment %}
+<script>
+  (function () {
+    var anahtar = "esim-alis-acik";
+    function uygula(acik) {
+      document.querySelectorAll("[data-alis]").forEach(function (e) { e.hidden = !acik; });
+      document.querySelectorAll("[data-goz]").forEach(function (d) {
+        d.classList.toggle("text-vurgu", acik);
+        d.title = acik ? "Alışını gizle" : "Alışını göster";
+      });
+    }
+    var acik = false;
+    try { acik = sessionStorage.getItem(anahtar) === "1"; } catch (e) {}
+    uygula(acik);
+    document.addEventListener("click", function (olay) {
+      if (!olay.target.closest("[data-goz]")) return;
+      acik = !acik;
+      try { sessionStorage.setItem(anahtar, acik ? "1" : "0"); } catch (e) {}
+      uygula(acik);
+    });
+  })();
+</script>
 {% endblock %}

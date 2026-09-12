@@ -375,7 +375,12 @@ class Teslimat(ZamanDamgali):
 
     @property
     def kar(self):
-        """İade edilmiş (hata/iptal) teslimatta ne satış ne alış kaldı: kâr sıfır."""
+        """Bizim kârımız: bayiye satış − sağlayıcıdan alış.
+
+        Bayinin müşteriye kârı (tavsiye − satış) buraya girmez; o bayinin
+        hesabıdır. İade edilmiş (hata/iptal) teslimatta ne satış ne alış
+        kaldı: kâr sıfır.
+        """
         if self.durum in (TeslimatDurumu.HATA, TeslimatDurumu.IPTAL):
             return SIFIR
         return self.siparis.tutar - self.alis_tl

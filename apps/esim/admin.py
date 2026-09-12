@@ -546,7 +546,16 @@ class TeslimatAdmin(ModelAdmin):
                 ),
             },
         ),
-        ("Para", {"fields": (("alis_usd", "kur", "alis_tl"), ("kar_orani", "grup_orani", "tavsiye_fiyati"), "kar")}),
+        (
+            "Para",
+            {
+                "fields": (("alis_usd", "kur", "alis_tl"), ("kar_orani", "grup_orani", "tavsiye_fiyati"), "kar"),
+                "description": (
+                    "<b>Kâr = bayiye satış − sağlayıcıdan alış</b>; bizim kazancımız. "
+                    "Tavsiye fiyat bayinin müşteriye satışıdır, bizim hesaba girmez."
+                ),
+            },
+        ),
         (
             "Müşteri",
             {
@@ -643,8 +652,9 @@ class TeslimatAdmin(ModelAdmin):
             )
         return format_html('<span style="color:#6F7B8F;font-size:.75rem">okutulmadı</span>')
 
-    @display(description="Satış / Alış / Kâr")
+    @display(description="Bayiye satış / sağlayıcı alışı / kârımız")
     def tutar_gosterimi(self, obj):
+        """Üç rakam da bizim hesabımız: bayinin müşteriye kârı burada yok."""
         if obj.durum in (TeslimatDurumu.HATA, TeslimatDurumu.IPTAL):
             return format_html(
                 "<s style='color:#6F7B8F'>{} ₺</s><br>"
@@ -652,7 +662,8 @@ class TeslimatAdmin(ModelAdmin):
                 obj.siparis.tutar,
             )
         return format_html(
-            "<b>{} ₺</b><br><span style='color:#6F7B8F;font-size:.75rem'>{} ₺ · kâr {} ₺</span>",
+            "<b>{} ₺</b><br><span style='color:#6F7B8F;font-size:.75rem'>alış {} ₺ · "
+            "<b style='color:#0F8A4D'>kârımız {} ₺</b></span>",
             obj.siparis.tutar, obj.alis_tl, obj.kar,
         )
 
@@ -838,11 +849,12 @@ class YuklemeAdmin(ModelAdmin):
             obj.get_durum_display(),
         )
 
-    @display(description="Satış / Alış / Kâr")
+    @display(description="Bayiye satış / sağlayıcı alışı / kârımız")
     def tutar_gosterimi(self, obj):
         if obj.durum in (YuklemeDurumu.HATA, YuklemeDurumu.IPTAL):
             return format_html("<s style='color:#6F7B8F'>{} ₺</s>", obj.siparis.tutar)
         return format_html(
-            "<b>{} ₺</b><br><span style='color:#6F7B8F;font-size:.75rem'>{} ₺ · kâr {} ₺</span>",
+            "<b>{} ₺</b><br><span style='color:#6F7B8F;font-size:.75rem'>alış {} ₺ · "
+            "<b style='color:#0F8A4D'>kârımız {} ₺</b></span>",
             obj.siparis.tutar, obj.alis_tl, obj.kar,
         )

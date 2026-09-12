@@ -45,4 +45,30 @@
   </div>
   {% endif %}
 </div>
+
+{% comment %}
+  Göz: bayinin alışını aç/kapa. Bir düğme bütün kartları açar ve tercih
+  oturum boyunca kalır; bayi her kartta ayrı ayrı basmasın.
+{% endcomment %}
+<script>
+  (function () {
+    var anahtar = "esim-alis-acik";
+    function uygula(acik) {
+      document.querySelectorAll("[data-alis]").forEach(function (e) { e.hidden = !acik; });
+      document.querySelectorAll("[data-goz]").forEach(function (d) {
+        d.classList.toggle("text-vurgu", acik);
+        d.title = acik ? "Alışını gizle" : "Alışını göster";
+      });
+    }
+    var acik = false;
+    try { acik = sessionStorage.getItem(anahtar) === "1"; } catch (e) {}
+    uygula(acik);
+    document.addEventListener("click", function (olay) {
+      if (!olay.target.closest("[data-goz]")) return;
+      acik = !acik;
+      try { sessionStorage.setItem(anahtar, acik ? "1" : "0"); } catch (e) {}
+      uygula(acik);
+    });
+  })();
+</script>
 {% endblock %}

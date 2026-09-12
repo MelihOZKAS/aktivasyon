@@ -261,7 +261,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   sayfasında görünür; oran sıfırsa hiç çizilmez. Sipariş anındaki değer
   `Teslimat.tavsiye_fiyati`nda saklanır — oran sonra değişse de bayinin o
   gün gördüğü rakam kayıtta kalır. Tek hesap `fiyatlandir()`; bayiye fiyat
-  yazan her ekran oradan geçer.
+  yazan her ekran oradan geçer. **Ekran müşteriye dönüktür:** tavsiye oranı
+  varsa büyük rakam müşterinin fiyatıdır, bayinin alışı ve kazancı **göz
+  düğmesiyle** açılır (`parca_fiyat.html`, `data-goz`/`data-alis`; bir göz
+  bütün kartları açar, tercih `sessionStorage`'da oturum boyunca kalır).
+  Bayi tezgâhta telefonu müşteriye çeviriyor, kendi alışı görünmesin.
+  Tavsiye oranı yoksa saklanacak şey yok, bayinin fiyatı düz yazılır.
   · **Yükleme (top-up) satılmış eSIM'e yeni pakettir** (`esim.Yukleme`).
   Yükleme paketleri kataloğa yazılmaz: hangi paketin hangi eSIM'e uyduğunu
   sağlayıcı bilir, liste her açılışta ondan alınır (`yukleme_paketleri`)

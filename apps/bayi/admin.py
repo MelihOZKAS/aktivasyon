@@ -126,11 +126,13 @@ class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
     # aramadan çıkmadan halletsin.
     actions_row = ["yeni_parola", "cuzdan_islemi"]
     actions_detail = ["yeni_parola", "cuzdan_islemi"]
+    # E-posta yerine borç: yönetici listeye "kimde ne var" diye bakıyor,
+    # e-postayı zaten kimse kullanmıyor. Borcu olmayan sıfır görür.
     list_display = (
         "username",
         "unvan_gosterimi",
         "bakiye_gosterimi",
-        "email",
+        "borc_gosterimi",
         "is_staff",
         "is_active",
     )
@@ -231,6 +233,14 @@ class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
             return format_html('<span style="color:#94a3b8">cüzdan yok</span>')
         renk = "#16a34a" if cuzdan.bakiye >= 0 else "#dc2626"
         return format_html('<b style="color:{}">{} ₺</b>', renk, cuzdan.bakiye)
+
+    @admin.display(description="Borç", ordering="cuzdan__borc")
+    def borc_gosterimi(self, obj):
+        cuzdan = getattr(obj, "cuzdan", None)
+        borc = cuzdan.borc if cuzdan else 0
+        if not borc:
+            return format_html('<span style="color:#94a3b8">0 ₺</span>')
+        return format_html('<b style="color:#dc2626">{} ₺</b>', borc)
 
 
 @admin.register(Group)
