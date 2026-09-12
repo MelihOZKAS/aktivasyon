@@ -295,7 +295,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   **Bizim QR ile sağlayıcınınki farklı görünür ama aynı metindir** — ilk
   canlı satışta ikisi de çözülüp karşılaştırıldı (`LPA:1$…`, birebir).
   "QR farklı, kurulum yarım kaldı" şikâyetinde suç QR'da değil: profil
-  telefona inmiş, hat ağa bağlanamamıştır (Veri Dolaşımı kapalı, hat kapalı).
+  telefona inmiş, hat ağa bağlanamamıştır (Veri Dolaşımı kapalı, ya da
+  paket yalnızca belirli operatörde dolaşıyor — TR paketleri Vodafone —
+  ve otomatik ağ seçimi onu bulamamış; elle seçilir). Teslim sayfası ve
+  WhatsApp mesajı bu ikisini paketin `operatorler` alanıyla söyler.
   · **Telefondaki durum sağlayıcıdan sorulur** (`durumu_sorgula`;
   `Teslimat.kurulum_durumu/eid/aktivasyon_zamani`). Üç hâl: QR okutulmadı
   (EID boş), kuruldu ama bağlanmadı (EID dolu, ilk bağlantı boş), bağlandı.
