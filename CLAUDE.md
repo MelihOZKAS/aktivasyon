@@ -230,7 +230,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `satis_fiyati_hesapla(..., grup_orani)`; bayiye fiyat gösteren her yer
   oradan geçer. Fiyat saklanmadığı için grubu kaydetmek bayi ekranında
   anında geçerlidir. `Teslimat.kar_orani` paketin oranını, `grup_orani`
-  grup farkını sipariş anında saklar. Paket listesindeki "Satış" sütunu
+  grup farkını sipariş anında saklar. **Bu alan bayinin kârı değildir**:
+  yönetici bayinin %25 kârını "eSIM Fiyat Farkı" diye buraya yazdı, bayi
+  230 yerine 287 ödedi ve "adamın kârını da biz kesiyoruz" dedi. Etiket
+  artık "eSIM'i Bu Kadar Pahalı Öder (%)"; bayinin kârı Genel Ayarlar'daki
+  tavsiye oranıdır ve bayiden kesilmez. İki yüzdeyi anlatan her metin
+  hangisinin cüzdandan düştüğünü söylesin. Paket listesindeki "Satış" sütunu
   farksız fiyattır; başlık grup farklarını yazar ki yönetici "bayi neden
   başka fiyat görüyor" diye aramasın.
   Kâr oranı paket başına durur ama **günlük iş sağlayıcı düzeyindedir**:

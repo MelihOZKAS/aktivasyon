@@ -5,7 +5,7 @@
   alındığı bizim hesabımız. Fiyat kutusu ayrı parçada (göz düğmesi
   bağlantının içinde olamaz, kart bu yüzden div).
 {% endcomment %}
-<div class="yuzey flex items-center gap-4 rounded-kart border border-cizgi p-4 transition hover:border-vurgu">
+<div class="yuzey flex min-w-0 items-center gap-3 rounded-kart border border-cizgi p-4 transition hover:border-vurgu sm:gap-4">
   <a href="{% url 'esim:paket' ulke_slug paket.pk %}" class="min-w-0 flex-1">
     <p class="baslik text-lg font-bold">{{ paket.hacim_bayt|hacim }}
       <span class="text-sm font-medium text-soluk">· {{ paket.sure_gun }} gün</span>

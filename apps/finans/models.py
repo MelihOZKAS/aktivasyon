@@ -32,15 +32,19 @@ class BayiGrubu(ZamanDamgali):
     # sağlayıcı oranıyla hesaplanan fiyat 34 ₺ ise +%10'luk grup 37 ₺ öder.
     # Eksi değer indirim demektir. Boşsa fark yok. Tam sayı: ondalık yüzde
     # girmek fiyat ekranında kafa karıştırıyordu.
+    # Bayinin müşteriye kârı DEĞİLDİR; o oran Genel Ayarlar'dadır. Adı "fiyat
+    # farkı" iken yönetici bayinin %25 kârını buraya yazdı, bayi 230 yerine
+    # 287 ödedi — etiket bayinin *ödeyeceğini* açıkça söylesin.
     esim_kar_orani = models.IntegerField(
-        "eSIM Fiyat Farkı (%)",
+        "eSIM'i Bu Kadar Pahalı Öder (%)",
         null=True,
         blank=True,
         validators=[MinValueValidator(-99)],
         help_text=(
-            "Bu gruptaki bayiye eSIM fiyatı, normal bayi fiyatının üzerine bu yüzde "
-            "eklenerek gösterilir (34 ₺ ve +10 → 37 ₺). Eksi girilirse indirim. "
-            "Boşsa fark yok. Kaydedince bayi ekranında anında geçerli olur."
+            "Bu gruptaki bayi her eSIM'i normal bayi fiyatından bu yüzde kadar PAHALI alır "
+            "ve cüzdanından o tutar düşer (230 ₺ ve +25 → bayi 287 ₺ öder). Eksi girilirse "
+            "indirim, boşsa fark yok. Bayinin müşteriye kârı bu DEĞİLDİR — o oran Ayarlar → "
+            "Genel Ayarlar'daki “eSIM Tavsiye Edilen Satış Kâr Oranı”dır. Çoğu grupta boş kalır."
         ),
     )
 

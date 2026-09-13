@@ -184,9 +184,12 @@ class BayiGrubuAdmin(ModelAdmin):
                 "description": (
                     "Başvuru fiyatları <i>Ücret ve Hakediş Kuralları</i>'nda grup başına "
                     "tanımlanır. eSIM'de tek rakam yeter: bu gruptaki bayi bütün eSIM "
-                    "paketlerini <b>normal bayi fiyatının üzerine</b> bu yüzde eklenmiş "
-                    "görür (34 ₺ ve +10 → 37 ₺). Eksi değer indirimdir. Fiyatlar "
-                    "saklanmaz, her açılışta hesaplanır: kaydettiğiniz anda geçerlidir."
+                    "paketlerini <b>normal bayi fiyatından bu yüzde kadar pahalı alır</b>, "
+                    "cüzdanından o tutar düşer (230 ₺ ve +25 → bayi 287 ₺ öder). Eksi değer "
+                    "indirimdir. <b>Bayinin müşteriye kârı burası değil</b>: o oran Ayarlar → "
+                    "Genel Ayarlar'daki <i>eSIM Tavsiye Edilen Satış Kâr Oranı</i>'dır ve "
+                    "bayiden kesilmez. Fiyatlar saklanmaz, her açılışta hesaplanır: "
+                    "kaydettiğiniz anda geçerlidir."
                 ),
             },
         ),

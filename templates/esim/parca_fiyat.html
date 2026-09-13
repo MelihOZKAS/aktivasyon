@@ -1,29 +1,32 @@
 {% load esim %}
 {% comment %}
-  Fiyat kutusu. Tavsiye oranı varsa büyük rakam müşterinin ödeyeceği fiyat;
-  bayinin alışı ve kazancı göz düğmesiyle açılır — bayi ekranı müşteriye
-  gösterirken kendi alışı görünmesin. Göz bir kez açılınca sayfadaki bütün
-  kartlarda ve o oturum boyunca açık kalır (sessionStorage). Tavsiye yoksa
-  saklanacak bir şey yok: bayinin fiyatı düz yazılır.
+  Fiyat kutusu. Tavsiye oranı varsa sağdaki büyük rakam müşterinin ödeyeceği
+  fiyat; bayinin alışı ve kazancı **ortadaki göz** ile açılır ve gözün
+  yanında yazar — bayi ekranı müşteriye gösterirken kendi alışı görünmesin.
+  Göz bir kez açılınca sayfadaki bütün kartlarda ve o oturum boyunca açık
+  kalır (sessionStorage). Geniş ekranda orta sütun kartın yarısını alır ki
+  göz gerçekten ortada dursun; telefonda fiyatın yanına yaslanır.
+  Tavsiye yoksa saklanacak bir şey yok: bayinin fiyatı düz yazılır.
   Değişkenler: satis, tavsiye, kazanc, bakiye (hepsi paket üzerinden).
 {% endcomment %}
-<div class="shrink-0 text-right">
-  {% if paket.tavsiye %}
-  <div class="flex items-center justify-end gap-2">
-    <p class="rakam text-lg font-bold">{{ paket.tavsiye|lira }} ₺</p>
-    <button type="button" data-goz aria-label="Alış fiyatını göster/gizle" title="Alışını göster"
-            class="grid h-8 w-8 place-items-center rounded-lg text-soluk hover:bg-zemin-koyu">
-      <svg width="18" height="18" viewBox="0 0 24 24" class="h-[18px] w-[18px]" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
-    </button>
-  </div>
-  <p data-alis hidden class="text-xs text-soluk">
-    Alışın <b class="rakam text-murekkep">{{ paket.satis|lira }} ₺</b> · kazancın <b class="rakam text-olumlu">{{ paket.kazanc|lira }} ₺</b>
+{% if paket.tavsiye %}
+<div class="flex shrink-0 items-center gap-1.5 sm:flex-1 sm:justify-center sm:gap-2">
+  <button type="button" data-goz aria-label="Alış fiyatını göster/gizle" title="Alışını göster"
+          class="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-soluk hover:bg-zemin-koyu">
+    <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+  </button>
+  <p data-alis hidden class="text-xs leading-tight text-soluk sm:w-28">
+    Alışın <b class="rakam text-murekkep">{{ paket.satis|lira }} ₺</b><br>
+    kazancın <b class="rakam text-olumlu">{{ paket.kazanc|lira }} ₺</b>
     {% if paket.satis > bakiye %}<span class="block text-uyari">Bakiyen yetmiyor</span>{% endif %}
   </p>
-  {% else %}
+</div>
+<p class="rakam shrink-0 text-right text-lg font-bold sm:min-w-20">{{ paket.tavsiye|lira }} ₺</p>
+{% else %}
+<div class="shrink-0 text-right">
   <p class="rakam text-lg font-bold">{{ paket.satis|lira }} ₺</p>
   {% if paket.satis > bakiye %}
   <p class="text-xs text-uyari">Bakiyen yetmiyor</p>
   {% endif %}
-  {% endif %}
 </div>
+{% endif %}
