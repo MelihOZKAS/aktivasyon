@@ -26,9 +26,9 @@
           {% if esitleme_bayat %}
             · <b style="color:#B45309">Katalog {% if son_esitleme %}{{ son_esitleme|date:"d.m.Y" }}{% else %}hiç{% endif %} eşitlendi — Eşitle'ye bas</b>
           {% endif %}
-          {% if grup_oranlari %}
-            · Grup farkları: {% for ad, oran in grup_oranlari %}<b>{{ ad }}</b> {% if oran > 0 %}+{% endif %}%{{ oran }}{% if not forloop.last %}, {% endif %}{% endfor %}
-            <span class="text-base-400">(satış fiyatının üzerine)</span>
+          {% if tavsiye_oranlari %}
+            · Bayinin müşteriye kârı: {% for ad, oran in tavsiye_oranlari %}<b>{{ ad }}</b> %{{ oran }}{% if not forloop.last %}, {% endif %}{% endfor %}
+            <span class="text-base-400">(bayi satış fiyatını öder, tavsiye fiyat üstüne eklenir)</span>
           {% endif %}
         </span>
 

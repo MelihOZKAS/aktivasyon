@@ -641,20 +641,6 @@ class GenelAyarlarAdmin(ModelAdmin):
             },
         ),
         (
-            "eSIM",
-            {
-                "fields": ("esim_tavsiye_kar_orani",),
-                "description": (
-                    "<b>Bayinin müşteriye kârı buradan girilir.</b> Bayi paket sayfasında "
-                    "“müşteriye tavsiye edilen fiyat”ı görür: bizden aldığı fiyatın üzerine "
-                    "bu yüzde eklenir, küsurat atılır (230 ₺ ve %25 → 287 ₺). Bayinin "
-                    "cüzdanından yine 230 düşer, 57 ₺ bayinin kazancıdır ve yanında yazar. "
-                    "Bayi Grupları'ndaki eSIM yüzdesi bu değildir: o, bayiden fazladan "
-                    "alınan paradır."
-                ),
-            },
-        ),
-        (
             "Döviz kuru",
             {
                 "fields": ("usd_kuru", "usd_kuru_tarihi"),

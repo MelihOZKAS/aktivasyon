@@ -325,8 +325,8 @@ class PaketAdmin(ModelAdmin):
                 "description": (
                     "Sağlayıcıdan gelen alanlar eşitlemede yazılır, elle değiştirilmez. "
                     "Burada karar verilen iki şey var: kâr oranı ve satışta olup olmadığı. "
-                    "<b>Bayi grubunda eSIM fiyat farkı girildiyse o gruptaki bayi bu "
-                    "fiyatın üzerine o yüzdeyi eklenmiş görür</b> (Finans → Bayi Grupları)."
+                    "Satış fiyatını <b>her bayi aynı öder</b>; bayi grubundaki eSIM kârı "
+                    "yalnızca müşteriye tavsiye edilen fiyatı üretir (Finans → Bayi Grupları)."
                 ),
             },
         ),
@@ -366,9 +366,11 @@ class PaketAdmin(ModelAdmin):
 
         extra_context = {
             **(extra_context or {}),
-            # Grup farkı bayi fiyatının üzerine eklenir; liste hangi kademenin ne gördüğünü söylesin.
-            "grup_oranlari": list(
-                BayiGrubu.objects.filter(aktif=True, esim_kar_orani__isnull=False)
+            # Bayi grubunun kârı bayinin ödediğini değiştirmez, yalnızca müşteriye
+            # tavsiye edilen fiyatı üretir; liste bunu söylesin ki yönetici "bayi
+            # neden başka rakam görüyor" diye aramasın.
+            "tavsiye_oranlari": list(
+                BayiGrubu.objects.filter(aktif=True, esim_kar_orani__gt=0)
                 .order_by("ad")
                 .values_list("ad", "esim_kar_orani")
             ),
@@ -549,7 +551,7 @@ class TeslimatAdmin(ModelAdmin):
         (
             "Para",
             {
-                "fields": (("alis_usd", "kur", "alis_tl"), ("kar_orani", "grup_orani", "tavsiye_fiyati"), "kar"),
+                "fields": (("alis_usd", "kur", "alis_tl"), ("kar_orani", "tavsiye_fiyati"), "kar"),
                 "description": (
                     "<b>Kâr = bayiye satış − sağlayıcıdan alış</b>; bizim kazancımız. "
                     "Tavsiye fiyat bayinin müşteriye satışıdır, bizim hesaba girmez."

@@ -681,8 +681,14 @@ class BayatlikUyarisiTestleri(Temel):
         self.assertIn("Eşitle'ye bas", icerik)
 
 
-class GrupFarkiTestleri(Temel):
-    """Fiyat kademesi: grup farkı bayi fiyatının ÜZERİNE eklenir, alışın değil."""
+class GrupKariTestleri(Temel):
+    """Bayi grubunun eSIM yüzdesi bayinin KÂRIDIR, ödeyeceği değil.
+
+    Bir süre bu yüzde bayi fiyatının üzerine ekleniyordu: %25 yazan yönetici
+    bayiden 287 kesildiğini görüp "adamın kârını da biz kesiyoruz" dedi.
+    Bayi her zaman paketin satış fiyatını öder; oran yalnızca ekranda
+    "müşteriye şu fiyata sat" rakamını üretir.
+    """
 
     def setUp(self):
         super().setUp()
@@ -690,57 +696,60 @@ class GrupFarkiTestleri(Temel):
 
         self._esitle(paket_verisi("P1", ["TR"], 1, 7, "0.46"))  # bizim fiyat %88 → 34 ₺
         self.paket = Paket.objects.get(kod="P1")
-        self.pahali = BayiGrubu.objects.create(ad="Perakende", esim_kar_orani=10)
-        self.indirimli = BayiGrubu.objects.create(ad="Toptan", esim_kar_orani=-20)
-        self.bos = BayiGrubu.objects.create(ad="Standart")  # fark yok
+        self.perakende = BayiGrubu.objects.create(ad="Perakende", esim_kar_orani=25)
+        self.bos = BayiGrubu.objects.create(ad="Standart")  # oran yok
 
     def _gruba_al(self, grup):
         self.cuzdan.grup = grup
         self.cuzdan.save()
         self.bayi = User.objects.get(pk=self.bayi.pk)  # cüzdan önbelleği tazelensin
 
-    def test_arti_fark_fiyatin_uzerine(self):
-        self._gruba_al(self.pahali)
-        # 34 × 1,10 = 37,4 → 37
-        tekil, _ = ulke_paketleri(Ulke.objects.get(kod="TR"), TL("40"), 10)
-        self.assertEqual(tekil[0].satis, TL("37"))
+    def test_oran_bayinin_odedigini_degistirmez_tavsiyeyi_uretir(self):
+        self._gruba_al(self.perakende)
+        # Bayi 34 öder; müşteriye 34 × 1,25 = 42,5 → 42 der, 8 onun.
+        tekil, _ = ulke_paketleri(Ulke.objects.get(kod="TR"), TL("40"), 25)
+        self.assertEqual(tekil[0].satis, TL("34"))
+        self.assertEqual(tekil[0].tavsiye, TL("42"))
+        self.assertEqual(tekil[0].kazanc, TL("8"))
         teslimat = esim_siparisi_ver(self.bayi, self.paket)
-        self.assertEqual(teslimat.siparis.tutar, TL("37"))
+        self.assertEqual(teslimat.siparis.tutar, TL("34"))
         self.assertEqual(teslimat.kar_orani, TL("88.00"))
-        self.assertEqual(teslimat.grup_orani, 10)
+        self.assertEqual(teslimat.tavsiye_fiyati, TL("42"))
         self.cuzdan.refresh_from_db()
-        self.assertEqual(self.cuzdan.bakiye, TL("963.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("966.00"))
 
-    def test_eksi_fark_indirim(self):
-        self._gruba_al(self.indirimli)
-        # 34 × 0,80 = 27,2 → 27
-        self.assertEqual(esim_siparisi_ver(self.bayi, self.paket).siparis.tutar, TL("27"))
-
-    def test_farki_bos_grup_normal_fiyat(self):
+    def test_orani_bos_grup_tavsiye_gormez(self):
         self._gruba_al(self.bos)
         teslimat = esim_siparisi_ver(self.bayi, self.paket)
         self.assertEqual(teslimat.siparis.tutar, TL("34"))
-        self.assertIsNone(teslimat.grup_orani)
+        self.assertEqual(teslimat.tavsiye_fiyati, 0)
 
-    def test_grupsuz_bayi_normal_fiyat(self):
+    def test_grupsuz_bayi_ayni_fiyati_oder(self):
         self.assertEqual(esim_siparisi_ver(self.bayi, self.paket).siparis.tutar, TL("34"))
 
-    def test_ekranlar_grup_fiyatini_yazar_ve_kaydedince_degisir(self):
-        self._gruba_al(self.pahali)
+    def test_eksi_oran_kabul_edilmez(self):
+        from django.core.exceptions import ValidationError
+
+        self.perakende.esim_kar_orani = -20
+        with self.assertRaises(ValidationError):
+            self.perakende.full_clean()
+
+    def test_ekranlar_tavsiyeyi_yazar_ve_kaydedince_degisir(self):
+        self._gruba_al(self.perakende)
         self.client.force_login(self.bayi)
         for adres in (reverse("esim:ulkeler"), reverse("esim:ulke", args=["tr"]), reverse("esim:paket", args=["tr", self.paket.pk])):
-            self.assertIn("37 ₺", self.client.get(adres).content.decode(), adres)
+            self.assertIn("42 ₺", self.client.get(adres).content.decode(), adres)
         # Fiyat saklanmıyor: grup kaydedilince bayi ekranı anında değişir.
-        self.pahali.esim_kar_orani = 50
-        self.pahali.save()
+        self.perakende.esim_kar_orani = 50
+        self.perakende.save()
         self.assertIn("51 ₺", self.client.get(reverse("esim:ulke", args=["tr"])).content.decode())
 
-    def test_paket_listesi_grup_farklarini_yazar(self):
+    def test_paket_listesi_grup_karlarini_yazar(self):
         self.client.force_login(User.objects.create_superuser("yonetici", password="parola12345"))
         icerik = self.client.get(reverse("admin:esim_paket_changelist")).content.decode()
         self.assertIn("Perakende", icerik)
-        self.assertIn("+%10", icerik)
-        self.assertIn("%-20", icerik)
+        self.assertIn("%25", icerik)
+        self.assertNotIn("Standart", icerik)  # oranı olmayan grup yazılmaz
 
 
 class TavsiyeFiyatiTestleri(Temel):
@@ -752,6 +761,17 @@ class TavsiyeFiyatiTestleri(Temel):
         self.paket = Paket.objects.get(kod="P1")
         self.client.force_login(self.bayi)
 
+    def _orani_yaz(self, oran):
+        """Oran bayi grubunda yaşar; grubu yoksa açılır."""
+        from apps.finans.models import BayiGrubu
+
+        if self.cuzdan.grup is None:
+            self.cuzdan.grup = BayiGrubu.objects.create(ad="Perakende")
+        self.cuzdan.grup.esim_kar_orani = oran
+        self.cuzdan.grup.save()
+        self.cuzdan.save()
+        self.bayi = User.objects.get(pk=self.bayi.pk)
+
     def test_oran_sifirsa_gosterilmez(self):
         icerik = self.client.get(reverse("esim:paket", args=["tr", self.paket.pk])).content.decode()
         self.assertNotIn("tavsiye edilen", icerik)
@@ -759,7 +779,7 @@ class TavsiyeFiyatiTestleri(Temel):
         self.assertEqual(teslimat.tavsiye_fiyati, 0)
 
     def test_oran_varsa_musteri_fiyati_buyuk_alis_gozde(self):
-        GenelAyarlar.objects.filter(pk=1).update(esim_tavsiye_kar_orani=TL("22"))
+        self._orani_yaz(22)
         # 34 × 1,22 = 41,48 → 41; kazanç 7
         icerik = self.client.get(reverse("esim:paket", args=["tr", self.paket.pk])).content.decode()
         self.assertIn("41 ₺", icerik)
@@ -831,16 +851,16 @@ class YuklemeTestleri(Temel):
         with self.assertRaises(SiparisVerilemez):
             esim_yukle(digeri, self.teslimat, "TOPUP_1")
 
-    def test_grup_farki_yuklemede_de_gecer(self):
+    def test_grup_kari_yuklemede_de_tavsiye_uretir(self):
         from apps.finans.models import BayiGrubu
 
         self.cuzdan.grup = BayiGrubu.objects.create(ad="Perakende", esim_kar_orani=10)
         self.cuzdan.save()
         bayi = User.objects.get(pk=self.bayi.pk)
-        # 106 × 1,10 = 116,6 → 116
+        # Bayi yine 106 öder; tavsiye 106 × 1,10 = 116,6 → 116
         yukleme = esim_yukle(bayi, self.teslimat, "TOPUP_1")
-        self.assertEqual(yukleme.siparis.tutar, TL("116"))
-        self.assertEqual(yukleme.grup_orani, 10)
+        self.assertEqual(yukleme.siparis.tutar, TL("106"))
+        self.assertEqual(yukleme.tavsiye_fiyati, TL("116"))
 
     def test_ekran_liste_ve_yukleme(self):
         adres = reverse("esim:yukle", args=[self.teslimat.siparis.referans_no])
@@ -936,7 +956,11 @@ class RaporTestleri(Temel):
 
     def setUp(self):
         super().setUp()
-        GenelAyarlar.objects.filter(pk=1).update(esim_tavsiye_kar_orani=TL("22"))
+        from apps.finans.models import BayiGrubu
+
+        self.cuzdan.grup = BayiGrubu.objects.create(ad="Perakende", esim_kar_orani=22)
+        self.cuzdan.save()
+        self.bayi = User.objects.get(pk=self.bayi.pk)
         self._esitle(paket_verisi("P1", ["TR"], 1, 7, "0.46"))
         self.paket = Paket.objects.get(kod="P1")
         # 34 ₺ satış, 18,40 alış; tavsiye 41. Yükleme: 106 satış, 56,80 alış; tavsiye 129.
@@ -984,9 +1008,8 @@ class RaporTestleri(Temel):
     def test_tavsiye_yokken_kazanc_yazilmaz(self):
         from apps.esim.rapor import bayi_aylik_ozet
 
-        GenelAyarlar.objects.filter(pk=1).update(esim_tavsiye_kar_orani=0)
         # Tavsiye kayıtta sipariş anında yazılır; bu testte hepsi tavsiyeli açıldı,
-        # yeni bir bayi ile sıfırdan bak.
+        # grupsuz yeni bir bayi ile sıfırdan bak.
         yeni = User.objects.create_user("5320000000", password="parola12345")
         Cuzdan.objects.create(bayi=yeni, bakiye=TL("1000"))
         esim_siparisi_ver(yeni, self.paket)

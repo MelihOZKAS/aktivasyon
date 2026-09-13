@@ -28,23 +28,23 @@ class BayiGrubu(ZamanDamgali):
     ad = models.CharField("Grup Adı", max_length=100, unique=True)
     aciklama = models.TextField("Açıklama", blank=True)
     aktif = models.BooleanField("Aktif", default=True)
-    # eSIM'de kademe farkı **bayi fiyatının üzerine** eklenen yüzdedir:
-    # sağlayıcı oranıyla hesaplanan fiyat 34 ₺ ise +%10'luk grup 37 ₺ öder.
-    # Eksi değer indirim demektir. Boşsa fark yok. Tam sayı: ondalık yüzde
-    # girmek fiyat ekranında kafa karıştırıyordu.
-    # Bayinin müşteriye kârı DEĞİLDİR; o oran Genel Ayarlar'dadır. Adı "fiyat
-    # farkı" iken yönetici bayinin %25 kârını buraya yazdı, bayi 230 yerine
-    # 287 ödedi — etiket bayinin *ödeyeceğini* açıkça söylesin.
+    # eSIM'de bayinin **müşteriye** kârı. Bayi her paketi bizim fiyattan
+    # alır (230 ₺); grubundaki yüzdeyle tavsiye satış fiyatı hesaplanır
+    # (%25 → 287 ₺) ve aradaki 57 ₺ bayinindir, cüzdanına dokunulmaz.
+    # Bir süre bu alan "bayi bizden bu kadar pahalı alsın" demekti ve bayi
+    # 287 ödedi; yönetici "adamın kârını da biz kesiyoruz" dedi. Tek yüzde,
+    # tek yer: bayiye göre girilir, Genel Ayarlar'da ikinci bir oran yoktur.
+    # Tam sayı: ondalık yüzde fiyat ekranında kafa karıştırıyordu.
     esim_kar_orani = models.IntegerField(
-        "eSIM'i Bu Kadar Pahalı Öder (%)",
+        "eSIM Satış Kârı (%)",
         null=True,
         blank=True,
-        validators=[MinValueValidator(-99)],
+        validators=[MinValueValidator(0)],
         help_text=(
-            "Bu gruptaki bayi her eSIM'i normal bayi fiyatından bu yüzde kadar PAHALI alır "
-            "ve cüzdanından o tutar düşer (230 ₺ ve +25 → bayi 287 ₺ öder). Eksi girilirse "
-            "indirim, boşsa fark yok. Bayinin müşteriye kârı bu DEĞİLDİR — o oran Ayarlar → "
-            "Genel Ayarlar'daki “eSIM Tavsiye Edilen Satış Kâr Oranı”dır. Çoğu grupta boş kalır."
+            "Bu gruptaki bayinin müşteriye kârı. Bayi paketi bizim fiyattan öder; ekranda "
+            "“müşteriye şu fiyata sat” diye bu yüzde eklenmiş rakamı görür, küsurat atılır "
+            "(230 ₺ ve 25 → 287 ₺; 57 ₺ bayinin). Boş ya da 0 ise tavsiye fiyat gösterilmez, "
+            "bayi yalnızca kendi fiyatını görür. Kaydedince bayi ekranında anında geçerli olur."
         ),
     )
 

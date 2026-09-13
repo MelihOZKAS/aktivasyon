@@ -165,33 +165,25 @@ def fiyatlari_guncelle(saglayici):
 # -- Bayiye gösterilen liste --------------------------------------------
 
 
-def bayi_grup_orani(bayi):
-    """Bayinin fiyat kademesinden gelen eSIM fiyat farkı (%); yoksa `None`.
+def bayi_tavsiye_orani(bayi):
+    """Bayinin grubundaki eSIM satış kârı (%); grubu ya da oranı yoksa 0.
 
-    Fark **bizim fiyatın üzerine** eklenir, alışın değil. Kademe cüzdanda
-    yaşar (`Cuzdan.grup`), başvuru fiyatlarıyla aynı yer. Cüzdanı ya da
-    grubu olmayan bayi normal fiyatı görür.
+    Bu oran bayinin **ödeyeceğini değiştirmez**: her bayi paketin satış
+    fiyatını öder, oran yalnızca ekranda "müşteriye şu fiyata sat" rakamını
+    üretir. Grup cüzdanda yaşar (`Cuzdan.grup`), başvuru fiyatlarıyla aynı
+    yer. 0 ise tavsiye gösterilmez, bayi yalnızca kendi fiyatını görür.
     """
     cuzdan = getattr(bayi, "cuzdan", None)
     grup = getattr(cuzdan, "grup", None) if cuzdan else None
-    if grup is None or grup.esim_kar_orani is None:
-        return None
+    if grup is None or not grup.esim_kar_orani:
+        return 0
     return grup.esim_kar_orani
 
 
-def tavsiye_orani():
-    """Genel Ayarlar'daki tavsiye satış oranı; sıfırsa tavsiye gösterilmez."""
-    from apps.bayi.models import GenelAyarlar
-
-    return GenelAyarlar.getir().esim_tavsiye_kar_orani or Decimal(0)
-
-
-def fiyatlandir(paketler, kur, grup_orani=None, tavsiye=None):
-    """Her pakete `satis` (bayiye), oran varsa `tavsiye` (müşteriye) ve `kazanc` yazar."""
-    if tavsiye is None:
-        tavsiye = tavsiye_orani()
+def fiyatlandir(paketler, kur, tavsiye=0):
+    """Her pakete `satis` (bayinin ödeyeceği), oran varsa `tavsiye` (müşteriye) ve `kazanc` yazar."""
     for paket in paketler:
-        paket.satis = paket.satis_fiyati(kur, grup_orani)
+        paket.satis = paket.satis_fiyati(kur)
         paket.tavsiye = tavsiye_fiyati_hesapla(paket.satis, tavsiye) if tavsiye > 0 else None
         paket.kazanc = (paket.tavsiye - paket.satis) if paket.tavsiye is not None else None
     return paketler
@@ -212,43 +204,41 @@ def en_ucuzlar(paketler):
     return list(secilen.values())
 
 
-def ulke_paketleri(ulke, kur, grup_orani=None):
+def ulke_paketleri(ulke, kur, tavsiye=0):
     """Bir ülke sayfası: ülkeye özel paketler ve o ülkeyi kapsayan bölgesel paketler."""
     paketler = en_ucuzlar(
         Paket.objects.satilabilir()
         .filter(ulkeler=ulke)
         .select_related("saglayici")
     )
-    tavsiye = tavsiye_orani()
-    tekil = fiyatlandir([p for p in paketler if not p.bolgesel], kur, grup_orani, tavsiye)
-    bolgesel = fiyatlandir([p for p in paketler if p.bolgesel], kur, grup_orani, tavsiye)
+    tekil = fiyatlandir([p for p in paketler if not p.bolgesel], kur, tavsiye)
+    bolgesel = fiyatlandir([p for p in paketler if p.bolgesel], kur, tavsiye)
     bolgesel.sort(key=lambda p: (p.ulke_sayisi, p.hacim_bayt, p.sure_gun))
     return tekil, bolgesel
 
 
-def bolgesel_paketler(kur, grup_orani=None):
+def bolgesel_paketler(kur, tavsiye=0):
     paketler = en_ucuzlar(
         Paket.objects.satilabilir().filter(ulke_sayisi__gt=1).select_related("saglayici")
     )
     paketler.sort(key=lambda p: (p.ulke_sayisi, p.hacim_bayt, p.sure_gun))
-    return fiyatlandir(paketler, kur, grup_orani)
+    return fiyatlandir(paketler, kur, tavsiye)
 
 
-def ulke_listesi(kur, grup_orani=None):
+def ulke_listesi(kur, tavsiye=0):
     """Satılabilir paketi olan ülkeler, en ucuz paketinin fiyatıyla.
 
     `en_dusuk` bayinin ödeyeceği, `en_dusuk_tavsiye` müşteriye söyleyeceği
     (tavsiye oranı yoksa `None`). Ekran müşteriye dönükken ikincisi görünür.
     """
     ulkeler = {}
-    tavsiye = tavsiye_orani()
     paketler = (
         Paket.objects.satilabilir()
         .filter(ulkeler__aktif=True)
         .values_list("ulkeler__kod", "ulkeler__ad", "alis_usd", "kar_orani")
     )
     for kod, ad, alis, kar in paketler:
-        fiyat = satis_fiyati_hesapla(alis, kar, kur, grup_orani)
+        fiyat = satis_fiyati_hesapla(alis, kar, kur)
         kayit = ulkeler.get(kod)
         if kayit is None:
             ulkeler[kod] = {"kod": kod, "ad": ad, "slug": kod.lower(), "en_dusuk": fiyat}
@@ -284,10 +274,10 @@ def esim_siparisi_ver(bayi, paket, *, anahtar=None, olusturan=None):
         raise SiparisVerilemez("Bu paket şu an satışta değil.")
 
     kur = kur_getir()
-    grup_orani = bayi_grup_orani(bayi)
-    satis = paket.satis_fiyati(kur, grup_orani)
+    satis = paket.satis_fiyati(kur)
     if satis <= 0:
         raise SiparisVerilemez("Bu paketin fiyatı hesaplanamadı.")
+    tavsiye = bayi_tavsiye_orani(bayi)
 
     with transaction.atomic():
         if anahtar:
@@ -315,10 +305,7 @@ def esim_siparisi_ver(bayi, paket, *, anahtar=None, olusturan=None):
             kur=kur,
             alis_tl=paket.alis_tl(kur),
             kar_orani=paket.kar_orani,
-            grup_orani=grup_orani,
-            tavsiye_fiyati=(
-                tavsiye_fiyati_hesapla(satis, tavsiye) if (tavsiye := tavsiye_orani()) > 0 else 0
-            ),
+            tavsiye_fiyati=tavsiye_fiyati_hesapla(satis, tavsiye) if tavsiye > 0 else 0,
         )
         siparis_odemesini_isle(siparis, olusturan=olusturan or bayi)
         siparis.refresh_from_db()
@@ -506,9 +493,9 @@ def saglayici_var_mi():
 #
 # Satılmış eSIM'e yeni paket. Yükleme paketleri kataloğa yazılmaz: hangi
 # paketin hangi eSIM'e uyduğunu sağlayıcı bilir, liste her açılışta ondan
-# alınır (bir eSIM için birkaç satır). Fiyat kuralı satıştaki gibi: bayi
-# grubunun oranı varsa o, yoksa asıl paketin oranı, o da yoksa sağlayıcının
-# varsayılanı. Para yine önce düşer, sağlayıcı reddederse geri döner.
+# alınır (bir eSIM için birkaç satır). Fiyat kuralı satıştaki gibi: asıl
+# paketin oranı, o yoksa sağlayıcının varsayılanı; tavsiye fiyat bayi
+# grubunun kârıyla. Para yine önce düşer, sağlayıcı reddederse geri döner.
 
 
 def yukleme_orani(teslimat):
@@ -524,10 +511,9 @@ def yukleme_paketleri(teslimat, bayi, kur):
         teslimat.esim_no, iccid=teslimat.iccid, paket_kodu=teslimat.paket_kodu
     )
     oran = yukleme_orani(teslimat)
-    grup_orani = bayi_grup_orani(bayi)
-    tavsiye = tavsiye_orani()
+    tavsiye = bayi_tavsiye_orani(bayi)
     for veri in veriler:
-        veri.satis = satis_fiyati_hesapla(veri.alis_usd, oran, kur, grup_orani)
+        veri.satis = satis_fiyati_hesapla(veri.alis_usd, oran, kur)
         veri.tavsiye = tavsiye_fiyati_hesapla(veri.satis, tavsiye) if tavsiye > 0 else None
     veriler.sort(key=lambda v: (v.hacim_bayt, v.sure_gun, v.alis_usd))
     return veriler
@@ -583,7 +569,6 @@ def esim_yukle(bayi, teslimat, yukleme_kodu, *, anahtar=None, olusturan=None):
             kur=kur,
             alis_tl=(veri.alis_usd * kur).quantize(Decimal("0.01")),
             kar_orani=yukleme_orani(teslimat),
-            grup_orani=bayi_grup_orani(bayi),
             tavsiye_fiyati=veri.tavsiye or 0,
         )
         siparis_odemesini_isle(siparis, olusturan=olusturan or bayi)

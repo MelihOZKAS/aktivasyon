@@ -183,13 +183,11 @@ class BayiGrubuAdmin(ModelAdmin):
                 "fields": ("esim_kar_orani",),
                 "description": (
                     "Başvuru fiyatları <i>Ücret ve Hakediş Kuralları</i>'nda grup başına "
-                    "tanımlanır. eSIM'de tek rakam yeter: bu gruptaki bayi bütün eSIM "
-                    "paketlerini <b>normal bayi fiyatından bu yüzde kadar pahalı alır</b>, "
-                    "cüzdanından o tutar düşer (230 ₺ ve +25 → bayi 287 ₺ öder). Eksi değer "
-                    "indirimdir. <b>Bayinin müşteriye kârı burası değil</b>: o oran Ayarlar → "
-                    "Genel Ayarlar'daki <i>eSIM Tavsiye Edilen Satış Kâr Oranı</i>'dır ve "
-                    "bayiden kesilmez. Fiyatlar saklanmaz, her açılışta hesaplanır: "
-                    "kaydettiğiniz anda geçerlidir."
+                    "tanımlanır. eSIM'de tek rakam yeter: <b>bayinin müşteriye kârı</b>. "
+                    "Bayi paketi eSIM Paketleri listesindeki satış fiyatından öder (230 ₺), "
+                    "ekranında bu yüzde eklenmiş tavsiye fiyatı görür (%25 → 287 ₺) ve aradaki "
+                    "57 ₺ onundur — cüzdanından kesilmez. Fiyatlar saklanmaz, her açılışta "
+                    "hesaplanır: kaydettiğiniz anda geçerlidir."
                 ),
             },
         ),

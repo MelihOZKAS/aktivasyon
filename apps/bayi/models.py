@@ -228,18 +228,9 @@ class GenelAyarlar(ZamanDamgali):
         ),
     )
     usd_kuru_tarihi = models.DateTimeField("Kur Güncelleme Tarihi", null=True, blank=True)
-    # Bayinin müşteriye satarken görmesi için: bizden aldığı fiyatın üzerine
-    # bu yüzde eklenir, küsurat atılır (41,53 → 41). Sıfırsa gösterilmez.
-    esim_tavsiye_kar_orani = models.DecimalField(
-        "eSIM Tavsiye Edilen Satış Kâr Oranı (%)",
-        max_digits=6,
-        decimal_places=2,
-        default=0,
-        help_text=(
-            "Bayiye “müşteriye şu fiyata sat” diye gösterilen rakam: bayinin bizden aldığı "
-            "fiyat × (1 + bu yüzde), küsurat atılır. 0 ise tavsiye fiyatı gösterilmez."
-        ),
-    )
+    # Bayinin müşteriye kârı burada DEĞİL, bayi grubundadır (`BayiGrubu.esim_kar_orani`):
+    # bir süre burada ikinci bir oran vardı, yönetici "bayiye göre girmek daha mantıklı"
+    # dedi ve iki yerde iki yüzde birbirine karıştı.
 
     class Meta:
         verbose_name = "Genel Ayar"

@@ -221,23 +221,25 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kapalıdır ve bayi sebebini görür. **Cron yok, güncelleme elle**: kur ya da
   katalog bir günden eskiyse paket listesinin başlığı uyarır
   (`PaketAdmin.changelist_view`), yönetici düğmeye basar.
-  · **Fiyat kademesi bayi grubundadır ve bizim fiyatın ÜZERİNE eklenir.**
-  `BayiGrubu.esim_kar_orani` tam sayı yüzdedir: sağlayıcı oranıyla
-  hesaplanan bayi fiyatı 34 ₺ ise +10'luk grup 37 ₺ görür, −20 indirimdir,
-  boşsa fark yok. Alışın üzerine değil — bir süre öyleydi ve yönetici "%10
-  yazdım, fiyat düştü" dedi. Grup cüzdanda yaşar (`Cuzdan.grup`), başvuru
-  fiyatlarıyla aynı yer. Tek kapı `services.bayi_grup_orani` →
-  `satis_fiyati_hesapla(..., grup_orani)`; bayiye fiyat gösteren her yer
-  oradan geçer. Fiyat saklanmadığı için grubu kaydetmek bayi ekranında
-  anında geçerlidir. `Teslimat.kar_orani` paketin oranını, `grup_orani`
-  grup farkını sipariş anında saklar. **Bu alan bayinin kârı değildir**:
-  yönetici bayinin %25 kârını "eSIM Fiyat Farkı" diye buraya yazdı, bayi
-  230 yerine 287 ödedi ve "adamın kârını da biz kesiyoruz" dedi. Etiket
-  artık "eSIM'i Bu Kadar Pahalı Öder (%)"; bayinin kârı Genel Ayarlar'daki
-  tavsiye oranıdır ve bayiden kesilmez. İki yüzdeyi anlatan her metin
-  hangisinin cüzdandan düştüğünü söylesin. Paket listesindeki "Satış" sütunu
-  farksız fiyattır; başlık grup farklarını yazar ki yönetici "bayi neden
-  başka fiyat görüyor" diye aramasın.
+  · **Her bayi aynı fiyatı öder; bayi grubundaki yüzde bayinin kârıdır.**
+  `BayiGrubu.esim_kar_orani` tam sayı yüzdedir ve **tavsiye fiyatı** üretir:
+  paket 230 ₺ ise %25'lik gruptaki bayi "müşteriye 287 ₺'ye sat" görür,
+  cüzdanından yine 230 düşer, 57 ₺ onundur. Boşsa ya da 0'sa tavsiye
+  gösterilmez. Grup cüzdanda yaşar (`Cuzdan.grup`), başvuru fiyatlarıyla
+  aynı yer; fiyat saklanmadığı için grubu kaydetmek bayi ekranında anında
+  geçerlidir. Tek kapı `services.bayi_tavsiye_orani` → `fiyatlandir(...,
+  tavsiye)`; bayiye fiyat gösteren her yer oradan geçer.
+  **Bu alan iki kez yanlış kuruldu.** Önce alışın üzerine yüzdeydi ("%10
+  yazdım, fiyat düştü"), sonra bayinin ödeyeceği fiyatın üzerine kademe
+  farkı oldu ve bayinin müşteriye kârı ayrı bir alan olarak Genel Ayarlar'a
+  kondu. Yönetici %25'i gruba yazdı, bayi 230 yerine 287 ödedi: "adamın
+  kârını da biz kesiyoruz." Ders: yöneticinin kafasında **tek yüzde** var —
+  bayinin kârı — ve bayiye göre girilmek isteniyor. İkinci bir yüzde
+  (kademe farkı, genel tavsiye oranı) nereye konursa konsun ilkiyle
+  karışıyor. Bayinin ödeyeceğini gruba göre değiştirmek gerekirse yeni bir
+  alan açma; paket kâr oranı tektir, herkes onu öder. Paket listesindeki
+  "Satış" sütunu herkesin ödediği fiyattır; başlık grup kârlarını yazar ki
+  yönetici "bayi neden başka rakam görüyor" diye aramasın.
   Kâr oranı paket başına durur ama **günlük iş sağlayıcı düzeyindedir**:
   sağlayıcıya bir oran yazılır, listedeki **Fiyatları güncelle** düğmesi
   (`fiyatlari_guncelle`, POST) bütün paketleri o orana çeker. Oran yalnızca
@@ -261,7 +263,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   atlanamaz. Airalo iadeyi elle incelediği için adaptör talebi iletip hata
   yükseltir — otomatik iade olmaz, yönetici cüzdan işlemiyle yapar.
   · **Tavsiye edilen satış fiyatı** bayinin müşteriye ne diyeceğidir:
-  bayiye satış × (1 + `GenelAyarlar.esim_tavsiye_kar_orani`), küsurat
+  bayiye satış × (1 + bayi grubunun `esim_kar_orani`'ı), küsurat
   atılmış. Paket kartında, paket sayfasında ("kazancın 7 ₺" ile) ve sipariş
   sayfasında görünür; oran sıfırsa hiç çizilmez. Sipariş anındaki değer
   `Teslimat.tavsiye_fiyati`nda saklanır — oran sonra değişse de bayinin o
@@ -277,7 +279,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   sağlayıcı bilir, liste her açılışta ondan alınır (`yukleme_paketleri`)
   ve POST'ta kod yeniden doğrulanır — elle gönderilen kod listede yoksa
   reddedilir. Fiyat kuralı satıştaki gibi (asıl paketin oranı, o yoksa
-  sağlayıcı varsayılanı; üzerine grup farkı), para yine `magaza.Siparis` (`urun_adi="eSIM
+  sağlayıcı varsayılanı; tavsiye grubun kârıyla), para yine `magaza.Siparis` (`urun_adi="eSIM
   yükleme · …"`) ile önce düşer, sağlayıcı reddederse döner. Sağlayıcıda
   yükleme **geri alınamaz**; mağaza admin'inde iptal yönetimin bilinçli
   kararıdır (iade bizden çıkar), teslim düğmesi yoktur. Desteklemeyen

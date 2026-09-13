@@ -40,22 +40,19 @@ def tam_lira(tutar):
     return Decimal(tutar).quantize(Decimal("1"), rounding=ROUND_DOWN)
 
 
-def satis_fiyati_hesapla(alis_usd, kar_orani, kur, grup_orani=None):
+def satis_fiyati_hesapla(alis_usd, kar_orani, kur):
     """Alış (USD) → bayiye satış (₺), tam lira.
 
-    Önce bizim fiyat: alış × kur × (1 + kâr%), küsurat atılır. Bayi
-    grubunun farkı varsa **o fiyatın üzerine** eklenir ve yine küsurat
-    atılır (34 ₺, +%10 → 37 ₺). Kur sıfırsa fiyat da sıfırdır — satış
-    kapalı demektir, servis bunu ayrıca denetler.
+    Alış × kur × (1 + kâr%), küsurat atılır. **Her bayi aynı fiyatı öder**;
+    bayi grubu bu rakamı değiştirmez, yalnızca müşteriye tavsiye edilen
+    fiyatı belirler (`tavsiye_fiyati_hesapla`). Kur sıfırsa fiyat da
+    sıfırdır — satış kapalı demektir, servis bunu ayrıca denetler.
     """
-    fiyat = tam_lira(Decimal(alis_usd) * Decimal(kur) * (Decimal(1) + Decimal(kar_orani) / YUZ))
-    if grup_orani:
-        fiyat = tam_lira(fiyat * (Decimal(1) + Decimal(grup_orani) / YUZ))
-    return fiyat
+    return tam_lira(Decimal(alis_usd) * Decimal(kur) * (Decimal(1) + Decimal(kar_orani) / YUZ))
 
 
 def tavsiye_fiyati_hesapla(satis, tavsiye_orani):
-    """Bayinin müşteriye satacağı tavsiye fiyat: bizden aldığı × (1 + oran), tam lira."""
+    """Bayinin müşteriye satacağı tavsiye fiyat: bizden aldığı × (1 + bayi grubunun oranı), tam lira."""
     return tam_lira(Decimal(satis) * (Decimal(1) + Decimal(tavsiye_orani) / YUZ))
 
 
@@ -252,9 +249,9 @@ class Paket(ZamanDamgali):
     def alis_tl(self, kur):
         return (self.alis_usd * Decimal(kur)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    def satis_fiyati(self, kur, grup_orani=None):
-        """Paketin oranıyla bizim fiyat; grup farkı varsa üzerine."""
-        return satis_fiyati_hesapla(self.alis_usd, self.kar_orani, kur, grup_orani)
+    def satis_fiyati(self, kur):
+        """Paketin oranıyla bayinin ödeyeceği fiyat."""
+        return satis_fiyati_hesapla(self.alis_usd, self.kar_orani, kur)
 
 
 class TeslimatDurumu(models.TextChoices):
@@ -316,18 +313,15 @@ class Teslimat(ZamanDamgali):
         default=SIFIR,
         help_text="Sipariş anında bayinin grubundan ya da paketten alınan oran.",
     )
-    grup_orani = models.IntegerField(
-        "Uygulanan Grup Farkı (%)",
-        null=True,
-        blank=True,
-        help_text="Sipariş anında bayi grubundan gelen fark; boşsa fark yoktu.",
-    )
     tavsiye_fiyati = models.DecimalField(
         "Tavsiye Edilen Satış (₺)",
         max_digits=12,
         decimal_places=2,
         default=SIFIR,
-        help_text="Sipariş anında bayiye gösterilen “müşteriye şu fiyata sat” rakamı; 0 ise gösterilmedi.",
+        help_text=(
+            "Sipariş anında bayiye gösterilen “müşteriye şu fiyata sat” rakamı (bayi "
+            "grubunun kârıyla); 0 ise gösterilmedi."
+        ),
     )
     # Bayi eSIM'i müşterisine satar, müşteri aylar sonra "paketim bitti" diye
     # arar; bayi hangi eSIM olduğunu adla ya da telefonla bulur. İkisi de
@@ -433,7 +427,6 @@ class Yukleme(ZamanDamgali):
     kur = models.DecimalField("Kur", max_digits=10, decimal_places=4)
     alis_tl = models.DecimalField("Alış (₺)", max_digits=12, decimal_places=2)
     kar_orani = models.DecimalField("Uygulanan Kâr Oranı (%)", max_digits=6, decimal_places=2, default=SIFIR)
-    grup_orani = models.IntegerField("Uygulanan Grup Farkı (%)", null=True, blank=True)
     tavsiye_fiyati = models.DecimalField(
         "Tavsiye Edilen Satış (₺)", max_digits=12, decimal_places=2, default=SIFIR
     )
