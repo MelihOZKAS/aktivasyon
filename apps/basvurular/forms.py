@@ -603,8 +603,9 @@ class BasvuruDuzeltmeFormu(BasvuruFormu):
                     continue
                 anahtar = ALAN_ONEKI + tanim.kod
                 if tanim.tip == AlanTipi.SIM_KART:
-                    if self._simi_guncelle(tanim):
-                        degisenler.append(tanim.etiket)
+                    degisiklik = self._simi_guncelle(tanim)
+                    if degisiklik:
+                        degisenler.append(degisiklik)
                     continue
                 deger = self.cleaned_data.get(anahtar)
                 yeni = "" if deger in (None, "") else str(deger)
@@ -648,6 +649,16 @@ class BasvuruDuzeltmeFormu(BasvuruFormu):
         Sağlam eski kart bayinin stoğuna döner (elinde duruyor, kullanılmadı);
         arızalı kart arızalı kalır, takibi ayrı. Yeni kart yalnızca hâlâ
         stoktaysa takılır: eşzamanlı iki başvuru aynı kartı kullanamaz.
+
+        **Hangi başvuruda kullanıldığı silinmez** (`basvuru` bağı durur;
+        iptalde kartları serbest bırakan `basvurunun_simlerini_serbest_birak`
+        da aynısını yapar). Bağ koparıldığında "bu kart hangi işte bozuldu"
+        sorusu cevapsız kalıyordu: yönetici kartı sonradan arızalı işaretlese
+        de arıza sayfasında başvuru satırı boş çıkıyordu. Kart yeniden
+        kullanılırsa bağ yeni başvuruyla güncellenir.
+
+        Değişiklik özeti IMEI'leri taşır: geçmişte "SIM Kart" yazması hangi
+        kartın çıktığını söylemiyordu.
         """
         from apps.bayi.models import SimKart, SimKartDurumu
 
@@ -655,7 +666,7 @@ class BasvuruDuzeltmeFormu(BasvuruFormu):
         yeni_kart = self.cleaned_data.get(f"_sim_{tanim.kod}")
         eski_imei = basvuru.ek_bilgiler.get(tanim.kod) or ""
         if yeni_kart is None or yeni_kart.imei == eski_imei:
-            return False
+            return ""
 
         adet = SimKart.objects.filter(pk=yeni_kart.pk, durum=SimKartDurumu.ATANDI).update(
             durum=SimKartDurumu.KULLANILDI, basvuru=basvuru
@@ -666,6 +677,10 @@ class BasvuruDuzeltmeFormu(BasvuruFormu):
             )
         SimKart.objects.filter(
             imei=eski_imei, basvuru=basvuru, durum=SimKartDurumu.KULLANILDI
-        ).update(durum=SimKartDurumu.ATANDI, basvuru=None)
+        ).update(durum=SimKartDurumu.ATANDI)
         basvuru.ek_bilgiler[tanim.kod] = yeni_kart.imei
-        return True
+        return (
+            f"{tanim.etiket} ({eski_imei} → {yeni_kart.imei})"
+            if eski_imei
+            else f"{tanim.etiket} ({yeni_kart.imei})"
+        )

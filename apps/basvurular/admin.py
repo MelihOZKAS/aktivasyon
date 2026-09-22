@@ -390,6 +390,40 @@ class BasvuruAdmin(ModelAdmin):
 
     # --- SIM bozuk -----------------------------------------------------
 
+    def save_model(self, request, obj, form, change):
+        """Durum elle bayiye açılan bir duruma çekildiyse SIM'i hatırlat.
+
+        Günlük işte tek elle yapılan şey durumu değiştirmektir; yönetici
+        "Eksik Evrak" deyip nota "SIM bozuk, değiştir" yazıyor ve **SIM
+        bozuk** düğmesine hiç basmıyordu. O zaman kart arızalıya düşmüyor:
+        bayi yenisini takınca eski kart sağlam sayılıp stoğa dönüyor ve
+        bozuk kart takibe hiç girmiyor ("değişen sim arızalıya düşmedi").
+        Kararın tek servisten geçmesi kuralının aynısı — burada blok değil
+        hatırlatma, çünkü Eksik Evrak çoğu zaman evrakla ilgilidir.
+        """
+        super().save_model(request, obj, form, change)
+
+        if getattr(obj, "_onceki_durum_id", None) == obj.durum_id:
+            return
+        if obj.sonuclandi_mi or not obj.durum.bayi_duzenleyebilir:
+            return
+        kartlar = list(obj.kullanilan_simler)
+        if not kartlar:
+            return
+
+        self.message_user(
+            request,
+            format_html(
+                "Takılı SIM {} hâlâ sağlam görünüyor. Kart bozuk çıktıysa "
+                '<a href="{}" style="font-weight:600;text-decoration:underline">'
+                "SIM bozuk</a> ile arızalıya düşürün — yoksa bayi yenisini "
+                "takınca eski kart stoğa döner ve değişim takibine girmez.",
+                ", ".join(k.imei for k in kartlar),
+                reverse("admin:basvurular_basvuru_sim_bozuk", args=[obj.pk]),
+            ),
+            messages.WARNING,
+        )
+
     def has_sim_bozuk_permission(self, request, object_id=None):
         """Düğme yalnızca takılı kartı olan, sonuçlanmamış başvuruda çıkar.
 

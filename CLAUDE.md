@@ -818,6 +818,23 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kart seçmek zorunda kalır. "Değiştirildi mi" ayrı bayrak değildir:
   arızalı kartın IMEI'si başvuruda artık yazmıyorsa değişmiştir
   (`Basvuru.bozuk_simler`).
+  · **Durumu elle değiştiren yöneticiye SIM hatırlatılır**
+  (`BasvuruAdmin.save_model`). Günlük işte tek elle yapılan şey durumu
+  değiştirmektir; yönetici "Eksik Evrak" deyip nota "SIM bozuk, değiştir"
+  yazıyor ve düğmeye hiç basmıyordu. Kart o zaman arızalıya düşmüyor: bayi
+  yenisini takınca eskisi **sağlam** sayılıp stoğa dönüyor ve değişim
+  takibine hiç girmiyordu ("değişen sim arızalıya düşmedi"). Bayiye açılan
+  bir duruma geçen, takılı sağlam kartı olan başvuruda uyarı çıkar ve
+  doğrudan **SIM bozuk** ekranına bağlanır. Blok değil hatırlatma: Eksik
+  Evrak çoğu zaman evrakla ilgilidir. Kararın tek servisten geçmesi
+  kuralının aynısı — yeni bir "düğmeyle yapılan iş" eklersen durum alanından
+  gelen yolu da düşün.
+  · **Kartın hangi başvuruda kullanıldığı silinmez.** Takasta eski sağlam
+  kart stoğa dönerken `basvuru` bağı korunur (iptalde serbest bırakan
+  `basvurunun_simlerini_serbest_birak` de aynısını yapar); bağ koparılınca
+  kart sonradan arızalı işaretlendiğinde arıza sayfasında "bozulduğu
+  başvuru" boş çıkıyordu. Kart yeniden kullanılırsa bağ yeni başvuruyla
+  güncellenir.
   · **Arızalı kartın üç adımı** (`SimKart`: `iade_alinma_tarihi`,
   `yerine_verilen`, `degisim_tarihi`) birbirinden bağımsızdır ve
   `bayi.services` ile işler: `sim_bayiden_alindi`, `sim_yerine_ver` (stoktan
@@ -864,7 +881,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   öncekisi; o kapalıysa ya da yine bayinin düzenlediği bir durumsa başlangıç
   durumu). İş kuyruğa geri girer, Eksik Evrak'ta unutulmaz. Geçmişe "Bayi
   düzeltip yeniden gönderdi: TC No, Kimlik ön yüz" düşer — yönetim alan alan
-  karşılaştırmasın; değişmeyen alan yazılmaz.
+  karşılaştırmasın; değişmeyen alan yazılmaz. SIM değişiminde not IMEI'leri
+  taşır ("SIM Kart (111 → 222)"): yalnızca alan adı yazılınca hangi kartın
+  çıktığı görünmüyordu.
   · Form parçaları ortaktır: `parca_form_alanlar.html` (müşteri tipi,
   alanlar, belgeler, not) ve `parca_form_js.html` (tarifeye bağlı alanlar,
   SIM daraltma, kamera, zorunlu alana kaydırma) hem `yeni.html` hem

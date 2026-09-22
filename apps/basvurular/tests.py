@@ -2423,7 +2423,9 @@ class EksikEvrakDuzeltme(TestCase):
         self.takili.refresh_from_db()
         self.yedek.refresh_from_db()
         self.assertEqual(self.takili.durum, SimKartDurumu.ATANDI)
-        self.assertIsNone(self.takili.basvuru)
+        # Hangi başvurudan çıktığı silinmez: kart sonradan arızalı işaretlenirse
+        # "bu kart hangi işte bozuldu" sorusu cevapsız kalmasın.
+        self.assertEqual(self.takili.basvuru, self.basvuru)
         self.assertEqual(self.yedek.durum, SimKartDurumu.KULLANILDI)
         self.assertEqual(self.yedek.basvuru, self.basvuru)
 

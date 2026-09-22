@@ -2400,7 +2400,8 @@ class BozukSimTakasi(TestCase):
         self.assertFalse(self.basvuru.bozuk_simler.exists())
         son = self.basvuru.durum_gecmisi.order_by("-pk").first()
         self.assertEqual(son.degistiren, self.bayi)
-        self.assertIn("SIM Kart", son.aciklama)
+        # Not hangi kartın çıkıp hangisinin girdiğini yazar.
+        self.assertIn(f"{self.takili.imei} → {self.yedek.imei}", son.aciklama)
 
     def test_bozuk_kart_kutuda_yoktur_secilemez(self):
         self._bozuk_bildir()
@@ -2659,6 +2660,66 @@ class BozukSimTakasi(TestCase):
         self.assertIsNotNone(self.takili.iade_alinma_tarihi)
         self.assertIsNotNone(self.takili.degisim_tarihi)
         self.assertEqual(self.takili.acik_ariza_isleri, ["Yerine kart verilmedi"])
+
+    def test_durum_elle_degisince_yonetici_simi_hatirlatilir(self):
+        """Yönetici "SIM bozuk" düğmesine basmadan durumu Eksik Evrak yapınca
+        kart arızalıya düşmüyordu; bayi yenisini takınca eskisi sağlam sayılıp
+        stoğa dönüyor ve takibe hiç girmiyordu ("değişen sim arızalıya düşmedi").
+        """
+        from apps.bayi.models import SimKartDurumu
+
+        import re
+
+        self.client.force_login(self.yonetici)
+        adres = reverse("admin:basvurular_basvuru_change", args=[self.basvuru.pk])
+        # Satır içi tabloların yönetim formu olmadan admin kaydı hiç almıyor.
+        sayfa = self.client.get(adres).content.decode()
+        veri = {
+            ad: deger
+            for ad, deger in re.findall(
+                r'name="([^"]*-(?:TOTAL|INITIAL|MIN_NUM|MAX_NUM)_FORMS)"[^>]*value="([^"]*)"', sayfa
+            )
+        }
+        # Salt okunur satır içi tablolar (durum geçmişi) kaydı ilgilendirmiyor.
+        veri |= {ad: "0" for ad in veri if ad.endswith(("-TOTAL_FORMS", "-INITIAL_FORMS"))}
+        veri |= {
+            "referans_no": self.basvuru.referans_no,
+            "bayi": self.basvuru.bayi_id,
+            "kategori": self.kategori.pk,
+            "operator": self.vodafone.pk,
+            "durum": self.eksik.pk,
+            "musteri_tipi": self.basvuru.musteri_tipi,
+            "kimlik_tipi": self.basvuru.kimlik_tipi,
+            "isim": self.basvuru.isim,
+            "soyisim": self.basvuru.soyisim,
+            "ek_bilgiler": "{}",
+            "giris_bedeli": "0.00",
+            "_continue": "1",
+        }
+
+        yanit = self.client.post(adres, veri, follow=True)
+
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.basvuru.durum, self.eksik)
+        # Kart hâlâ sağlam — hatırlatma tam da bunun için.
+        self.takili.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.KULLANILDI)
+        mesajlar = [str(m) for m in yanit.context["messages"]]
+        self.assertTrue(
+            any(self.takili.imei in m and "SIM bozuk" in m for m in mesajlar), mesajlar
+        )
+
+    def test_saglam_kart_stoga_donerken_basvuru_bagi_korunur(self):
+        """"Bu kart hangi işte bozuldu" sorusu cevapsız kalmasın."""
+        from apps.bayi.models import SimKartDurumu
+
+        self.basvuru.durum = self.eksik
+        self.basvuru.save(update_fields=["durum"])
+        self._duzelt(alan__sim=self.yedek.imei)
+
+        self.takili.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.ATANDI)
+        self.assertEqual(self.takili.basvuru, self.basvuru)
 
     def test_ozet_sayfasi_arizali_kartlari_sayar(self):
         self._bozuk_bildir()
