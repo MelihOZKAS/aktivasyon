@@ -2329,7 +2329,8 @@ class BozukSimTakasi(TestCase):
         self.assertEqual(self.takili.ariza_bildiren, self.tedarikci)
         self.assertEqual(self.takili.basvuru, self.basvuru)
         self.assertEqual(self.basvuru.durum, self.eksik)
-        self.assertTrue(self.basvuru.sim_degisimi_bekliyor)
+        self.assertTrue(self.basvuru.bayi_duzeltebilir)
+        self.assertTrue(self.basvuru.bozuk_simler.exists())
         son = self.basvuru.durum_gecmisi.order_by("-pk").first()
         self.assertEqual(son.degistiren, self.tedarikci)
         self.assertIn(self.takili.imei, son.aciklama)
@@ -2367,14 +2368,25 @@ class BozukSimTakasi(TestCase):
             self._bozuk_bildir()
         self.assertIn("Bayi düzenleyebilir", str(hata.exception))
 
-    # --- servis: bayi yeni kart takar ---
+    # --- bayi düzeltme formundan yeni kart takar ---
+
+    def _duzelt(self, **veri):
+        from apps.basvurular.forms import BasvuruDuzeltmeFormu
+        from apps.basvurular.models import Basvuru
+
+        basvuru = Basvuru.objects.get(pk=self.basvuru.pk)
+        gonderi = {"musteri_tipi": basvuru.musteri_tipi, "bayi_aciklamasi": "", **veri}
+        form = BasvuruDuzeltmeFormu(gonderi, {}, basvuru=basvuru)
+        if form.is_valid():
+            form.kaydet_duzeltme(self.bayi)
+        return form
 
     def test_bayi_yeni_kart_takinca_basvuru_kaldigi_yere_doner(self):
-        from apps.basvurular.services import simi_degistir
         from apps.bayi.models import SimKartDurumu
 
         self._bozuk_bildir()
-        simi_degistir(self.basvuru, self.takili, self.yedek, degistiren=self.bayi)
+        form = self._duzelt(alan__sim=self.yedek.imei)
+        self.assertEqual(form.errors, {})
 
         self.basvuru.refresh_from_db()
         self.takili.refresh_from_db()
@@ -2385,31 +2397,30 @@ class BozukSimTakasi(TestCase):
         self.assertEqual(self.yedek.basvuru, self.basvuru)
         # Eski kart arızalı kalır; takibi ayrı.
         self.assertEqual(self.takili.durum, SimKartDurumu.ARIZALI)
-        self.assertFalse(self.basvuru.sim_degisimi_bekliyor)
+        self.assertFalse(self.basvuru.bozuk_simler.exists())
         son = self.basvuru.durum_gecmisi.order_by("-pk").first()
         self.assertEqual(son.degistiren, self.bayi)
-        self.assertIn(self.yedek.imei, son.aciklama)
+        self.assertIn("SIM Kart", son.aciklama)
 
-    def test_degisim_beklenmiyorsa_takilamaz(self):
-        from apps.basvurular.services import SimDegisimiHatasi, simi_degistir
+    def test_bozuk_kart_kutuda_yoktur_secilemez(self):
+        self._bozuk_bildir()
+        form = self._duzelt(alan__sim=self.takili.imei)
 
-        with self.assertRaises(SimDegisimiHatasi):
-            simi_degistir(self.basvuru, self.takili, self.yedek, degistiren=self.bayi)
+        self.assertIn("alan__sim", form.errors)
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.basvuru.durum, self.eksik)
 
     def test_baska_operatorun_karti_takilamaz(self):
-        from apps.basvurular.services import SimDegisimiHatasi, simi_degistir
-
         self._bozuk_bildir()
-        with self.assertRaises(SimDegisimiHatasi) as hata:
-            simi_degistir(self.basvuru, self.takili, self.yanlis_operator, degistiren=self.bayi)
-        self.assertIn("Turkcell", str(hata.exception))
+        form = self._duzelt(alan__sim=self.yanlis_operator.imei)
+
+        self.assertIn("Turkcell", str(form.errors["alan__sim"]))
 
     def test_stokta_olmayan_kart_takilamaz(self):
-        from apps.basvurular.services import SimDegisimiHatasi, simi_degistir
-
         self._bozuk_bildir()
-        with self.assertRaises(SimDegisimiHatasi):
-            simi_degistir(self.basvuru, self.takili, self.stokta, degistiren=self.bayi)
+        form = self._duzelt(alan__sim=self.stokta.imei)
+
+        self.assertIn("alan__sim", form.errors)
 
     def test_olumsuz_sonucta_arizali_kart_stoga_donmez(self):
         """İptalde kartlar bayinin stoğuna döner; bozuk kart dönmez."""
@@ -2508,52 +2519,42 @@ class BozukSimTakasi(TestCase):
 
     # --- bayi ekranı ---
 
-    def test_bayi_detayda_yeni_kart_kutusunu_gorur_ve_takar(self):
+    def test_bayi_detayda_duzeltme_kutusunu_gorur_ve_yeni_kart_takar(self):
         from apps.bayi.models import SimKartDurumu
 
-        self._bozuk_bildir()
+        self._bozuk_bildir(aciklama="okumuyor")
         self.client.force_login(self.bayi)
         adres = reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        duzelt = reverse("basvurular:duzelt", args=[self.basvuru.referans_no])
 
         icerik = self.client.get(adres).content.decode()
-        self.assertIn("SIM kart bozuk çıktı", icerik)
-        self.assertIn(self.yedek.imei, icerik)
-        # Turkcell kartı Vodafone aktivasyonuna girmez: kutuda hiç yok.
-        self.assertNotIn(self.yanlis_operator.imei, icerik)
+        self.assertIn("Düzeltme bekleniyor", icerik)
+        self.assertIn("SIM kart bozuk çıktı", icerik)  # yönetim notu
+        self.assertIn(duzelt, icerik)
+
+        form = self.client.get(duzelt).content.decode()
+        self.assertIn(self.yedek.imei, form)
+        self.assertNotIn(f'value="{self.takili.imei}"', form)  # bozuk kart seçilemez
+        # Turkcell kartı listede durur ama operatöre göre daraltılır (JS);
+        # sunucu yine reddeder.
 
         yanit = self.client.post(
-            reverse("basvurular:sim-degistir", args=[self.basvuru.referans_no]),
-            {"eski": self.takili.pk, "yeni": self.yedek.imei},
+            duzelt, {"musteri_tipi": "turk", "bayi_aciklamasi": "", "alan__sim": self.yedek.imei}
         )
         self.assertRedirects(yanit, adres)
         self.basvuru.refresh_from_db()
         self.yedek.refresh_from_db()
         self.assertEqual(self.basvuru.durum, self.islemde)
         self.assertEqual(self.yedek.durum, SimKartDurumu.KULLANILDI)
-        # Kutu kalktı (geçmişteki not kalır; kutuyu form adresinden tanı).
-        self.assertNotIn(
-            reverse("basvurular:sim-degistir", args=[self.basvuru.referans_no]),
-            self.client.get(adres).content.decode(),
-        )
+        self.assertNotIn(duzelt, self.client.get(adres).content.decode())
 
-    def test_bayi_stogu_bossa_kutu_sebebini_yazar(self):
-        from apps.bayi.models import SimKart, SimKartDurumu
-
-        self._bozuk_bildir()
-        SimKart.objects.filter(pk=self.yedek.pk).update(durum=SimKartDurumu.BEKLEMEDE, bayi=None)
+    def test_kutu_duzenlenebilir_durum_degilse_cizilmez(self):
         self.client.force_login(self.bayi)
+        adres = reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        duzelt = reverse("basvurular:duzelt", args=[self.basvuru.referans_no])
 
-        icerik = self.client.get(
-            reverse("basvurular:detay", args=[self.basvuru.referans_no])
-        ).content.decode()
-        self.assertIn("kullanılabilir SIM kart yok", icerik)
-
-    def test_kutu_degisim_beklenmiyorsa_cizilmez(self):
-        self.client.force_login(self.bayi)
-        icerik = self.client.get(
-            reverse("basvurular:detay", args=[self.basvuru.referans_no])
-        ).content.decode()
-        self.assertNotIn(reverse("basvurular:sim-degistir", args=[self.basvuru.referans_no]), icerik)
+        self.assertNotIn(duzelt, self.client.get(adres).content.decode())
+        self.assertRedirects(self.client.get(duzelt), adres)
 
     # --- yönetim paneli ---
 

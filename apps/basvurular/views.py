@@ -289,29 +289,14 @@ def detay(request, referans):
                 if tedarikci_gorunumu and not basvuru.sonuclandi_mi
                 else []
             ),
-            "sim_degisimi": _sim_degisimi_baglami(basvuru) if bayi_gorunumu else None,
+            # Eksik Evrak: bayi neyin eksik olduğunu görür, düzeltip yeniden gönderir.
+            "duzeltme_acik": bayi_gorunumu and basvuru.bayi_duzeltebilir,
+            "yonetim_notu": basvuru.son_yonetim_notu if bayi_gorunumu else "",
             # Bayi kendi listesine, tedarikçi kendi paneline döner: karşı
             # tarafın ekranı rol kontrolünden geçemez.
             "geri_url": "basvurular:liste" if bayi_gorunumu else "bayi:tedarikci-panel",
         },
     )
-
-
-def _sim_degisimi_baglami(basvuru):
-    """Bayinin "bozuk kartın yerine yenisini tak" kutusu için veri.
-
-    Kutu yalnızca değişim beklenirken çizilir. Stok kutusuna başvurunun
-    operatörüne ait, bayiye zimmetli kartlar girer; stok boşsa kutu
-    sebebini yazar — boş bir liste "bir şey bozuldu" gibi durur.
-    """
-    from apps.bayi.models import SimKart
-
-    if not basvuru.sim_degisimi_bekliyor:
-        return None
-    stok = SimKart.objects.bayinin_stogu(basvuru.bayi).select_related("operator").order_by("imei")
-    if basvuru.operator_id:
-        stok = stok.filter(Q(operator=basvuru.operator) | Q(operator__isnull=True))
-    return {"bozuk": list(basvuru.bozuk_simler), "stok": list(stok[:500])}
 
 
 def _tedarikci_durumlari():
@@ -412,32 +397,51 @@ def sim_bozuk(request, referans):
 
 @login_required
 @bayi_gerekli
-@require_POST
-def sim_degistir(request, referans):
-    """Bayi bozuk kartın yerine stoğundan yeni kart takar."""
-    from apps.basvurular.services import SimDegisimiHatasi, simi_degistir
-    from apps.bayi.models import SimKart
+def duzelt(request, referans):
+    """Bayi, düzenleyebildiği durumdaki başvurusunu düzeltip yeniden gönderir.
+
+    Eksik evrak, yanlış girilmiş alan, bozuk çıkan SIM — hepsi aynı ekran.
+    Hat bilgileri kilitli (fiyat oradan çıkıyor), bakiye kapısı işlemez
+    (iş zaten satın alındı). Gönderince başvuru bildirim öncesi durumuna
+    döner ve geçmişe neyin değiştiği düşer.
+    """
+    from django.core.exceptions import ValidationError
+
+    from apps.basvurular.forms import BasvuruDuzeltmeFormu
+    from apps.basvurular.services import SimDegisimiHatasi
 
     basvuru = get_object_or_404(
-        Basvuru.objects.select_related("durum", "operator", "kategori"),
+        Basvuru.objects.select_related("durum", "operator", "tarife", "kampanya", "kategori")
+        .prefetch_related("belgeler", "kategori__alanlar"),
         referans_no=referans,
         bayi=request.user,
     )
-    eski = basvuru.bozuk_simler.filter(pk=request.POST.get("eski") or 0).first()
-    yeni = SimKart.objects.bayinin_stogu(request.user).filter(
-        imei=(request.POST.get("yeni") or "").strip()
-    ).select_related("operator").first()
-    if eski is None or yeni is None:
-        messages.error(request, "Stoğundan geçerli bir SIM kart seç.")
+    if not basvuru.bayi_duzeltebilir:
+        messages.error(request, "Bu başvuru şu an düzeltmeye açık değil.")
         return redirect("basvurular:detay", referans=referans)
 
-    try:
-        simi_degistir(basvuru, eski, yeni, degistiren=request.user)
-    except SimDegisimiHatasi as hata:
-        messages.error(request, str(hata))
+    if request.method == "POST":
+        form = BasvuruDuzeltmeFormu(request.POST, request.FILES, basvuru=basvuru)
+        if form.is_valid():
+            try:
+                form.kaydet_duzeltme(request.user)
+            except (ValidationError, SimDegisimiHatasi) as hata:
+                form.add_error(None, hata)
+            else:
+                messages.success(
+                    request,
+                    f"Düzeltmen alındı; başvuru “{basvuru.durum.ad}” durumunda işleme geri döndü.",
+                )
+                return redirect("basvurular:detay", referans=referans)
     else:
-        messages.success(request, f"Yeni SIM kart takıldı: {yeni.imei}. Başvuru işleme geri döndü.")
-    return redirect("basvurular:detay", referans=referans)
+        form = BasvuruDuzeltmeFormu(basvuru=basvuru)
+
+    return render(
+        request,
+        "basvurular/duzelt.html",
+        {"form": form, "basvuru": basvuru, "kategori": basvuru.kategori,
+         "yonetim_notu": basvuru.son_yonetim_notu},
+    )
 
 
 @login_required

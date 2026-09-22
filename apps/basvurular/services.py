@@ -5,22 +5,23 @@ import logging
 from django.db import transaction
 
 from apps.basvurular.models import BasvuruDurumu
-from apps.bayi.models import SimKart, SimKartDurumu
+from apps.bayi.models import SimKartDurumu
 from apps.bayi.services import sim_arizali_isaretle
 
 logger = logging.getLogger(__name__)
 
 
-# --- SIM değişimi ---------------------------------------------------------
+# --- Bozuk SIM ve bayinin düzeltmesi ----------------------------------------
 #
 # Bozuk kart için para hareketi yoktur, kart takası vardır. Başvuru iptal
 # edilip yeniden girilseydi giriş bedeli iade edilir, güncel fiyattan yeniden
 # kesilirdi; bayi 100'e aldığı işi 150'ye almış olurdu. Aynı başvuruda kartı
-# değiştirmek parayı olduğu yerde bırakır.
+# değiştirmek parayı olduğu yerde bırakır. Eksik evrak da aynı yoldan yürür:
+# bayi düzeltir, yeniden gönderir, başvuru kaldığı yere döner.
 
 
 class SimDegisimiHatasi(Exception):
-    """SIM değişimi yapılamadı; sebebi mesajda."""
+    """SIM bildirimi ya da düzeltme yapılamadı; sebebi mesajda."""
 
 
 def bayi_duzenleyebilir_durumlar():
@@ -81,50 +82,24 @@ def _onceki_durum(basvuru):
     return BasvuruDurumu.objects.filter(aktif=True, baslangic_durumu=True).first()
 
 
-def simi_degistir(basvuru, eski_kart, yeni_kart, *, degistiren):
-    """Bayi bozuk kartın yerine stoğundan yeni kart takar; başvuru bildirim
-    öncesi durumuna döner.
+def duzeltmeyi_gonder(basvuru, *, degistiren, degisenler=()):
+    """Bayi düzeltip yeniden gönderdi: başvuru bildirim öncesi durumuna döner.
 
-    Para hiç oynamaz. Eski kart arızalı kalır (arıza takibi onu ayrıca
-    kapatır), başvurudaki IMEI yenisiyle değişir, yeni kart "Kullanıldı"
-    olur. Yeni kart bayinin stoğunda ve başvurunun operatörüne ait olmalı.
+    Neyin değiştiği geçmişe düşer; yönetim alan alan karşılaştırmasın. Para
+    hiç oynamaz — düzeltme yeni bir ücret doğurmaz, iş zaten satın alındı.
     """
-    if not basvuru.sim_degisimi_bekliyor:
-        raise SimDegisimiHatasi("Bu başvuruda SIM değişimi beklenmiyor.")
-    if eski_kart.pk not in {k.pk for k in basvuru.bozuk_simler}:
-        raise SimDegisimiHatasi(f"{eski_kart.imei} bu başvuruda değişim bekleyen bir kart değil.")
-    if yeni_kart.bayi_id != basvuru.bayi_id or yeni_kart.durum != SimKartDurumu.ATANDI:
-        raise SimDegisimiHatasi("Bu SIM kart stoğunuzda değil.")
-    if (
-        basvuru.operator_id
-        and yeni_kart.operator_id
-        and yeni_kart.operator_id != basvuru.operator_id
-    ):
-        raise SimDegisimiHatasi(
-            f"Bu SIM kart {yeni_kart.operator.ad} kartı; "
-            f"{basvuru.operator.ad} aktivasyonunda kullanılamaz."
-        )
+    if not basvuru.bayi_duzeltebilir:
+        raise SimDegisimiHatasi("Bu başvuru şu an düzeltmeye açık değil.")
 
-    with transaction.atomic():
-        # Eşzamanlı iki başvuru aynı kartı takamaz; yalnızca hâlâ stoktaysa.
-        adet = SimKart.objects.filter(pk=yeni_kart.pk, durum=SimKartDurumu.ATANDI).update(
-            durum=SimKartDurumu.KULLANILDI, basvuru=basvuru
-        )
-        if not adet:
-            raise SimDegisimiHatasi("Bu SIM kart az önce başka bir başvuruda kullanıldı.")
+    hedef = _onceki_durum(basvuru)
+    if hedef is not None:
+        basvuru.durum = hedef
+    basvuru._degistiren = degistiren
+    ozet = ", ".join(degisenler) if degisenler else "değişiklik yok"
+    basvuru._aciklama = f"Bayi düzeltip yeniden gönderdi: {ozet}."[:255]
+    basvuru.save(update_fields=["durum", "guncelleme_tarihi"])
 
-        for kod, imei in basvuru.sim_degerleri().items():
-            if imei == eski_kart.imei:
-                basvuru.ek_bilgiler[kod] = yeni_kart.imei
-
-        basvuru.durum = _onceki_durum(basvuru) or basvuru.durum
-        basvuru._degistiren = degistiren
-        basvuru._aciklama = f"Bayi yeni SIM kart taktı: {yeni_kart.imei} ({eski_kart.imei} yerine)."
-        basvuru.save(update_fields=["ek_bilgiler", "durum", "guncelleme_tarihi"])
-
-    logger.info(
-        "Başvuru %s: SIM %s yerine %s takıldı.", basvuru.referans_no, eski_kart.imei, yeni_kart.imei
-    )
+    logger.info("Başvuru %s: bayi düzeltip yeniden gönderdi (%s).", basvuru.referans_no, ozet)
     return basvuru
 
 

@@ -2260,3 +2260,219 @@ class KarOzetiKartlari(TestCase):
         self.assertEqual(ozet["alis_bedeli"], Decimal("1000.00"))
         self.assertEqual(ozet["hakedis"], Decimal("0"))
         self.assertEqual(ozet["kar"], Decimal("150.00"))
+
+
+@override_settings(MEDIA_ROOT=GECICI_MEDYA)
+class EksikEvrakDuzeltme(TestCase):
+    """Bayi, Eksik Evrak'taki başvurusunu tek ekrandan düzeltip yeniden gönderir.
+
+    "Bayi düzenleyebilir" kutusu uzun süre yalnızca bir etiketti: bayi
+    başvuruyu görüyor ama kimliği yeniden yükleyemiyor, alanı düzeltemiyordu.
+    Artık yönetimin notunu görür, düzeltir, gönderir; başvuru bildirim öncesi
+    durumuna döner ve geçmişe neyin değiştiği düşer. Para hiç oynamaz, hat
+    bilgileri kilitlidir.
+    """
+
+    def setUp(self):
+        from apps.bayi.models import SimKart, SimKartDurumu
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import AlanTipi, KategoriAlani, Operator
+
+        self.giris = BasvuruDurumu.objects.create(ad="Giriş", slug="giris", baslangic_durumu=True, sira=1)
+        self.islemde = BasvuruDurumu.objects.create(ad="İşlemde", slug="islemde", sira=2)
+        self.eksik = BasvuruDurumu.objects.create(
+            ad="Eksik Evrak", slug="eksik", bayi_duzenleyebilir=True, sira=3
+        )
+        self.aktif = BasvuruDurumu.objects.create(ad="Aktif", slug="aktif", hakedis_tetikler=True, sira=4)
+
+        self.bayi = User.objects.create_user("5301112233", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)  # bakiye 0: düzeltme bakiye istemez
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+
+        self.operator = Operator.objects.create(ad="Vodafone")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat", tarife_zorunlu=False)
+        self.kategori.operatorler.add(self.operator)
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="isim", etiket="İsim", tip=AlanTipi.METIN,
+            cekirdek_alan="isim", zorunlu=True, sira=1,
+        )
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="kimlik_no", etiket="TC No", tip=AlanTipi.METIN,
+            cekirdek_alan="kimlik_no", zorunlu=True, sira=2,
+        )
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="not", etiket="Ek not", tip=AlanTipi.METIN, zorunlu=False, sira=3,
+        )
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="kimlik_on", etiket="Kimlik ön yüz", tip=AlanTipi.RESIM,
+            zorunlu=True, sira=10,
+        )
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="sim", etiket="SIM Kart", tip=AlanTipi.SIM_KART, zorunlu=True, sira=20,
+        )
+
+        self.takili = SimKart.objects.create(imei="8990000000000001", operator=self.operator, bayi=self.bayi)
+        self.yedek = SimKart.objects.create(imei="8990000000000002", operator=self.operator, bayi=self.bayi)
+
+        self.basvuru = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator, durum=self.giris,
+            isim="Ayse", soyisim="Yılmaz", kimlik_no="11111111110",
+            ek_bilgiler={"sim": self.takili.imei, "not": "eski not"},
+        )
+        SimKart.objects.filter(pk=self.takili.pk).update(durum=SimKartDurumu.KULLANILDI, basvuru=self.basvuru)
+        self.belge = BasvuruBelgesi.objects.create(
+            basvuru=self.basvuru, alan_kodu="kimlik_on", etiket="Kimlik ön yüz", dosya=kucuk_png()
+        )
+        self.basvuru.durum = self.islemde
+        self.basvuru.save(update_fields=["durum"])
+        self.client.force_login(self.bayi)
+
+    def _eksige_al(self, not_="Kimlik ön yüz bulanık, TC no hatalı"):
+        self.basvuru.durum = self.eksik
+        self.basvuru._degistiren = self.yonetici
+        self.basvuru._aciklama = not_
+        self.basvuru.save(update_fields=["durum"])
+
+    def _adres(self):
+        return reverse("basvurular:duzelt", args=[self.basvuru.referans_no])
+
+    def _gonderi(self, **ek):
+        return {
+            "musteri_tipi": "turk", "bayi_aciklamasi": "",
+            "alan__isim": "Ayse", "alan__kimlik_no": "11111111110", "alan__not": "eski not",
+            "alan__sim": self.takili.imei, **ek,
+        }
+
+    def test_detayda_yonetim_notu_ve_dugme(self):
+        self._eksige_al()
+        icerik = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        ).content.decode()
+
+        self.assertIn("Düzeltme bekleniyor", icerik)
+        self.assertIn("Kimlik ön yüz bulanık, TC no hatalı", icerik)
+        self.assertIn(self._adres(), icerik)
+
+    def test_form_dolu_gelir_belge_zorunlu_degil_hat_kilitli(self):
+        self._eksige_al()
+        yanit = self.client.get(self._adres())
+        form = yanit.context["form"]
+        icerik = yanit.content.decode()
+
+        self.assertEqual(form["alan__isim"].value(), "Ayse")
+        self.assertEqual(form["alan__kimlik_no"].value(), "11111111110")
+        self.assertEqual(form["alan__not"].value(), "eski not")
+        self.assertEqual(form["alan__sim"].value(), self.takili.imei)
+        self.assertFalse(form.fields["alan__kimlik_on"].required)
+        self.assertNotIn("operator", form.fields)
+        self.assertNotIn("tarife", form.fields)
+        self.assertIn("Kimlik ön yüz bulanık", icerik)
+        self.assertIn("Yüklü: Kimlik ön yüz", icerik)
+        self.assertIn("(takılı)", icerik)
+
+    def test_duzeltip_gonderince_kaldigi_yere_doner(self):
+        self._eksige_al()
+        eski_dosya = self.belge.dosya.name
+
+        yanit = self.client.post(
+            self._adres(),
+            self._gonderi(alan__kimlik_no="22222222220", alan__not="", alan__kimlik_on=kucuk_png()),
+        )
+
+        self.assertRedirects(yanit, reverse("basvurular:detay", args=[self.basvuru.referans_no]))
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.basvuru.durum, self.islemde)
+        self.assertEqual(self.basvuru.kimlik_no, "22222222220")
+        self.assertEqual(self.basvuru.isim, "Ayse")
+        self.assertNotIn("not", self.basvuru.ek_bilgiler)  # boşaltılan alan silinir
+        self.assertEqual(self.basvuru.ek_bilgiler["sim"], self.takili.imei)
+        belge = self.basvuru.belgeler.get(alan_kodu="kimlik_on")
+        self.assertNotEqual(belge.dosya.name, eski_dosya)
+        self.assertEqual(self.basvuru.belgeler.count(), 1)
+        son = self.basvuru.durum_gecmisi.order_by("-pk").first()
+        self.assertEqual(son.degistiren, self.bayi)
+        self.assertIn("TC No", son.aciklama)
+        self.assertIn("Kimlik ön yüz", son.aciklama)
+        self.assertIn("Ek not", son.aciklama)
+        self.assertNotIn("İsim", son.aciklama)
+
+    def test_belge_yuklenmezse_eskisi_kalir(self):
+        self._eksige_al()
+        self.client.post(self._adres(), self._gonderi())
+
+        self.assertEqual(self.basvuru.belgeler.get(alan_kodu="kimlik_on").dosya.name, self.belge.dosya.name)
+
+    def test_silinmis_belge_yeniden_zorunludur(self):
+        """Onaydan sonra silinen kimlik yeniden istenirken alan zorunlu olur."""
+        self.basvuru.belgeler.all().delete()
+        self._eksige_al("Kimliği yeniden yükle")
+
+        form = self.client.get(self._adres()).context["form"]
+        self.assertTrue(form.fields["alan__kimlik_on"].required)
+
+        yanit = self.client.post(self._adres(), self._gonderi())
+        self.assertEqual(yanit.status_code, 200)
+        self.assertIn("alan__kimlik_on", yanit.context["form"].errors)
+
+    def test_saglam_sim_degisirse_eskisi_stoga_doner(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self._eksige_al("Yanlış kart seçilmiş")
+        self.client.post(self._adres(), self._gonderi(alan__sim=self.yedek.imei))
+
+        self.takili.refresh_from_db()
+        self.yedek.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.ATANDI)
+        self.assertIsNone(self.takili.basvuru)
+        self.assertEqual(self.yedek.durum, SimKartDurumu.KULLANILDI)
+        self.assertEqual(self.yedek.basvuru, self.basvuru)
+
+    def test_bakiye_kapisi_islemez_para_oynamaz(self):
+        from decimal import Decimal
+
+        from apps.finans.models import CuzdanHareketi, KuralYonu, UcretKurali
+
+        UcretKurali.objects.create(
+            ad="Tahsilat", yon=KuralYonu.TAHSILAT, tutar=Decimal("500.00"),
+            kategori=self.kategori, tetikleyici_durum=self.aktif,
+        )
+        self._eksige_al()
+
+        yanit = self.client.post(self._adres(), self._gonderi(alan__kimlik_no="22222222220"))
+
+        self.assertEqual(yanit.status_code, 302)
+        self.assertEqual(CuzdanHareketi.objects.count(), 0)
+
+    def test_duzenlenebilir_durum_degilse_kapali(self):
+        yanit = self.client.get(self._adres())
+        self.assertRedirects(yanit, reverse("basvurular:detay", args=[self.basvuru.referans_no]))
+
+        yanit = self.client.post(self._adres(), self._gonderi(alan__kimlik_no="22222222220"))
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.basvuru.kimlik_no, "11111111110")
+
+    def test_sonuclanmis_basvuru_duzeltilemez(self):
+        """Durum bayı düzenleyebilir işaretli olsa da sonuçlanmış iş kapalıdır."""
+        self.eksik.hakedis_tetikler = True
+        self.eksik.save()
+        self.basvuru.durum = self.eksik
+        self.basvuru.save(update_fields=["durum"])
+
+        yanit = self.client.get(self._adres())
+        self.assertEqual(yanit.status_code, 302)
+
+    def test_baskasinin_basvurusu_404(self):
+        self._eksige_al()
+        digeri = User.objects.create_user("5309998877", password="parola12345")
+        self.client.force_login(digeri)
+
+        self.assertEqual(self.client.get(self._adres()).status_code, 404)
+
+    def test_yeni_basvuru_formu_bozulmadi(self):
+        """Ortak parça çıkarıldı; yeni başvuru ekranı aynı alanları çizer."""
+        icerik = self.client.get(reverse("basvurular:yeni", args=[self.kategori.slug])).content.decode()
+
+        self.assertIn("alan__kimlik_on", icerik)
+        self.assertIn("Fotoğraf çek", icerik)
+        self.assertIn("data-sim-kutusu", icerik)
+        self.assertIn("id_operator", icerik)

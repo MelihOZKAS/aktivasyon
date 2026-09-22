@@ -813,16 +813,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   veridir — `BasvuruDurumu.bayi_duzenleyebilir`; ilki hazır gelir, yönetim
   onay ekranından değiştirebilir. Öyle bir durum yoksa servis sebebini
   söyler. Sonuçlanmış başvuruda reddedilir.
-  · **Bayi yerine yenisini takar** (`views.sim_degistir` →
-  `simi_degistir`): detaydaki kutu yalnızca `Basvuru.sim_degisimi_bekliyor`
-  iken çizilir (sonuçlanmamış + bayi düzenleyebilir + başvuruda yazılı
-  IMEI'lerden biri arızalı). Stok kutusuna bayinin zimmetli ve başvurunun
-  operatörüne ait kartları girer; boşsa sebebini yazar. Yeni kart Kullanıldı
-  olur, başvurudaki IMEI (`ek_bilgiler`) değişir, başvuru **bildirim öncesi
-  durumuna döner** (`_onceki_durum`: son geçmiş kaydının öncekisi; o
-  kapalıysa başlangıç durumu) — iş kuyruğa geri girer, Eksik Evrak'ta
-  unutulmaz. "Değiştirildi mi" ayrı bayrak değildir: arızalı kartın IMEI'si
-  başvuruda artık yazmıyorsa değişmiştir (`bozuk_simler`).
+  · **Bayi yerine yenisini düzeltme ekranından takar** (aşağıdaki Eksik
+  Evrak kuralı): bozuk kart SIM kutusuna hiç girmez, bayi stoğundan başka
+  kart seçmek zorunda kalır. "Değiştirildi mi" ayrı bayrak değildir:
+  arızalı kartın IMEI'si başvuruda artık yazmıyorsa değişmiştir
+  (`Basvuru.bozuk_simler`).
   · **Arızalı kartın üç adımı** (`SimKart`: `iade_alinma_tarihi`,
   `yerine_verilen`, `degisim_tarihi`) birbirinden bağımsızdır ve
   `bayi.services` ile işler: `sim_bayiden_alindi`, `sim_yerine_ver` (stoktan
@@ -839,6 +834,43 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   bayinin stoğuna döner (`basvurunun_simlerini_serbest_birak`) ama yalnızca
   Kullanıldı olanlar; toplu zimmetleme ve geri alma da arızalıyı atlar.
   Aksi hâlde bozuk kart "sağlam" görünüp yeni başvuruya girerdi.
+- **Eksik Evrak'taki başvuruyu bayi tek ekrandan düzeltip yeniden gönderir.**
+  "Bayi düzenleyebilir" kutusu uzun süre yalnızca bir etiketti: yönetici
+  durumu değiştiriyor, bayi görüyor ama kimliği yeniden yükleyemiyor, alanı
+  düzeltemiyor, evrakı WhatsApp'tan gönderiyordu. Şimdi detayda **Düzeltme
+  bekleniyor** kutusu yönetimin notunu (`Basvuru.son_yonetim_notu`: başvuruyu
+  bu duruma getiren geçmiş kaydının açıklaması — o yüzden Eksik Evrak'a
+  alırken **not yaz**) ve "Düzelt ve yeniden gönder" düğmesini gösterir;
+  `/basvuru/<ref>/duzelt/` (`views.duzelt`, `BasvuruDuzeltmeFormu`) aynı
+  form tanımını dolu değerlerle açar: kategori alanları, belgeler, SIM, not.
+  Kapı `Basvuru.bayi_duzeltebilir` (sonuçlanmamış + `durum.bayi_duzenleyebilir`).
+  · **Hat bilgileri kilitlidir** (operatör, tarife, kampanya formdan
+  çıkarılır): fiyat oradan çıkıyor ve giriş bedeli çoktan kesildi; yanlışsa
+  yönetim düzeltir. Gizli `id_operator`/`id_tarife` girdileri durur ki
+  tarifeye bağlı alanlar ve SIM daraltması yeni başvurudaki gibi çalışsın.
+  · **Bakiye kapısı işlemez, para oynamaz**: iş zaten satın alındı.
+  `BasvuruFormu.clean` tarife/operatör seçimini ve bakiye kapısını
+  kancalardan okur (`_secili_tarife`, `_secili_operator`, `_bakiye_kapisi`);
+  düzeltme formu onları ezer. Yeni başvuruda davranış değişmedi.
+  · **Belge yalnızca yoksa zorunludur**; yüklenmezse eskisi kalır, yüklenirse
+  eskisi commit sonrasında diskten silinir. Onaydan sonra silinmiş kimlik
+  (`belgeler_silindi`) yeniden istenirken alan yine zorunludur — kayıt yok.
+  · **SIM kutusuna stok + takılı sağlam kart girer** ("(takılı)" etiketiyle),
+  arızalı kart girmez. Sağlam kart değişirse eskisi bayinin stoğuna döner
+  (elinde duruyor, kullanılmadı: `ATANDI`, başvuru bağı kalkar); arızalı
+  kart arızalı kalır, takibi ayrı.
+  · **Gönderince başvuru bildirim öncesi durumuna döner**
+  (`services.duzeltmeyi_gonder` → `_onceki_durum`: son geçmiş kaydının
+  öncekisi; o kapalıysa ya da yine bayinin düzenlediği bir durumsa başlangıç
+  durumu). İş kuyruğa geri girer, Eksik Evrak'ta unutulmaz. Geçmişe "Bayi
+  düzeltip yeniden gönderdi: TC No, Kimlik ön yüz" düşer — yönetim alan alan
+  karşılaştırmasın; değişmeyen alan yazılmaz.
+  · Form parçaları ortaktır: `parca_form_alanlar.html` (müşteri tipi,
+  alanlar, belgeler, not) ve `parca_form_js.html` (tarifeye bağlı alanlar,
+  SIM daraltma, kamera, zorunlu alana kaydırma) hem `yeni.html` hem
+  `duzelt.html` tarafından çizilir. Forma bir şey eklerken parçaya ekle,
+  ikisini ayrı ayrı büyütme. `belge_alanlari` üçlü demet döner
+  (tanım, alan, mevcut belge); yeni başvuruda mevcut hep `None`.
 - **URL'ler okunur olmalı: slug'lı, sorgu dizesiz.** `?kategori=4` değil
   `/basvuru/yeni/adsl-internet/`. Kayıtlara referans numarasıyla erişilir,
   id ile değil (sayaç taranmasın). Slug üretiminde

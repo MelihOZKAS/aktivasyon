@@ -22,5 +22,5 @@ urlpatterns = [
     ),
     path("<referans:referans>/durum/", views.durum_bildir, name="durum-bildir"),
     path("<referans:referans>/sim-bozuk/", views.sim_bozuk, name="sim-bozuk"),
-    path("<referans:referans>/sim-degistir/", views.sim_degistir, name="sim-degistir"),
+    path("<referans:referans>/duzelt/", views.duzelt, name="duzelt"),
 ]

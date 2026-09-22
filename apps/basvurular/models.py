@@ -392,18 +392,20 @@ class Basvuru(ZamanDamgali):
         ).select_related("operator")
 
     @property
-    def sim_degisimi_bekliyor(self):
-        """Bayi bu başvuruda yeni SIM seçebilir mi?
+    def bayi_duzeltebilir(self):
+        """Bayi bu başvuruyu düzeltip yeniden gönderebilir mi?
 
-        Kapı üç kilitli: iş sonuçlanmamış, durum bayinin düzenleyebildiği
-        bir durum (veridir: `BasvuruDurumu.bayi_duzenleyebilir`) ve
-        başvuruda bozuk kart yazılı.
+        İki kilit: iş sonuçlanmamış ve durum bayinin düzenleyebildiği bir
+        durum (veridir: `BasvuruDurumu.bayi_duzenleyebilir`, Eksik Evrak).
         """
-        return (
-            not self.sonuclandi_mi
-            and self.durum.bayi_duzenleyebilir
-            and self.bozuk_simler.exists()
-        )
+        return not self.sonuclandi_mi and self.durum.bayi_duzenleyebilir
+
+    @property
+    def son_yonetim_notu(self):
+        """Başvuruyu bu duruma getiren geçmiş kaydının notu — bayi neyin
+        eksik olduğunu buradan okur."""
+        son = self.durum_gecmisi.order_by("-tarih", "-pk").first()
+        return son.aciklama if son and son.yeni_durum_id == self.durum_id else ""
 
     @property
     def kar(self):

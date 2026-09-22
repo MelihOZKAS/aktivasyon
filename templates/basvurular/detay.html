@@ -53,50 +53,23 @@
   </div>
 
   {% comment %}
-    Aktivasyonda kart bozuk çıktı: bayi stoğundan yenisini takar, başvuru
-    kaldığı yerden devam eder. Para hiç oynamaz — iptal edip yeniden
-    girseydi kartın o günkü fiyatını yeniden öderdi. Kutu yalnızca değişim
-    beklenirken çizilir (Basvuru.sim_degisimi_bekliyor); stok boşsa sebebi
-    yazılır, boş liste "bir şey bozuldu" gibi durmasın.
+    Eksik Evrak: bayi neyin eksik olduğunu (yönetimin notu) görür, tek
+    ekrandan düzeltip yeniden gönderir — kimlik, alanlar, bozuk çıkan SIM.
+    Kutu yalnızca bayinin düzenleyebildiği durumda çizilir
+    (Basvuru.bayi_duzeltebilir); para hiç oynamaz.
   {% endcomment %}
-  {% if sim_degisimi %}
-  <div class="yuzey rounded-kart border-olumsuz p-6" style="--sim-kenar: var(--color-olumsuz)">
-    <h3 class="baslik font-semibold text-olumsuz">SIM kart bozuk çıktı</h3>
+  {% if duzeltme_acik %}
+  <div class="yuzey sim rounded-kart border-uyari p-6" style="--sim-kenar: var(--color-uyari)">
+    <h3 class="baslik font-semibold text-uyari">Düzeltme bekleniyor</h3>
+    <p class="mt-1.5 text-sm leading-relaxed">
+      {% if yonetim_notu %}{{ yonetim_notu }}{% else %}Bu başvuruda eksik ya da hatalı bir şey var; düzeltip yeniden gönder.{% endif %}
+    </p>
     <p class="mt-1.5 text-sm leading-relaxed text-soluk">
-      {% for kart in sim_degisimi.bozuk %}<span class="referans">{{ kart.imei }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}
-      aktivasyonda çalışmadı. Stoğundan yeni bir kart seç; başvurun kaldığı
-      yerden devam eder, ödediğin ücret değişmez. Bozuk kartı yönetime teslim
-      et, yerine yenisi verilecek.
+      Gönderince başvuru kaldığı yerden devam eder; ödediğin ücret değişmez.
     </p>
-
-    {% if sim_degisimi.stok %}
-    <form method="post" action="{% url 'basvurular:sim-degistir' basvuru.referans_no %}"
-          class="mt-4 space-y-3">
-      {% csrf_token %}
-      {% if sim_degisimi.bozuk|length == 1 %}
-      <input type="hidden" name="eski" value="{{ sim_degisimi.bozuk.0.pk }}">
-      {% else %}
-      <select name="eski" class="girdi" required aria-label="Değişecek kart">
-        <option value="">Hangi kart değişecek?</option>
-        {% for kart in sim_degisimi.bozuk %}
-        <option value="{{ kart.pk }}">{{ kart.imei }}</option>
-        {% endfor %}
-      </select>
-      {% endif %}
-      <select name="yeni" class="girdi" required aria-label="Yeni SIM kart">
-        <option value="">Yeni SIM kart seç</option>
-        {% for kart in sim_degisimi.stok %}
-        <option value="{{ kart.imei }}">{{ kart.imei }}{% if kart.operator %} · {{ kart.operator.ad }}{% endif %}</option>
-        {% endfor %}
-      </select>
-      <button type="submit" class="dugme dugme-birincil w-full sm:w-auto">Yeni kartı tak</button>
-    </form>
-    {% else %}
-    <p class="mt-4 text-sm font-medium text-uyari">
-      Stoğunda {{ basvuru.operator.ad|default:"bu operatöre ait" }} kullanılabilir SIM kart yok;
-      yönetimden kart iste.
-    </p>
-    {% endif %}
+    <a href="{% url 'basvurular:duzelt' basvuru.referans_no %}" class="dugme dugme-birincil mt-4 w-full sm:w-auto">
+      Düzelt ve yeniden gönder
+    </a>
   </div>
   {% endif %}
 

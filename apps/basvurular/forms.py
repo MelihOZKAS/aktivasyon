@@ -253,10 +253,35 @@ class BasvuruFormu(forms.Form):
 
     # -- doğrulama --------------------------------------------------------
 
+    def _secili_tarife(self, temiz):
+        return temiz.get("tarife")
+
+    def _secili_operator(self, temiz):
+        return temiz.get("operator")
+
+    def _bakiye_kapisi(self, temiz, operator, tarife):
+        """Bedeli olan işlem parası olmayana verilmez. Kategori ekranı en ucuz
+        seçeneğe göre eliyor; burada seçilen operatör ve tarifenin gerçek
+        tutarı denetlenir. Sunucu doğrulaması kapıyı son kez kapatır."""
+        if self.bayi is None:
+            return
+        from apps.finans.services import basvuru_bedeli
+
+        bedel = basvuru_bedeli(self.bayi, self.kategori, operator=operator, tarife=tarife)
+        cuzdan = getattr(self.bayi, "cuzdan", None)
+        bakiye = cuzdan.bakiye if cuzdan else Decimal("0.00")
+        if bedel > bakiye:
+            self.add_error(
+                None,
+                f"Bu başvuru için bakiyen yetersiz. Gereken {para(bedel)} ₺, "
+                f"bakiyen {para(bakiye)} ₺. Bakiye yüklemek için yöneticinle "
+                "iletişime geç.",
+            )
+
     def clean(self):
         temiz = super().clean()
 
-        secili_tarife = temiz.get("tarife")
+        secili_tarife = self._secili_tarife(temiz)
 
         for tanim in self.alan_tanimlari:
             anahtar = ALAN_ONEKI + tanim.kod
@@ -291,32 +316,12 @@ class BasvuruFormu(forms.Form):
                 if not re.fullmatch(tanim.dogrulama_deseni, deger):
                     self.add_error(anahtar, f"{tanim.etiket} beklenen biçimde değil.")
 
-        tarife = temiz.get("tarife")
-        operator = temiz.get("operator")
+        tarife = secili_tarife
+        operator = self._secili_operator(temiz)
         if tarife and operator and tarife.operator_id != operator.pk:
             self.add_error("tarife", "Seçilen tarife bu operatöre ait değil.")
 
-        # Bedeli olan işlem parası olmayana verilmez. Kategori ekranı en ucuz
-        # seçeneğe göre eliyor; burada seçilen operatör ve tarifenin gerçek
-        # tutarı denetlenir. Sunucu doğrulaması kapıyı son kez kapatır.
-        if self.bayi is not None:
-            from apps.finans.services import basvuru_bedeli
-
-            bedel = basvuru_bedeli(
-                self.bayi,
-                self.kategori,
-                operator=temiz.get("operator"),
-                tarife=tarife,
-            )
-            cuzdan = getattr(self.bayi, "cuzdan", None)
-            bakiye = cuzdan.bakiye if cuzdan else Decimal("0.00")
-            if bedel > bakiye:
-                self.add_error(
-                    None,
-                    f"Bu başvuru için bakiyen yetersiz. Gereken {para(bedel)} ₺, "
-                    f"bakiyen {para(bakiye)} ₺. Bakiye yüklemek için yöneticinle "
-                    "iletişime geç.",
-                )
+        self._bakiye_kapisi(temiz, operator, tarife)
 
         kampanya = temiz.get("kampanya")
         if kampanya:
@@ -348,7 +353,7 @@ class BasvuruFormu(forms.Form):
             # Operatörler birbirinin kartını kullanamaz; hatlar BTK'da IMEI
             # bazında lisanslı. Kutu zaten daraltılıyor ama kural burada durur:
             # aksi hâlde ucuz kartı seçip pahalı işlem girmek mümkün olurdu.
-            secilen = self.cleaned_data.get("operator")
+            secilen = self._secili_operator(self.cleaned_data)
             self.add_error(
                 anahtar,
                 f"Bu SIM kart {kart.operator.ad} kartı; "
@@ -364,7 +369,7 @@ class BasvuruFormu(forms.Form):
         Kartın operatörü girilmemişse (eski kayıt) engellenmez; yönetici
         stoğu tamamlayana kadar iş durmasın.
         """
-        secilen = self.cleaned_data.get("operator")
+        secilen = self._secili_operator(self.cleaned_data)
         if secilen is None or kart.operator_id is None:
             return True
         return kart.operator_id == secilen.pk
@@ -389,8 +394,10 @@ class BasvuruFormu(forms.Form):
 
     @property
     def belge_alanlari(self):
+        """(tanım, alan, mevcut belge). Yeni başvuruda mevcut belge yoktur;
+        düzeltme formu eskisini gösterir."""
         return [
-            (tanim, self[ALAN_ONEKI + tanim.kod])
+            (tanim, self[ALAN_ONEKI + tanim.kod], None)
             for tanim in self.alan_tanimlari
             if tanim.dosya_mi
         ]
@@ -463,3 +470,202 @@ class BasvuruFormu(forms.Form):
             SimKart.objects.filter(pk=kart.pk, durum=SimKartDurumu.ATANDI).update(
                 durum=SimKartDurumu.KULLANILDI, basvuru=basvuru
             )
+
+
+class BasvuruDuzeltmeFormu(BasvuruFormu):
+    """Bayinin düzenleyebildiği durumdaki (Eksik Evrak) başvuruyu düzeltip
+    yeniden gönderme formu.
+
+    Aynı form tanımı, dolu değerlerle: kategori alanları, belgeler, SIM ve
+    not düzeltilebilir. **Hat bilgileri (operatör, tarife, kampanya)
+    kilitlidir** — fiyat onlardan çıkıyor ve giriş bedeli çoktan kesildi;
+    yanlışsa yönetim düzeltir. Bakiye kapısı işlemez: iş zaten satın alındı.
+
+    Belge yalnızca yoksa zorunludur; yüklenmezse eskisi kalır. Onaydan sonra
+    silinmiş kimlik görüntüleri (belgeler_silindi) yeniden istenirken alan
+    yine zorunlu olur, çünkü kayıt yoktur.
+
+    SIM kutusuna bayinin stoğu ve başvurudaki sağlam kart girer; arızalı
+    kart hiç girmez, bayi yerine yenisini seçmek zorunda kalır.
+    """
+
+    KILITLI = ("operator", "tarife", "kampanya")
+
+    def __init__(self, *args, basvuru, **kwargs):
+        self.basvuru = basvuru
+        self.mevcut_belgeler = {b.alan_kodu: b for b in basvuru.belgeler.all()}
+        self.mevcut_simler = {
+            k.imei: k for k in basvuru.kullanilan_simler
+        }
+        kwargs.setdefault("initial", {}).update(self._baslangic_degerleri())
+        super().__init__(*args, kategori=basvuru.kategori, bayi=basvuru.bayi, **kwargs)
+        for ad in self.KILITLI:
+            self.fields.pop(ad, None)
+        for tanim in self.alan_tanimlari:
+            if tanim.dosya_mi and tanim.kod in self.mevcut_belgeler:
+                self.fields[ALAN_ONEKI + tanim.kod].required = False
+
+    # -- kurulum ----------------------------------------------------------
+
+    def _baslangic_degerleri(self):
+        degerler = {
+            "musteri_tipi": self.basvuru.musteri_tipi,
+            "bayi_aciklamasi": self.basvuru.bayi_aciklamasi,
+        }
+        for tanim in self.basvuru.kategori.alanlar.filter(aktif=True):
+            if tanim.dosya_mi:
+                continue
+            if tanim.cekirdek_alan:
+                deger = getattr(self.basvuru, tanim.cekirdek_alan, "")
+            else:
+                deger = self.basvuru.ek_bilgiler.get(tanim.kod)
+            if deger in (None, ""):
+                continue
+            # Evet/Hayır metin olarak ("True") saklanıyor; kutu boolean ister.
+            if tanim.tip == AlanTipi.ONAY:
+                deger = str(deger) == "True"
+            degerler[ALAN_ONEKI + tanim.kod] = deger
+        return degerler
+
+    def _sim_secenekleri(self):
+        """Stoğun başına başvurudaki sağlam kart eklenir; arızalı girmez."""
+        secenekler = super()._sim_secenekleri()
+        if hasattr(self, "_duzeltme_simleri_eklendi"):
+            return secenekler
+        self._duzeltme_simleri_eklendi = True
+        mevcut = [
+            (k.imei, f"{k.imei} · {k.operator.ad} (takılı)" if k.operator_id else f"{k.imei} (takılı)")
+            for k in self.mevcut_simler.values()
+        ]
+        if not mevcut:
+            return secenekler
+        for k in self.mevcut_simler.values():
+            self._sim_operatorleri[k.imei] = str(k.operator_id or "")
+        self._sim_stogu = [("", "SIM kart seçin"), *mevcut, *[s for s in secenekler if s[0]]]
+        return self._sim_stogu
+
+    # -- doğrulama --------------------------------------------------------
+
+    def _secili_tarife(self, temiz):
+        return self.basvuru.tarife
+
+    def _secili_operator(self, temiz):
+        return self.basvuru.operator
+
+    def _bakiye_kapisi(self, temiz, operator, tarife):
+        # İş zaten satın alındı; düzeltme yeni bir ücret doğurmaz.
+        return
+
+    def _sim_dogrula(self, tanim, anahtar, imei):
+        kart = self.mevcut_simler.get(imei)
+        if kart is not None:
+            # Takılı kart olduğu gibi kalıyor.
+            self.cleaned_data[f"_sim_{tanim.kod}"] = kart
+            return
+        super()._sim_dogrula(tanim, anahtar, imei)
+
+    # -- şablon yardımcıları ----------------------------------------------
+
+    @property
+    def belge_alanlari(self):
+        """(tanım, alan, mevcut belge) — şablon eskisini gösterir."""
+        return [
+            (tanim, self[ALAN_ONEKI + tanim.kod], self.mevcut_belgeler.get(tanim.kod))
+            for tanim in self.alan_tanimlari
+            if tanim.dosya_mi
+        ]
+
+    @property
+    def bozuk_simler(self):
+        return list(self.basvuru.bozuk_simler)
+
+    # -- kaydetme ---------------------------------------------------------
+
+    def kaydet_duzeltme(self, degistiren):
+        """Değişenleri yazar, başvuruyu bildirim öncesi durumuna döndürür.
+
+        Neyin değiştiği durum geçmişine düşer; yönetim "bayi neyi düzeltti"
+        diye alan alan karşılaştırmasın.
+        """
+        from django.db import transaction
+
+        from apps.basvurular.services import duzeltmeyi_gonder
+
+        basvuru = self.basvuru
+        degisenler = []
+
+        with transaction.atomic():
+            basvuru.musteri_tipi = self.cleaned_data.get("musteri_tipi") or basvuru.musteri_tipi
+            basvuru.bayi_aciklamasi = self.cleaned_data.get("bayi_aciklamasi", "")
+
+            for tanim in self.alan_tanimlari:
+                if tanim.dosya_mi:
+                    continue
+                anahtar = ALAN_ONEKI + tanim.kod
+                if tanim.tip == AlanTipi.SIM_KART:
+                    if self._simi_guncelle(tanim):
+                        degisenler.append(tanim.etiket)
+                    continue
+                deger = self.cleaned_data.get(anahtar)
+                yeni = "" if deger in (None, "") else str(deger)
+                if tanim.cekirdek_alan:
+                    eski = getattr(basvuru, tanim.cekirdek_alan, "") or ""
+                    if yeni != eski:
+                        setattr(basvuru, tanim.cekirdek_alan, yeni)
+                        degisenler.append(tanim.etiket)
+                else:
+                    eski = basvuru.ek_bilgiler.get(tanim.kod) or ""
+                    if yeni != eski:
+                        if yeni:
+                            basvuru.ek_bilgiler[tanim.kod] = yeni
+                        else:
+                            basvuru.ek_bilgiler.pop(tanim.kod, None)
+                        degisenler.append(tanim.etiket)
+
+            for tanim in self.alan_tanimlari:
+                if not tanim.dosya_mi:
+                    continue
+                dosya = self.cleaned_data.get(ALAN_ONEKI + tanim.kod)
+                if dosya:
+                    # Eski dosya kayıt değişince commit sonrasında diskten silinir
+                    # (apps/dosya.py).
+                    BasvuruBelgesi.objects.update_or_create(
+                        basvuru=basvuru,
+                        alan_kodu=tanim.kod,
+                        defaults={"dosya": gorseli_kucult(dosya), "etiket": tanim.etiket},
+                    )
+                    degisenler.append(tanim.etiket)
+
+            basvuru.full_clean(exclude=["referans_no"])
+            basvuru.save()
+            duzeltmeyi_gonder(basvuru, degistiren=degistiren, degisenler=degisenler)
+
+        return basvuru
+
+    def _simi_guncelle(self, tanim):
+        """SIM değiştiyse eski kartı serbest bırakır, yenisini takar.
+
+        Sağlam eski kart bayinin stoğuna döner (elinde duruyor, kullanılmadı);
+        arızalı kart arızalı kalır, takibi ayrı. Yeni kart yalnızca hâlâ
+        stoktaysa takılır: eşzamanlı iki başvuru aynı kartı kullanamaz.
+        """
+        from apps.bayi.models import SimKart, SimKartDurumu
+
+        basvuru = self.basvuru
+        yeni_kart = self.cleaned_data.get(f"_sim_{tanim.kod}")
+        eski_imei = basvuru.ek_bilgiler.get(tanim.kod) or ""
+        if yeni_kart is None or yeni_kart.imei == eski_imei:
+            return False
+
+        adet = SimKart.objects.filter(pk=yeni_kart.pk, durum=SimKartDurumu.ATANDI).update(
+            durum=SimKartDurumu.KULLANILDI, basvuru=basvuru
+        )
+        if not adet:
+            raise ValidationError(
+                {ALAN_ONEKI + tanim.kod: "Bu SIM kart az önce başka bir başvuruda kullanıldı."}
+            )
+        SimKart.objects.filter(
+            imei=eski_imei, basvuru=basvuru, durum=SimKartDurumu.KULLANILDI
+        ).update(durum=SimKartDurumu.ATANDI, basvuru=None)
+        basvuru.ek_bilgiler[tanim.kod] = yeni_kart.imei
+        return True

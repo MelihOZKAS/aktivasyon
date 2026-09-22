@@ -1,0 +1,148 @@
+{% comment %}
+  Form davranışları: tarifeye bağlı alanlar, operatöre göre daralan SIM
+  kutusu, "Fotoğraf çek", zorunlu alana kaydırma. Yeni başvuru ve düzeltme
+  ekranı aynı betiği kullanır; düzeltmede operatör/tarife gizli girdi
+  olarak aynı id'lerle durur (id_operator, id_tarife).
+{% endcomment %}
+<script>
+  // Tarifeye bağlı alanlar. Bir alan yalnızca belirli tarifelerde soruluyorsa
+  // (KategoriAlani.tarifeler) kutusu başka tarife seçiliyken hiç görünmez:
+  // "Faturalı Yeni Hat + Genç Tarife" gibi koşullar tek ekranda çözülsün,
+  // her tarife kombinasyonu için ayrı kategori açılmasın.
+  //
+  // Sunucu kuralı yerinde durur (`BasvuruFormu.clean`): gizli kutu elle
+  // gönderilse de değeri alınmaz, zorunluluğu aranmaz.
+  (function () {
+    function uygula() {
+      var kutu = document.getElementById("id_tarife");
+      var secilen = kutu ? kutu.value : "";
+
+      document.querySelectorAll("[data-tarifeler]").forEach(function (alan) {
+        var izinli = alan.dataset.tarifeler.split(",");
+        var gorunur = !!secilen && izinli.indexOf(secilen) !== -1;
+        alan.hidden = !gorunur;
+
+        // Gizli ve zorunlu bir girdi tarayıcıyı kilitler: form gönderilmez
+        // ama odaklanılamayan alana da uyarı basılamaz, bayi sebebini
+        // göremeden "hiçbir şey olmuyor" der. Zorunluluk kutuyla birlikte
+        // kalkar, kutu geri gelince yeniden konur.
+        alan.querySelectorAll("input, select, textarea").forEach(function (girdi) {
+          if (gorunur) {
+            if (girdi.dataset.zorunluydu === "1") girdi.required = true;
+          } else {
+            if (girdi.required) girdi.dataset.zorunluydu = "1";
+            girdi.required = false;
+          }
+        });
+      });
+
+      // Bütün alanları gizlenen bölüm başlığıyla birlikte kalkar; içi boş bir
+      // "Belgeler" kartı bayiye bir şeyin yüklenmediğini düşündürüyordu.
+      document.querySelectorAll("[data-alan-bolumu]").forEach(function (bolum) {
+        var kutular = bolum.querySelectorAll("[data-alan-kutusu]");
+        var gorunen = 0;
+        kutular.forEach(function (k) { if (!k.hidden) gorunen++; });
+        bolum.hidden = kutular.length > 0 && gorunen === 0;
+      });
+    }
+
+    // Tarife kutusu HTMX ile yenileniyor; olay belgeye bağlanır.
+    document.addEventListener("change", function (olay) {
+      if (olay.target.id === "id_tarife") uygula();
+    });
+    document.body.addEventListener("htmx:afterSwap", uygula);
+    uygula();
+  })();
+
+  // SIM kutusu seçilen operatöre göre daralır. Vodafone kartıyla Turkcell
+  // aktivasyonu yapılamaz; hatlar BTK'da IMEI bazında lisanslı. Liste
+  // daraltılmasa bayi ucuz kartı seçip pahalı işlem girebilirdi. Kural
+  // sunucuda da denetleniyor.
+  (function () {
+    function daralt() {
+      var operator = document.getElementById("id_operator");
+      var secilen = operator ? operator.value : "";
+
+      document.querySelectorAll("[data-sim-kutusu]").forEach(function (kutu) {
+        var uyanVar = false;
+
+        kutu.querySelectorAll("option").forEach(function (secenek) {
+          var kartOperatoru = secenek.dataset.operator || "";
+          // Boş seçenek ve operatörü girilmemiş kart her zaman kalır.
+          var uyar = !secenek.value || !kartOperatoru || !secilen
+                     || kartOperatoru === secilen;
+          secenek.hidden = !uyar;
+          secenek.disabled = !uyar;
+          if (uyar && secenek.value) uyanVar = true;
+        });
+
+        // Gizlenen bir kart seçili kalmasın.
+        var seciliSecenek = kutu.selectedOptions[0];
+        if (seciliSecenek && seciliSecenek.hidden) kutu.value = "";
+
+        var bos = kutu.querySelector("option[value='']");
+        if (bos) {
+          bos.textContent = uyanVar
+            ? "SIM kart seçin"
+            : (secilen ? "Bu operatörde kullanılabilir kartın yok"
+                       : "Önce operatör seç");
+        }
+      });
+    }
+
+    document.addEventListener("change", function (olay) {
+      if (olay.target.id === "id_operator") daralt();
+    });
+    daralt();
+  })();
+
+  // "Fotoğraf çek" düğmesi kendi girdisini kamerayla açar. Öznitelik
+  // tıklamadan önce eklenir, kamera kapandıktan sonra geri alınır: kutunun
+  // kendisine dokunulduğunda galeri açılmaya devam etsin.
+  //
+  // Kaldırma işi zaman aşımıyla yapılamaz. Kamera daha açıkken özniteliği
+  // çekmek bazı telefonlarda çekilen fotoğrafın girdiye hiç düşmemesine yol
+  // açıyor; zorunlu alan boş kalınca da form sessizce gönderilmiyordu.
+  (function () {
+    document.addEventListener("click", function (olay) {
+      var dugme = olay.target.closest("[data-kamera]");
+      if (!dugme) return;
+
+      var girdi = document.getElementById(dugme.dataset.kamera);
+      if (!girdi) return;
+
+      function geriAl() {
+        girdi.removeAttribute("capture");
+        girdi.removeEventListener("change", geriAl);
+        window.removeEventListener("focus", geriAl);
+      }
+
+      girdi.setAttribute("capture", "environment");
+      // Kamera kapanınca ya dosya düşer (change) ya da sayfaya dönülür (focus).
+      girdi.addEventListener("change", geriAl);
+      window.addEventListener("focus", geriAl);
+      girdi.click();
+    });
+  })();
+
+  // Tarayıcı zorunlu bir alan yüzünden göndermeyi engellerse sessiz kalmasın:
+  // telefonda uyarı balonu ekran dışında kalabiliyor ve düğme çalışmıyor gibi
+  // görünüyor. Eksik alana kaydırıp uyarıyı orada gösteriyoruz.
+  (function () {
+    var form = document.querySelector("form[enctype='multipart/form-data']");
+    if (!form) return;
+
+    form.addEventListener("submit", function (olay) {
+      if (form.checkValidity()) return;
+
+      olay.preventDefault();
+      var eksik = form.querySelector(":invalid");
+      if (!eksik) return;
+
+      eksik.scrollIntoView({ block: "center", behavior: "smooth" });
+      eksik.focus({ preventScroll: true });
+      form.reportValidity();
+    });
+  })();
+
+</script>

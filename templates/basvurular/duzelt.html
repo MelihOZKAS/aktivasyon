@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block baslik %}{{ basvuru.referans_no }} · Düzelt{% endblock %}
+{% block sayfa_basligi %}Başvuruyu düzelt{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-2xl">
+
+  <div class="mb-7">
+    <h2 class="baslik text-2xl font-bold">{{ basvuru.ad_soyad }}</h2>
+    <p class="mt-1.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 text-sm text-soluk">
+      <span class="referans">{{ basvuru.referans_no }}</span>
+      <span>{{ kategori.ad }}</span>
+      <span>{{ basvuru.durum.ad }}</span>
+    </p>
+  </div>
+
+  {% comment %}
+    Yönetimin / tedarikçinin notu en üstte: bayi neyi düzelteceğini formu
+    taramadan görsün. Not, başvuruyu bu duruma getiren geçmiş kaydından
+    okunur (Basvuru.son_yonetim_notu).
+  {% endcomment %}
+  <div class="yuzey sim mb-7 rounded-kart border-uyari p-5 sm:p-6" style="--sim-kenar: var(--color-uyari)">
+    <h3 class="baslik font-semibold text-uyari">Ne düzeltilecek?</h3>
+    <p class="mt-1.5 text-sm leading-relaxed">
+      {% if yonetim_notu %}{{ yonetim_notu }}{% else %}Yönetim not bırakmamış; eksik gördüğün yeri düzeltip yeniden gönder.{% endif %}
+    </p>
+    {% if form.bozuk_simler %}
+    <p class="mt-2 text-sm leading-relaxed text-soluk">
+      Bozuk kart{% for kart in form.bozuk_simler %} <span class="referans">{{ kart.imei }}</span>{% endfor %}
+      listede yok; SIM kutusundan stoğundaki başka bir kartı seç. Bozuk kartı
+      yönetime teslim et, yerine yenisi verilecek.
+    </p>
+    {% endif %}
+    <p class="mt-2 text-sm leading-relaxed text-soluk">
+      Gönderince başvuru kaldığı yerden devam eder; ödediğin ücret değişmez.
+    </p>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="space-y-8"
+        action="{% url 'basvurular:duzelt' basvuru.referans_no %}">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="rounded-lg border border-olumsuz/40 bg-olumsuz/5 px-4 py-3 text-sm text-olumsuz">
+      {{ form.non_field_errors }}
+    </div>
+    {% endif %}
+
+    {% comment %}
+      Hat bilgileri kilitli: fiyat buradan çıkıyor ve giriş bedeli çoktan
+      kesildi. Yanlışsa yönetim düzeltir. Gizli girdiler aynı id'lerle
+      durur ki tarifeye bağlı alanlar ve SIM daraltması (parca_form_js)
+      yeni başvurudaki gibi çalışsın.
+    {% endcomment %}
+    <section class="yuzey rounded-kart p-5 sm:p-6">
+      <h2 class="baslik font-semibold">Hat bilgileri</h2>
+      <p class="mt-1 text-sm text-soluk">Operatör ve tarife düzeltmede değişmez; yanlışsa yönetime yaz.</p>
+      <input type="hidden" id="id_operator" value="{{ basvuru.operator_id|default:'' }}">
+      <input type="hidden" id="id_tarife" value="{{ basvuru.tarife_id|default:'' }}">
+      <dl class="mt-4 grid gap-x-8 gap-y-3.5 text-sm sm:grid-cols-2">
+        <div>
+          <dt class="text-soluk">Operatör</dt>
+          <dd class="mt-0.5 font-medium">{{ basvuru.operator.ad|default:"—" }}</dd>
+        </div>
+        <div>
+          <dt class="text-soluk">Tarife</dt>
+          <dd class="mt-0.5 font-medium">{{ basvuru.tarife.ad|default:"—" }}</dd>
+        </div>
+        {% if basvuru.kampanya %}
+        <div>
+          <dt class="text-soluk">Kampanya</dt>
+          <dd class="mt-0.5 font-medium">{{ basvuru.kampanya.ad }}</dd>
+        </div>
+        {% endif %}
+      </dl>
+    </section>
+
+    {% include "basvurular/parca_form_alanlar.html" %}
+
+    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <a href="{% url 'basvurular:detay' basvuru.referans_no %}" class="dugme dugme-sessiz sm:w-auto">Vazgeç</a>
+      <button type="submit" class="dugme dugme-birincil sm:w-auto">Düzeltip yeniden gönder</button>
+    </div>
+  </form>
+</div>
+
+{% include "basvurular/parca_form_js.html" %}
+{% endblock %}
