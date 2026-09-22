@@ -2,6 +2,8 @@
 
 from django.db.models import Count, Q
 
+from apps.bayi.etiket import etiket_sutunlari, kisa_ad_satirdan
+
 
 def sim_alacaklari(sorgu=None):
     """Kimden kaç SIM kart alacağımızı çıkarır.
@@ -25,14 +27,13 @@ def sim_alacaklari(sorgu=None):
     # Tedarikçiye satılmış işlemler: alacak tedarikçiden.
     for kayit in (
         bekleyen.filter(tedarikci__isnull=False)
-        .values("tedarikci_id", "tedarikci__username", "tedarikci__bayi_profili__unvan")
+        .values("tedarikci_id", *etiket_sutunlari("tedarikci__"))
         .annotate(adet=Count("id"))
         .order_by("-adet")
     ):
         satirlar.append(
             {
-                "ad": kayit["tedarikci__bayi_profili__unvan"]
-                or kayit["tedarikci__username"],
+                "ad": kisa_ad_satirdan(kayit, "tedarikci__"),
                 "tur": "Tedarikçi",
                 "adet": kayit["adet"],
                 "filtre": f"tedarikci__id__exact={kayit['tedarikci_id']}",

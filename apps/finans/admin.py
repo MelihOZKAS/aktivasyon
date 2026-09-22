@@ -36,6 +36,7 @@ from apps.finans.models import (
 )
 from unfold.contrib.filters.admin import AutocompleteSelectFilter
 
+from apps.bayi.etiket import kisa_ad, kullanici_etiketi_html
 from apps.filtreler import GunAraligiFiltresi
 from apps.katalog.models import BasvuruKategorisi
 from apps.finans.services import (
@@ -274,7 +275,7 @@ class CuzdanIslemFormu(forms.Form):
 @admin.register(Cuzdan)
 class CuzdanAdmin(ModelAdmin):
     list_display = (
-        "bayi",
+        "bayi_gosterimi",
         "grup",
         "bakiye_gosterimi",
         "borc_gosterimi",
@@ -282,7 +283,10 @@ class CuzdanAdmin(ModelAdmin):
         "bakiye_yukle_baglantisi",
     )
     list_filter = ("grup", "islem_yapabilir")
-    search_fields = ("bayi__username", "bayi__first_name", "bayi__last_name")
+    search_fields = (
+        "bayi__username", "bayi__first_name", "bayi__last_name",
+        "bayi__bayi_profili__unvan",
+    )
     autocomplete_fields = ("bayi", "grup")
     readonly_fields = ("bakiye", "borc")
     fieldsets = (
@@ -302,6 +306,10 @@ class CuzdanAdmin(ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("bayi", "grup")
+
+    @display(description="Bayi", ordering="bayi__username")
+    def bayi_gosterimi(self, obj):
+        return kullanici_etiketi_html(obj.bayi)
 
     @display(description="Bakiye", ordering="bakiye")
     def bakiye_gosterimi(self, obj):
@@ -413,6 +421,8 @@ class CuzdanHareketiAdmin(ModelAdmin):
     list_filter_submit = True
     search_fields = (
         "cuzdan__bayi__username",
+        "cuzdan__bayi__first_name",
+        "cuzdan__bayi__last_name",
         "cuzdan__bayi__bayi_profili__unvan",
         "aciklama",
         "basvuru__referans_no",
@@ -454,17 +464,7 @@ class CuzdanHareketiAdmin(ModelAdmin):
 
     @display(description="Bayi", ordering="cuzdan__bayi__username")
     def bayi_gosterimi(self, obj):
-        """Numara tek başına hangi firma olduğunu anlatmıyor; ünvanı da yaz."""
-        bayi = obj.cuzdan.bayi
-        profil = getattr(bayi, "bayi_profili", None)
-        unvan = profil.unvan if profil and profil.unvan else ""
-        if not unvan:
-            return bayi.get_username()
-        return format_html(
-            "{}<br><span style='color:#6F7B8F;font-size:.8125rem'>{}</span>",
-            bayi.get_username(),
-            unvan,
-        )
+        return kullanici_etiketi_html(obj.cuzdan.bayi)
 
     def has_add_permission(self, request):
         return False
@@ -969,7 +969,7 @@ class OdemeBildirimiAdmin(ModelAdmin):
 
     list_display = (
         "olusturma_tarihi",
-        "bayi",
+        "bayi_gosterimi",
         "tutar_gosterimi",
         "banka",
         "gonderen_adi",
@@ -984,7 +984,8 @@ class OdemeBildirimiAdmin(ModelAdmin):
     )
     list_filter_submit = True
     search_fields = (
-        "bayi__username", "gonderen_adi", "aciklama", "banka__banka_adi"
+        "bayi__username", "bayi__first_name", "bayi__last_name",
+        "bayi__bayi_profili__unvan", "gonderen_adi", "aciklama", "banka__banka_adi",
     )
     autocomplete_fields = ("bayi", "banka")
     readonly_fields = ("karar_veren", "karar_tarihi", "olusturma_tarihi")
@@ -1016,6 +1017,10 @@ class OdemeBildirimiAdmin(ModelAdmin):
             super().get_queryset(request)
             .select_related("bayi", "banka", "karar_veren")
         )
+
+    @display(description="Bayi", ordering="bayi__username")
+    def bayi_gosterimi(self, obj):
+        return kullanici_etiketi_html(obj.bayi)
 
     def get_readonly_fields(self, request, obj=None):
         """Sonuçlanmış bildirimin durumu formdan değiştirilemez.
@@ -1432,5 +1437,4 @@ class TedarikciAlisiAdmin(AlisAdmin):
     def kaynak(self, obj):
         if not obj.tedarikci_id:
             return "—"
-        profil = getattr(obj.tedarikci, "bayi_profili", None)
-        return profil.unvan if profil and profil.unvan else obj.tedarikci.get_username()
+        return kisa_ad(obj.tedarikci)

@@ -13,7 +13,9 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils.crypto import get_random_string
 
+from apps.bayi.etiket import kisa_ad
 from apps.katalog.models import (
+    AlanTipi,
     BasvuruKategorisi,
     Kampanya,
     MusteriTipi,
@@ -334,13 +336,74 @@ class Basvuru(ZamanDamgali):
         doğrudan operatörden alınır.
         """
         if self.tedarikci_id:
-            profil = getattr(self.tedarikci, "bayi_profili", None)
-            return profil.unvan if profil and profil.unvan else self.tedarikci.get_username()
+            return kisa_ad(self.tedarikci)
         return self.operator.ad if self.operator_id else "—"
 
     @property
     def sonuclandi_mi(self):
         return bool(self.durum.hakedis_tetikler or self.durum.olumsuz_sonuc)
+
+    # --- SIM değişimi --------------------------------------------------
+    #
+    # Bozuk kart ilk aktivasyonda belli olur. Başvuru iptal edilip yeniden
+    # girilmez — para o zaman iade edilip güncel fiyattan yeniden kesilir
+    # ve kartın o günkü fiyatı araya girer. Bunun yerine aynı başvuruda
+    # kart değişir: eski kart arızalıya düşer, bayi stoğundan yenisini
+    # seçer, para olduğu yerde kalır.
+
+    def sim_alan_kodlari(self):
+        """Kategorinin SIM soran alanlarının kodları; değer `ek_bilgiler`de durur."""
+        return [
+            alan.kod
+            for alan in self.kategori.alanlar.all()
+            if alan.tip == AlanTipi.SIM_KART
+        ]
+
+    def sim_degerleri(self):
+        """Başvuruda yazılı IMEI'ler (alan kodu → IMEI)."""
+        return {
+            kod: self.ek_bilgiler.get(kod)
+            for kod in self.sim_alan_kodlari()
+            if self.ek_bilgiler.get(kod)
+        }
+
+    @property
+    def kullanilan_simler(self):
+        """Bu başvuruda takılı, sağlam kartlar — "SIM bozuk" bunlardan birine basılır."""
+        from apps.bayi.models import SimKartDurumu
+
+        return self.sim_kartlar.filter(durum=SimKartDurumu.KULLANILDI).select_related("operator")
+
+    @property
+    def bozuk_simler(self):
+        """Arızalı düşmüş ama başvuruda hâlâ yazılı kartlar: değişim bekliyor.
+
+        Bayi yeni kart seçince başvurudaki IMEI değişir; eski kart arızalı
+        kalır ama artık bu listeye girmez. "Değiştirildi mi" ayrı bir bayrak
+        değil, başvurunun kendi verisinden okunur.
+        """
+        from apps.bayi.models import SimKartDurumu
+
+        imeiler = list(self.sim_degerleri().values())
+        if not imeiler:
+            return self.sim_kartlar.none()
+        return self.sim_kartlar.filter(
+            durum=SimKartDurumu.ARIZALI, imei__in=imeiler
+        ).select_related("operator")
+
+    @property
+    def sim_degisimi_bekliyor(self):
+        """Bayi bu başvuruda yeni SIM seçebilir mi?
+
+        Kapı üç kilitli: iş sonuçlanmamış, durum bayinin düzenleyebildiği
+        bir durum (veridir: `BasvuruDurumu.bayi_duzenleyebilir`) ve
+        başvuruda bozuk kart yazılı.
+        """
+        return (
+            not self.sonuclandi_mi
+            and self.durum.bayi_duzenleyebilir
+            and self.bozuk_simler.exists()
+        )
 
     @property
     def kar(self):
@@ -371,8 +434,7 @@ class Basvuru(ZamanDamgali):
         İşlemi bir tedarikçi üstlendiyse o, üstlenilmemişse operatör.
         """
         if self.tedarikci_id:
-            profil = getattr(self.tedarikci, "bayi_profili", None)
-            return profil.unvan if profil and profil.unvan else self.tedarikci.get_username()
+            return kisa_ad(self.tedarikci)
         return self.operator.ad if self.operator_id else "—"
 
     def clean(self):

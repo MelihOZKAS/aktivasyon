@@ -21,6 +21,7 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import display
 from unfold.widgets import UnfoldAdminDecimalFieldWidget
 
+from apps.bayi.etiket import kullanici_etiketi_html
 from apps.esim.kur import KurAlinamadi, kuru_guncelle
 from apps.esim.models import Paket, Saglayici, Teslimat, TeslimatDurumu, Ulke, Yukleme, YuklemeDurumu
 from apps.esim.saglayicilar import SaglayiciHatasi
@@ -528,6 +529,7 @@ class TeslimatAdmin(ModelAdmin):
     search_fields = (
         "siparis__referans_no", "iccid", "islem_no", "saglayici_siparis_no", "esim_no",
         "paket_kodu", "siparis__urun_adi", "siparis__bayi__username",
+        "siparis__bayi__first_name", "siparis__bayi__last_name",
         "siparis__bayi__bayi_profili__unvan", "musteri_adi", "musteri_telefonu",
     )
     date_hierarchy = "olusturma_tarihi"
@@ -606,16 +608,7 @@ class TeslimatAdmin(ModelAdmin):
 
     @display(description="Bayi", ordering="siparis__bayi__username")
     def bayi_gosterimi(self, obj):
-        bayi = obj.siparis.bayi
-        profil = getattr(bayi, "bayi_profili", None)
-        unvan = profil.unvan if profil and profil.unvan else ""
-        if not unvan:
-            return bayi.get_username()
-        return format_html(
-            '<span style="font-weight:600">{}</span><br>'
-            '<span style="color:#6F7B8F;font-size:.75rem">{}</span>',
-            unvan, bayi.get_username(),
-        )
+        return kullanici_etiketi_html(obj.siparis.bayi)
 
     @display(description="Paket")
     def paket_gosterimi(self, obj):
@@ -801,7 +794,8 @@ class YuklemeAdmin(ModelAdmin):
     list_filter = ("durum", "teslimat__saglayici")
     search_fields = (
         "siparis__referans_no", "paket_adi", "paket_kodu", "islem_no", "teslimat__iccid",
-        "teslimat__musteri_adi", "siparis__bayi__username", "siparis__bayi__bayi_profili__unvan",
+        "teslimat__musteri_adi", "siparis__bayi__username", "siparis__bayi__first_name",
+        "siparis__bayi__last_name", "siparis__bayi__bayi_profili__unvan",
     )
     date_hierarchy = "olusturma_tarihi"
     readonly_fields = tuple(a.name for a in Yukleme._meta.fields if a.name != "id") + ("kar",)
@@ -822,9 +816,7 @@ class YuklemeAdmin(ModelAdmin):
 
     @display(description="Bayi", ordering="siparis__bayi__username")
     def bayi_gosterimi(self, obj):
-        bayi = obj.siparis.bayi
-        profil = getattr(bayi, "bayi_profili", None)
-        return (profil.unvan if profil and profil.unvan else "") or bayi.get_username()
+        return kullanici_etiketi_html(obj.siparis.bayi)
 
     @display(description="eSIM")
     def esim_gosterimi(self, obj):

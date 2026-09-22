@@ -8,6 +8,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from unfold.widgets import UnfoldAdminCheckboxSelectMultipleWidget
 
+from apps.bayi.etiket import kisa_ad
 from apps.finans.admin import TarifeParaKuraliInline, kapsami_dusen_kurallar
 from apps.finans.models import KuralYonu
 from apps.katalog.models import (
@@ -318,12 +319,7 @@ class TarifeAdmin(ModelAdmin):
                 primler.append(kural.tutar)
             elif kural.yon == KuralYonu.ALIS:
                 if kural.tedarikci_id:
-                    profil = getattr(kural.tedarikci, "bayi_profili", None)
-                    kaynak = (
-                        profil.unvan
-                        if profil and profil.unvan
-                        else kural.tedarikci.get_username()
-                    )
+                    kaynak = kisa_ad(kural.tedarikci)
                 else:
                     kaynak = obj.operator.ad if obj.operator_id else "Operatör"
                 alislar.append((kaynak, kural.tutar))

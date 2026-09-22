@@ -20,6 +20,8 @@ from html import escape
 from django.conf import settings
 from django.db import transaction
 
+from apps.bayi.etiket import kullanici_etiketi
+
 logger = logging.getLogger(__name__)
 
 API_ADRESI = "https://api.telegram.org/bot{token}/sendMessage"
@@ -105,15 +107,8 @@ def _satir(etiket, deger):
 
 
 def _bayi_adi(kullanici):
-    """Bildirimlerde bayi ünvanıyla anılır.
-
-    Kullanıcı adı telefon numarasıdır; numara tek başına hangi firma olduğunu
-    anlatmıyor. Ünvan yoksa numaraya düşülür.
-    """
-    profil = getattr(kullanici, "bayi_profili", None)
-    if profil and profil.unvan:
-        return profil.unvan
-    return kullanici.get_username()
+    """Bildirimlerde bayi adıyla ve numarasıyla anılır (`apps.bayi.etiket`)."""
+    return kullanici_etiketi(kullanici)
 
 
 def basvuru_bildir(basvuru, yeni=False):

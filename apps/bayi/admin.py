@@ -6,6 +6,7 @@ from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as TemelGrupAdmin
 from django.contrib.auth.admin import UserAdmin as TemelKullaniciAdmin
 from django.contrib.auth.models import Group, User
+from django.db.models import Q
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, StackedInline
 from unfold.decorators import action as unfold_islem
@@ -22,6 +23,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 
+from apps.bayi.etiket import kullanici_etiketi, kullanici_etiketi_html
 from apps.bayi.models import (
     BayiBasvuruDurumu,
     BayiBasvurusu,
@@ -251,7 +253,10 @@ class GrupAdmin(TemelGrupAdmin, ModelAdmin):
 @admin.register(BayiProfili)
 class BayiProfiliAdmin(KapaliKategoriKutusu, ModelAdmin):
     list_display = ("kullanici", "unvan", "rol_rozeti", "telefon", "sehir")
-    search_fields = ("kullanici__username", "unvan", "yetkili_adi", "telefon", "vergi_no")
+    search_fields = (
+        "kullanici__username", "kullanici__first_name", "kullanici__last_name",
+        "unvan", "yetkili_adi", "telefon", "vergi_no",
+    )
     autocomplete_fields = ("kullanici",)
     list_filter = ("bayi_mi", "tedarikci_mi", "sehir")
     fieldsets = (
@@ -382,25 +387,98 @@ class TopluSimFormu(forms.Form):
         return numaralar
 
 
+class ArizaFiltresi(admin.SimpleListFilter):
+    """Arızalı kartın hangi adımı açık?
+
+    Bozuk kart üç adımda kapanır (bayiden alındı, yerine kart verildi,
+    operatörden değişimi geldi); yönetici "elimde kaç bozuk kart var, kaçını
+    bayiden almadım" sorusunu listeyi tarayarak değil süzerek cevaplasın.
+    Özet sayfasındaki sayılar da bu süzgece bağlanır.
+    """
+
+    title = "arıza takibi"
+    parameter_name = "ariza"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("bayide", "Bayiden alınmadı"),
+            ("yerine", "Yerine kart verilmedi"),
+            ("operator", "Operatörden değişimi bekleniyor"),
+            ("acik", "Açık işi olan"),
+            ("kapandi", "Kapandı"),
+        )
+
+    def queryset(self, request, sorgu):
+        if self.value() is None:
+            return sorgu
+        arizali = sorgu.filter(durum=SimKartDurumu.ARIZALI)
+        bayide = Q(bayi__isnull=False, iade_alinma_tarihi__isnull=True)
+        yerine = Q(bayi__isnull=False, yerine_verilen__isnull=True)
+        operator = Q(degisim_tarihi__isnull=True)
+        if self.value() == "bayide":
+            return arizali.filter(bayide)
+        if self.value() == "yerine":
+            return arizali.filter(yerine)
+        if self.value() == "operator":
+            return arizali.filter(operator)
+        if self.value() == "acik":
+            return arizali.filter(bayide | yerine | operator)
+        if self.value() == "kapandi":
+            return arizali.exclude(bayide | yerine | operator)
+        return sorgu
+
+
 @admin.register(SimKart)
 class SimKartAdmin(ModelAdmin):
     list_display = (
-        "imei", "zimmetli_bayi", "operator", "durum_rozeti", "basvuru", "olusturma_tarihi",
+        "imei", "zimmetli_bayi", "operator", "durum_rozeti", "ariza_takibi",
+        "basvuru", "olusturma_tarihi",
     )
-    list_filter = ("durum", "operator", "bayi")
-    search_fields = ("imei", "bayi__username", "basvuru__referans_no")
-    autocomplete_fields = ("bayi", "operator", "basvuru")
+    list_filter = ("durum", ArizaFiltresi, "operator", "bayi")
+    search_fields = (
+        "imei", "bayi__username", "bayi__first_name", "bayi__last_name",
+        "bayi__bayi_profili__unvan", "basvuru__referans_no",
+    )
+    autocomplete_fields = ("bayi", "operator", "basvuru", "yerine_verilen")
+    readonly_fields = ("ariza_tarihi", "ariza_bildiren")
     date_hierarchy = "olusturma_tarihi"
-    actions = ("bayiye_ata", "bayiden_geri_al", "arizali_isaretle")
+    actions = (
+        "bayiye_ata",
+        "bayiden_geri_al",
+        "arizali_isaretle",
+        "bayiden_alindi_isaretle",
+        "degisim_geldi_isaretle",
+    )
+    fieldsets = (
+        (None, {"fields": ("imei", "operator", "bayi", "durum", "basvuru", "aciklama")}),
+        (
+            "Arıza takibi",
+            {
+                "fields": (
+                    "ariza_tarihi",
+                    "ariza_bildiren",
+                    "iade_alinma_tarihi",
+                    "yerine_verilen",
+                    "degisim_tarihi",
+                ),
+                "description": (
+                    "Yalnızca arızalı kartta anlamlıdır. Günlük iş listedeki "
+                    "“Takip” düğmesinden yürür; buradaki alanlar düzeltme içindir. "
+                    "Para hareketi yoktur: bayiye para değil kart verilir."
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
     # Listenin üstünde "Ekle"nin yanında "Toplu ekle" düğmesi çizilsin.
     change_list_template = "admin/bayi/simkart/change_list.html"
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related(
-            "bayi", "bayi__bayi_profili", "operator", "basvuru"
+            "bayi", "bayi__bayi_profili", "operator", "basvuru", "yerine_verilen"
         )
 
-    # -- toplu ekleme -----------------------------------------------------
+    # -- adresler ---------------------------------------------------------
 
     def get_urls(self):
         return [
@@ -409,8 +487,111 @@ class SimKartAdmin(ModelAdmin):
                 self.admin_site.admin_view(self.toplu_ekle),
                 name="bayi_simkart_toplu_ekle",
             ),
+            path(
+                "<int:object_id>/ariza/",
+                self.admin_site.admin_view(self.ariza_sayfasi),
+                name="bayi_simkart_ariza",
+            ),
             *super().get_urls(),
         ]
+
+    # -- arıza takibi -----------------------------------------------------
+    #
+    # Bozuk kart için para hareketi yok, kart takası var: bayi kartın
+    # parasını zaten ödedi, ona kart borçluyuz. Üç adım tek sayfada durur —
+    # kartın "dosyası" — ve her adım POST ile işler; listedeki düğme yalnızca
+    # sayfayı açar. Satır işlemleri satır başına süzülemediği için düğme
+    # `ariza_takibi` sütununda koşullu çizilir.
+
+    def ariza_sayfasi(self, request, object_id):
+        from apps.bayi.services import (
+            ArizaHatasi,
+            sim_bayiden_alindi,
+            sim_degisimi_alindi,
+            sim_yerine_ver,
+        )
+
+        kart = self.get_object(request, object_id)
+        if kart is None:
+            raise Http404("SIM kart bulunamadı.")
+        if not self.has_change_permission(request, kart):
+            raise Http404("Bu ekrana erişim yetkiniz yok.")
+        if not kart.arizali:
+            self.message_user(request, f"{kart.imei} arızalı değil.", messages.INFO)
+            return redirect("admin:bayi_simkart_changelist")
+
+        buraya = reverse("admin:bayi_simkart_ariza", args=[kart.pk])
+
+        if request.method == "POST":
+            adim = request.POST.get("adim")
+            try:
+                if adim == "bayiden_alindi":
+                    sim_bayiden_alindi(kart)
+                    self.message_user(request, f"{kart.imei} bayiden alındı.", messages.SUCCESS)
+                elif adim == "yerine_ver":
+                    yeni = SimKart.objects.filter(pk=request.POST.get("yeni_kart") or 0).first()
+                    if yeni is None:
+                        raise ArizaHatasi("Stoktan bir kart seçin.")
+                    sim_yerine_ver(kart, yeni)
+                    self.message_user(
+                        request,
+                        f"{yeni.imei} {kullanici_etiketi(kart.bayi)} bayisine zimmetlendi "
+                        f"({kart.imei} yerine).",
+                        messages.SUCCESS,
+                    )
+                elif adim == "degisim_geldi":
+                    sim_degisimi_alindi(kart)
+                    self.message_user(
+                        request,
+                        f"{kart.imei} için operatörden değişim alındı. Yeni kartı "
+                        "“Toplu ekle” ile stoğa girin.",
+                        messages.SUCCESS,
+                    )
+                else:
+                    raise ArizaHatasi("Bilinmeyen adım.")
+            except ArizaHatasi as hata:
+                self.message_user(request, str(hata), messages.ERROR)
+            return redirect(buraya)
+
+        # Yerine verilecek kart: stokta ve aynı operatörün kartı olmalı.
+        stok = SimKart.objects.filter(durum=SimKartDurumu.BEKLEMEDE, bayi__isnull=True)
+        if kart.operator_id:
+            stok = stok.filter(Q(operator=kart.operator) | Q(operator__isnull=True))
+        return render(
+            request,
+            "admin/bayi/sim_ariza.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": f"Arıza takibi · {kart.imei}",
+                "opts": self.model._meta,
+                "kart": kart,
+                "bayi_etiketi": kullanici_etiketi(kart.bayi) if kart.bayi_id else "",
+                "stok": list(stok.select_related("operator").order_by("imei")[:300]),
+                "acik_isler": kart.acik_ariza_isleri,
+            },
+        )
+
+    @admin.display(description="Arıza takibi")
+    def ariza_takibi(self, obj):
+        """Arızalı satırda açık adımlar ve dosyayı açan düğme."""
+        if not obj.arizali:
+            return ""
+        isler = obj.acik_ariza_isleri
+        ozet = (
+            format_html_join(
+                "", '<span style="display:block;color:#B45309;font-size:.75rem">{}</span>',
+                ((i,) for i in isler),
+            )
+            if isler
+            else format_html('<span style="color:#0F8A4D;font-size:.75rem">Kapandı</span>')
+        )
+        return format_html(
+            '{}<a href="{}" style="display:inline-block;margin-top:.2rem;border:1px solid #e3e8f0;'
+            'border-radius:.375rem;padding:.2rem .55rem;font-size:.75rem;font-weight:600;'
+            'white-space:nowrap;text-decoration:none;color:#0E5E5B">Takip</a>',
+            ozet,
+            reverse("admin:bayi_simkart_ariza", args=[obj.pk]),
+        )
 
     def toplu_ekle(self, request):
         """Yapıştırılan listeden tek seferde çok sayıda SIM kart açar.
@@ -525,18 +706,7 @@ class SimKartAdmin(ModelAdmin):
         """
         if not obj.bayi_id:
             return format_html('<span style="color:#6F7B8F">stokta · zimmetsiz</span>')
-
-        numara = obj.bayi.get_username()
-        profil = getattr(obj.bayi, "bayi_profili", None)
-        unvan = profil.unvan if profil and profil.unvan else ""
-        if not unvan:
-            return numara
-        return format_html(
-            '<span style="font-weight:600">{}</span><br>'
-            '<span style="color:#6F7B8F;font-size:.75rem">{}</span>',
-            unvan,
-            numara,
-        )
+        return kullanici_etiketi_html(obj.bayi)
 
     @admin.display(description="Durum")
     def durum_rozeti(self, obj):
@@ -561,14 +731,21 @@ class SimKartAdmin(ModelAdmin):
             form = SimAtamaFormu(request.POST)
             if form.is_valid():
                 bayi = form.cleaned_data["bayi"]
-                # Kullanılmış kartlar başka bayiye devredilmez.
-                atanabilir = secilenler.exclude(durum=SimKartDurumu.KULLANILDI)
+                # Kullanılmış kart başka bayiye devredilmez; arızalı kart
+                # zimmetlenirse "sağlam" görünüp başvuruya girerdi.
+                atanabilir = secilenler.exclude(
+                    durum__in=[SimKartDurumu.KULLANILDI, SimKartDurumu.ARIZALI]
+                )
                 adet = atanabilir.update(bayi=bayi, durum=SimKartDurumu.ATANDI)
                 atlanan = secilenler.count() - adet
                 self.message_user(
                     request,
-                    f"{adet} SIM kart {bayi.get_username()} bayisine zimmetlendi"
-                    + (f", {atlanan} tanesi kullanılmış olduğu için atlandı." if atlanan else "."),
+                    f"{adet} SIM kart {kullanici_etiketi(bayi)} bayisine zimmetlendi"
+                    + (
+                        f", {atlanan} tanesi kullanılmış ya da arızalı olduğu için atlandı."
+                        if atlanan
+                        else "."
+                    ),
                     messages.SUCCESS,
                 )
                 return None
@@ -592,22 +769,62 @@ class SimKartAdmin(ModelAdmin):
     def bayiden_geri_al(self, request, secilenler):
         """Kartın bayiyle bağını koparır ve Beklemede'ye döndürür.
 
-        Kullanılmış kartlara dokunulmaz: onlar bir başvuruya bağlı.
+        Kullanılmış kartlara dokunulmaz: onlar bir başvuruya bağlı. Arızalı
+        kart da stoğa dönmez — bozuk kartın bayiden alınması arıza takibinde
+        ayrı bir adımdır, kartı sağlam stoğa karıştırmaz.
         """
-        geri_alinabilir = secilenler.exclude(durum=SimKartDurumu.KULLANILDI)
+        geri_alinabilir = secilenler.exclude(
+            durum__in=[SimKartDurumu.KULLANILDI, SimKartDurumu.ARIZALI]
+        )
         adet = geri_alinabilir.update(bayi=None, durum=SimKartDurumu.BEKLEMEDE)
         atlanan = secilenler.count() - adet
         self.message_user(
             request,
             f"{adet} SIM kart geri alındı"
-            + (f", {atlanan} tanesi kullanılmış olduğu için atlandı." if atlanan else "."),
+            + (
+                f", {atlanan} tanesi kullanılmış ya da arızalı olduğu için atlandı."
+                if atlanan
+                else "."
+            ),
             messages.SUCCESS if adet else messages.WARNING,
         )
 
     @admin.action(description="Seçili SIM kartları arızalı işaretle")
     def arizali_isaretle(self, request, secilenler):
-        adet = secilenler.update(durum=SimKartDurumu.ARIZALI)
-        self.message_user(request, f"{adet} SIM kart arızalı işaretlendi.", messages.SUCCESS)
+        from apps.bayi.services import sim_arizali_isaretle
+
+        adet = 0
+        for kart in secilenler.exclude(durum=SimKartDurumu.ARIZALI):
+            sim_arizali_isaretle(kart, bildiren=request.user)
+            adet += 1
+        self.message_user(
+            request,
+            f"{adet} SIM kart arızalı işaretlendi. Takibi listedeki “Takip” düğmesinden.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Seçili arızalı kartlar bayiden alındı")
+    def bayiden_alindi_isaretle(self, request, secilenler):
+        """Bayi ziyaretinde beş bozuk kart birden teslim alınır; tek tek sayfa açılmasın."""
+        from apps.bayi.services import sim_bayiden_alindi
+
+        adet = sum(
+            1 for kart in secilenler.filter(durum=SimKartDurumu.ARIZALI) if sim_bayiden_alindi(kart)
+        )
+        self.message_user(request, f"{adet} arızalı kart bayiden alındı işaretlendi.", messages.SUCCESS)
+
+    @admin.action(description="Seçili arızalı kartların operatörden değişimi geldi")
+    def degisim_geldi_isaretle(self, request, secilenler):
+        from apps.bayi.services import sim_degisimi_alindi
+
+        adet = sum(
+            1 for kart in secilenler.filter(durum=SimKartDurumu.ARIZALI) if sim_degisimi_alindi(kart)
+        )
+        self.message_user(
+            request,
+            f"{adet} arızalı kartın değişimi alındı işaretlendi. Yeni kartları “Toplu ekle” ile stoğa girin.",
+            messages.SUCCESS,
+        )
 
 
 @admin.register(Duyuru)

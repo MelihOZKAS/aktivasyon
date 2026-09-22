@@ -1,0 +1,99 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Arızalı kartın dosyası. Bozuk kart için para hareketi yok, kart takası var:
+  bayi kartın parasını zaten ödedi, ona kart borçluyuz. Üç adım birbirinden
+  bağımsızdır ve her biri POST ile işler; listedeki düğme yalnızca bu sayfayı
+  açar. Sınıflar unfold'un derlenmiş CSS'inden gelir.
+{% endcomment %}
+
+{% block content %}
+<div class="grid max-w-2xl gap-4">
+  <div class="rounded-default border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <dl class="grid gap-2 text-sm md:grid-cols-2">
+      <div><dt class="text-base-400">Kart</dt><dd class="font-semibold" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">{{ kart.imei }}</dd></div>
+      <div><dt class="text-base-400">Operatör</dt><dd>{{ kart.operator.ad|default:"—" }}</dd></div>
+      <div><dt class="text-base-400">Bayi</dt><dd>{{ bayi_etiketi|default:"stokta bozuldu, bayisi yok" }}</dd></div>
+      <div><dt class="text-base-400">Arızalı işaretlendi</dt>
+        <dd>{{ kart.ariza_tarihi|date:"j F Y, H:i"|default:"—" }}{% if kart.ariza_bildiren %} · {{ kart.ariza_bildiren }}{% endif %}</dd></div>
+      {% if kart.basvuru %}
+      <div class="md:col-span-2"><dt class="text-base-400">Bozulduğu başvuru</dt>
+        <dd><a href="{% url 'admin:basvurular_basvuru_change' kart.basvuru.pk %}" class="text-primary-600">{{ kart.basvuru.referans_no }} · {{ kart.basvuru.ad_soyad }}</a></dd></div>
+      {% endif %}
+    </dl>
+    {% if acik_isler %}
+    <p class="mt-4 text-sm text-orange-700">Açık: {{ acik_isler|join:" · " }}</p>
+    {% else %}
+    <p class="mt-4 text-sm font-medium text-green-700">Bu kartın arıza takibi kapandı.</p>
+    {% endif %}
+  </div>
+
+  {% if kart.bayi_id %}
+  <div class="rounded-default border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <h2 class="font-semibold text-font-important-light dark:text-font-important-dark">1 · Bozuk kart bayiden alındı mı?</h2>
+    {% if kart.iade_alinma_tarihi %}
+    <p class="mt-2 text-sm text-green-700">Alındı · {{ kart.iade_alinma_tarihi|date:"j F Y, H:i" }}</p>
+    {% else %}
+    <p class="mt-1 text-sm text-base-500">Kart hâlâ bayide. Elinize geçince işaretleyin; operatöre bu kart gider.</p>
+    <form method="post" class="mt-3">
+      {% csrf_token %}
+      <input type="hidden" name="adim" value="bayiden_alindi">
+      <button type="submit" class="rounded-default bg-primary-600 px-4 py-2 text-sm font-medium text-white">Bayiden alındı</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="rounded-default border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <h2 class="font-semibold text-font-important-light dark:text-font-important-dark">2 · Yerine kart verildi mi?</h2>
+    {% if kart.yerine_verilen %}
+    <p class="mt-2 text-sm text-green-700">
+      Verildi · <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">{{ kart.yerine_verilen.imei }}</span> bayiye zimmetlendi.
+    </p>
+    {% else %}
+    <p class="mt-1 text-sm text-base-500">
+      Bayi kartın parasını ödedi; para değil kart verilir. Seçtiğiniz kart
+      bayiye zimmetlenir ve bu kartla bağlanır.
+    </p>
+    {% if stok %}
+    <form method="post" class="mt-3 grid gap-3">
+      {% csrf_token %}
+      <input type="hidden" name="adim" value="yerine_ver">
+      <select name="yeni_kart" required
+              class="w-full rounded-default border border-base-200 bg-white px-3 py-2 text-sm dark:border-base-700 dark:bg-base-900">
+        <option value="">Stoktan kart seçin</option>
+        {% for aday in stok %}
+        <option value="{{ aday.pk }}">{{ aday.imei }}{% if aday.operator %} · {{ aday.operator.ad }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="rounded-default bg-primary-600 px-4 py-2 text-sm font-medium text-white">Yerine ver</button>
+    </form>
+    {% else %}
+    <p class="mt-3 text-sm text-orange-700">Stokta {{ kart.operator.ad|default:"bu operatöre ait" }} kart yok; önce “Toplu ekle” ile kart girin.</p>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="rounded-default border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <h2 class="font-semibold text-font-important-light dark:text-font-important-dark">{% if kart.bayi_id %}3{% else %}1{% endif %} · Operatörden değişimi geldi mi?</h2>
+    {% if kart.degisim_tarihi %}
+    <p class="mt-2 text-sm text-green-700">Geldi · {{ kart.degisim_tarihi|date:"j F Y, H:i" }}</p>
+    {% else %}
+    <p class="mt-1 text-sm text-base-500">
+      Bozuk kart operatöre verilir, yerine yenisi alınır. Gelen kart burada
+      açılmaz: “Toplu ekle” ile stoğa girer, burada yalnızca alacak kapanır.
+    </p>
+    <form method="post" class="mt-3">
+      {% csrf_token %}
+      <input type="hidden" name="adim" value="degisim_geldi">
+      <button type="submit" class="rounded-default bg-primary-600 px-4 py-2 text-sm font-medium text-white">Değişimi geldi</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <a href="{% url 'admin:bayi_simkart_changelist' %}?durum__exact=arizali"
+     class="inline-block rounded-default border border-base-200 px-4 py-2 font-medium hover:bg-base-100 dark:border-base-700">
+    Arızalı kartlara dön
+  </a>
+</div>
+{% endblock %}

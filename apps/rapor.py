@@ -23,6 +23,8 @@ from django.urls import reverse
 from django.utils import timezone
 from unfold.widgets import UnfoldAdminTextInputWidget
 
+from apps.bayi.etiket import etiket_satirdan, etiket_sutunlari
+
 SIFIR = Decimal("0.00")
 
 # Aralık sınırı: gün sayısı (başlangıç ve bitiş dahil).
@@ -122,11 +124,16 @@ def _toplamlar(sorgu):
     )
 
 
-def _kirilim(sorgu, alan, etiket_alani):
-    """Verilen alana göre gruplar, kâra göre sıralar."""
+def _kirilim(sorgu, alan, *etiket_alanlari, etiket=None):
+    """Verilen alana göre gruplar, kâra göre sıralar.
+
+    Etiket ilk etiket alanından okunur; birden çok sütundan kurulan etiket
+    (bayinin adı · numarası) için `etiket` çağrılabiliri verilir.
+    """
+    etiket = etiket or (lambda ham: ham[etiket_alanlari[0]] or "—")
     satirlar = [
-        _satir(ham, adet=ham["adet"], etiket=ham[etiket_alani] or "—")
-        for ham in sorgu.values(alan, etiket_alani)
+        _satir(ham, adet=ham["adet"], etiket=etiket(ham))
+        for ham in sorgu.values(alan, *etiket_alanlari)
         .annotate(adet=Count("id"), **{ad: Sum(a) for ad, a in KALEMLER.items()})
         .order_by()
     ]
@@ -207,7 +214,10 @@ def karlilik(request):
                 {
                     "baslik": "En çok kazandıran 10 bayi",
                     "sutun": "Bayi",
-                    "satirlar": _kirilim(sorgu, "bayi_id", "bayi__username")[:10],
+                    "satirlar": _kirilim(
+                        sorgu, "bayi_id", *etiket_sutunlari("bayi__"),
+                        etiket=lambda ham: etiket_satirdan(ham, "bayi__"),
+                    )[:10],
                 },
                 {
                     "baslik": "Günlük",

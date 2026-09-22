@@ -53,6 +53,54 @@
   </div>
 
   {% comment %}
+    Aktivasyonda kart bozuk çıktı: bayi stoğundan yenisini takar, başvuru
+    kaldığı yerden devam eder. Para hiç oynamaz — iptal edip yeniden
+    girseydi kartın o günkü fiyatını yeniden öderdi. Kutu yalnızca değişim
+    beklenirken çizilir (Basvuru.sim_degisimi_bekliyor); stok boşsa sebebi
+    yazılır, boş liste "bir şey bozuldu" gibi durmasın.
+  {% endcomment %}
+  {% if sim_degisimi %}
+  <div class="yuzey rounded-kart border-olumsuz p-6" style="--sim-kenar: var(--color-olumsuz)">
+    <h3 class="baslik font-semibold text-olumsuz">SIM kart bozuk çıktı</h3>
+    <p class="mt-1.5 text-sm leading-relaxed text-soluk">
+      {% for kart in sim_degisimi.bozuk %}<span class="referans">{{ kart.imei }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}
+      aktivasyonda çalışmadı. Stoğundan yeni bir kart seç; başvurun kaldığı
+      yerden devam eder, ödediğin ücret değişmez. Bozuk kartı yönetime teslim
+      et, yerine yenisi verilecek.
+    </p>
+
+    {% if sim_degisimi.stok %}
+    <form method="post" action="{% url 'basvurular:sim-degistir' basvuru.referans_no %}"
+          class="mt-4 space-y-3">
+      {% csrf_token %}
+      {% if sim_degisimi.bozuk|length == 1 %}
+      <input type="hidden" name="eski" value="{{ sim_degisimi.bozuk.0.pk }}">
+      {% else %}
+      <select name="eski" class="girdi" required aria-label="Değişecek kart">
+        <option value="">Hangi kart değişecek?</option>
+        {% for kart in sim_degisimi.bozuk %}
+        <option value="{{ kart.pk }}">{{ kart.imei }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <select name="yeni" class="girdi" required aria-label="Yeni SIM kart">
+        <option value="">Yeni SIM kart seç</option>
+        {% for kart in sim_degisimi.stok %}
+        <option value="{{ kart.imei }}">{{ kart.imei }}{% if kart.operator %} · {{ kart.operator.ad }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="dugme dugme-birincil w-full sm:w-auto">Yeni kartı tak</button>
+    </form>
+    {% else %}
+    <p class="mt-4 text-sm font-medium text-uyari">
+      Stoğunda {{ basvuru.operator.ad|default:"bu operatöre ait" }} kullanılabilir SIM kart yok;
+      yönetimden kart iste.
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% comment %}
     Satırlar tek yerden geliyor (detay_alanlari.detay_satirlari); ayar
     kutusundaki seçenekler de aynı listeden. Kategoriye yeni bir form alanı
     eklenince ikisi birden büyür, burada elle bir şey güncellenmez.
@@ -187,6 +235,42 @@
       Bu başvurunun parası işlendi. Bir yanlışlık varsa yönetime bildir;
       sonuçlanmış işlemin durumu buradan değiştirilmez.
     </p>
+  </div>
+  {% endif %}
+
+  {% comment %}
+    Bozuk kartı aktivasyonu yapan (tedarikçi) bildirir; bayi değil. Başvuru
+    iptal edilmez: kart arızalıya düşer, bayi yenisini takar, iş buraya geri
+    döner. Kutu durum kutusundan bağımsızdır — tedarikçinin seçebileceği
+    durum tanımlı olmasa da kart bozuk çıkabilir.
+  {% endcomment %}
+  {% if sim_bozuk_kartlar %}
+  <div class="yuzey rounded-kart p-6">
+    <form method="post" action="{% url 'basvurular:sim-bozuk' basvuru.referans_no %}"
+          class="space-y-3">
+      {% csrf_token %}
+      <h3 class="baslik font-semibold">SIM kart bozuk mu çıktı?</h3>
+      <p class="text-sm leading-relaxed text-soluk">
+        Kart arızalı işaretlenir, bayi stoğundan yeni kart takar ve başvuru
+        sana geri döner. Para değişmez.
+      </p>
+      {% if sim_bozuk_kartlar|length == 1 %}
+      <input type="hidden" name="kart" value="{{ sim_bozuk_kartlar.0.pk }}">
+      <p class="text-sm"><span class="referans">{{ sim_bozuk_kartlar.0.imei }}</span></p>
+      {% else %}
+      <select name="kart" class="girdi" required aria-label="Bozuk kart">
+        <option value="">Hangi kart bozuk?</option>
+        {% for kart in sim_bozuk_kartlar %}
+        <option value="{{ kart.pk }}">{{ kart.imei }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+      <input type="text" name="aciklama" class="girdi" maxlength="200"
+             placeholder="Not — bayi ve yönetim görür (isteğe bağlı)">
+      <button type="submit" class="dugme dugme-sessiz w-full text-olumsuz sm:w-auto">
+        SIM kart bozuk çıktı
+      </button>
+    </form>
   </div>
   {% endif %}
 

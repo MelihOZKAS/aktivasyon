@@ -282,11 +282,36 @@ def detay(request, referans):
             "durum_secenekleri": (
                 _tedarikci_durumlari() if tedarikci_gorunumu and not basvuru.sonuclandi_mi else []
             ),
+            # Bozuk kartı tedarikçi bildirir (yönetim de admin'den); bayi
+            # değil. Bayi yalnızca yerine yenisini takar.
+            "sim_bozuk_kartlar": (
+                list(basvuru.kullanilan_simler)
+                if tedarikci_gorunumu and not basvuru.sonuclandi_mi
+                else []
+            ),
+            "sim_degisimi": _sim_degisimi_baglami(basvuru) if bayi_gorunumu else None,
             # Bayi kendi listesine, tedarikçi kendi paneline döner: karşı
             # tarafın ekranı rol kontrolünden geçemez.
             "geri_url": "basvurular:liste" if bayi_gorunumu else "bayi:tedarikci-panel",
         },
     )
+
+
+def _sim_degisimi_baglami(basvuru):
+    """Bayinin "bozuk kartın yerine yenisini tak" kutusu için veri.
+
+    Kutu yalnızca değişim beklenirken çizilir. Stok kutusuna başvurunun
+    operatörüne ait, bayiye zimmetli kartlar girer; stok boşsa kutu
+    sebebini yazar — boş bir liste "bir şey bozuldu" gibi durur.
+    """
+    from apps.bayi.models import SimKart
+
+    if not basvuru.sim_degisimi_bekliyor:
+        return None
+    stok = SimKart.objects.bayinin_stogu(basvuru.bayi).select_related("operator").order_by("imei")
+    if basvuru.operator_id:
+        stok = stok.filter(Q(operator=basvuru.operator) | Q(operator__isnull=True))
+    return {"bozuk": list(basvuru.bozuk_simler), "stok": list(stok[:500])}
 
 
 def _tedarikci_durumlari():
@@ -344,6 +369,74 @@ def durum_bildir(request, referans):
     basvuru.save(update_fields=["durum", "guncelleme_tarihi"])
 
     messages.success(request, f"Durum “{durum.ad}” olarak güncellendi.")
+    return redirect("basvurular:detay", referans=referans)
+
+
+@login_required
+@require_POST
+def sim_bozuk(request, referans):
+    """Tedarikçi aktivasyonda bozuk çıkan kartı bildirir.
+
+    Kart arızalıya düşer, başvuru bayinin düzenleyebildiği duruma çekilir;
+    bayi stoğundan yeni kart takar. Para hiç oynamaz — iade edip yeniden
+    tahsil etmek kartın o günkü fiyatını araya sokardı.
+    """
+    from apps.basvurular.services import SimDegisimiHatasi, sim_bozuk_bildir
+
+    basvuru = get_object_or_404(
+        Basvuru.objects.select_related("durum"),
+        referans_no=referans,
+        tedarikci=request.user,
+    )
+    kart = basvuru.kullanilan_simler.filter(pk=request.POST.get("kart") or 0).first()
+    if kart is None:
+        messages.error(request, "Bu başvuruda takılı bir SIM kart bulunamadı.")
+        return redirect("basvurular:detay", referans=referans)
+
+    try:
+        sim_bozuk_bildir(
+            basvuru,
+            kart,
+            bildiren=request.user,
+            aciklama=(request.POST.get("aciklama") or "").strip()[:200],
+        )
+    except SimDegisimiHatasi as hata:
+        messages.error(request, str(hata))
+    else:
+        messages.success(
+            request,
+            f"{kart.imei} arızalı işaretlendi; bayi yeni kart seçince başvuru sana geri döner.",
+        )
+    return redirect("basvurular:detay", referans=referans)
+
+
+@login_required
+@bayi_gerekli
+@require_POST
+def sim_degistir(request, referans):
+    """Bayi bozuk kartın yerine stoğundan yeni kart takar."""
+    from apps.basvurular.services import SimDegisimiHatasi, simi_degistir
+    from apps.bayi.models import SimKart
+
+    basvuru = get_object_or_404(
+        Basvuru.objects.select_related("durum", "operator", "kategori"),
+        referans_no=referans,
+        bayi=request.user,
+    )
+    eski = basvuru.bozuk_simler.filter(pk=request.POST.get("eski") or 0).first()
+    yeni = SimKart.objects.bayinin_stogu(request.user).filter(
+        imei=(request.POST.get("yeni") or "").strip()
+    ).select_related("operator").first()
+    if eski is None or yeni is None:
+        messages.error(request, "Stoğundan geçerli bir SIM kart seç.")
+        return redirect("basvurular:detay", referans=referans)
+
+    try:
+        simi_degistir(basvuru, eski, yeni, degistiren=request.user)
+    except SimDegisimiHatasi as hata:
+        messages.error(request, str(hata))
+    else:
+        messages.success(request, f"Yeni SIM kart takıldı: {yeni.imei}. Başvuru işleme geri döndü.")
     return redirect("basvurular:detay", referans=referans)
 
 

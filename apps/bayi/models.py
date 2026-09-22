@@ -2,6 +2,7 @@
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 from apps.bayi.telefon import normalize
 from apps.katalog.models import Operator, ZamanDamgali
@@ -76,7 +77,9 @@ class SimKartDurumu(models.TextChoices):
     """SIM kartın yaşam döngüsü.
 
     Beklemede → Bayiye Atandı → Kullanıldı. Bayiden geri alınan kart
-    tekrar Beklemede'ye döner. Arızalı her aşamadan işaretlenebilir.
+    tekrar Beklemede'ye döner. Arızalı her aşamadan işaretlenebilir ve
+    oradan geri dönüş yoktur: bozuk kart stoğa da bayiye de girmez, üç
+    adımlık arıza takibiyle kapanır (`SimKart.acik_ariza_isleri`).
     """
 
     BEKLEMEDE = "beklemede", "Beklemede"
@@ -136,7 +139,72 @@ class SimKart(ZamanDamgali):
     )
     aciklama = models.CharField("Açıklama", max_length=255, blank=True)
 
+    # --- arıza takibi (yalnızca Arızalı kartta anlamlı) ---
+    # Bozuk kart üç adımda kapanır: bayiden alınır, yerine bayiye stoktan
+    # kart verilir, operatörden değişimi gelir. Para hiç oynamaz: bayi
+    # kartın parasını zaten ödedi, ona para değil kart borçluyuz. Bayi
+    # tarafı ile operatör tarafı birbirinden bağımsız iki iştir; ikisi de
+    # tarihle kapanır.
+    ariza_tarihi = models.DateTimeField(
+        "Arızalı İşaretlendi", null=True, blank=True, editable=False
+    )
+    ariza_bildiren = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Arızayı Bildiren",
+        related_name="+",
+        null=True,
+        blank=True,
+        editable=False,
+        on_delete=models.SET_NULL,
+    )
+    iade_alinma_tarihi = models.DateTimeField(
+        "Bayiden Alındı",
+        null=True,
+        blank=True,
+        help_text="Bozuk kartın elimize geçtiği gün. Boşsa kart hâlâ bayide.",
+    )
+    yerine_verilen = models.OneToOneField(
+        "self",
+        verbose_name="Yerine Verilen Kart",
+        related_name="yerine_gectigi",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Bayiye bu kartın yerine stoktan zimmetlenen kart.",
+    )
+    degisim_tarihi = models.DateTimeField(
+        "Operatörden Değişimi Geldi",
+        null=True,
+        blank=True,
+        help_text=(
+            "Operatörün bozuk kartın yerine verdiği kartın geldiği gün. "
+            "Yeni kart ayrıca kayıt açılmaz; “Toplu ekle” ile stoğa girer."
+        ),
+    )
+
     objects = SimKartYoneticisi()
+
+    @property
+    def arizali(self):
+        return self.durum == SimKartDurumu.ARIZALI
+
+    @property
+    def acik_ariza_isleri(self):
+        """Arızalı kartta henüz yapılmamış adımlar, ekran sırasıyla.
+
+        Kart stoktayken bozulduysa (bayisi yok) yerine kart verilecek kimse
+        yoktur; o adım hiç sayılmaz.
+        """
+        if not self.arizali:
+            return []
+        isler = []
+        if self.bayi_id and self.iade_alinma_tarihi is None:
+            isler.append("Bayiden alınmadı")
+        if self.bayi_id and self.yerine_verilen_id is None:
+            isler.append("Yerine kart verilmedi")
+        if self.degisim_tarihi is None:
+            isler.append("Operatörden değişimi bekleniyor")
+        return isler
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -155,6 +223,10 @@ class SimKart(ZamanDamgali):
         # toplu işlemde de aynı kural geçerli.
         if self.durum in {SimKartDurumu.BEKLEMEDE, SimKartDurumu.ATANDI}:
             self.durum = SimKartDurumu.ATANDI if self.bayi_id else SimKartDurumu.BEKLEMEDE
+        # Arızalı işareti hangi yoldan konursa konsun (form, toplu işlem,
+        # servis) tarihi damgalanır; takip listesi bu tarihe göre sıralanır.
+        if self.arizali and self.ariza_tarihi is None:
+            self.ariza_tarihi = timezone.now()
         super().save(*args, **kwargs)
 
     class Meta:

@@ -13,6 +13,7 @@ from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 
+from apps.bayi.etiket import kullanici_etiketi_html
 from apps.destek.models import DestekMesaji, DestekTalebi, TalepDurumu
 
 
@@ -55,7 +56,8 @@ class DestekTalebiAdmin(ModelAdmin):
     )
     list_filter = ("durum", "yanit_bekliyor", "olusturma_tarihi")
     search_fields = (
-        "referans_no", "konu", "bayi__username", "mesajlar__icerik",
+        "referans_no", "konu", "bayi__username", "bayi__first_name",
+        "bayi__last_name", "bayi__bayi_profili__unvan", "mesajlar__icerik",
     )
     autocomplete_fields = ("bayi", "basvuru")
     readonly_fields = ("referans_no", "olusturma_tarihi", "son_mesaj_tarihi")
@@ -91,17 +93,7 @@ class DestekTalebiAdmin(ModelAdmin):
 
     @display(description="Açan", ordering="bayi__username")
     def acan(self, obj):
-        profil = getattr(obj.bayi, "bayi_profili", None)
-        unvan = profil.unvan if profil and profil.unvan else ""
-        numara = obj.bayi.get_username()
-        if not unvan:
-            return numara
-        return format_html(
-            '<span style="font-weight:600">{}</span><br>'
-            '<span style="color:#6F7B8F;font-size:.75rem">{}</span>',
-            unvan,
-            numara,
-        )
+        return kullanici_etiketi_html(obj.bayi)
 
     @display(description="Durum", ordering="durum")
     def durum_rozeti(self, obj):

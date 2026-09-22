@@ -2,6 +2,9 @@
 
 import logging
 
+from django.db import transaction
+from django.utils import timezone
+
 from apps.bayi.models import SimKart, SimKartDurumu
 
 logger = logging.getLogger(__name__)
@@ -30,6 +33,89 @@ def basvurunun_simlerini_serbest_birak(basvuru):
             adet,
         )
     return adet
+
+
+# --- arızalı kart takibi -------------------------------------------------
+#
+# Bozuk kart için para hareketi yoktur, kart takası vardır: bayi kartın
+# parasını (nakit ya da başvuruda) zaten ödedi, ona para değil kart
+# borçluyuz. İade edip yeniden tahsil etseydik kartın o günkü fiyatı
+# (100 → 150) araya girerdi; bire bir değişimde girmez.
+
+
+class ArizaHatasi(Exception):
+    """Arıza adımı yapılamadı; sebebi mesajda."""
+
+
+def sim_arizali_isaretle(kart, *, bildiren=None):
+    """Kartı arızalıya düşürür. Başvuru bağı ve bayi korunur: hangi işlemde
+    bozulduğu ve kimde durduğu takibin kendisidir."""
+    if kart.arizali:
+        return kart
+    kart.durum = SimKartDurumu.ARIZALI
+    kart.ariza_tarihi = timezone.now()
+    kart.ariza_bildiren = bildiren
+    kart.save(update_fields=["durum", "ariza_tarihi", "ariza_bildiren", "guncelleme_tarihi"])
+    logger.info("SIM %s arızalı işaretlendi.", kart.imei)
+    return kart
+
+
+def sim_bayiden_alindi(kart):
+    """Bozuk kart elimize geçti. İkinci kez basılırsa tarih değişmez."""
+    if not kart.arizali:
+        raise ArizaHatasi(f"{kart.imei} arızalı değil.")
+    if kart.iade_alinma_tarihi is not None:
+        return False
+    kart.iade_alinma_tarihi = timezone.now()
+    kart.save(update_fields=["iade_alinma_tarihi", "guncelleme_tarihi"])
+    return True
+
+
+def sim_degisimi_alindi(kart):
+    """Operatör bozuk kartın yerine yenisini verdi. Yeni kart burada
+    açılmaz — “Toplu ekle” ile stoğa girer; burada yalnızca alacak kapanır."""
+    if not kart.arizali:
+        raise ArizaHatasi(f"{kart.imei} arızalı değil.")
+    if kart.degisim_tarihi is not None:
+        return False
+    kart.degisim_tarihi = timezone.now()
+    kart.save(update_fields=["degisim_tarihi", "guncelleme_tarihi"])
+    return True
+
+
+def sim_yerine_ver(kart, yeni_kart):
+    """Bozuk kartın yerine bayiye stoktan kart zimmetler ve ikisini bağlar.
+
+    Yeni kart stokta (Beklemede) ve aynı operatörün kartı olmalı: hatlar
+    BTK'da IMEI bazında lisanslı, Vodafone kartı Turkcell kartının yerini
+    tutmaz. Kilit, iki yöneticinin aynı kartı iki bayiye vermesini önler.
+    """
+    if not kart.arizali:
+        raise ArizaHatasi(f"{kart.imei} arızalı değil.")
+    if not kart.bayi_id:
+        raise ArizaHatasi(f"{kart.imei} bir bayide değildi; yerine kart verilecek kimse yok.")
+    if kart.yerine_verilen_id:
+        raise ArizaHatasi(f"{kart.imei} yerine zaten kart verildi.")
+    if yeni_kart.pk == kart.pk:
+        raise ArizaHatasi("Kartın yerine kendisi verilemez.")
+    if kart.operator_id and yeni_kart.operator_id and kart.operator_id != yeni_kart.operator_id:
+        raise ArizaHatasi(
+            f"{yeni_kart.imei} {yeni_kart.operator.ad} kartı; "
+            f"{kart.operator.ad} kartının yerini tutmaz."
+        )
+
+    with transaction.atomic():
+        adet = SimKart.objects.filter(
+            pk=yeni_kart.pk, durum=SimKartDurumu.BEKLEMEDE, bayi__isnull=True
+        ).update(bayi=kart.bayi, durum=SimKartDurumu.ATANDI)
+        if not adet:
+            raise ArizaHatasi(f"{yeni_kart.imei} stokta değil; bu sırada başka yere verilmiş olabilir.")
+        kart.yerine_verilen_id = yeni_kart.pk
+        kart.save(update_fields=["yerine_verilen", "guncelleme_tarihi"])
+
+    yeni_kart.refresh_from_db()
+    logger.info("SIM %s yerine %s bayiye verildi.", kart.imei, yeni_kart.imei)
+    return yeni_kart
 
 
 class HesapAcilamadi(Exception):

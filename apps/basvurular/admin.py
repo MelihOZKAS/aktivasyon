@@ -219,6 +219,8 @@ class BasvuruAdmin(ModelAdmin):
         "numara",
         "irtibat",
         "bayi__username",
+        "bayi__first_name",
+        "bayi__last_name",
     )
     # tarife/kampanya bilinçli olarak autocomplete değil: autocomplete
     # kutusu bağlı olduğu admin'in tüm kayıtlarını gösterir ve kategoriye
@@ -250,7 +252,7 @@ class BasvuruAdmin(ModelAdmin):
         "sim_karsiligi_geri_al",
     )
     form = BasvuruAdminFormu
-    actions_detail = ["gorunum_ayarla"]
+    actions_detail = ["gorunum_ayarla", "sim_bozuk"]
     fieldsets = (
         (
             "Başvuru",
@@ -383,6 +385,91 @@ class BasvuruAdmin(ModelAdmin):
                 "geri_adresi": reverse(
                     "admin:basvurular_basvuru_change", args=[basvuru.pk]
                 ),
+            },
+        )
+
+    # --- SIM bozuk -----------------------------------------------------
+
+    def has_sim_bozuk_permission(self, request, object_id=None):
+        """Düğme yalnızca takılı kartı olan, sonuçlanmamış başvuruda çıkar.
+
+        unfold hem düğmeyi çizerken hem adres tıklanınca bu metodu çağırır;
+        koşul tek yerde durur. Sonuçlanmış işlemde kart değişimi yoktur: hat
+        açıldıktan sonra bozulan kart ayrı bir iştir (SIM değişimi kategorisi).
+        """
+        if not self.has_change_permission(request):
+            return False
+        if object_id is None:
+            return True
+        basvuru = self.get_object(request, object_id)
+        return (
+            basvuru is not None
+            and not basvuru.sonuclandi_mi
+            and basvuru.kullanilan_simler.exists()
+        )
+
+    @unfold_islem(
+        description="SIM bozuk",
+        url_path="sim-bozuk",
+        permissions=["sim_bozuk"],
+        icon="sim_card_download",
+    )
+    def sim_bozuk(self, request, object_id):
+        """Aktivasyonda bozuk çıkan kartı arızalıya düşürür; bayi yenisini takar.
+
+        Başvuru iptal edilmez, para oynamaz. Hangi duruma düşeceği veridir:
+        bayinin düzenleyebildiği durumlar arasından seçilir, ilki hazır gelir.
+        """
+        from apps.basvurular.services import (
+            SimDegisimiHatasi,
+            bayi_duzenleyebilir_durumlar,
+            sim_bozuk_bildir,
+        )
+
+        basvuru = self.get_object(request, object_id)
+        if basvuru is None:
+            raise Http404("Başvuru bulunamadı.")
+        geri = reverse("admin:basvurular_basvuru_change", args=[basvuru.pk])
+        kartlar = list(basvuru.kullanilan_simler)
+        durumlar = list(bayi_duzenleyebilir_durumlar())
+
+        if request.method == "POST":
+            kart = next((k for k in kartlar if str(k.pk) == request.POST.get("kart")), None)
+            hedef = next((d for d in durumlar if str(d.pk) == request.POST.get("durum")), None)
+            if kart is None:
+                self.message_user(request, "Bozuk kartı seçin.", messages.ERROR)
+            else:
+                try:
+                    sim_bozuk_bildir(
+                        basvuru,
+                        kart,
+                        bildiren=request.user,
+                        aciklama=(request.POST.get("aciklama") or "").strip()[:200],
+                        hedef_durum=hedef,
+                    )
+                except SimDegisimiHatasi as hata:
+                    self.message_user(request, str(hata), messages.ERROR)
+                else:
+                    self.message_user(
+                        request,
+                        f"{kart.imei} arızalı işaretlendi; başvuru “{basvuru.durum.ad}” "
+                        "durumuna alındı, bayi yeni kart seçince işleme geri döner. "
+                        "Kartın takibi SIM Stoğu'nda.",
+                        messages.SUCCESS,
+                    )
+                    return redirect(geri)
+
+        return render(
+            request,
+            "admin/basvurular/sim_bozuk.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "SIM kart bozuk çıktı",
+                "opts": self.model._meta,
+                "basvuru": basvuru,
+                "kartlar": kartlar,
+                "durumlar": durumlar,
+                "geri_adresi": geri,
             },
         )
 

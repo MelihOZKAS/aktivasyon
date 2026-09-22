@@ -533,6 +533,22 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   normalleştirmeden geçer — bayi "0532 123 45 67" yazınca da girer. Numara
   tutan yeni bir alan eklersen buradan geçir; aksi hâlde aynı kişi iki ayrı
   hesap olur ve hangisiyle gireceğini bilemez.
+- **Kullanıcı her yerde adıyla anılır, numara yanında durur:** "Fadil
+  Yiğitdöl · 5304517888". Kullanıcı adı telefon numarası olduğu için seçim
+  kutuları, süzgeçler ve listeler yalnızca numara gösteriyordu; yönetici
+  bayiyi ezbere bilmek zorundaydı. Görünen ad **tek yerden** gelir:
+  `apps.bayi.etiket`. Django'nun hazır User modelinin `__str__`ü oraya
+  bağlanır (`BayiConfig.ready`) — modeli değiştirmek (`AUTH_USER_MODEL`)
+  canlı veritabanında hesap tablosunu taşımak demekti. Sıra: hesabın kendi
+  adı-soyadı (ek sorgu atmaz; `assertNumQueries(0)` ile korunur) → profildeki
+  firma ünvanı → yalnızca numara. Liste sütunu `kullanici_etiketi_html`
+  (ad üstte, numara altta), operatör adlarının yanında duran yerler
+  `kisa_ad` (numarasız), `.values()` ile okuyan raporlar
+  `etiket_sutunlari` + `etiket_satirdan`. Kullanıcıyı gösteren yeni bir yer
+  yazarken bunlardan birinden geç; `get_username()`i tek başına basma, aynı
+  `unvan or username` kalıbını da yeniden yazma (altı yerde kopyalanmıştı).
+  Bayi adı aranan admin'lerde `search_fields`e `first_name`, `last_name` ve
+  `bayi_profili__unvan` da girer.
 - **Roller birbirini dışlamaz.** Bir firma hem bayi hem tedarikçi olabilir
   (`BayiProfili.bayi_mi` / `tedarikci_mi`). Bayi başvuru getirir ve hakediş
   alır; tedarikçi aktivasyonu yapar ve alış bedelini alacak olarak yazar.
@@ -780,6 +796,49 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Yönetim panelindeki SIM listesi kartın hangi bayide olduğunu ünvanıyla
   gösterir — kullanıcı adı telefon numarası olduğu için numara tek başına
   hangi firma olduğunu anlatmıyordu.
+- **Bozuk SIM için para hareketi yoktur, kart takası vardır.** Bayi kartın
+  parasını (nakit ya da başvuruda) zaten ödedi; ona para değil kart borçluyuz.
+  Başvuruyu iptal edip yeniden girmek giriş bedelini iade edip güncel
+  fiyattan yeniden keserdi — bayi 100'e aldığı işi 150'ye almış olurdu.
+  Bunun yerine kart **aynı başvuruda** değişir, para olduğu yerde kalır.
+  Bozuk kart yalnızca ilk aktivasyonda belli olur; hat açıldıktan sonra
+  bozulan kart ayrı bir iştir ("SIM Değişimi" kategorisi açılır, veridir).
+  · **Bildiren tedarikçi ya da yönetimdir, bayi değil.** Tedarikçi başvuru
+  detayındaki "SIM kart bozuk çıktı" kutusundan (`views.sim_bozuk`), yönetim
+  başvuru sayfasındaki **SIM bozuk** düğmesinden (`BasvuruAdmin.sim_bozuk`;
+  yalnızca sonuçlanmamış ve takılı kartı olan başvuruda çıkar,
+  `has_sim_bozuk_permission`). İkisi de `basvurular.services.sim_bozuk_bildir`
+  çağırır: kart Arızalı'ya düşer (`ariza_tarihi`, `ariza_bildiren`),
+  başvuru bayinin düzenleyebildiği duruma çekilir. Hangi durum olduğu
+  veridir — `BasvuruDurumu.bayi_duzenleyebilir`; ilki hazır gelir, yönetim
+  onay ekranından değiştirebilir. Öyle bir durum yoksa servis sebebini
+  söyler. Sonuçlanmış başvuruda reddedilir.
+  · **Bayi yerine yenisini takar** (`views.sim_degistir` →
+  `simi_degistir`): detaydaki kutu yalnızca `Basvuru.sim_degisimi_bekliyor`
+  iken çizilir (sonuçlanmamış + bayi düzenleyebilir + başvuruda yazılı
+  IMEI'lerden biri arızalı). Stok kutusuna bayinin zimmetli ve başvurunun
+  operatörüne ait kartları girer; boşsa sebebini yazar. Yeni kart Kullanıldı
+  olur, başvurudaki IMEI (`ek_bilgiler`) değişir, başvuru **bildirim öncesi
+  durumuna döner** (`_onceki_durum`: son geçmiş kaydının öncekisi; o
+  kapalıysa başlangıç durumu) — iş kuyruğa geri girer, Eksik Evrak'ta
+  unutulmaz. "Değiştirildi mi" ayrı bayrak değildir: arızalı kartın IMEI'si
+  başvuruda artık yazmıyorsa değişmiştir (`bozuk_simler`).
+  · **Arızalı kartın üç adımı** (`SimKart`: `iade_alinma_tarihi`,
+  `yerine_verilen`, `degisim_tarihi`) birbirinden bağımsızdır ve
+  `bayi.services` ile işler: `sim_bayiden_alindi`, `sim_yerine_ver` (stoktan
+  aynı operatörün kartını bayiye zimmetler ve bağlar — OneToOne, aynı kart
+  iki bozuğun yerine verilemez), `sim_degisimi_alindi`. Operatörden gelen
+  yeni kart burada açılmaz, "Toplu ekle" ile stoğa girer; adım yalnızca
+  alacağı kapatır. Günlük iş SIM Stoğu listesindeki **Takip** düğmesinden
+  (`ariza_sayfasi`, her adım POST); toplu "bayiden alındı" / "değişimi
+  geldi" işlemleri de var. Açık işler `acik_ariza_isleri`; stokta bozulan
+  kartta (bayisi yok) bayi adımları hiç sayılmaz. Liste `ArizaFiltresi` ile
+  süzülür, Stok ve Alacak Özeti'ndeki **Arızalı kartlar** bloğu o süzgece
+  gider. Kapanmış kart sayılmaz.
+  · **Arızalı kart stoğa da bayiye de dönmez.** Olumsuz sonuçta kartlar
+  bayinin stoğuna döner (`basvurunun_simlerini_serbest_birak`) ama yalnızca
+  Kullanıldı olanlar; toplu zimmetleme ve geri alma da arızalıyı atlar.
+  Aksi hâlde bozuk kart "sağlam" görünüp yeni başvuruya girerdi.
 - **URL'ler okunur olmalı: slug'lı, sorgu dizesiz.** `?kategori=4` değil
   `/basvuru/yeni/adsl-internet/`. Kayıtlara referans numarasıyla erişilir,
   id ile değil (sayaç taranmasın). Slug üretiminde

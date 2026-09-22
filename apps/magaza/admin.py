@@ -8,6 +8,7 @@ from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin
 from unfold.decorators import display
 
+from apps.bayi.etiket import kullanici_etiketi_html
 from apps.esim.saglayicilar import SaglayiciHatasi
 from apps.esim.services import esim_siparisi_iptal_et
 from apps.finans.services import (
@@ -75,6 +76,8 @@ class SiparisAdmin(ModelAdmin):
         "referans_no",
         "urun_adi",
         "bayi__username",
+        "bayi__first_name",
+        "bayi__last_name",
         "bayi__bayi_profili__unvan",
     )
     date_hierarchy = "olusturma_tarihi"
@@ -138,18 +141,7 @@ class SiparisAdmin(ModelAdmin):
 
     @display(description="Bayi", ordering="bayi__username")
     def bayi_gosterimi(self, obj):
-        """Kullanıcı adı telefon numarasıdır; ünvan olmadan kim olduğu anlaşılmıyor."""
-        numara = obj.bayi.get_username()
-        profil = getattr(obj.bayi, "bayi_profili", None)
-        unvan = profil.unvan if profil and profil.unvan else ""
-        if not unvan:
-            return numara
-        return format_html(
-            '<span style="font-weight:600">{}</span><br>'
-            '<span style="color:#6F7B8F;font-size:.75rem">{}</span>',
-            unvan,
-            numara,
-        )
+        return kullanici_etiketi_html(obj.bayi)
 
     @display(description="Tutar", ordering="tutar")
     def tutar_gosterimi(self, obj):

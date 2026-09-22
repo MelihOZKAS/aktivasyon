@@ -57,6 +57,57 @@
     {% endif %}
   </section>
 
+  {% comment %}
+    Bozuk kartlar: para hareketi yok, kart takası var. Üç iş bağımsız —
+    bayiden alınacak, bayiye yerine verilecek, operatörden değişimi
+    gelecek — her sayı kendi süzgecine gider.
+  {% endcomment %}
+  <section class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
+      Arızalı kartlar
+    </h2>
+    <p class="mb-4 text-sm text-base-500">
+      Bozuk çıkan kartların açık işleri; para değil kart takas edilir.
+      {% if arizali_kartlar.acik %}
+      <a href="{{ arizali_kartlar.adres_acik }}" class="text-primary-600">{{ arizali_kartlar.acik }} açık kart</a>.
+      {% endif %}
+    </p>
+    {% if arizali_kartlar.operatorler or arizali_kartlar.bayiler %}
+    <dl class="space-y-2 text-sm">
+      {% for satir in arizali_kartlar.operatorler %}
+      <div class="flex items-baseline gap-3">
+        <dt class="text-base-500">{{ satir.ad }}</dt>
+        <dd class="ml-auto font-semibold">
+          {% if satir.bayide %}
+          <a href="{{ satir.adres_bayide }}" class="text-primary-600">{{ satir.bayide }}</a>
+          <span class="text-xs font-normal text-base-400">bayiden alınacak</span>
+          {% endif %}
+          {% if satir.bayide and satir.operatorden %}<span class="text-base-300">·</span>{% endif %}
+          {% if satir.operatorden %}
+          <a href="{{ satir.adres_operatorden }}" class="text-primary-600">{{ satir.operatorden }}</a>
+          <span class="text-xs font-normal text-base-400">operatörden bekleniyor</span>
+          {% endif %}
+        </dd>
+      </div>
+      {% endfor %}
+      {% for satir in arizali_kartlar.bayiler %}
+      <div class="flex items-baseline gap-3{% if forloop.first %} border-t border-base-200 pt-2 dark:border-base-700{% endif %}">
+        <dt>
+          <span class="text-font-important-light dark:text-font-important-dark">{{ satir.ad }}</span>
+          <span class="block text-xs text-base-400">{{ satir.numara }}</span>
+        </dt>
+        <dd class="ml-auto font-semibold">
+          <a href="{{ satir.adres }}" class="text-primary-600">{{ satir.adet }}</a>
+          <span class="text-xs font-normal text-base-400">yerine kart verilecek</span>
+        </dd>
+      </div>
+      {% endfor %}
+    </dl>
+    {% else %}
+    <p class="text-sm text-base-500">Açık işi olan arızalı kart yok.</p>
+    {% endif %}
+  </section>
+
   <section class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
     <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
       Bayilerdeki kartlar

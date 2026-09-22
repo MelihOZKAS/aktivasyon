@@ -2171,3 +2171,501 @@ class BayiyeKapaliKategoriler(TestCase):
 
         self.assertIn("kapali_kategoriler", icerik)
         self.assertIn("Faturalı Numara Taşıma", icerik)
+
+
+class KullaniciEtiketi(TestCase):
+    """Kullanıcı her yerde adıyla anılır, numara yanında durur.
+
+    Kullanıcı adı telefon numarasıdır; seçim kutusunda, süzgeçte ve listede
+    yalnızca "5304517888" görünüyordu, yönetici kimin olduğunu ezbere bilmek
+    zorundaydı. Görünen ad tek yerden gelir (`apps.bayi.etiket`); Django'nun
+    hazır User modelinin `__str__`ü oraya bağlanmıştır.
+    """
+
+    def setUp(self):
+        from apps.bayi.models import BayiProfili
+
+        self.adli = User.objects.create_user(
+            "5304517888", password="parola12345", first_name="Fadil", last_name="Yiğitdöl"
+        )
+        self.unvanli = User.objects.create_user("5435609672", password="parola12345")
+        BayiProfili.objects.create(kullanici=self.unvanli, unvan="Ege Tedarik")
+        self.adsiz = User.objects.create_user("5524144444", password="parola12345")
+
+    def test_adi_olan_hesap_adi_ve_numarasiyla_anilir(self):
+        self.assertEqual(str(self.adli), "Fadil Yiğitdöl · 5304517888")
+
+    def test_adi_yoksa_firma_unvani(self):
+        self.assertEqual(str(self.unvanli), "Ege Tedarik · 5435609672")
+
+    def test_hicbiri_yoksa_yalnizca_numara(self):
+        self.assertEqual(str(self.adsiz), "5524144444")
+
+    def test_ad_okumak_ek_sorgu_atmaz(self):
+        """Seçim kutusu yüz kullanıcıyı çizerken profil tablosuna gitmesin."""
+        adli = User.objects.get(pk=self.adli.pk)
+        with self.assertNumQueries(0):
+            str(adli)
+
+    def test_secim_kutusunda_ad_gorunur(self):
+        """SIM toplu ekleme ekranındaki "Zimmetlenecek bayi" kutusu."""
+        yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(yonetici)
+
+        icerik = self.client.get("/yonetim/bayi/simkart/toplu-ekle/").content.decode()
+
+        self.assertIn("Fadil Yiğitdöl · 5304517888", icerik)
+        self.assertIn("Ege Tedarik · 5435609672", icerik)
+
+    def test_aramali_kutu_adla_bulur(self):
+        """Başvuru formundaki bayi kutusu gibi aramalı kutular ada göre arar."""
+        yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(yonetici)
+
+        cevap = self.client.get(
+            reverse("admin:autocomplete"),
+            {"app_label": "finans", "model_name": "cuzdan", "field_name": "bayi", "term": "Fadil"},
+        )
+
+        metinler = [sonuc["text"] for sonuc in cevap.json()["results"]]
+        self.assertEqual(metinler, ["Fadil Yiğitdöl · 5304517888"])
+
+    def test_listede_ad_ustte_numara_altta(self):
+        from apps.bayi.etiket import kullanici_etiketi_html
+
+        html = kullanici_etiketi_html(self.adli)
+
+        self.assertIn("Fadil Yiğitdöl", html)
+        self.assertIn("5304517888", html)
+        self.assertEqual(kullanici_etiketi_html(self.adsiz), "5524144444")
+
+
+class BozukSimTakasi(TestCase):
+    """Aktivasyonda bozuk çıkan SIM: para değil kart takas edilir.
+
+    Başvuru iptal edilip yeniden girilseydi giriş bedeli iade edilir, güncel
+    fiyattan yeniden kesilirdi — bayi 100'e aldığı işi 150'ye almış olurdu.
+    Bunun yerine kart aynı başvuruda değişir, para olduğu yerde kalır; bozuk
+    kart üç adımlık takiple kapanır (bayiden alındı, yerine verildi,
+    operatörden değişimi geldi).
+    """
+
+    def setUp(self):
+        from apps.bayi.models import BayiProfili, SimKart, SimKartDurumu
+        from apps.basvurular.models import Basvuru, BasvuruDurumu
+        from apps.katalog.models import AlanTipi, BasvuruKategorisi, KategoriAlani, Operator
+
+        self.giris = BasvuruDurumu.objects.create(
+            ad="İlk giriş", slug="ilk-giris", baslangic_durumu=True, sira=1
+        )
+        self.islemde = BasvuruDurumu.objects.create(ad="İşlemde", slug="islemde", sira=2)
+        self.eksik = BasvuruDurumu.objects.create(
+            ad="Eksik Evrak", slug="eksik", bayi_duzenleyebilir=True, sira=3
+        )
+        self.aktif = BasvuruDurumu.objects.create(
+            ad="Aktif", slug="aktif", hakedis_tetikler=True, sira=4
+        )
+        self.iptal = BasvuruDurumu.objects.create(
+            ad="İptal", slug="iptal", olumsuz_sonuc=True, sira=5
+        )
+
+        self.bayi = User.objects.create_user("5301112233", password="parola12345", first_name="Fadil")
+        BayiProfili.objects.create(kullanici=self.bayi, unvan="Fadil İletişim")
+        self.tedarikci = User.objects.create_user("5309998877", password="parola12345")
+        BayiProfili.objects.create(kullanici=self.tedarikci, bayi_mi=False, tedarikci_mi=True)
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        for k in (self.bayi, self.tedarikci):
+            Cuzdan.objects.create(bayi=k)
+
+        self.vodafone = Operator.objects.create(ad="Vodafone")
+        self.turkcell = Operator.objects.create(ad="Turkcell")
+        self.kategori = BasvuruKategorisi.objects.create(ad="Kontörlü Yeni Hat", tarife_zorunlu=False)
+        self.kategori.operatorler.add(self.vodafone)
+        KategoriAlani.objects.create(
+            kategori=self.kategori, kod="sim", etiket="SIM Kart",
+            tip=AlanTipi.SIM_KART, zorunlu=True, sira=10,
+        )
+
+        def kart(imei, operator=self.vodafone, bayi=self.bayi, durum=SimKartDurumu.ATANDI):
+            return SimKart.objects.create(imei=imei, operator=operator, bayi=bayi, durum=durum)
+
+        self.takili = kart("8990000000000001")
+        self.yedek = kart("8990000000000002")
+        self.yanlis_operator = kart("8990000000000003", operator=self.turkcell)
+        self.stokta = kart("8990000000000004", bayi=None, durum=SimKartDurumu.BEKLEMEDE)
+        self.stokta_turkcell = kart(
+            "8990000000000005", operator=self.turkcell, bayi=None, durum=SimKartDurumu.BEKLEMEDE
+        )
+
+        self.basvuru = Basvuru.objects.create(
+            bayi=self.bayi, tedarikci=self.tedarikci, kategori=self.kategori,
+            operator=self.vodafone, durum=self.giris, isim="Ayşe", soyisim="Yılmaz",
+            ek_bilgiler={"sim": self.takili.imei},
+        )
+        SimKart.objects.filter(pk=self.takili.pk).update(
+            durum=SimKartDurumu.KULLANILDI, basvuru=self.basvuru
+        )
+        self.takili.refresh_from_db()
+        # Tedarikçi işi eline aldı: İşlemde.
+        self.basvuru.durum = self.islemde
+        self.basvuru.save(update_fields=["durum"])
+
+    def _bozuk_bildir(self, **ek):
+        from apps.basvurular.services import sim_bozuk_bildir
+
+        return sim_bozuk_bildir(self.basvuru, self.takili, bildiren=self.tedarikci, **ek)
+
+    # --- servis: bozuk bildirimi ---
+
+    def test_bozuk_bildirimi_karti_arizaliya_dusurur_basvuruyu_eksige_ceker(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self._bozuk_bildir(aciklama="Operatör kartı okumuyor")
+
+        self.takili.refresh_from_db()
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.ARIZALI)
+        self.assertIsNotNone(self.takili.ariza_tarihi)
+        self.assertEqual(self.takili.ariza_bildiren, self.tedarikci)
+        self.assertEqual(self.takili.basvuru, self.basvuru)
+        self.assertEqual(self.basvuru.durum, self.eksik)
+        self.assertTrue(self.basvuru.sim_degisimi_bekliyor)
+        son = self.basvuru.durum_gecmisi.order_by("-pk").first()
+        self.assertEqual(son.degistiren, self.tedarikci)
+        self.assertIn(self.takili.imei, son.aciklama)
+        self.assertIn("Operatör kartı okumuyor", son.aciklama)
+
+    def test_para_oynamaz(self):
+        from apps.finans.models import CuzdanHareketi
+
+        self._bozuk_bildir()
+
+        self.assertEqual(CuzdanHareketi.objects.count(), 0)
+
+    def test_sonuclanmis_basvuruda_bildirilemez(self):
+        from apps.basvurular.services import SimDegisimiHatasi
+
+        self.basvuru.durum = self.aktif
+        self.basvuru.save(update_fields=["durum"])
+
+        with self.assertRaises(SimDegisimiHatasi):
+            self._bozuk_bildir()
+
+    def test_takili_olmayan_kart_bildirilemez(self):
+        from apps.basvurular.services import SimDegisimiHatasi, sim_bozuk_bildir
+
+        with self.assertRaises(SimDegisimiHatasi):
+            sim_bozuk_bildir(self.basvuru, self.yedek, bildiren=self.tedarikci)
+
+    def test_bayinin_duzenleyebildigi_durum_yoksa_sebebini_soyler(self):
+        from apps.basvurular.services import SimDegisimiHatasi
+
+        self.eksik.bayi_duzenleyebilir = False
+        self.eksik.save()
+
+        with self.assertRaises(SimDegisimiHatasi) as hata:
+            self._bozuk_bildir()
+        self.assertIn("Bayi düzenleyebilir", str(hata.exception))
+
+    # --- servis: bayi yeni kart takar ---
+
+    def test_bayi_yeni_kart_takinca_basvuru_kaldigi_yere_doner(self):
+        from apps.basvurular.services import simi_degistir
+        from apps.bayi.models import SimKartDurumu
+
+        self._bozuk_bildir()
+        simi_degistir(self.basvuru, self.takili, self.yedek, degistiren=self.bayi)
+
+        self.basvuru.refresh_from_db()
+        self.takili.refresh_from_db()
+        self.yedek.refresh_from_db()
+        self.assertEqual(self.basvuru.durum, self.islemde)
+        self.assertEqual(self.basvuru.ek_bilgiler["sim"], self.yedek.imei)
+        self.assertEqual(self.yedek.durum, SimKartDurumu.KULLANILDI)
+        self.assertEqual(self.yedek.basvuru, self.basvuru)
+        # Eski kart arızalı kalır; takibi ayrı.
+        self.assertEqual(self.takili.durum, SimKartDurumu.ARIZALI)
+        self.assertFalse(self.basvuru.sim_degisimi_bekliyor)
+        son = self.basvuru.durum_gecmisi.order_by("-pk").first()
+        self.assertEqual(son.degistiren, self.bayi)
+        self.assertIn(self.yedek.imei, son.aciklama)
+
+    def test_degisim_beklenmiyorsa_takilamaz(self):
+        from apps.basvurular.services import SimDegisimiHatasi, simi_degistir
+
+        with self.assertRaises(SimDegisimiHatasi):
+            simi_degistir(self.basvuru, self.takili, self.yedek, degistiren=self.bayi)
+
+    def test_baska_operatorun_karti_takilamaz(self):
+        from apps.basvurular.services import SimDegisimiHatasi, simi_degistir
+
+        self._bozuk_bildir()
+        with self.assertRaises(SimDegisimiHatasi) as hata:
+            simi_degistir(self.basvuru, self.takili, self.yanlis_operator, degistiren=self.bayi)
+        self.assertIn("Turkcell", str(hata.exception))
+
+    def test_stokta_olmayan_kart_takilamaz(self):
+        from apps.basvurular.services import SimDegisimiHatasi, simi_degistir
+
+        self._bozuk_bildir()
+        with self.assertRaises(SimDegisimiHatasi):
+            simi_degistir(self.basvuru, self.takili, self.stokta, degistiren=self.bayi)
+
+    def test_olumsuz_sonucta_arizali_kart_stoga_donmez(self):
+        """İptalde kartlar bayinin stoğuna döner; bozuk kart dönmez."""
+        from apps.bayi.models import SimKartDurumu
+
+        self._bozuk_bildir()
+        self.basvuru.durum = self.iptal
+        self.basvuru.save(update_fields=["durum"])
+
+        self.takili.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.ARIZALI)
+
+    # --- servis: arıza takibi ---
+
+    def test_ariza_takibi_uc_adimda_kapanir(self):
+        from apps.bayi.models import SimKartDurumu
+        from apps.bayi.services import sim_bayiden_alindi, sim_degisimi_alindi, sim_yerine_ver
+
+        self._bozuk_bildir()
+        self.assertEqual(
+            self.takili.acik_ariza_isleri,
+            ["Bayiden alınmadı", "Yerine kart verilmedi", "Operatörden değişimi bekleniyor"],
+        )
+
+        self.assertTrue(sim_bayiden_alindi(self.takili))
+        self.assertFalse(sim_bayiden_alindi(self.takili))  # ikinci basış tarihi değiştirmez
+
+        yeni = sim_yerine_ver(self.takili, self.stokta)
+        self.assertEqual(yeni.bayi, self.bayi)
+        self.assertEqual(yeni.durum, SimKartDurumu.ATANDI)
+        self.takili.refresh_from_db()
+        self.assertEqual(self.takili.yerine_verilen, self.stokta)
+
+        self.assertTrue(sim_degisimi_alindi(self.takili))
+        self.takili.refresh_from_db()
+        self.assertEqual(self.takili.acik_ariza_isleri, [])
+
+    def test_yerine_baska_operatorun_karti_verilemez(self):
+        from apps.bayi.services import ArizaHatasi, sim_yerine_ver
+
+        self._bozuk_bildir()
+        with self.assertRaises(ArizaHatasi):
+            sim_yerine_ver(self.takili, self.stokta_turkcell)
+
+    def test_yerine_stokta_olmayan_kart_verilemez(self):
+        from apps.bayi.services import ArizaHatasi, sim_yerine_ver
+
+        self._bozuk_bildir()
+        with self.assertRaises(ArizaHatasi):
+            sim_yerine_ver(self.takili, self.yedek)
+
+    def test_stokta_bozulan_kartta_bayi_adimlari_yoktur(self):
+        from apps.bayi.services import sim_arizali_isaretle
+
+        sim_arizali_isaretle(self.stokta, bildiren=self.yonetici)
+        self.assertEqual(self.stokta.acik_ariza_isleri, ["Operatörden değişimi bekleniyor"])
+
+    # --- tedarikçi ekranı ---
+
+    def test_tedarikci_detayda_bozuk_dugmesini_gorur_ve_bildirir(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self.client.force_login(self.tedarikci)
+        adres = reverse("basvurular:detay", args=[self.basvuru.referans_no])
+
+        icerik = self.client.get(adres).content.decode()
+        self.assertIn("SIM kart bozuk mu çıktı?", icerik)
+
+        yanit = self.client.post(
+            reverse("basvurular:sim-bozuk", args=[self.basvuru.referans_no]),
+            {"kart": self.takili.pk, "aciklama": "okumuyor"},
+        )
+        self.assertRedirects(yanit, adres)
+        self.takili.refresh_from_db()
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.ARIZALI)
+        self.assertEqual(self.basvuru.durum, self.eksik)
+
+    def test_bayi_bozuk_bildiremez(self):
+        """Bayi kendi panelinden "bozuk" demez; yalnızca yerine yenisini takar."""
+        from apps.bayi.models import SimKartDurumu
+
+        self.client.force_login(self.bayi)
+        icerik = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        ).content.decode()
+        self.assertNotIn("SIM kart bozuk mu çıktı?", icerik)
+
+        yanit = self.client.post(
+            reverse("basvurular:sim-bozuk", args=[self.basvuru.referans_no]),
+            {"kart": self.takili.pk},
+        )
+        self.assertEqual(yanit.status_code, 404)
+        self.takili.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.KULLANILDI)
+
+    # --- bayi ekranı ---
+
+    def test_bayi_detayda_yeni_kart_kutusunu_gorur_ve_takar(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self._bozuk_bildir()
+        self.client.force_login(self.bayi)
+        adres = reverse("basvurular:detay", args=[self.basvuru.referans_no])
+
+        icerik = self.client.get(adres).content.decode()
+        self.assertIn("SIM kart bozuk çıktı", icerik)
+        self.assertIn(self.yedek.imei, icerik)
+        # Turkcell kartı Vodafone aktivasyonuna girmez: kutuda hiç yok.
+        self.assertNotIn(self.yanlis_operator.imei, icerik)
+
+        yanit = self.client.post(
+            reverse("basvurular:sim-degistir", args=[self.basvuru.referans_no]),
+            {"eski": self.takili.pk, "yeni": self.yedek.imei},
+        )
+        self.assertRedirects(yanit, adres)
+        self.basvuru.refresh_from_db()
+        self.yedek.refresh_from_db()
+        self.assertEqual(self.basvuru.durum, self.islemde)
+        self.assertEqual(self.yedek.durum, SimKartDurumu.KULLANILDI)
+        # Kutu kalktı (geçmişteki not kalır; kutuyu form adresinden tanı).
+        self.assertNotIn(
+            reverse("basvurular:sim-degistir", args=[self.basvuru.referans_no]),
+            self.client.get(adres).content.decode(),
+        )
+
+    def test_bayi_stogu_bossa_kutu_sebebini_yazar(self):
+        from apps.bayi.models import SimKart, SimKartDurumu
+
+        self._bozuk_bildir()
+        SimKart.objects.filter(pk=self.yedek.pk).update(durum=SimKartDurumu.BEKLEMEDE, bayi=None)
+        self.client.force_login(self.bayi)
+
+        icerik = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        ).content.decode()
+        self.assertIn("kullanılabilir SIM kart yok", icerik)
+
+    def test_kutu_degisim_beklenmiyorsa_cizilmez(self):
+        self.client.force_login(self.bayi)
+        icerik = self.client.get(
+            reverse("basvurular:detay", args=[self.basvuru.referans_no])
+        ).content.decode()
+        self.assertNotIn(reverse("basvurular:sim-degistir", args=[self.basvuru.referans_no]), icerik)
+
+    # --- yönetim paneli ---
+
+    def test_yonetim_detayda_dugme_ve_onay_ekrani(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self.client.force_login(self.yonetici)
+        degistir = reverse("admin:basvurular_basvuru_change", args=[self.basvuru.pk])
+        adres = reverse("admin:basvurular_basvuru_sim_bozuk", args=[self.basvuru.pk])
+
+        self.assertIn(adres, self.client.get(degistir).content.decode())
+        icerik = self.client.get(adres).content.decode()
+        self.assertIn(self.takili.imei, icerik)
+        self.assertIn("Eksik Evrak", icerik)
+
+        yanit = self.client.post(adres, {"kart": self.takili.pk, "durum": self.eksik.pk, "aciklama": ""})
+        self.assertRedirects(yanit, degistir)
+        self.takili.refresh_from_db()
+        self.basvuru.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.ARIZALI)
+        self.assertEqual(self.takili.ariza_bildiren, self.yonetici)
+        self.assertEqual(self.basvuru.durum, self.eksik)
+
+    def test_yonetim_dugmesi_sonuclanmis_basvuruda_cikmaz(self):
+        self.basvuru.durum = self.aktif
+        self.basvuru.save(update_fields=["durum"])
+        self.client.force_login(self.yonetici)
+        adres = reverse("admin:basvurular_basvuru_sim_bozuk", args=[self.basvuru.pk])
+
+        degistir = self.client.get(
+            reverse("admin:basvurular_basvuru_change", args=[self.basvuru.pk])
+        ).content.decode()
+        self.assertNotIn(adres, degistir)
+        self.assertEqual(self.client.get(adres).status_code, 403)
+
+    def test_sim_listesinde_takip_ve_ariza_sayfasi(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self._bozuk_bildir()
+        self.client.force_login(self.yonetici)
+        takip = reverse("admin:bayi_simkart_ariza", args=[self.takili.pk])
+
+        liste = self.client.get(
+            reverse("admin:bayi_simkart_changelist"), {"ariza": "bayide"}
+        ).content.decode()
+        self.assertIn(takip, liste)
+        self.assertIn("Bayiden alınmadı", liste)
+
+        sayfa = self.client.get(takip).content.decode()
+        self.assertIn("Fadil", sayfa)
+        self.assertIn(self.stokta.imei, sayfa)
+        self.assertNotIn(self.stokta_turkcell.imei, sayfa)
+        # Kartın kendi formu da açılır (arıza alanları düzeltme için orada).
+        form = self.client.get(reverse("admin:bayi_simkart_change", args=[self.takili.pk]))
+        self.assertContains(form, "Arıza takibi")
+
+        self.client.post(takip, {"adim": "bayiden_alindi"})
+        self.client.post(takip, {"adim": "yerine_ver", "yeni_kart": self.stokta.pk})
+        self.client.post(takip, {"adim": "degisim_geldi"})
+
+        self.takili.refresh_from_db()
+        self.stokta.refresh_from_db()
+        self.assertEqual(self.takili.acik_ariza_isleri, [])
+        self.assertEqual(self.stokta.bayi, self.bayi)
+        self.assertEqual(self.stokta.durum, SimKartDurumu.ATANDI)
+        # Kapanan kart "bayide" süzgecinden düşer.
+        liste = self.client.get(
+            reverse("admin:bayi_simkart_changelist"), {"ariza": "bayide"}
+        ).content.decode()
+        self.assertNotIn(takip, liste)
+
+    def test_toplu_islemler_arizali_karti_stoga_ve_bayiye_karistirmaz(self):
+        from apps.bayi.models import SimKartDurumu
+
+        self._bozuk_bildir()
+        self.client.force_login(self.yonetici)
+        liste = reverse("admin:bayi_simkart_changelist")
+
+        self.client.post(liste, {"action": "bayiden_geri_al", "_selected_action": [self.takili.pk]})
+        self.takili.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.ARIZALI)
+        self.assertEqual(self.takili.bayi, self.bayi)
+
+        self.client.post(
+            liste,
+            {"action": "bayiye_ata", "_selected_action": [self.takili.pk],
+             "bayi": self.tedarikci.pk, "uygula": "1"},
+        )
+        self.takili.refresh_from_db()
+        self.assertEqual(self.takili.durum, SimKartDurumu.ARIZALI)
+        self.assertEqual(self.takili.bayi, self.bayi)
+
+    def test_toplu_bayiden_alindi_ve_degisim_geldi(self):
+        self._bozuk_bildir()
+        self.client.force_login(self.yonetici)
+        liste = reverse("admin:bayi_simkart_changelist")
+
+        self.client.post(liste, {"action": "bayiden_alindi_isaretle", "_selected_action": [self.takili.pk]})
+        self.client.post(liste, {"action": "degisim_geldi_isaretle", "_selected_action": [self.takili.pk]})
+
+        self.takili.refresh_from_db()
+        self.assertIsNotNone(self.takili.iade_alinma_tarihi)
+        self.assertIsNotNone(self.takili.degisim_tarihi)
+        self.assertEqual(self.takili.acik_ariza_isleri, ["Yerine kart verilmedi"])
+
+    def test_ozet_sayfasi_arizali_kartlari_sayar(self):
+        self._bozuk_bildir()
+        self.client.force_login(self.yonetici)
+
+        icerik = self.client.get("/yonetim/ozet/").content.decode()
+        self.assertIn("Arızalı kartlar", icerik)
+        self.assertIn("bayiden alınacak", icerik)
+        self.assertIn("operatörden bekleniyor", icerik)
+        self.assertIn("yerine kart verilecek", icerik)
+        self.assertIn("ariza=bayide", icerik)

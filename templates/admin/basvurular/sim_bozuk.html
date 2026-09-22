@@ -1,0 +1,78 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Aktivasyonda bozuk çıkan SIM. Başvuru iptal edilmez, para oynamaz: kart
+  arızalıya düşer, başvuru bayinin düzenleyebildiği duruma çekilir, bayi
+  stoğundan yenisini takar ve iş kaldığı yerden sürer. Hangi duruma düşeceği
+  veridir; bayinin düzenleyebildiği durumlar arasından seçilir.
+  Sınıflar unfold'un derlenmiş CSS'inden gelir.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-default border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <p class="mb-4 text-sm text-base-500">
+      <b>{{ basvuru.referans_no }} · {{ basvuru.ad_soyad }}</b> başvurusunda takılı kart
+      arızalı işaretlenecek. Başvuru iptal edilmez, para oynamaz: bayi stoğundan
+      yeni kart seçince başvuru bildirim öncesi durumuna döner. Bozuk kartın
+      takibi (bayiden alındı mı, yerine kart verildi mi, operatörden değişimi
+      geldi mi) SIM Stoğu listesinden yapılır.
+    </p>
+
+    {% if not durumlar %}
+    <p class="mb-4 rounded-default border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+      Bayinin düzenleyebileceği bir durum tanımlı değil. Başvuru Durumları'nda
+      bir durumda “Bayi düzenleyebilir” kutusunu açın; başvuru o duruma düşecek.
+    </p>
+    {% endif %}
+
+    <form method="post" class="grid gap-4">
+      {% csrf_token %}
+
+      <div>
+        <label class="mb-1 block text-sm font-medium">Bozuk kart</label>
+        {% if kartlar|length == 1 %}
+        <input type="hidden" name="kart" value="{{ kartlar.0.pk }}">
+        <p class="text-sm" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">{{ kartlar.0.imei }}{% if kartlar.0.operator %} · {{ kartlar.0.operator.ad }}{% endif %}</p>
+        {% else %}
+        <select name="kart" required
+                class="w-full rounded-default border border-base-200 bg-white px-3 py-2 text-sm dark:border-base-700 dark:bg-base-900">
+          <option value="">Seçin</option>
+          {% for kart in kartlar %}
+          <option value="{{ kart.pk }}">{{ kart.imei }}{% if kart.operator %} · {{ kart.operator.ad }}{% endif %}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium">Başvuru hangi duruma düşsün?</label>
+        <select name="durum" required
+                class="w-full rounded-default border border-base-200 bg-white px-3 py-2 text-sm dark:border-base-700 dark:bg-base-900">
+          {% for durum in durumlar %}
+          <option value="{{ durum.pk }}">{{ durum.ad }}</option>
+          {% endfor %}
+        </select>
+        <p class="mt-1 text-xs text-base-400">Bayi bu durumda yeni SIM kart seçebilir.</p>
+      </div>
+
+      <div>
+        <label class="mb-1 block text-sm font-medium">Not <span class="font-normal text-base-400">(isteğe bağlı; bayi görür)</span></label>
+        <input type="text" name="aciklama" maxlength="200"
+               class="w-full rounded-default border border-base-200 bg-white px-3 py-2 text-sm dark:border-base-700 dark:bg-base-900">
+      </div>
+
+      <div class="flex flex-wrap gap-3 pt-2">
+        <button type="submit" {% if not durumlar %}disabled{% endif %}
+                class="rounded-default bg-primary-600 px-4 py-2 font-medium text-white disabled:opacity-50">
+          Arızalı işaretle
+        </button>
+        <a href="{{ geri_adresi }}"
+           class="rounded-default border border-base-200 px-4 py-2 font-medium hover:bg-base-100 dark:border-base-700">
+          Vazgeç
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

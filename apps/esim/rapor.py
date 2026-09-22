@@ -16,6 +16,7 @@ from decimal import Decimal
 from django.db.models import Count, F, Sum
 from django.utils import timezone
 
+from apps.bayi.etiket import etiket_satirdan, etiket_sutunlari
 from apps.esim.models import Teslimat, TeslimatDurumu, Yukleme, YuklemeDurumu
 
 SIFIR = Decimal("0.00")
@@ -57,8 +58,8 @@ def esim_raporu(baslangic, bitis):
     toplam = _birlestir(_topla(teslimatlar), _topla(yuklemeler))
     toplam["yukleme_adedi"] = yuklemeler.count()
 
-    def kirilim(alan, *etiketler):
-        """`alan`a göre gruplar; etiket, verilen alanlardan ilk dolu olanıdır (ünvan yoksa numara)."""
+    def kirilim(alan, *etiketler, etiket=None):
+        """`alan`a göre gruplar; etiket ilk dolu alandır ya da `etiket(satir, onek)` ile kurulur."""
         satirlar = {}
         for sorgu, kaynak in ((teslimatlar, ""), (yuklemeler, "teslimat__")):
             ham = (
@@ -68,9 +69,12 @@ def esim_raporu(baslangic, bitis):
             )
             for satir in ham:
                 anahtar = satir[kaynak + alan]
-                etiket = next((satir[kaynak + e] for e in etiketler if satir[kaynak + e]), "—")
+                if etiket:
+                    ad = etiket(satir, kaynak)
+                else:
+                    ad = next((satir[kaynak + e] for e in etiketler if satir[kaynak + e]), "—")
                 kayit = satirlar.setdefault(
-                    anahtar, {"etiket": etiket, "adet": 0, "satis": SIFIR, "alis": SIFIR}
+                    anahtar, {"etiket": ad, "adet": 0, "satis": SIFIR, "alis": SIFIR}
                 )
                 kayit["adet"] += satir["adet"]
                 kayit["satis"] += satir["satis"] or 0
@@ -89,7 +93,8 @@ def esim_raporu(baslangic, bitis):
                 "baslik": "En çok kazandıran 10 bayi",
                 "sutun": "Bayi",
                 "satirlar": kirilim(
-                    "siparis__bayi_id", "siparis__bayi__bayi_profili__unvan", "siparis__bayi__username"
+                    "siparis__bayi_id", *etiket_sutunlari("siparis__bayi__"),
+                    etiket=lambda satir, onek: etiket_satirdan(satir, onek + "siparis__bayi__"),
                 )[:10],
             },
         ],

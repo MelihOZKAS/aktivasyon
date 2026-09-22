@@ -16,6 +16,8 @@ from django.db.models import Count, Sum
 from django.shortcuts import render
 from django.urls import reverse
 
+from apps.bayi.etiket import etiket_sutunlari, kisa_ad, kisa_ad_satirdan
+
 SIFIR = Decimal("0.00")
 
 
@@ -45,7 +47,7 @@ def _bayideki_kartlar():
     liste = reverse("admin:bayi_simkart_changelist")
     return [
         {
-            "ad": kayit["bayi__bayi_profili__unvan"] or kayit["bayi__username"],
+            "ad": kisa_ad_satirdan(kayit, "bayi__"),
             "numara": kayit["bayi__username"],
             "adet": kayit["adet"],
             "adres": f"{liste}?bayi__id__exact={kayit['bayi_id']}"
@@ -53,7 +55,7 @@ def _bayideki_kartlar():
         }
         for kayit in (
             SimKart.objects.filter(durum=SimKartDurumu.ATANDI, bayi__isnull=False)
-            .values("bayi_id", "bayi__username", "bayi__bayi_profili__unvan")
+            .values("bayi_id", *etiket_sutunlari("bayi__"))
             .annotate(adet=Count("id"))
             .order_by("-adet")
         )
@@ -73,10 +75,7 @@ def _tedarikci_borclari():
     liste = reverse("admin:finans_cuzdan_changelist")
     satirlar = [
         {
-            "ad": cuzdan.bayi.bayi_profili.unvan
-            if getattr(cuzdan.bayi, "bayi_profili", None)
-            and cuzdan.bayi.bayi_profili.unvan
-            else cuzdan.bayi.get_username(),
+            "ad": kisa_ad(cuzdan.bayi),
             "numara": cuzdan.bayi.get_username(),
             "borc": cuzdan.bakiye,
             "adres": f"{liste}{cuzdan.pk}/change/",
@@ -90,6 +89,63 @@ def _tedarikci_borclari():
         )
     ]
     return {"satirlar": satirlar, "toplam": sum(s["borc"] for s in satirlar)}
+
+
+def _arizali_kartlar():
+    """Bozuk kartların açık işleri.
+
+    Kart için para hareketi yok, takas var: bayiden bozuğu alırız, yerine
+    stoktan kart veririz, operatöre bozuğu verip yenisini alırız. Üç iş
+    birbirinden bağımsızdır; burada her biri kendi süzgecine gider
+    (`ArizaFiltresi`). Kapanmış kartlar sayılmaz.
+    """
+    from django.db.models import Q
+
+    from apps.bayi.models import SimKart, SimKartDurumu
+
+    liste = reverse("admin:bayi_simkart_changelist")
+    arizali = SimKart.objects.filter(durum=SimKartDurumu.ARIZALI)
+    bayide = Q(bayi__isnull=False, iade_alinma_tarihi__isnull=True)
+    operatorden = Q(degisim_tarihi__isnull=True)
+
+    operatorler = [
+        {
+            "ad": kayit["operator__ad"] or "Operatörsüz",
+            "bayide": kayit["bayide"],
+            "operatorden": kayit["operatorden"],
+            "adres_bayide": f"{liste}?ariza=bayide&operator__id__exact={kayit['operator_id']}",
+            "adres_operatorden": f"{liste}?ariza=operator&operator__id__exact={kayit['operator_id']}",
+        }
+        for kayit in (
+            arizali.values("operator_id", "operator__ad")
+            .annotate(
+                bayide=Count("id", filter=bayide),
+                operatorden=Count("id", filter=operatorden),
+            )
+            .order_by("operator__ad")
+        )
+        if kayit["bayide"] or kayit["operatorden"]
+    ]
+    bayiler = [
+        {
+            "ad": kisa_ad_satirdan(kayit, "bayi__"),
+            "numara": kayit["bayi__username"],
+            "adet": kayit["adet"],
+            "adres": f"{liste}?ariza=yerine&bayi__id__exact={kayit['bayi_id']}",
+        }
+        for kayit in (
+            arizali.filter(bayi__isnull=False, yerine_verilen__isnull=True)
+            .values("bayi_id", *etiket_sutunlari("bayi__"))
+            .annotate(adet=Count("id"))
+            .order_by("-adet")
+        )
+    ]
+    return {
+        "operatorler": operatorler,
+        "bayiler": bayiler,
+        "acik": arizali.filter(bayide | Q(bayi__isnull=False, yerine_verilen__isnull=True) | operatorden).count(),
+        "adres_acik": f"{liste}?ariza=acik",
+    }
 
 
 def _alis_ozeti():
@@ -135,6 +191,7 @@ def stok_ve_alacak(request):
             "sim_durumlari": _sim_durumlari(),
             "bayideki_kartlar": _bayideki_kartlar(),
             "sim_alacaklari": sim_alacaklari(),
+            "arizali_kartlar": _arizali_kartlar(),
             "tedarikci_borclari": _tedarikci_borclari(),
             "alis_bedeli": _alis_ozeti(),
             "basvuru_listesi": reverse("admin:basvurular_basvuru_changelist"),
