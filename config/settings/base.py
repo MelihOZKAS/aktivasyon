@@ -167,7 +167,11 @@ UNFOLD = {
     # Sayı kutularında ok ve fare tekerleği kapalı (static/yonetim.*):
     # tekerlek bayiye yüklenen tutarı sessizce değiştiriyordu.
     "STYLES": [lambda request: static("yonetim.css")],
-    "SCRIPTS": [lambda request: static("yonetim.js")],
+    # Barkod: SIM ekleme ekranlarında kamerayla okutma (data-barkod).
+    "SCRIPTS": [
+        lambda request: static("yonetim.js"),
+        lambda request: static("yonetim-barkod.js"),
+    ],
     # Ön yüzle aynı petrol tonu. Mor kullanılmıyor.
     "COLORS": {
         "primary": {

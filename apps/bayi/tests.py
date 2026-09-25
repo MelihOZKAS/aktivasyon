@@ -917,6 +917,16 @@ class TopluSimEkleme(TestCase):
         cevap = self.client.get("/yonetim/bayi/simkart/")
         self.assertContains(cevap, self.ADRES)
 
+    def test_kamerayla_okutma_baglanir(self):
+        """Barkod telefon kamerasıyla okunur: toplu listede kod kod
+        eklenir, tekli eklemede kutuya yazılır (static/yonetim-barkod.js)."""
+        toplu = self.client.get(self.ADRES)
+        self.assertContains(toplu, 'data-barkod="liste"')
+        self.assertContains(toplu, "yonetim-barkod")
+
+        tekli = self.client.get("/yonetim/bayi/simkart/add/")
+        self.assertContains(tekli, 'data-barkod="tek"')
+
     def test_liste_toplu_eklenir(self):
         from apps.bayi.models import SimKart, SimKartDurumu
 

@@ -807,6 +807,16 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   karışıyor. Bütün listeyi geri çevirmek hangi satırın tekrar olduğunu elle
   aramak demekti — atlananlar (ve listenin kendi içindeki tekrarlar) adıyla
   sayılıp yazılır, kalanı girilir.
+  **Barkod telefonun kamerasıyla okunur** (`static/yonetim-barkod.js`,
+  `UNFOLD["SCRIPTS"]`). Ek cihaz istenmedi: yönetici kartları depoda
+  telefon/tabletle giriyor. `data-barkod` taşıyan kutunun yanına düğme
+  konur — `liste` (toplu ekle) kamerayı açık tutar, her yeni kod bir satır
+  olur, listede olan atlanır, bip ve titreşimle haber verir; `tek` (SIM
+  ekleme formu, `SimKartAdmin.formfield_for_dbfield`) kodu yazıp kapanır.
+  Çözücü tarayıcının `BarcodeDetector`'ı (Android Chrome), yoksa ZXing —
+  ilk basışta jsDelivr'den SRI özetiyle yüklenir (iOS Safari). Kamera
+  yalnızca HTTPS'te açılır; izin verilmezse ekran sebebini yazar. Klavye
+  gibi yazan okuyucu cihaz da ayrıca bir şey gerektirmeden çalışır.
 - **SIM kartlar bayiye zimmetlidir.** Bayi yalnızca kendisine atanmış ve
   "Bayiye Atandı" durumundaki kartlarla başvuru girebilir. Başvuru olumsuz
   sonuçlanınca kart otomatik olarak stoğa döner; kart fiziksel olarak bayide

@@ -355,6 +355,8 @@ class TopluSimFormu(forms.Form):
             attrs={
                 "rows": 12,
                 "placeholder": "8990011122233344455\n8990011122233344456\n8990011122233344457",
+                # Kamerayla sırayla okutma: her barkod bir satır (yonetim-barkod.js).
+                "data-barkod": "liste",
             }
         ),
     )
@@ -442,6 +444,15 @@ class SimKartAdmin(ModelAdmin):
     autocomplete_fields = ("bayi", "operator", "basvuru", "yerine_verilen")
     readonly_fields = ("ariza_tarihi", "ariza_bildiren")
     date_hierarchy = "olusturma_tarihi"
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        alan = super().formfield_for_dbfield(db_field, request, **kwargs)
+        if db_field.name == "imei":
+            # Kamerayla okutma düğmesi (yonetim-barkod.js); klavye gibi yazan
+            # okuyucu cihaz zaten doğrudan kutuya yazar.
+            alan.widget.attrs.update({"data-barkod": "tek", "autocomplete": "off"})
+        return alan
+
     actions = (
         "bayiye_ata",
         "bayiden_geri_al",
