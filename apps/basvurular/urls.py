@@ -16,6 +16,11 @@ urlpatterns = [
     path("<referans:referans>/", views.detay, name="detay"),
     path("<referans:referans>/belge/<slug:alan_kodu>/", views.belge, name="belge"),
     path(
+        "<referans:referans>/belge/<slug:alan_kodu>/goster/",
+        views.belge_goster,
+        name="belge-goster",
+    ),
+    path(
         "<referans:referans>/gorunum/",
         views.detay_gorunumu_ayarla,
         name="detay-gorunum",

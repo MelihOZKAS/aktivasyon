@@ -64,7 +64,7 @@
           </label>
           {% if mevcut %}
           {# Düzeltmede eskisi görünür; yeni dosya seçilmezse olduğu gibi kalır. #}
-          <a href="{{ mevcut.get_absolute_url }}" target="_blank" rel="noopener"
+          <a href="{{ mevcut.goruntuleme_url }}" target="_blank" rel="noopener"
              class="mb-2 flex items-center gap-3 rounded-lg border border-cizgi p-2 text-sm">
             {% if mevcut.resim_mi %}
             <img src="{{ mevcut.get_absolute_url }}" alt="{{ mevcut.etiket }}"

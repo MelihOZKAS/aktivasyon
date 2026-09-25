@@ -95,6 +95,17 @@ class SimKartSecici(forms.Select):
         return gruplar
 
 
+def _sim_kullanildi_mesaji(kart):
+    """Kart başka bir başvuruya girmişse hangisi olduğu söylenir: çift
+    gönderimde bayi başvurusunun düşmediğini sanıp yeniden girmesin."""
+    if kart.basvuru_id and kart.basvuru.bayi_id == kart.bayi_id:
+        return (
+            f"Bu SIM kart {kart.basvuru.referans_no} numaralı başvurunda "
+            "kullanıldı. Başvurun alınmış; Başvurularım'dan bakabilirsin."
+        )
+    return f"Bu SIM kart kullanılamaz: {kart.get_durum_display()}."
+
+
 class BasvuruFormu(forms.Form):
     """Hat seçimi sabit, geri kalan her şey kategori tanımından gelir."""
 
@@ -346,9 +357,7 @@ class BasvuruFormu(forms.Form):
             # Başka bayinin kartını ele vermemek için ayrıntı verilmez.
             self.add_error(anahtar, "Bu SIM kart size zimmetli değil.")
         elif kart.durum != SimKartDurumu.ATANDI:
-            self.add_error(
-                anahtar, f"Bu SIM kart kullanılamaz: {kart.get_durum_display()}."
-            )
+            self.add_error(anahtar, _sim_kullanildi_mesaji(kart))
         elif not self._sim_operatore_uyuyor(kart):
             # Operatörler birbirinin kartını kullanamaz; hatlar BTK'da IMEI
             # bazında lisanslı. Kutu zaten daraltılıyor ama kural burada durur:
@@ -439,6 +448,9 @@ class BasvuruFormu(forms.Form):
 
         basvuru.ek_bilgiler = ek_bilgiler
         basvuru.full_clean(exclude=["referans_no"])
+        # Kartlar başvuru açılmadan kilitlenir: çift tıklamayla gelen iki
+        # istek doğrulamayı birlikte geçiyor, ikisi de başvuru açıyordu.
+        self._simleri_kilitle()
         basvuru.save()
 
         for tanim in self.alan_tanimlari:
@@ -454,6 +466,32 @@ class BasvuruFormu(forms.Form):
 
         self._simleri_zimmetle(basvuru)
         return basvuru
+
+    def _simleri_kilitle(self):
+        """Seçilen kartları satır kilidiyle yeniden okur; bu arada başka bir
+        başvuruya girmişse kayıt açılmaz.
+
+        Doğrulama (`_sim_dogrula`) kilitsiz okur. Aynı form iki kez
+        gönderildiğinde ikinci istek birincinin kaydı bitmeden doğrulamayı
+        geçiyordu: iki başvuru açılıyor, giriş bedeli iki kez kesiliyor,
+        ikincisinde kart sessizce hiç bağlanmıyordu. İkinci istek burada
+        birincinin transaction'ını bekler ve kartı kullanılmış bulur.
+        """
+        from apps.bayi.models import SimKart, SimKartDurumu
+
+        for tanim in self.alan_tanimlari:
+            if tanim.tip != AlanTipi.SIM_KART:
+                continue
+            kart = self.cleaned_data.get(f"_sim_{tanim.kod}")
+            if not kart:
+                continue
+            guncel = (
+                SimKart.objects.select_for_update()
+                .select_related("basvuru")
+                .get(pk=kart.pk)
+            )
+            if guncel.durum != SimKartDurumu.ATANDI:
+                raise ValidationError(_sim_kullanildi_mesaji(guncel))
 
     def _simleri_zimmetle(self, basvuru):
         """Kullanılan SIM kartları başvuruya bağlar ve stoktan düşer."""

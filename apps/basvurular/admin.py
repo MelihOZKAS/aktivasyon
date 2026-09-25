@@ -41,10 +41,12 @@ class BasvuruBelgesiInline(TabularInline):
             return "—"
         url = obj.get_absolute_url()
         if obj.resim_mi:
+            # Tıklayınca sitenin içindeki görüntüleme sayfası açılır; dosyanın
+            # kendisine gitmek görüntüyü cihaza indiriyordu.
             return format_html(
                 '<a href="{}" target="_blank" rel="noopener">'
                 '<img src="{}" style="max-height:64px;border-radius:.375rem"></a>',
-                url,
+                obj.goruntuleme_url(),
                 url,
             )
         return format_html('<a href="{}" target="_blank" rel="noopener">Dosyayı aç</a>', url)
@@ -218,6 +220,7 @@ class BasvuruAdmin(ModelAdmin):
         "kimlik_no",
         "numara",
         "irtibat",
+        "aktif_numara",
         "bayi__username",
         "bayi__first_name",
         "bayi__last_name",
@@ -273,7 +276,9 @@ class BasvuruAdmin(ModelAdmin):
             },
         ),
         ("Kategoriye Özel Alanlar", {"fields": ("ek_bilgiler_tablosu",)}),
-        ("Durum", {"fields": ("durum", "bayi_aciklamasi", "operasyon_notu")}),
+        # Aktif edilen numara durumun yanında: yönetici hattı açıp "Aktif"
+        # seçerken numarayı da aynı yerde yazsın, ikinci bir ekran aramasın.
+        ("Durum", {"fields": ("durum", "aktif_numara", "bayi_aciklamasi", "operasyon_notu")}),
         (
             "SIM karşılığı",
             {

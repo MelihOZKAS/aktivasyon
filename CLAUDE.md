@@ -433,6 +433,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   başka kategorinin tarifesi seçilirse `KategoriAlaniFormu` reddeder — koşul
   hiçbir zaman sağlanmaz, alan da hiç görünmezdi. Alan listesindeki *Tarife
   koşulu* sütunu bunu kayıt kayıt aramadan gösterir.
+- **Yeni hatta verilen numarayı yönetim yazar, bayi görür**
+  (`Basvuru.aktif_numara`). Numarayı operatör veriyor, yönetim tabletten
+  SIM'le eşleştiriyor; müşteri numarasını öğrenmek için bayiyi, bayi de
+  yönetimi arıyordu. Alan bir form alanı değildir — bayi sormaz, sonuçtur —
+  bu yüzden `KategoriAlani` değil başvurunun kendi kolonudur (aranabilir).
+  Yönetim panelinde **Durum** bölümünde, durum kutusunun hemen altında
+  durur: hattı açıp "Aktif" seçen yönetici numarayı aynı yerde yazar.
+  `Basvuru.clean` `apps.bayi.telefon.normalize`den geçirir ve 10 hane
+  ister. Bayi numarayı başvuru detayının en üst kartında (kopyala ve ara
+  bağlantısıyla), Başvurularım listesinde ve panelde görür, numarayla
+  arar. Boşsa hiçbir yerde çizilmez. Okunur biçim tek yerden:
+  `panel.telefon` süzgeci (`0532 123 45 67`).
 - **Çekirdek alan çoğu alanda boş kalır.** Yalnızca başvurunun kendi kolonu
   olan bilgilerde (isim, TC no, telefon) doldurulur; o zaman değer aranabilir
   olur. Bir kategoride aynı çekirdek alan iki kez kullanılamaz, görsel/dosya
@@ -556,7 +568,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   üstlenen tedarikçi ve personel. Tedarikçi aktivasyonu fiilen kendisi
   yaptığı için bilgileri kimlikten okuyup operatör sistemine giriyor.
   İlgisiz kullanıcı 404 alır. Kural iki yerde: `basvurular.views.belge`
-  (dosya erişimi) ve `detay` (`belgeler_gorunur`) — birlikte güncellenir.
+  (dosya erişimi, `_belge_kaydi`) ve `detay` (`belgeler_gorunur`) — birlikte
+  güncellenir.
+  **Görüntü sitenin içinde açılır, cihaza inmez.** Bağlantılar dosyanın
+  kendisine gidiyordu; telefon ve bazı tarayıcılar kimliği indirip
+  galeriye/İndirilenler'e koyuyordu. Tıklanan adres
+  `BasvuruBelgesi.goruntuleme_url()` → `belge_goster` sayfasıdır (resmi
+  `<img>` ile gömer, uzun basma menüsü ve sürükleme kapalı); dosyanın kendisi
+  `Content-Disposition: inline` ile, **dosya adı olmadan** sunulur — adı
+  gören tarayıcı indiriyordu. Bayi, tedarikçi ve yönetim paneli aynı
+  sayfayı açar. Belgeye bağlanan yeni bir yer yazarsan `goruntuleme_url`
+  kullan; `get_absolute_url` yalnızca `<img src>` içindir.
 - **Tedarikçi işlemin sonucunu kendisi yazar.** Aktivasyonu fiilen o yapıyor;
   hattı açan da operatörden ret yiyen de o. Panelindeki satır başvuru detayına
   gider (bir süre gitmiyordu: müşteri bilgilerini ve kimlik görüntülerini
@@ -599,8 +621,8 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   talebin özet alanlarını günceller, gerekirse yeniden açar. Yönetim
   panelindeki satır içi yanıt kutusu da (`save_formset`) oradan geçer;
   doğrudan kaydedilseydi talep yanıtlandığı hâlde rozette beklemeye devam
-  ederdi. Talep açılınca Telegram'a haber gider, **yanıtlar bildirilmez**:
-  açık talep zaten rozetle sayılıyor, grup her mesajda dolmasın.
+  ederdi. Talep Telegram'a **bildirilmez** (aşağıda *Bildirimler*): açık
+  talep zaten rozetle sayılıyor.
 - **Bayi menüsünün sırası bilinçlidir:** Panel, Tarifeler, Yeni başvuru,
   Başvurularım, Hakedişler, Cüzdan. Bayi müşteriyle önce tarifeye bakıyor,
   sonra başvuruyu giriyor; menü bu sırayı izler.
@@ -789,6 +811,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   "Bayiye Atandı" durumundaki kartlarla başvuru girebilir. Başvuru olumsuz
   sonuçlanınca kart otomatik olarak stoğa döner; kart fiziksel olarak bayide
   durduğu için çöp edilmemeli.
+  **Aynı kart iki başvuruya giremez, çift tıklamada da.** Yavaş bağlantıda
+  fotoğraflar yüklenirken bayi düğmeye yeniden basıyordu; iki istek
+  doğrulamayı birlikte geçiyor, iki başvuru açılıyor, giriş bedeli iki kez
+  kesiliyordu. `BasvuruFormu.kaydet` başvuruyu açmadan önce kartları
+  `select_for_update` ile yeniden okur (`_simleri_kilitle`); ikinci istek
+  birincinin bitmesini bekler, kartı kullanılmış bulur ve hangi başvuruda
+  kullanıldığını yazar. Tarayıcıda da gönder düğmesi kilitlenir, içinde
+  sinyal çubuğu dolar ve "Fotoğraflar yükleniyor" notu çıkar
+  (`parca_form_js.html`, `.gonderim-sinyali`) — bayi işin sürdüğünü görsün.
   Formda IMEI elle yazılmaz, **seçim kutusundan seçilir**: listeye zaten
   yalnızca girilebilecek kartlar giriyor, 16 haneyi tezgâh başında yazmak
   hataya davetiyeydi (datalist telefonda güvenilir çalışmıyordu). Stok boşsa
@@ -968,6 +999,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **`apps.bildirim` INSTALLED_APPS'te olmalı.** Bir süre değildi: bildirimler
   doğrudan import edildikleri için çalışıyordu ama `telegram_dene` komutu
   bulunamıyordu. Yeni bir uygulama eklerken INSTALLED_APPS'e de ekle.
+- **Telegram yalnızca üç şeyi taşır:** yeni başvuru, ödeme bildirimi, yeni
+  bayi başvurusu. Grup her durum değişikliğinde, her mağaza/eSIM
+  siparişinde ve her destek talebinde mesajla doluyordu; yönetici kendi
+  yaptığı işlemin haberini de alıyordu ve önemli olan kayboluyordu.
+  Durum bildirimleri veri olarak kalır (`BasvuruDurumu.bildirim_gonder`) ama
+  hepsi kapatıldı (`basvurular` 0016) ve tohum da kapalı açar; yönetici
+  isterse durumun sayfasından açar. Sipariş ve destek bildirimleri kodla
+  kaldırıldı — bekleyenler zaten yan menüde rozetle sayılıyor. Yeni bir
+  bildirim eklemeden önce bu listeyi büyütmek gerektiğini sorgula.
 - **Bildirim asla işin önüne geçmez.** Telegram mesajı transaction
   tamamlandıktan sonra, ayrı bir iş parçacığında gider ve her tür hatası
   yutulur. Yeni bir bildirim eklerken `apps/bildirim/telegram.py` içindeki
@@ -981,7 +1021,8 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   olmazsa bakiyesi askıda kalıyordu. Mesaj bayiyi, tutarı, yatırılan hesabı
   ve gönderen adını taşır. **Karar bildirilmez** — bekleyenler yan menüde
   zaten rozetle sayılıyor, onayı veren de yönetimin kendisi.
-- Hangi durumların bildireceğini admin seçer (`BasvuruDurumu.bildirim_gonder`).
+- Hangi durumların bildireceğini admin seçer (`BasvuruDurumu.bildirim_gonder`);
+  varsayılan hiçbiri.
 
 ## Yönetim paneli
 
@@ -1034,6 +1075,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   uydurulan sınıf da çalışmıyor. Sınıf gerekiyorsa unfold'un derlenmiş
   CSS'inde var olduğunu doğrula (`peer-checked` gibi bazıları yok); yoksa
   satır içi stil yaz.
+- **Yönetim panelinde sayı kutularının oku ve fare tekerleği kapalıdır**
+  (`static/yonetim.css`, `static/yonetim.js`; `UNFOLD["STYLES"/"SCRIPTS"]`).
+  Tutar kutusu odaktayken sayfayı kaydıran yönetici bayiye yüklediği tutarı
+  fark etmeden kuruş kuruş değiştiriyordu. Bu iki dosya unfold'un derlenmiş
+  CSS'ine sınıf eklemeden, yalnızca eleman seçicisiyle çalışır.
 - Ekleme düğmesi `templates/unfold/helpers/add_link.html` ile ezilmiştir:
   unfold'un ikon-only yuvarlak düğmesi ne yaptığını anlatmıyordu. unfold
   yükseltmelerinde bu şablonu gözden geçir.

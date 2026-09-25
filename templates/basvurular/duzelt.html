@@ -80,8 +80,11 @@
 
     <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
       <a href="{% url 'basvurular:detay' basvuru.referans_no %}" class="dugme dugme-sessiz sm:w-auto">Vazgeç</a>
-      <button type="submit" class="dugme dugme-birincil sm:w-auto">Düzeltip yeniden gönder</button>
+      <button type="submit" class="dugme dugme-birincil sm:w-auto" data-gonder-dugmesi>Düzeltip yeniden gönder</button>
     </div>
+    <p data-gonderim-notu hidden class="text-center text-sm text-soluk sm:text-right" role="status">
+      Fotoğraflar yükleniyor, bağlantı yavaşsa biraz sürebilir. Sayfadan ayrılma.
+    </p>
   </form>
 </div>
 

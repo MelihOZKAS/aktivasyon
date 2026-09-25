@@ -1,0 +1,16 @@
+/*
+  Yönetim paneli ekleri. unfold'un derlenmiş CSS'ine sınıf eklenemiyor;
+  buradaki kurallar yalnızca eleman seçicisiyle çalışır.
+
+  Sayı kutularında yukarı/aşağı ok yok: tutarlar elle yazılıyor, ok ise
+  para kutusunu kuruş kuruş oynatan bir tuzaktı.
+*/
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

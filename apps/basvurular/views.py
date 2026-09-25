@@ -6,6 +6,7 @@ from pathlib import Path
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import FileResponse, Http404
@@ -17,6 +18,7 @@ from apps.basvurular.detay_alanlari import detay_satirlari, gizli_alanlar
 from apps.basvurular.models import Basvuru, BasvuruBelgesi, BasvuruDurumu
 from apps.basvurular.validators import SATIR_ICI_GOSTERILEBILIR
 from apps.bayi.kategoriler import acik_kategoriler, kategori_acik_mi
+from apps.bayi.telefon import normalize
 from apps.bayi.yetki import bayi_gerekli
 from apps.bayi.templatetags.panel import para
 from apps.finans.services import en_dusuk_basvuru_bedeli, operator_bedelleri
@@ -141,11 +143,15 @@ def yeni(request, kategori):
     if request.method == "POST":
         form = BasvuruFormu(request.POST, request.FILES, kategori=kategori, bayi=request.user)
         if form.is_valid():
-            basvuru = form.kaydet(request.user)
-            messages.success(
-                request, f"Başvuru alındı. Takip numaran: {basvuru.referans_no}"
-            )
-            return redirect("basvurular:detay", referans=basvuru.referans_no)
+            try:
+                basvuru = form.kaydet(request.user)
+            except ValidationError as hata:
+                form.add_error(None, hata)
+            else:
+                messages.success(
+                    request, f"Başvuru alındı. Takip numaran: {basvuru.referans_no}"
+                )
+                return redirect("basvurular:detay", referans=basvuru.referans_no)
     else:
         form = BasvuruFormu(kategori=kategori, bayi=request.user)
 
@@ -224,6 +230,7 @@ def liste(request):
             | Q(kimlik_no__icontains=arama)
             | Q(numara__icontains=arama)
             | Q(irtibat__icontains=arama)
+            | Q(aktif_numara__icontains=normalize(arama))
         )
 
     sayfalayici = Paginator(basvurular, 25)
@@ -405,7 +412,6 @@ def duzelt(request, referans):
     (iş zaten satın alındı). Gönderince başvuru bildirim öncesi durumuna
     döner ve geçmişe neyin değiştiği düşer.
     """
-    from django.core.exceptions import ValidationError
 
     from apps.basvurular.forms import BasvuruDuzeltmeFormu
     from apps.basvurular.services import SimDegisimiHatasi
@@ -484,14 +490,7 @@ def detay_gorunumu_ayarla(request, referans):
     return redirect("basvurular:detay", referans=referans)
 
 
-@login_required
-def belge(request, referans, alan_kodu):
-    """Başvuru belgesini izin kontrolünden geçirerek sunar.
-
-    Kimlik ve pasaport görüntüleri kişisel veridir; MEDIA_URL üzerinden
-    doğrudan erişime açılmaz. Yalnızca başvuruyu giren bayi ve yetkili
-    personel görüntüleyebilir.
-    """
+def _belge_kaydi(request, referans, alan_kodu):
     kayit = get_object_or_404(
         BasvuruBelgesi.objects.select_related("basvuru"),
         basvuru__referans_no=referans,
@@ -507,6 +506,47 @@ def belge(request, referans, alan_kodu):
 
     if not kayit.dosya:
         raise Http404
+    return kayit
+
+
+@login_required
+def belge_goster(request, referans, alan_kodu):
+    """Kimlik görüntüsünü sitenin içinde, bir sayfada gösterir.
+
+    Dosyanın kendisine gitmek telefonda ve bazı tarayıcılarda görüntüyü
+    cihaza indiriyordu; kişisel veri bayinin, tedarikçinin ya da personelin
+    telefonunda birikmesin. Hem bayi/tedarikçi detayı hem yönetim paneli
+    buraya bağlanır.
+    """
+    from django.urls import reverse
+
+    kayit = _belge_kaydi(request, referans, alan_kodu)
+    if not kayit.resim_mi:
+        return redirect(kayit.get_absolute_url())
+
+    if request.user.is_staff:
+        geri = reverse("admin:basvurular_basvuru_change", args=[kayit.basvuru_id])
+    else:
+        geri = reverse("basvurular:detay", args=[referans])
+
+    yanit = render(
+        request,
+        "basvurular/belge_goster.html",
+        {"belge": kayit, "basvuru": kayit.basvuru, "geri": geri},
+    )
+    yanit["Cache-Control"] = "private, no-store"
+    return yanit
+
+
+@login_required
+def belge(request, referans, alan_kodu):
+    """Başvuru belgesini izin kontrolünden geçirerek sunar.
+
+    Kimlik ve pasaport görüntüleri kişisel veridir; MEDIA_URL üzerinden
+    doğrudan erişime açılmaz. Yalnızca başvuruyu giren bayi ve yetkili
+    personel görüntüleyebilir.
+    """
+    kayit = _belge_kaydi(request, referans, alan_kodu)
 
     try:
         akis = kayit.dosya.open("rb")
@@ -525,6 +565,10 @@ def belge(request, referans, alan_kodu):
         as_attachment=not gomulu_gosterilebilir,
         content_type=tip if gomulu_gosterilebilir else "application/octet-stream",
     )
+    if gomulu_gosterilebilir:
+        # Resme dosya adı verilmez: "inline; filename=…" başlığını gören bazı
+        # telefon tarayıcıları görüntüyü göstermek yerine cihaza indiriyordu.
+        yanit["Content-Disposition"] = "inline"
     # Tarayıcı ve ara sunucular kişisel veriyi paylaşımlı önbelleğe almasın.
     yanit["Cache-Control"] = "private, max-age=300"
     yanit["X-Content-Type-Options"] = "nosniff"

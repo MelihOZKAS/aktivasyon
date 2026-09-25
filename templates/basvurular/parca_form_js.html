@@ -133,7 +133,7 @@
     if (!form) return;
 
     form.addEventListener("submit", function (olay) {
-      if (form.checkValidity()) return;
+      if (form.checkValidity()) return gonderiliyor(olay);
 
       olay.preventDefault();
       var eksik = form.querySelector(":invalid");
@@ -142,6 +142,41 @@
       eksik.scrollIntoView({ block: "center", behavior: "smooth" });
       eksik.focus({ preventScroll: true });
       form.reportValidity();
+    });
+
+    // Gönderim başlayınca düğme kilitlenir ve dolan sinyal çubuğu çıkar.
+    // Yavaş bağlantıda fotoğraflar yüklenirken hiçbir şey olmuyor sanılıyor,
+    // bayi ikinci kez basıyor ve aynı başvuru iki kez düşüyordu. Sunucu da
+    // aynı SIM'i ikinci başvuruya vermez (`BasvuruFormu.kaydet`); bu kapı
+    // bayinin beklediğini görmesi için.
+    var dugme = form.querySelector("[data-gonder-dugmesi]");
+    var not = form.querySelector("[data-gonderim-notu]");
+    var ilkMetin = dugme ? dugme.innerHTML : "";
+
+    function gonderiliyor(olay) {
+      if (form.dataset.gonderiliyor) {
+        olay.preventDefault();
+        return;
+      }
+      form.dataset.gonderiliyor = "1";
+      if (dugme) {
+        dugme.setAttribute("aria-busy", "true");
+        dugme.innerHTML =
+          '<span class="gonderim-sinyali" aria-hidden="true"><i></i><i></i><i></i><i></i></span>' +
+          "Gönderiliyor…";
+      }
+      if (not) not.hidden = false;
+    }
+
+    // Geri tuşuyla önbellekten dönülen sayfada düğme kilitli kalmasın.
+    window.addEventListener("pageshow", function (olay) {
+      if (!olay.persisted) return;
+      delete form.dataset.gonderiliyor;
+      if (dugme) {
+        dugme.removeAttribute("aria-busy");
+        dugme.innerHTML = ilkMetin;
+      }
+      if (not) not.hidden = true;
     });
   })();
 

@@ -510,6 +510,46 @@ class BelgeErisimTestleri(TestCase):
         self.assertEqual(yanit.status_code, 302)
         self.assertIn("/giris-yap/", yanit["Location"])
 
+    def test_resim_dosya_adi_verilmeden_satir_icinde_sunulur(self):
+        """"inline; filename=…" başlığını gören telefon tarayıcıları
+        görüntüyü cihaza indiriyordu."""
+        self.client.force_login(self.sahibi)
+        yanit = self.client.get(self.url)
+        self.assertEqual(yanit["Content-Disposition"], "inline")
+
+    def test_goruntuleme_sayfasi_resmi_sitede_gosterir(self):
+        self.client.force_login(self.sahibi)
+        yanit = self.client.get(self.belge.goruntuleme_url())
+
+        self.assertEqual(yanit.status_code, 200)
+        icerik = yanit.content.decode()
+        self.assertIn(f'src="{self.url}"', icerik)
+        self.assertIn(f"/basvuru/{self.basvuru.referans_no}/", icerik)
+        self.assertIn("no-store", yanit["Cache-Control"])
+
+    def test_goruntuleme_sayfasi_ayni_izinden_gecer(self):
+        adres = self.belge.goruntuleme_url()
+        self.client.force_login(self.digeri)
+        self.assertEqual(self.client.get(adres).status_code, 404)
+
+        self.client.force_login(self.personel)
+        yanit = self.client.get(adres)
+        self.assertEqual(yanit.status_code, 200)
+        # Personel geri dönünce yönetim panelindeki başvuruya varır.
+        self.assertIn(f"/basvurular/basvuru/{self.basvuru.pk}/change/", yanit.content.decode())
+
+    def test_tedarikci_goruntuleme_sayfasini_acar(self):
+        tedarikci = User.objects.create_user("tedarikci", password="parola12345")
+        Basvuru.objects.filter(pk=self.basvuru.pk).update(tedarikci=tedarikci)
+        self.client.force_login(tedarikci)
+        self.assertEqual(self.client.get(self.belge.goruntuleme_url()).status_code, 200)
+
+    def test_detay_resmi_goruntuleme_sayfasina_baglar(self):
+        self.client.force_login(self.sahibi)
+        icerik = self.client.get(f"/basvuru/{self.basvuru.referans_no}/").content.decode()
+        self.assertIn(f'href="{self.belge.goruntuleme_url()}"', icerik)
+        self.assertNotIn(f'href="{self.url}"', icerik)
+
     def test_belge_ozel_olarak_isaretlenir(self):
         """Paylaşımlı önbellekler kişisel veriyi saklamamalı."""
         self.client.force_login(self.sahibi)
@@ -1978,13 +2018,8 @@ class DetayGorunumAyarlari(TestCase):
         self.assertEqual(yanit.status_code, 404)
 
 
-class SimKartOperatoreBagli(TestCase):
-    """Vodafone kartıyla Turkcell aktivasyonu yapılamaz.
-
-    Hatlar BTK'da IMEI bazında lisanslı; operatörler birbirinin kartını
-    kullanamıyor. Liste daraltılmasa bayi ucuz kartı seçip pahalı işlem
-    girebilirdi.
-    """
+class SimKurulumu:
+    """Turkcell ve Vodafone kartı zimmetli bir bayi, SIM alanlı bir kategori."""
 
     def setUp(self):
         from django.contrib.auth.models import User
@@ -2029,6 +2064,65 @@ class SimKartOperatoreBagli(TestCase):
         alanlar = {"musteri_tipi": "turk"}
         alanlar.update(veri)
         return BasvuruFormu(data=alanlar, kategori=self.kategori, bayi=self.bayi)
+
+
+class CiftGonderim(SimKurulumu, TestCase):
+    """Aynı başvuru iki kez düşmez.
+
+    Yavaş bağlantıda fotoğraflar yüklenirken bayi düğmeye ikinci kez
+    basıyordu: iki istek doğrulamayı birlikte geçiyor, iki başvuru
+    açılıyordu. Kart satır kilidiyle yeniden okunur.
+    """
+
+    def _veri(self):
+        return {
+            "operator": self.turkcell.pk,
+            "alan__sim_imei": self.turkcell_kart.imei,
+        }
+
+    def test_dogrulamayi_birlikte_gecen_ikinci_istek_kaydedilmez(self):
+        from django.core.exceptions import ValidationError
+
+        birinci, ikinci = self._form(**self._veri()), self._form(**self._veri())
+        self.assertTrue(birinci.is_valid(), birinci.errors)
+        self.assertTrue(ikinci.is_valid(), ikinci.errors)
+
+        basvuru = birinci.kaydet(self.bayi)
+        with self.assertRaises(ValidationError) as hata:
+            ikinci.kaydet(self.bayi)
+
+        self.assertEqual(Basvuru.objects.count(), 1)
+        self.assertIn(basvuru.referans_no, str(hata.exception))
+
+    def test_ikinci_gonderim_hangi_basvuruda_kullanildigini_soyler(self):
+        from django.urls import reverse
+
+        adres = reverse("basvurular:yeni", args=[self.kategori.slug])
+        veri = {"musteri_tipi": "turk", **self._veri()}
+        self.client.post(adres, veri)
+        yanit = self.client.post(adres, veri)
+
+        self.assertEqual(Basvuru.objects.count(), 1)
+        self.assertContains(yanit, Basvuru.objects.get().referans_no)
+
+    def test_gonder_dugmesi_kilitlenir(self):
+        from django.urls import reverse
+
+        icerik = self.client.get(
+            reverse("basvurular:yeni", args=[self.kategori.slug])
+        ).content.decode()
+        self.assertIn("data-gonder-dugmesi", icerik)
+        self.assertIn("data-gonderim-notu", icerik)
+        self.assertIn("gonderiliyor", icerik)
+
+
+class SimKartOperatoreBagli(SimKurulumu, TestCase):
+    """Vodafone kartıyla Turkcell aktivasyonu yapılamaz.
+
+    Hatlar BTK'da IMEI bazında lisanslı; operatörler birbirinin kartını
+    kullanamıyor. Liste daraltılmasa bayi ucuz kartı seçip pahalı işlem
+    girebilirdi.
+    """
 
     def test_secenekler_operatorunu_tasir(self):
         from django.urls import reverse
@@ -2478,3 +2572,80 @@ class EksikEvrakDuzeltme(TestCase):
         self.assertIn("Fotoğraf çek", icerik)
         self.assertIn("data-sim-kutusu", icerik)
         self.assertIn("id_operator", icerik)
+
+
+class AktifEdilenNumara(TestCase):
+    """Yeni hatta verilen numarayı yönetim yazar, bayi ekranında görür.
+
+    Müşteri numarasını öğrenmek için bayiyi, bayi de yönetimi arıyordu.
+    """
+
+    def setUp(self):
+        from apps.finans.models import Cuzdan
+
+        self.durum = BasvuruDurumu.objects.create(
+            ad="Beklemede", slug="beklemede", baslangic_durumu=True
+        )
+        self.bayi = User.objects.create_user("5301112233", password="parola12345")
+        self.digeri = User.objects.create_user("5304445566", password="parola12345")
+        for k in (self.bayi, self.digeri):
+            Cuzdan.objects.create(bayi=k)
+        self.personel = User.objects.create_superuser("yonetici", password="parola12345")
+        self.kategori = BasvuruKategorisi.objects.create(
+            ad="Faturalı Yeni Hat", tarife_zorunlu=False
+        )
+        self.operator = Operator.objects.create(ad="Turkcell")
+        self.basvuru = Basvuru.objects.create(
+            bayi=self.bayi, kategori=self.kategori, operator=self.operator,
+            isim="Ayşe", soyisim="Demir", durum=self.durum,
+        )
+
+    def test_numara_tek_bicime_cevrilir(self):
+        self.basvuru.aktif_numara = "0532 123 45 67"
+        self.basvuru.full_clean()
+        self.assertEqual(self.basvuru.aktif_numara, "5321234567")
+
+    def test_eksik_numara_reddedilir(self):
+        from django.core.exceptions import ValidationError
+
+        self.basvuru.aktif_numara = "0532 123"
+        with self.assertRaises(ValidationError) as hata:
+            self.basvuru.full_clean()
+        self.assertIn("aktif_numara", hata.exception.message_dict)
+
+    def test_yonetici_panelden_yazar(self):
+        from django.urls import reverse
+
+        adres = reverse("admin:basvurular_basvuru_change", args=[self.basvuru.pk])
+        self.client.force_login(self.personel)
+        sayfa = self.client.get(adres)
+        self.assertContains(sayfa, 'name="aktif_numara"')
+
+    def test_bayi_detayda_ve_listede_gorur(self):
+        Basvuru.objects.filter(pk=self.basvuru.pk).update(aktif_numara="5321234567")
+        self.client.force_login(self.bayi)
+
+        detay = self.client.get(f"/basvuru/{self.basvuru.referans_no}/")
+        self.assertContains(detay, "Aktif edilen numara")
+        self.assertContains(detay, "0532 123 45 67")
+        self.assertContains(detay, 'href="tel:05321234567"')
+
+        liste = self.client.get("/basvuru/")
+        self.assertContains(liste, "0532 123 45 67")
+
+    def test_numara_yoksa_kutu_cizilmez(self):
+        self.client.force_login(self.bayi)
+        detay = self.client.get(f"/basvuru/{self.basvuru.referans_no}/")
+        self.assertNotContains(detay, "Aktif edilen numara")
+
+    def test_bayi_numarayla_arar(self):
+        Basvuru.objects.filter(pk=self.basvuru.pk).update(aktif_numara="5321234567")
+        self.client.force_login(self.bayi)
+
+        bulunan = self.client.get("/basvuru/", {"q": "0532 123 45"})
+        self.assertContains(bulunan, self.basvuru.referans_no)
+
+    def test_baska_bayi_goremez(self):
+        Basvuru.objects.filter(pk=self.basvuru.pk).update(aktif_numara="5321234567")
+        self.client.force_login(self.digeri)
+        self.assertNotContains(self.client.get("/basvuru/"), "0532 123 45 67")

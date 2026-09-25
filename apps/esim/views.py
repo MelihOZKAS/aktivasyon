@@ -16,7 +16,6 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.bayi.yetki import bayi_gerekli
-from apps.bildirim.telegram import siparis_bildir
 from apps.esim.models import Paket, Teslimat, Ulke
 from apps.esim.rapor import bayi_aylik_ozet
 from apps.esim.saglayicilar import SaglayiciHatasi
@@ -234,8 +233,6 @@ def satin_al(request, kod, pk):
             "Sağlayıcı siparişi kabul etmedi; tutar bakiyene geri yazıldı. "
             f"Sebep: {teslimat.hata}",
         )
-    else:
-        siparis_bildir(teslimat.siparis)
     return redirect("esim:siparis", referans=teslimat.siparis.referans_no)
 
 

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import environ
+from django.templatetags.static import static
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -163,6 +164,10 @@ UNFOLD = {
     "SITE_SYMBOL": "cell_tower",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": False,
+    # Sayı kutularında ok ve fare tekerleği kapalı (static/yonetim.*):
+    # tekerlek bayiye yüklenen tutarı sessizce değiştiriyordu.
+    "STYLES": [lambda request: static("yonetim.css")],
+    "SCRIPTS": [lambda request: static("yonetim.js")],
     # Ön yüzle aynı petrol tonu. Mor kullanılmıyor.
     "COLORS": {
         "primary": {

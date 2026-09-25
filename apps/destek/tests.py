@@ -207,11 +207,12 @@ class DestekAkisi(TestCase):
         # Sıra bayiye geçti: rozetten düşmeli.
         self.assertFalse(talep.yanit_bekliyor)
 
-    def test_talep_acilinca_bildirim_gonderilir(self):
+    def test_talep_acilinca_telegrama_bildirilmez(self):
+        # Telegram yalnızca yeni başvuru, ödeme bildirimi ve bayi başvurusunu
+        # taşır; destek talebi yan menüde rozetle sayılıyor.
         from unittest.mock import patch
 
         with patch("apps.bildirim.telegram.mesaj_gonder") as bildirim:
             self._talep_ac(konu="Telegram konusu")
 
-        self.assertTrue(bildirim.called)
-        self.assertIn("Telegram konusu", bildirim.call_args.args[0])
+        bildirim.assert_not_called()

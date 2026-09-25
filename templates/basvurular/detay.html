@@ -26,6 +26,37 @@
     </div>
 
     {% comment %}
+      Yeni hatta operatörün verdiği numara. Yönetim tabletten eşleştirip
+      yazar; bayi müşteriye söylemek için bizi aramasın. Kopyala düğmesi
+      numarayı müşteriye mesajla göndermek için.
+    {% endcomment %}
+    {% if basvuru.aktif_numara %}
+    <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-cizgi pt-4">
+      <div>
+        <p class="text-sm text-soluk">Aktif edilen numara</p>
+        <p class="rakam mt-0.5 text-2xl font-bold">
+          <a href="tel:0{{ basvuru.aktif_numara }}">{{ basvuru.aktif_numara|telefon }}</a>
+        </p>
+      </div>
+      <button type="button" class="dugme dugme-sessiz text-sm" data-numara-kopyala="0{{ basvuru.aktif_numara }}">
+        <span class="ikon text-lg" aria-hidden="true">content_copy</span>
+        <span>Kopyala</span>
+      </button>
+    </div>
+    <script>
+      document.addEventListener("click", function (olay) {
+        var dugme = olay.target.closest("[data-numara-kopyala]");
+        if (!dugme || !navigator.clipboard) return;
+        navigator.clipboard.writeText(dugme.dataset.numaraKopyala).then(function () {
+          var yazi = dugme.lastElementChild;
+          yazi.textContent = "Kopyalandı";
+          setTimeout(function () { yazi.textContent = "Kopyala"; }, 1500);
+        });
+      });
+    </script>
+    {% endif %}
+
+    {% comment %}
       Herkes kendi hesabını görür: bayi kesintisini ve hakedişini, tedarikçi
       bu işlemden kazandığını. Tedarikçiye bayinin hakedişi gösterilmez.
     {% endcomment %}
@@ -152,7 +183,7 @@
     <h3 class="baslik font-semibold">Belgeler</h3>
     <div class="mt-4 grid gap-3 sm:grid-cols-3">
       {% for belge in basvuru.belgeler.all %}
-      <a href="{{ belge.get_absolute_url }}" target="_blank" rel="noopener"
+      <a href="{{ belge.goruntuleme_url }}"
          class="block overflow-hidden rounded-lg border border-cizgi">
         <div class="grid aspect-[4/3] place-items-center bg-zemin">
           {% if belge.resim_mi %}

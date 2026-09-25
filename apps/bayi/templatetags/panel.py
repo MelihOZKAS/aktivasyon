@@ -46,6 +46,17 @@ def _hex_to_rgb(renk):
 
 
 @register.filter
+def telefon(deger):
+    """Tek biçimde saklanan numarayı okunur yazar: 5321234567 -> 0532 123 45 67.
+
+    Beklenen biçimde değilse olduğu gibi döner; veri gizlenmesin."""
+    rakam = str(deger or "")
+    if len(rakam) != 10 or not rakam.isdigit():
+        return rakam
+    return f"0{rakam[:3]} {rakam[3:6]} {rakam[6:8]} {rakam[8:]}"
+
+
+@register.filter
 def okunur_renk(renk):
     """Marka rengini açık zeminde okunur hale getirir.
 

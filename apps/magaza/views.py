@@ -12,7 +12,6 @@ from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 
 from apps.bayi.yetki import bayi_gerekli
-from apps.bildirim.telegram import siparis_bildir
 from apps.finans.services import SiparisVerilemez
 from apps.magaza.models import Siparis, Urun
 from apps.magaza.services import siparis_olustur
@@ -101,7 +100,6 @@ def satin_al(request, slug):
         messages.error(request, str(hata))
         return redirect("magaza:urun", slug=slug)
 
-    siparis_bildir(siparis)
     messages.success(
         request,
         f"Siparişin alındı ({siparis.referans_no}). {siparis.tutar} ₺ "

@@ -145,25 +145,6 @@ def basvuru_bildir(basvuru, yeni=False):
     mesaj_gonder("\n".join(s for s in satirlar if s is not None))
 
 
-def destek_talebi_bildir(talep):
-    """Bayi yeni bir destek talebi açtığında operasyon grubuna haber verir.
-
-    Yanıtlar bildirilmez: açık bir talebin devamı zaten yönetim panelinde
-    rozetle sayılıyor, her mesajda grup dolmasın.
-    """
-    mesaj_gonder(
-        "\n".join(
-            [
-                "💬 <b>Yeni destek talebi</b>",
-                "",
-                _satir("Talep No", talep.referans_no),
-                _satir("Bayi", _bayi_adi(talep.bayi)),
-                _satir("Konu", talep.konu),
-            ]
-        )
-    )
-
-
 def odeme_bildirimi_bildir(bildirim):
     """Bayi havale yaptığını bildirdiğinde operasyon grubuna haber verir.
 
@@ -188,30 +169,6 @@ def odeme_bildirimi_bildir(bildirim):
         "bakiyesine yazılmaz.",
     ]
     mesaj_gonder("\n".join(s for s in satirlar if s is not None))
-
-
-def siparis_bildir(siparis):
-    """Bayi mağazadan ürün aldığında operasyon grubuna haber verir.
-
-    Para siparişle birlikte bakiyeden düştüğü için onay beklenmiyor; mesaj
-    "hazırla ve uğradığında ver" demek. Teslim ve iptal bildirilmez —
-    bekleyen siparişler yan menüde zaten rozetle sayılıyor.
-    """
-    mesaj_gonder(
-        "\n".join(
-            s
-            for s in [
-                "🛒 <b>Yeni ürün siparişi</b>",
-                "",
-                _satir("Sipariş No", siparis.referans_no),
-                _satir("Bayi", _bayi_adi(siparis.bayi)),
-                _satir("Ürün", f"{siparis.urun_adi} ×{siparis.adet}"),
-                _satir("Tutar", f"{siparis.tutar} ₺"),
-                _satir("Not", siparis.bayi_notu),
-            ]
-            if s is not None
-        )
-    )
 
 
 def bayi_basvurusu_bildir(basvuru):

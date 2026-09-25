@@ -39,13 +39,15 @@ def _getir_ya_da_ac(model, ad, defaults):
 DURUMLAR = [
     # (ad, slug, renk, ikon, baslangic, hakedis, olumsuz, bayi_duzenler,
     #  tedarikci, sira, sinyal, bildirim, belge_sil)
+    # Durum değişikliği Telegram'a gitmez: grup yalnızca yeni başvuruyu,
+    # ödeme bildirimini ve bayi başvurusunu taşır. Yönetici isterse durumda açar.
     ("Beklemede", "beklemede", "#64748b", "schedule", True, False, False, False, False, 10, 1, False, False),
     ("İşlemde", "islemde", "#3b82f6", "sync", False, False, False, False, True, 20, 3, False, False),
-    ("Eksik Evrak", "eksik-evrak", "#f59e0b", "warning", False, False, False, True, True, 30, 2, True, False),
+    ("Eksik Evrak", "eksik-evrak", "#f59e0b", "warning", False, False, False, True, True, 30, 2, False, False),
     ("Mutabakat Bekliyor", "mutabakat", "#0891b2", "handshake", False, False, False, False, True, 40, 4, False, False),
-    ("Aktif", "aktif", "#16a34a", "check_circle", False, True, False, False, True, 50, 5, True, True),
-    ("Hatalı", "hatali", "#dc2626", "cancel", False, False, True, False, True, 60, 1, True, False),
-    ("İptal", "iptal", "#78716c", "block", False, False, True, False, True, 70, 1, True, True),
+    ("Aktif", "aktif", "#16a34a", "check_circle", False, True, False, False, True, 50, 5, False, True),
+    ("Hatalı", "hatali", "#dc2626", "cancel", False, False, True, False, True, 60, 1, False, False),
+    ("İptal", "iptal", "#78716c", "block", False, False, True, False, True, 70, 1, False, True),
 ]
 
 OPERATORLER = [

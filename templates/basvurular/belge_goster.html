@@ -1,0 +1,74 @@
+{% load static %}<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex">
+  <title>{{ belge.etiket|default:belge.alan_kodu }} · {{ basvuru.referans_no }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'app.css' %}">
+  {% comment %}
+    Kimlik görüntüsü sitenin içinde gösterilir, dosyanın kendisine
+    gidilmez: telefon ve bazı tarayıcılar o zaman görüntüyü cihaza
+    indiriyordu. Uzun basınca çıkan "Resmi kaydet" menüsü ve sürükleme de
+    kapatılır. Ekran görüntüsünü engellemek mümkün değil; amaç kişisel
+    verinin kendiliğinden cihazda birikmemesi.
+  {% endcomment %}
+  <style>
+    .belge-resmi {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="min-h-dvh bg-zemin">
+  <header class="sticky top-0 z-10 flex items-center gap-3 border-b border-cizgi bg-yuzey px-4 py-2">
+    <a href="{{ geri }}" data-geri class="dugme dugme-sessiz shrink-0" aria-label="Geri dön">
+      <span class="ikon" aria-hidden="true">arrow_back</span>
+      <span class="hidden sm:inline">Geri</span>
+    </a>
+    <div class="min-w-0">
+      <p class="truncate font-semibold">{{ belge.etiket|default:belge.alan_kodu }}</p>
+      <p class="referans truncate text-xs text-soluk">{{ basvuru.referans_no }} · {{ basvuru.ad_soyad }}</p>
+    </div>
+  </header>
+
+  <main class="grid place-items-center overflow-auto p-3 sm:p-6">
+    <img src="{{ belge.get_absolute_url }}" alt="{{ belge.etiket|default:belge.alan_kodu }}"
+         class="belge-resmi max-h-[calc(100dvh-6rem)] max-w-full rounded-lg border border-cizgi bg-yuzey object-contain"
+         draggable="false" data-belge-resmi>
+    <p class="mt-3 text-center text-xs text-soluk">
+      Yakınlaştırmak için telefonda iki parmakla aç, bilgisayarda resme tıkla.
+    </p>
+  </main>
+
+  <script>
+    (function () {
+      var resim = document.querySelector("[data-belge-resmi]");
+      resim.addEventListener("contextmenu", function (olay) { olay.preventDefault(); });
+
+      // Bilgisayarda tıklayınca gerçek boyut; yazı küçükse okunabilsin.
+      resim.addEventListener("click", function () {
+        var tam = resim.style.maxHeight !== "none";
+        resim.style.maxHeight = tam ? "none" : "";
+        resim.style.maxWidth = tam ? "none" : "";
+        resim.style.cursor = tam ? "zoom-out" : "zoom-in";
+      });
+      resim.style.cursor = "zoom-in";
+
+      // Aynı sekmede açıldıysa geri dön; yeni sekmedeyse başvuruya git.
+      document.querySelector("[data-geri]").addEventListener("click", function (olay) {
+        if (history.length > 1 && document.referrer) {
+          olay.preventDefault();
+          history.back();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -381,6 +381,42 @@
     background: #1B2436;
   }
 
+  /* Gönderiliyor: düğme kilitlenir, içinde sinyal çubuğu dolar. Fotoğraflar
+     yavaş bağlantıda yüklenirken bayi bir şey olmadığını sanıp ikinci kez
+     basıyordu; aynı başvuru iki kez düşüyordu. Yeni bir "bekleniyor" dili
+     icat edilmedi, durum motifi kullanıldı. */
+  .dugme[aria-busy="true"] {
+    cursor: progress;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  .gonderim-sinyali {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 0.875rem;
+  }
+
+  .gonderim-sinyali i {
+    width: 3px;
+    border-radius: 1px;
+    background: currentColor;
+    opacity: 0.3;
+    animation: gonderim-dolar 1.2s ease-in-out infinite;
+  }
+
+  .gonderim-sinyali i:nth-child(1) { height: 30%; }
+  .gonderim-sinyali i:nth-child(2) { height: 55%; animation-delay: 0.15s; }
+  .gonderim-sinyali i:nth-child(3) { height: 80%; animation-delay: 0.3s; }
+  .gonderim-sinyali i:nth-child(4) { height: 100%; animation-delay: 0.45s; }
+
+  @keyframes gonderim-dolar {
+    30%, 60% {
+      opacity: 1;
+    }
+  }
+
   .dugme-sessiz {
     background: var(--color-yuzey);
     color: var(--color-murekkep);

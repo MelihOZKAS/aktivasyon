@@ -218,16 +218,18 @@ class MagazaEkranlari(TestCase):
 
         self.assertEqual(yanit.status_code, 302)
 
-    def test_siparis_telegrama_bildirilir(self):
+    def test_siparis_telegrama_bildirilmez(self):
+        # Telegram yalnızca yeni başvuru, ödeme bildirimi ve bayi başvurusunu
+        # taşır; bekleyen siparişler yan menüde rozetle sayılıyor.
         from unittest.mock import patch
 
-        with patch("apps.magaza.views.siparis_bildir") as haber:
+        with patch("apps.bildirim.telegram.mesaj_gonder") as haber:
             self.client.post(
                 f"/magaza/{self.urun.slug}/satin-al/",
                 {"adet": "1", "islem_anahtari": "k3"},
             )
 
-        haber.assert_called_once()
+        haber.assert_not_called()
 
 
 class SiparisYonetimEkrani(TestCase):

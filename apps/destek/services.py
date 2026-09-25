@@ -63,11 +63,9 @@ def mesaj_ekle(talep, gonderen, icerik, *, personelden=False):
 
 def talep_ac(bayi, konu, icerik, *, basvuru=None):
     """Yeni talep açar ve ilk mesajı yazar."""
-    from apps.bildirim.telegram import destek_talebi_bildir
     from apps.destek.models import DestekTalebi
 
     talep = DestekTalebi.objects.create(bayi=bayi, konu=konu, basvuru=basvuru)
     mesaj_ekle(talep, bayi, icerik)
     logger.info("Destek talebi açıldı: %s", talep.referans_no)
-    destek_talebi_bildir(talep)
     return talep

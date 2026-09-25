@@ -185,6 +185,18 @@ class Basvuru(ZamanDamgali):
         help_text="Taşıma ve şebeke içi işlemlerde doldurulur.",
     )
     adres = models.TextField("Adres", blank=True)
+    # Yeni hatta numarayı operatör verir; yönetim tabletten eşleştirip buraya
+    # yazar. Bayi ekranında başvurunun en üstünde durur: müşteri numarasını
+    # öğrenmek için bayiyi, bayi de bizi aramasın.
+    aktif_numara = models.CharField(
+        "Aktif Edilen Numara",
+        max_length=20,
+        blank=True,
+        help_text=(
+            "Aktivasyonda hatta verilen numara. Bayi başvurusunun en üstünde "
+            "görür. 0532 123 45 67 gibi yazılabilir; tek biçime çevrilir."
+        ),
+    )
 
     # --- Kategoriye özel alanlar (KategoriAlani tanımlarına göre) ---
     ek_bilgiler = models.JSONField("Ek Bilgiler", default=dict, blank=True)
@@ -440,6 +452,14 @@ class Basvuru(ZamanDamgali):
         return self.operator.ad if self.operator_id else "—"
 
     def clean(self):
+        if self.aktif_numara:
+            from apps.bayi.telefon import normalize
+
+            self.aktif_numara = normalize(self.aktif_numara)
+            if not (self.aktif_numara.isdigit() and len(self.aktif_numara) == 10):
+                raise ValidationError(
+                    {"aktif_numara": "Numarayı 10 hane yazın: 0532 123 45 67 gibi."}
+                )
         if self.kategori_id and self.tarife_id:
             if not self.tarife.kategoriler.filter(pk=self.kategori_id).exists():
                 raise ValidationError({"tarife": "Seçilen tarife bu kategoriye ait değil."})
@@ -488,6 +508,19 @@ class BasvuruBelgesi(models.Model):
 
         return reverse(
             "basvurular:belge", args=[self.basvuru.referans_no, self.alan_kodu]
+        )
+
+    def goruntuleme_url(self):
+        """Tıklanınca açılan adres. Resim sitenin içinde, bir sayfada
+        gösterilir: dosyanın kendisine gidilince telefon ve bazı tarayıcılar
+        kimlik görüntüsünü cihaza indiriyordu. Resim olmayan belge dosyanın
+        kendisine gider (orada da güvenlik gereği indirilir)."""
+        from django.urls import reverse
+
+        if not self.resim_mi:
+            return self.get_absolute_url()
+        return reverse(
+            "basvurular:belge-goster", args=[self.basvuru.referans_no, self.alan_kodu]
         )
 
     @property

@@ -136,6 +136,11 @@
             <span class="referans">{{ basvuru.referans_no }}</span>
             <span class="truncate">{{ basvuru.kategori.ad }}</span>
           </p>
+          {% if basvuru.aktif_numara %}
+          <p class="rakam mt-0.5 text-sm font-semibold">
+            <span class="sr-only">Aktif edilen numara:</span>{{ basvuru.aktif_numara|telefon }}
+          </p>
+          {% endif %}
         </div>
         {% if basvuru.operator %}
         <span class="rozet hidden shrink-0 sm:inline-flex"
