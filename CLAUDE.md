@@ -827,7 +827,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kesiliyordu. `BasvuruFormu.kaydet` başvuruyu açmadan önce kartları
   `select_for_update` ile yeniden okur (`_simleri_kilitle`); ikinci istek
   birincinin bitmesini bekler, kartı kullanılmış bulur ve hangi başvuruda
-  kullanıldığını yazar. Tarayıcıda da gönder düğmesi kilitlenir, içinde
+  kullanıldığını yazar. Kilit `of=("self",)` ile yalnızca kartın satırına
+  konur: `select_related("basvuru")` boş olabilen FK'yi LEFT OUTER JOIN'e
+  çeviriyor, PostgreSQL join'in boş tarafını kilitlemeyi reddediyor ve
+  **her SIM'li başvuru üretimde 500 veriyordu** — SQLite FOR UPDATE'i yok
+  saydığı için testler görmedi. `select_for_update` ile `select_related`'ı
+  birlikte kullanırken `of=` ver; test PostgreSQL SQL'ini üretip bunu arar. Tarayıcıda da gönder düğmesi kilitlenir, içinde
   sinyal çubuğu dolar ve "Fotoğraflar yükleniyor" notu çıkar
   (`parca_form_js.html`, `.gonderim-sinyali`) — bayi işin sürdüğünü görsün.
   Formda IMEI elle yazılmaz, **seçim kutusundan seçilir**: listeye zaten

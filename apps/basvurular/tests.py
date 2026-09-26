@@ -2105,6 +2105,40 @@ class CiftGonderim(SimKurulumu, TestCase):
         self.assertEqual(Basvuru.objects.count(), 1)
         self.assertContains(yanit, Basvuru.objects.get().referans_no)
 
+    def test_kilit_outer_joinin_bos_tarafina_dusmez(self):
+        """PostgreSQL `LEFT OUTER JOIN ... FOR UPDATE`'i reddeder.
+
+        `SimKart.basvuru` boş olabilen FK; `select_related` ile kilitlenince
+        üretimde her SIM'li başvuru 500 veriyordu. SQLite FOR UPDATE'i yok
+        saydığı için sorgu burada PostgreSQL'deki gibi üretilir, cümle
+        kaydedilip SQLite'ın anlayacağı hâle getirilerek çalıştırılır.
+        """
+        import re
+        from unittest import mock
+
+        from django.db import connection
+
+        sorgular = []
+
+        def kaydet(execute, sql, params, many, context):
+            sorgular.append(sql)
+            return execute(re.sub(r" FOR UPDATE.*$", "", sql), params, many, context)
+
+        form = self._form(**self._veri())
+        self.assertTrue(form.is_valid(), form.errors)
+        with mock.patch.multiple(
+            connection.features,
+            has_select_for_update=True,
+            has_select_for_update_of=True,
+        ), connection.execute_wrapper(kaydet):
+            form.kaydet(self.bayi)
+
+        kilitler = [s for s in sorgular if " FOR UPDATE" in s]
+        self.assertTrue(kilitler)
+        for sql in kilitler:
+            if "LEFT OUTER JOIN" in sql:
+                self.assertIn("FOR UPDATE OF", sql)
+
     def test_gonder_dugmesi_kilitlenir(self):
         from django.urls import reverse
 

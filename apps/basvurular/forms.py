@@ -485,8 +485,12 @@ class BasvuruFormu(forms.Form):
             kart = self.cleaned_data.get(f"_sim_{tanim.kod}")
             if not kart:
                 continue
+            # `of=("self",)`: `basvuru` boş olabilen FK, LEFT OUTER JOIN'e
+            # düşer; PostgreSQL join'in boş tarafını kilitlemeyi reddeder
+            # ve başvuru 500 veriyordu. SQLite FOR UPDATE'i yok saydığı
+            # için testlerde görünmedi.
             guncel = (
-                SimKart.objects.select_for_update()
+                SimKart.objects.select_for_update(of=("self",))
                 .select_related("basvuru")
                 .get(pk=kart.pk)
             )
