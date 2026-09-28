@@ -158,8 +158,11 @@ def hedefi_dogrula(kategori, hedef):
 # -- Numara sorgusu -------------------------------------------------------
 
 # Aynı numara bu süre içinde kaynağa ikinci kez sorulmaz: bayi sayfayı
-# yenilese de dış siteye tekrar gidilmez.
-ONBELLEK_SURESI = 300
+# yenilese de, müşteri gün içinde yeniden gelse de dış siteye tekrar
+# gidilmez. Bedeli: numaranın paketleri bu sürede değişirse (paket yüklendi,
+# kampanya bitti) ekran eski listeyi gösterir. Bellek önbelleğidir
+# (gunicorn işçisi başına), yeniden başlatınca sıfırlanır.
+ONBELLEK_SURESI = 12 * 60 * 60
 
 
 def numarayi_sorgula(kategori, hedef, bayi):

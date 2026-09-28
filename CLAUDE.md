@@ -394,7 +394,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   · **Numara sorgusu kaynak dosyasıdır** (`apps/kontor/sorgu/`): her dosya
   bir fonksiyonu `@kaynak(kod, ad)` ile kaydeder (`numara -> list[SorguPaketi]`),
   kategori `sorgu_kaynagi` ile birini seçer. Ekran dönen kodları `Paket.kod`
-  ile eşleştirir; sorgu salt okumadır, 5 dk önbelleğe alınır ve hata
+  ile eşleştirir; sorgu salt okumadır, 12 saat önbelleğe alınır ve hata
   verirse satış sürer. Vodafone kaynağı `sorgu/vodafone.py`: istemci
   (`vodafone_istemci.py`) yönetimin yazdığı koddur, olduğu gibi durur;
   zaman aşımı 8 sn — sorgu bayinin isteği içinde çalışır, üç gunicorn
