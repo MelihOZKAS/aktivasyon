@@ -121,7 +121,14 @@ def sorgu(request, slug, oyun=False):
     kategori_kaydi = _satistaki_kategori(slug, oyun)
     baglam = {"kategori": kategori_kaydi, "bakiye": _bakiye(request)}
     try:
-        baglam.update(numarayi_sorgula(kategori_kaydi, request.GET.get("hedef", ""), request.user))
+        baglam.update(
+            numarayi_sorgula(
+                kategori_kaydi,
+                request.GET.get("hedef", ""),
+                request.user,
+                yenile=request.GET.get("yenile") == "1",
+            )
+        )
     except SorguHatasi as hata:
         baglam["hata"] = str(hata)
     return render(request, "kontor/parca_sorgu.html", baglam)

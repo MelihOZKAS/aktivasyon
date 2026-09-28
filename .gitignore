@@ -187,3 +187,6 @@ media/*
 # macOS
 .DS_Store
 vodafone.txt
+
+# Sorgu önbelleği (config/settings/base.py CACHES)
+tmp/

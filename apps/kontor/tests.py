@@ -121,7 +121,13 @@ saglayicilar.saglayici_secenekleri()
 saglayicilar.SAGLAYICILAR[SahteAdaptor.kod] = SahteAdaptor
 
 
-@override_settings(KONTOR_ARKA_PLAN=False, KONTOR_ATOMIK_DENETIMI=False)
+TEST_ONBELLEK = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    "kontor_sorgu": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache", "LOCATION": "kontor-test"},
+}
+
+
+@override_settings(KONTOR_ARKA_PLAN=False, KONTOR_ATOMIK_DENETIMI=False, CACHES=TEST_ONBELLEK)
 class Temel(TestCase):
     def setUp(self):
         DURUM.clear()
@@ -749,9 +755,9 @@ def _test_sorgusu(numara, *, sahip=False):
 class SorguTestleri(Temel):
     def setUp(self):
         super().setUp()
-        from django.core.cache import cache
+        from django.core.cache import caches
 
-        cache.clear()
+        caches["kontor_sorgu"].clear()
         SORGU.update(cagri=0, hata=False)
         self.kategori.sorgu_kaynagi = "test-sorgu"
         self.kategori.save()
@@ -769,6 +775,30 @@ class SorguTestleri(Temel):
         self.client.get(self.adres, {"hedef": "5329998877"})
         self.client.get(self.adres, {"hedef": "5329998877"})
         self.assertEqual(SORGU["cagri"], 1)
+
+    def test_yenile_onbellegi_atlar_ama_dakikada_bir(self):
+        from apps.kontor.services import _onbellek, _sorgu_anahtari
+
+        self.client.get(self.adres, {"hedef": "5329998877"})
+        self.client.get(self.adres, {"hedef": "5329998877", "yenile": "1"})
+        self.assertEqual(SORGU["cagri"], 1)  # bir dakika dolmadı, eldeki gösterilir
+        anahtar = _sorgu_anahtari("test-sorgu", "5329998877", True)
+        kayit = _onbellek().get(anahtar)
+        kayit["zaman"] -= timedelta(minutes=2)
+        _onbellek().set(anahtar, kayit)
+        yanit = self.client.get(self.adres, {"hedef": "5329998877", "yenile": "1"})
+        self.assertEqual(SORGU["cagri"], 2)
+        self.assertContains(yanit, "Yenile")
+        self.assertContains(yanit, "Son sorgu")
+
+    def test_basarili_yuklemeden_sonra_onbellek_silinir(self):
+        self.client.get(self.adres, {"hedef": "5329998877"})
+        islem = self.yukle("5329998877")
+        _ayar("Bir", sorgu="basarili")
+        with self.captureOnCommitCallbacks(execute=True):
+            isle(islem.pk, zorla=True)
+        self.client.get(self.adres, {"hedef": "5329998877"})
+        self.assertEqual(SORGU["cagri"], 2)
 
     def test_hata_satisi_durdurmaz(self):
         SORGU["hata"] = True
@@ -797,7 +827,7 @@ class SorguTestleri(Temel):
         self.assertFalse(SORGU["sahip_istendi"])
 
     def test_gorulen_paketler_takip_edilir(self):
-        from django.core.cache import cache
+        from django.core.cache import caches
 
         from apps.kontor.models import GorulenPaket
         from apps.rozetler import yeni_kontor_paketleri
@@ -806,7 +836,7 @@ class SorguTestleri(Temel):
         self.assertEqual(set(GorulenPaket.objects.values_list("kod", flat=True)), {"100", "999"})
         self.assertEqual(yeni_kontor_paketleri(None), "1")  # 100 katalogda, 999 yeni
 
-        cache.clear()
+        caches["kontor_sorgu"].clear()
         SORGU["fiyat"] = TL("60")
         self.client.get(self.adres, {"hedef": "5329998877"})
         yeni = GorulenPaket.objects.get(kod="999")

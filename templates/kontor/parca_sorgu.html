@@ -23,9 +23,20 @@
       <span class="block text-xs text-soluk">Müşteriye adını teyit ettir; farklıysa numarayı kontrol et.</span>
     </p>
     {% endif %}
-    <p class="text-sm font-semibold">
-      <span class="rakam">{{ numara|telefon }}</span> numarasının alabileceği paketler
-    </p>
+    <div class="flex items-start justify-between gap-3">
+      <p class="text-sm font-semibold">
+        <span class="rakam">{{ numara|telefon }}</span> numarasının alabileceği paketler
+      </p>
+      {% comment %}
+        Liste 12 saat saklanır. Müşteri bu arada TL yükletip yeni pakete hak
+        kazandıysa bayi Yenile'ye basar; yükleme bizden yapıldıysa kayıt
+        zaten kendiliğinden silinmiştir.
+      {% endcomment %}
+      <button type="button" hx-get="{{ kategori.sorgu_url }}?hedef={{ numara }}&amp;yenile=1"
+              hx-target="#sorgu-sonucu" hx-swap="outerHTML" hx-disabled-elt="this"
+              class="dugme dugme-sessiz min-h-11 shrink-0 px-3 text-xs">Yenile</button>
+    </div>
+    <p class="mt-0.5 text-xs text-soluk">Son sorgu {{ zaman|date:"d.m H:i" }}</p>
     {% if eslesen %}
     <div class="mt-3 grid gap-2">
       {% for paket in eslesen %}

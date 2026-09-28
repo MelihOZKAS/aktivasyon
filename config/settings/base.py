@@ -82,6 +82,19 @@ DATABASES = {"default": env.db()}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 DATABASES["default"]["CONN_MAX_AGE"] = 60
 
+# Numara sorgusunun önbelleği dosyadadır, bellekte değil: gunicorn'un üç
+# işçisi ve kontör işçisi (ayrı container) aynı proje klasörünü görür.
+# Bellek önbelleğinde her süreç kendi kopyasını tutuyordu — yükleme sonrası
+# silinen kayıt öbür işçide yaşıyor, bayi eski paket listesini görüyordu.
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    "kontor_sorgu": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": env("KONTOR_ONBELLEK_DIZINI", default=str(BASE_DIR / "tmp" / "kontor-sorgu")),
+        "OPTIONS": {"MAX_ENTRIES": 20000},
+    },
+}
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

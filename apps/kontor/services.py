@@ -160,23 +160,50 @@ def hedefi_dogrula(kategori, hedef):
 # Aynı numara bu süre içinde kaynağa ikinci kez sorulmaz: bayi sayfayı
 # yenilese de, müşteri gün içinde yeniden gelse de dış siteye tekrar
 # gidilmez. Bedeli: numaranın paketleri bu sürede değişirse (paket yüklendi,
-# kampanya bitti) ekran eski listeyi gösterir. Bellek önbelleğidir
-# (gunicorn işçisi başına), yeniden başlatınca sıfırlanır.
+# kampanya bitti) ekran eski listeyi gösterir; bayi "Yenile" ile atlar,
+# numaraya yükleme başarılı olunca o numaranın kaydı silinir. Dosya
+# önbelleğidir (`CACHES["kontor_sorgu"]`): bütün süreçler aynı kaydı görür,
+# silme her yerde geçerlidir.
 ONBELLEK_SURESI = 12 * 60 * 60
+# "Yenile" bundan sık kaynağa gitmez: art arda basılan düğme dış siteyi
+# boğmasın. Süre dolmadan basılırsa eldeki sonuç gösterilir.
+YENILEME_ARALIGI = timedelta(minutes=1)
 
 
-def numarayi_sorgula(kategori, hedef, bayi):
+def _onbellek():
+    from django.core.cache import caches
+
+    return caches["kontor_sorgu"]
+
+
+def _sorgu_anahtari(kaynak_kodu, numara, sahip):
+    return f"kontor-sorgu:{kaynak_kodu}:{numara}:{int(bool(sahip))}"
+
+
+def sorgu_onbellegini_sil(numara):
+    """Numaranın bütün sorgu kayıtlarını siler; sonraki sorgu kaynağa gider."""
+    from apps.kontor.sorgu import kaynak_secenekleri
+
+    anahtarlar = [
+        _sorgu_anahtari(kod, numara, sahip) for kod, _ in kaynak_secenekleri() for sahip in (False, True)
+    ]
+    try:
+        _onbellek().delete_many(anahtarlar)
+    except Exception:
+        logger.exception("Sorgu önbelleği silinemedi (%s)", numara)
+
+
+def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
     """Kategorinin sorgu kaynağına sorar, sonucu kataloğumuzla eşleştirir.
 
-    Dönüş: `{"numara", "sahip", "eslesen": [Paket], "diger": [SorguPaketi]}`.
+    Dönüş: `{"numara", "sahip", "zaman", "eslesen": [Paket], "diger": [SorguPaketi]}`.
     Eşleşme kupür koduyladır (`Paket.kod`); eşleşen pakete bayinin fiyatı
     yazılır. Hat sahibinin maskeli adı yalnızca kategoride açıksa istenir,
-    ekranda gösterilir, veritabanına yazılmaz. Taze cevaptaki paketler
-    `GorulenPaket` listesine işlenir (yeni paket takibi). Kaynak yoksa, hata
-    verirse `SorguHatasi` — ekran sebebini yazar, satış sürer.
+    ekranda gösterilir, veritabanına yazılmaz. Sonuç `ONBELLEK_SURESI`
+    boyunca saklanır; `yenile` bunu atlar (en sık `YENILEME_ARALIGI`'nda
+    bir). Taze cevaptaki paketler `GorulenPaket` listesine işlenir. Kaynak
+    yoksa, hata verirse `SorguHatasi` — ekran sebebini yazar, satış sürer.
     """
-    from django.core.cache import cache
-
     from apps.kontor.sorgu import SorguHatasi, SorguSonucu, kaynak_getir
 
     kaynak = kaynak_getir(kategori.sorgu_kaynagi) if kategori.sorgu_kaynagi else None
@@ -188,9 +215,12 @@ def numarayi_sorgula(kategori, hedef, bayi):
         raise SorguHatasi(str(hata))
 
     sahip_iste = kategori.sorgu_sahibi_goster
-    anahtar = f"kontor-sorgu:{kaynak.kod}:{numara}:{int(sahip_iste)}"
-    sonuc = cache.get(anahtar)
-    if sonuc is None:
+    onbellek = _onbellek()
+    anahtar = _sorgu_anahtari(kaynak.kod, numara, sahip_iste)
+    kayit = onbellek.get(anahtar)
+    if kayit is not None and yenile and timezone.now() - kayit["zaman"] >= YENILEME_ARALIGI:
+        kayit = None
+    if kayit is None:
         try:
             sonuc = kaynak.fonksiyon(numara, sahip=sahip_iste)
         except SorguHatasi:
@@ -200,9 +230,11 @@ def numarayi_sorgula(kategori, hedef, bayi):
             raise SorguHatasi(f"Sorgu yapılamadı: {hata}")
         if not isinstance(sonuc, SorguSonucu):
             sonuc = SorguSonucu(list(sonuc or []))
-        cache.set(anahtar, sonuc, ONBELLEK_SURESI)
+        kayit = {"sonuc": sonuc, "zaman": timezone.now()}
+        onbellek.set(anahtar, kayit, ONBELLEK_SURESI)
         gorulenleri_yaz(kaynak.kod, kategori, sonuc.paketler)
 
+    sonuc = kayit["sonuc"]
     kodlar = {str(p.kod).strip() for p in sonuc.paketler}
     eslesen = [p for p in satistaki_paketler(kategori, bayi) if p.kod in kodlar]
     bizde = {p.kod for p in eslesen}
@@ -210,6 +242,7 @@ def numarayi_sorgula(kategori, hedef, bayi):
     return {
         "numara": numara,
         "sahip": sonuc.sahip if sahip_iste else "",
+        "zaman": kayit["zaman"],
         "eslesen": eslesen,
         "diger": diger,
     }
@@ -649,6 +682,10 @@ def _basarili(islem, deneme, *, mesaj="", alis=None, olusturan=None):
         if siparis.durum == SiparisDurumu.VERILDI:
             siparis.durum = SiparisDurumu.TESLIM
             siparis.save(update_fields=["durum", "guncelleme_tarihi"])
+        # Numaraya paket yüklendi: alabileceği paketler değişti, bir sonraki
+        # sorgu eski listeyi değil güncelini getirsin.
+        if kilitli.hedef:
+            transaction.on_commit(partial(sorgu_onbellegini_sil, kilitli.hedef))
     return kilitli
 
 
