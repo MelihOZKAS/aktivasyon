@@ -352,7 +352,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   İşi yürütenler: açılışta arka plan iş parçacığı, bayinin durum sayfası
   (HTMX 3 sn), bayi programının `tl_kontrol` sorgusu ve işçi
   (`manage.py kontor_isle --dongu`, docker-compose'da `kontor_isci_fadil`).
-  Sonuç sorgusu `SORGU_ARALIGI`'ndan sık gitmez.
+  Sonuç sorgusu `SORGU_ARALIGI`'ndan sık gitmez. İşçi migration'lar
+  bitmeden başlamaz: `depends_on` yalnızca app container'ının açılmasını
+  bekliyor, işçi tablolar oluşmadan sorgu atıp `relation "kontor_islem"
+  does not exist` basıyordu. Hata üst üste gelirse bekleme ikiye katlanır
+  (en çok 60 sn) — log'u traceback'le doldurmaz.
   · **Sağlayıcı referansı sayaçtır** (`Saglayici.ref_sayaci`): sağlayıcı
   aynı `tekilnumara`'yı ikinci kez kabul etmez, eski sistemde kullanılan
   hesapta sayaç eski değerin üstünden başlatılır.
@@ -392,7 +396,8 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   liste fiyatı bayiye göre değişmez. İşlem anındaki değer
   `Islem.tavsiye_fiyati`'nda saklanır.
   · **Numara sorgusu kaynak dosyasıdır** (`apps/kontor/sorgu/`): her dosya
-  bir fonksiyonu `@kaynak(kod, ad)` ile kaydeder (`numara -> list[SorguPaketi]`),
+  bir fonksiyonu `@kaynak(kod, ad)` ile kaydeder
+  (`(numara, *, sahip) -> SorguSonucu | list[SorguPaketi]`),
   kategori `sorgu_kaynagi` ile birini seçer. Ekran dönen kodları `Paket.kod`
   ile eşleştirir; sorgu salt okumadır, 12 saat önbelleğe alınır (bayi
   **Yenile** ile atlar, en sık dakikada bir; numaraya yükleme başarılı
@@ -400,11 +405,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dosyadadır, `CACHES["kontor_sorgu"]`, `tmp/`: gunicorn işçileri ve kontör
   işçisi aynı kaydı görmeli) ve hata
   verirse satış sürer. Vodafone kaynağı `sorgu/vodafone.py`: istemci
-  (`vodafone_istemci.py`) yönetimin yazdığı koddur, olduğu gibi durur;
+  (`vodafone_istemci.py`) yönetimin yazdığı koddur, olduğu gibi durur
+  (projede `requests` yalnızca onun için vardır; diğer dış istekler
+  urllib'le yazıldı, yeni kodda da öyle kalsın);
   zaman aşımı 8 sn — sorgu bayinin isteği içinde çalışır, üç gunicorn
   işçisi uzun beklemeye gelmez. Hat sahibinin maskeli adı yalnızca
   `Kategori.sorgu_sahibi_goster` açıkken istenir, ekranda gösterilir,
-  veritabanına yazılmaz. Taze (önbellekten olmayan) her cevaptaki paketler
+  veritabanına yazılmaz (yalnızca 12 saatlik sorgu önbelleği dosyasında,
+  sonucun parçası olarak durur). Taze (önbellekten olmayan) her cevaptaki paketler
   `GorulenPaket`'e işlenir: katalogda karşılığı olmayan "yeni"dir, rozetle
   sayılır; **Kataloğa ekle** paketi fiyatsız ve sağlayıcısız açar (bayiye
   görünmez), **Yok say** rozetten düşürür. Fiyat değişimi `onceki_fiyat`'ta
@@ -719,8 +727,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   ederdi. Talep Telegram'a **bildirilmez** (aşağıda *Bildirimler*): açık
   talep zaten rozetle sayılıyor.
 - **Bayi menüsünün sırası bilinçlidir:** Panel, Tarifeler, Yeni başvuru,
-  Başvurularım, Hakedişler, Cüzdan. Bayi müşteriyle önce tarifeye bakıyor,
-  sonra başvuruyu giriyor; menü bu sırayı izler.
+  Başvurularım, Hakedişler, Destek, Cüzdan, Mağaza, eSIM, Kontör, Oyun &
+  Pin. Bayi müşteriyle önce tarifeye bakıyor, sonra başvuruyu giriyor; menü
+  bu sırayı izler. Mağaza cüzdanın hemen ardındadır (önce parayı görür,
+  sonra harcar); sonradan gelen satış bölümleri (eSIM, Kontör, Oyun & Pin)
+  alta eklendi, üstteki sıra bozulmasın diye.
 - **Rol ekranları karışmaz.** Bayi görünümleri `@bayi_gerekli`, tedarikçi
   görünümleri `@tedarikci_gerekli` ile korunur (`apps/bayi/yetki.py`).
   Yeni bir ekran eklerken hangi role ait olduğunu belirt; profili olmayan
