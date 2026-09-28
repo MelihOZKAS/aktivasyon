@@ -12,7 +12,7 @@ from uuid import uuid4
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -74,13 +74,15 @@ def _satistaki_kategori(slug):
 @bayi_gerekli
 def kategori(request, slug):
     kategori_kaydi = _satistaki_kategori(slug)
+    paketler = satistaki_paketler(kategori_kaydi, request.user)
     return render(
         request,
         "kontor/kategori.html",
         {
             "kategori": kategori_kaydi,
-            "paketler": satistaki_paketler(kategori_kaydi, request.user),
+            "paketler": paketler,
             "bakiye": _bakiye(request),
+            "tavsiye_var": any(p.tavsiye for p in paketler),
         },
     )
 
@@ -90,7 +92,7 @@ def kategori(request, slug):
 def sorgu(request, slug):
     """HTMX: numaranın alabileceği paketler. Salt okuma, para oynamaz."""
     kategori_kaydi = _satistaki_kategori(slug)
-    baglam = {"kategori": kategori_kaydi}
+    baglam = {"kategori": kategori_kaydi, "bakiye": _bakiye(request)}
     try:
         baglam.update(numarayi_sorgula(kategori_kaydi, request.GET.get("hedef", ""), request.user))
     except SorguHatasi as hata:
@@ -137,13 +139,16 @@ def yukle(request, slug, kod):
     kategori_kaydi = _satistaki_kategori(slug)
     paket_kaydi = _paket(kategori_kaydi, kod)
     hedef = request.POST.get("hedef", "")
+    anahtar = (request.POST.get("islem_anahtari") or "").strip()[:64] or None
     try:
-        islem = yukleme_baslat(
-            request.user,
-            paket_kaydi,
-            hedef,
-            anahtar=(request.POST.get("islem_anahtari") or "").strip()[:64] or None,
-        )
+        islem = yukleme_baslat(request.user, paket_kaydi, hedef, anahtar=anahtar)
+    except IntegrityError:
+        # Aynı form iki kez geldi ve ikincisi tekil anahtara çarptı: yeni işlem
+        # açılmadı, para bir kez düştü. Bayi var olan işleme gider.
+        mevcut = Islem.objects.filter(bayi=request.user, siparis__islem_anahtari=anahtar).first()
+        if anahtar and mevcut is not None:
+            return redirect("kontor:islem", referans=mevcut.siparis.referans_no)
+        raise
     except SiparisVerilemez as hata:
         messages.error(request, str(hata))
         # Yazdığı numara kaybolmasın; bayi düzeltip yeniden basar.

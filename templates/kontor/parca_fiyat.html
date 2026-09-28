@@ -1,0 +1,17 @@
+{% load panel %}
+{% comment %}
+  Paket kartındaki fiyat. Ekran müşteriye dönüktür: tavsiye fiyatı varsa
+  büyük rakam müşterinin ödeyeceğidir, bayinin alışı ve kazancı göz
+  düğmesiyle açılır (data-alis). Tavsiye yoksa saklanacak şey yok, bayinin
+  fiyatı düz yazılır. Bakiye yetmiyorsa rakam uyarı renginde.
+{% endcomment %}
+{% if paket.tavsiye %}
+<span class="shrink-0 text-right">
+  <span class="rakam block font-semibold {% if paket.fiyat > bakiye %}text-uyari{% endif %}">{{ paket.tavsiye|para }} ₺</span>
+  <span data-alis hidden class="rakam block text-xs text-soluk">
+    alış {{ paket.fiyat|para }} · <span class="text-olumlu">+{{ paket.kazanc|para }}</span>
+  </span>
+</span>
+{% else %}
+<span class="rakam shrink-0 font-semibold {% if paket.fiyat > bakiye %}text-uyari{% endif %}">{{ paket.fiyat|para }} ₺</span>
+{% endif %}

@@ -187,8 +187,57 @@ class AcmaTestleri(Temel):
 
     def test_panelde_ayni_numaraya_ayni_paket_hemen_ikinci_kez_acilmaz(self):
         self.yukle()
-        with self.assertRaisesMessage(YuklemeYapilamaz, "az önce"):
+        with self.assertRaisesMessage(YuklemeYapilamaz, "şu an yükleniyor"):
             self.yukle()
+        self.assertEqual(self.bakiye(), TL("390.00"))
+
+    def test_suren_islem_varken_sure_gecse_de_ikinci_kez_acilmaz(self):
+        """Yavaş bağlantıda bayi dakikalar sonra yeniden basarsa da yüklenmez."""
+        islem = self.yukle()
+        Islem.objects.filter(pk=islem.pk).update(olusturma_tarihi=timezone.now() - timedelta(minutes=30))
+        with self.assertRaisesMessage(YuklemeYapilamaz, "şu an yükleniyor"):
+            self.yukle()
+        self.assertEqual(self.bakiye(), TL("390.00"))
+
+    def test_yuklendikten_hemen_sonra_ikinci_kez_acilmaz_sure_gecince_acilir(self):
+        islem = self.yukle()
+        _ayar("Bir", sorgu="basarili")
+        isle(islem.pk, zorla=True)
+        with self.assertRaisesMessage(YuklemeYapilamaz, "az önce yüklendi"):
+            self.yukle()
+        Islem.objects.filter(pk=islem.pk).update(olusturma_tarihi=timezone.now() - timedelta(minutes=3))
+        self.yukle()
+        self.assertEqual(self.bakiye(), TL("280.00"))
+
+    def test_iptal_edilen_islemden_sonra_hemen_yeniden_denenebilir(self):
+        _ayar("Bir", gonderim="red")
+        _ayar("İki", gonderim="red")
+        self.yukle()
+        _ayar("Bir", gonderim="kabul")
+        self.yukle()
+        self.assertEqual(self.bakiye(), TL("390.00"))
+
+    def test_cuzdan_kilitlenir(self):
+        """Aynı bayinin eşzamanlı istekleri cüzdan kilidinde sıraya girer."""
+        from unittest import mock
+
+        with mock.patch("apps.kontor.services._cuzdani_getir", wraps=__import__(
+            "apps.finans.services", fromlist=["_cuzdani_getir"])._cuzdani_getir) as kilit:
+            self.yukle()
+        kilit.assert_called_with(self.bayi.pk)
+
+    def test_cift_gonderim_ayni_anahtarla_tek_islem_tek_kesinti(self):
+        yanitlar = []
+        self.client.force_login(self.bayi)
+        for _ in range(3):
+            with self.captureOnCommitCallbacks(execute=True):
+                yanitlar.append(self.client.post(
+                    reverse("kontor:yukle", args=[self.kategori.slug, "100"]),
+                    {"hedef": "5329998877", "islem_anahtari": "ayni"},
+                ))
+        self.assertEqual(Islem.objects.count(), 1)
+        self.assertEqual({y["Location"] for y in yanitlar}, {Islem.objects.get().get_absolute_url()})
+        self.assertEqual(len(DURUM["Bir"]["gonderilen"]), 1)
         self.assertEqual(self.bakiye(), TL("390.00"))
 
     def test_grup_fiyati_uygulanir(self):
@@ -874,3 +923,54 @@ class VodafoneSorguTestleri(TestCase):
             sinif.return_value.get_public_token.side_effect = requests.ConnectionError("yok")
             with self.assertRaisesMessage(SorguHatasi, "ulaşılamadı"):
                 kaynak_getir("vodafone").fonksiyon("5321234567")
+
+
+class TavsiyeTestleri(Temel):
+    def setUp(self):
+        super().setUp()
+        self.paket.tavsiye_fiyati = TL("349.90")
+        self.paket.save()
+        self.client.force_login(self.bayi)
+
+    def test_fiyatlandir_kazanci_hesaplar(self):
+        (paket,) = satistaki_paketler(self.kategori, self.bayi)
+        self.assertEqual((paket.fiyat, paket.tavsiye, paket.kazanc), (TL("110.00"), TL("349.90"), TL("239.90")))
+
+    def test_ekranda_buyuk_rakam_tavsiye_alis_gozun_arkasinda(self):
+        yanit = self.client.get(self.kategori.get_absolute_url())
+        self.assertContains(yanit, "349,90")
+        self.assertContains(yanit, "data-goz")
+        self.assertContains(yanit, "data-alis hidden")
+        yanit = self.client.get(reverse("kontor:paket", args=[self.kategori.slug, "100"]))
+        self.assertContains(yanit, "kazancın 239,90")
+
+    def test_tavsiye_yoksa_goz_yok(self):
+        self.paket.tavsiye_fiyati = None
+        self.paket.save()
+        self.assertNotContains(self.client.get(self.kategori.get_absolute_url()), "data-goz")
+
+    def test_islem_tavsiyeyi_saklar(self):
+        islem = self.yukle()
+        self.paket.tavsiye_fiyati = TL("399")
+        self.paket.save()
+        islem.refresh_from_db()
+        self.assertEqual(islem.tavsiye_fiyati, TL("349.90"))
+        self.assertContains(self.client.get(islem.get_absolute_url()), "Müşteriye tavsiye")
+
+    def test_tavsiye_operatorden_alinir(self):
+        from apps.kontor.models import GorulenPaket
+        from apps.kontor.services import gorulen_paketi_kataloga_ekle, tavsiyeyi_operatorden_al
+
+        GorulenPaket.objects.create(
+            kaynak="x", kod="100", kategori=self.kategori, fiyat=TL("359.90"), son_gorulme=timezone.now()
+        )
+        baska = Paket.objects.create(kategori=self.kategori, kod="200", ad="Görülmemiş")
+        self.assertEqual(tavsiyeyi_operatorden_al(Paket.objects.filter(pk__in=[self.paket.pk, baska.pk])), (1, 1))
+        self.paket.refresh_from_db()
+        self.assertEqual(self.paket.tavsiye_fiyati, TL("359.90"))
+
+        yeni = GorulenPaket.objects.create(
+            kaynak="x", kod="300", kategori=self.kategori, ad="Yeni", fiyat=TL("99.90"), son_gorulme=timezone.now()
+        )
+        paket, _ = gorulen_paketi_kataloga_ekle(yeni)
+        self.assertEqual(paket.tavsiye_fiyati, TL("99.90"))

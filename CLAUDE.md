@@ -367,8 +367,25 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `tekilnumara` aynı işlemi döndürür — program zaman aşımında yeniden
   gönderince ikinci yükleme olmaz; başka numarayla aynı referans reddedilir.
   Askıdaki işlem programa `2:islemde` görünür.
-  · Panelden aynı numaraya aynı paket bir dakika içinde ikinci kez açılmaz
-  (`TEKRAR_KORUMASI`); gönder düğmesi basılınca kilitlenir.
+  · **Bayiden para iki kez düşmez, numaraya iki kez yüklenmez.** Kapılar:
+  `yukleme_baslat` en başta bayinin cüzdanını kilitler (`_cuzdani_getir`,
+  `select_for_update`) — aynı bayinin eşzamanlı istekleri sıraya girer,
+  ikincisi birincinin kaydını görür; formdaki `islem_anahtari` aynı formun
+  ikinci gelişinde var olan işlemi döndürür (tekil anahtara çarpan istek de
+  var olana yönlenir); aynı numaraya aynı paket, önceki işlem **sürerken**
+  (süre sınırı yok) ya da açıldıktan sonraki `TEKRAR_KORUMASI` (2 dk)
+  içinde açılmaz, iptal edilen hemen yeniden denenebilir. Tarayıcıda form
+  ilk gönderimde işaretlenir, sonraki dokunuşlar istek atmaz; geri tuşuyla
+  dönülünce düğme açılır ama anahtar aynıdır. Bayi programında aynı
+  `tekilnumara` aynı işlemi döndürür.
+  · **Vitrin fiyatı müşteriye dönüktür** (`Paket.tavsiye_fiyati`, çoğu zaman
+  operatörün liste fiyatı; Kataloğa ekle ve "operatörün fiyatından al"
+  işlemi sorgudan doldurur). Doluysa bayi ekranında büyük rakam budur;
+  bayinin alışı ve kazancı göz düğmesiyle açılır (`parca_fiyat.html`,
+  `parca_goz.html`, tercih `sessionStorage`'da) — eSIM'deki kuralın aynısı.
+  Tavsiye grup başına değil paket başına tek rakamdır: müşterinin ödediği
+  liste fiyatı bayiye göre değişmez. İşlem anındaki değer
+  `Islem.tavsiye_fiyati`'nda saklanır.
   · **Numara sorgusu kaynak dosyasıdır** (`apps/kontor/sorgu/`): her dosya
   bir fonksiyonu `@kaynak(kod, ad)` ile kaydeder (`numara -> list[SorguPaketi]`),
   kategori `sorgu_kaynagi` ile birini seçer. Ekran dönen kodları `Paket.kod`

@@ -37,10 +37,15 @@
   {% endif %}
 
   {% if paketler %}
-  {% if paketler|length > 8 %}
-  <input type="search" id="paket-ara" class="girdi mb-4 w-full" placeholder="Paket ara… (15 GB, 1000 DK, 100)"
-         autocomplete="off" inputmode="search">
-  {% endif %}
+  <div class="mb-4 flex items-center gap-2">
+    {% if paketler|length > 8 %}
+    <input type="search" id="paket-ara" class="girdi min-w-0 flex-1" placeholder="Paket ara… (15 GB, 1000 DK, 100)"
+           autocomplete="off" inputmode="search">
+    {% else %}
+    <p class="flex-1 text-sm text-soluk">{% if tavsiye_var %}Fiyatlar müşteriye satış fiyatıdır.{% endif %}</p>
+    {% endif %}
+    {% if tavsiye_var %}{% include "kontor/parca_goz.html" %}{% endif %}
+  </div>
 
   {% comment %}
     Paket kartı: ad, içerik (DK · GB · gün), bayinin ödeyeceği fiyat.
@@ -58,7 +63,7 @@
         <span class="mt-0.5 block text-xs text-soluk">{{ paket.icerik }}{% if paket.icerik and paket.aciklama %} · {% endif %}{{ paket.aciklama }}</span>
         {% endif %}
       </span>
-      <span class="rakam shrink-0 font-semibold {% if paket.fiyat > bakiye %}text-uyari{% endif %}">{{ paket.fiyat|para }} ₺</span>
+      {% include "kontor/parca_fiyat.html" %}
     </a>
     {% endfor %}
   </div>

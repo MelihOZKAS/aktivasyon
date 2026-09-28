@@ -35,7 +35,7 @@
           <span class="block font-medium">{{ paket.ad }}</span>
           {% if paket.icerik %}<span class="mt-0.5 block text-xs text-soluk">{{ paket.icerik }}</span>{% endif %}
         </span>
-        <span class="rakam shrink-0 font-semibold">{{ paket.fiyat|para }} ₺</span>
+        {% include "kontor/parca_fiyat.html" %}
       </a>
       {% endfor %}
     </div>

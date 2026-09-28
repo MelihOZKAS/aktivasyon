@@ -19,8 +19,14 @@
         <dd class="rakam font-semibold">{{ islem.hedef|telefon }}</dd>
       </div>
       {% endif %}
+      {% if islem.tavsiye_fiyati %}
       <div class="flex justify-between gap-4 border-b border-cizgi py-1.5">
-        <dt class="text-soluk">Tutar</dt>
+        <dt class="text-soluk">Müşteriye tavsiye</dt>
+        <dd class="rakam font-semibold">{{ islem.tavsiye_fiyati|para }} ₺</dd>
+      </div>
+      {% endif %}
+      <div class="flex justify-between gap-4 border-b border-cizgi py-1.5">
+        <dt class="text-soluk">Bakiyenden düşen</dt>
         <dd class="rakam font-semibold">{{ islem.siparis.tutar|para }} ₺</dd>
       </div>
       <div class="flex justify-between gap-4 py-1.5">

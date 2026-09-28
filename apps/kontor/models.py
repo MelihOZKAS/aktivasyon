@@ -318,6 +318,19 @@ class Paket(ZamanDamgali):
             "tablodan girilir; girilmeyen grup bunu öder. 0 ise paket satılmaz."
         ),
     )
+    tavsiye_fiyati = models.DecimalField(
+        "Tavsiye Satış",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(SIFIR)],
+        help_text=(
+            "Bayinin müşteriye söyleyeceği fiyat — çoğu zaman operatörün liste fiyatı. "
+            "Doluysa bayi ekranında büyük rakam budur; bayinin alışı ve kazancı göz "
+            "düğmesiyle açılır. Operatör sorgusunda görülen fiyattan doldurulabilir."
+        ),
+    )
     sira = models.PositiveIntegerField("Sıra", default=0)
     aktif = models.BooleanField("Aktif", default=True)
 
@@ -555,6 +568,14 @@ class Islem(ZamanDamgali):
     )
     paket_adi = models.CharField("Paket", max_length=200)
     hedef = models.CharField("Numara / Hesap", max_length=64, blank=True, db_index=True)
+    tavsiye_fiyati = models.DecimalField(
+        "Tavsiye Satış",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="İşlem anında bayiye gösterilen müşteri fiyatı; paketin fiyatı sonra değişse de kalır.",
+    )
     kanal = models.CharField("Kanal", max_length=10, choices=Kanal.choices, default=Kanal.PANEL)
     bayi_ref = models.CharField(
         "Bayinin Referansı",

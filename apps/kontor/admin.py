@@ -52,6 +52,7 @@ from apps.kontor.services import (
     elle_gonder,
     fiyat_listesini_cek,
     gorulen_paketi_kataloga_ekle,
+    tavsiyeyi_operatorden_al,
     iptal_et,
     sonucu_sorgula,
     yuklendi_say,
@@ -488,21 +489,33 @@ class PaketAdmin(ModelAdmin):
         "kod",
         "icerik_gosterimi",
         "satis_fiyati",
+        "tavsiye_fiyati",
         "alis_gosterimi",
         "kar_gosterimi",
         "rota_gosterimi",
         "aktif",
     )
-    list_editable = ("satis_fiyati", "aktif")
+    list_editable = ("satis_fiyati", "tavsiye_fiyati", "aktif")
     list_filter = ("aktif", "kategori", "rotalar__saglayici")
     search_fields = ("ad", "kod", "kategori__ad")
     list_per_page = 100
     inlines = (RotaInline, PaketFiyatiInline)
-    actions = ("saglayiciya_ekle", "fiyat_uygula")
+    actions = ("saglayiciya_ekle", "fiyat_uygula", "tavsiyeyi_operatorden_al")
     fieldsets = (
         (None, {"fields": ("kategori", "kod", "ad", "aciklama", "sira", "aktif")}),
         ("İçerik", {"fields": (("dakika", "internet_mb", "sms", "gun"),)}),
-        ("Fiyat", {"fields": ("satis_fiyati",)}),
+        (
+            "Fiyat",
+            {
+                "fields": ("satis_fiyati", "tavsiye_fiyati"),
+                "description": (
+                    "<b>Bayiye Satış</b> bayinin bakiyesinden düşer (gruba özel fiyat alttaki "
+                    "tablodan). <b>Tavsiye Satış</b> bayinin müşteriye söyleyeceği fiyattır; "
+                    "bayi ekranında büyük rakam odur, aradaki fark bayinin kazancı olarak "
+                    "göz düğmesinin arkasında durur."
+                ),
+            },
+        ),
     )
 
     def get_queryset(self, request):
@@ -638,6 +651,18 @@ class PaketAdmin(ModelAdmin):
             "Satış fiyatı, paketin sıradaki ilk sağlayıcısının alışına bu yüzde eklenerek yazılır.",
             "fiyat_uygula",
         )
+
+    @admin.action(description="Tavsiye fiyatını operatörün fiyatından al")
+    def tavsiyeyi_operatorden_al(self, request, queryset):
+        """Numara sorgusunda görülen operatör fiyatını tavsiye olarak yazar."""
+        guncellenen, atlanan = tavsiyeyi_operatorden_al(queryset)
+        mesaj = f"{guncellenen} paketin tavsiye fiyatı operatörün fiyatından yazıldı."
+        if atlanan:
+            mesaj += (
+                f" {atlanan} paket operatör sorgusunda hiç görülmedi; onların tavsiyesini "
+                "elle girin."
+            )
+        self.message_user(request, mesaj, messages.SUCCESS if not atlanan else messages.WARNING)
 
 
 # -- İşlem ----------------------------------------------------------------

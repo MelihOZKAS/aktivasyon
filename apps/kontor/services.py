@@ -35,7 +35,12 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.bayi.telefon import TELEFON_DESENI, normalize
-from apps.finans.services import SiparisVerilemez, siparis_odemesini_geri_al, siparis_odemesini_isle
+from apps.finans.services import (
+    SiparisVerilemez,
+    _cuzdani_getir,
+    siparis_odemesini_geri_al,
+    siparis_odemesini_isle,
+)
 from apps.kontor.models import (
     ACIK_DURUMLAR,
     Deneme,
@@ -61,9 +66,10 @@ KILIT_SURESI = timedelta(seconds=90)
 # Aynı işlem için sağlayıcıya bu aralıktan sık "yüklendi mi?" sorulmaz;
 # bayinin sayfası, bayi programı ve işçi aynı anda soruyor olabilir.
 SORGU_ARALIGI = timedelta(seconds=5)
-# Panelden aynı numaraya aynı paket bu süre içinde ikinci kez açılmaz:
-# yavaş bağlantıda iki kez basılan düğme iki kez yüklemesin.
-TEKRAR_KORUMASI = timedelta(seconds=60)
+# Panelden aynı numaraya aynı paket, önceki işlem sürerken ya da açıldıktan
+# sonraki bu süre içinde ikinci kez açılmaz: yavaş bağlantıda yeniden
+# basılan düğme, yenilenen sayfa ya da ikinci sekme iki kez yüklemesin.
+TEKRAR_KORUMASI = timedelta(minutes=2)
 
 
 class YuklemeYapilamaz(SiparisVerilemez):
@@ -87,7 +93,12 @@ def bayi_grubu(bayi):
 
 
 def fiyatlandir(paketler, bayi):
-    """Her pakete `fiyat` yazar: bayinin grubuna özel fiyat, yoksa paketin fiyatı."""
+    """Her pakete `fiyat` (bayinin ödeyeceği), `tavsiye` ve `kazanc` yazar.
+
+    `fiyat` bayinin grubuna özel fiyat, yoksa paketin fiyatıdır. `tavsiye`
+    paketin müşteriye önerilen fiyatıdır (grup değiştirmez); yoksa `None` ve
+    ekran bayinin fiyatını düz yazar.
+    """
     paketler = list(paketler)
     grup = bayi_grubu(bayi)
     ozel = {}
@@ -97,6 +108,8 @@ def fiyatlandir(paketler, bayi):
         )
     for paket in paketler:
         paket.fiyat = ozel.get(paket.pk, paket.satis_fiyati)
+        paket.tavsiye = paket.tavsiye_fiyati if paket.tavsiye_fiyati else None
+        paket.kazanc = (paket.tavsiye - paket.fiyat) if paket.tavsiye is not None else None
     return paketler
 
 
@@ -258,6 +271,8 @@ def gorulen_paketi_kataloga_ekle(gorulen):
         defaults={
             "ad": (gorulen.ad or gorulen.kod)[:150],
             "aciklama": gorulen.aciklama[:255],
+            # Operatörün fiyatı müşterinin ödeyeceğidir: tavsiye olarak gelir.
+            "tavsiye_fiyati": gorulen.fiyat,
         },
     )
 
@@ -286,6 +301,12 @@ def yukleme_baslat(bayi, paket, hedef, *, kanal=Kanal.PANEL, bayi_ref="", anahta
     bayi_ref = (bayi_ref or "").strip()[:64]
 
     with transaction.atomic():
+        # Bayinin cüzdanı en başta kilitlenir: aynı bayinin eşzamanlı iki
+        # isteği (çift dokunuş, ikinci sekme, yavaş bağlantıda yeniden
+        # gönderim) burada sıraya girer. İkincisi, birincisi bitince aşağıdaki
+        # denetimlerde onun kaydını görür; ikisi birlikte geçip iki kez
+        # yükleyemez, parayı iki kez düşemez.
+        _cuzdani_getir(bayi.pk)
         if anahtar:
             mevcut = Siparis.objects.filter(islem_anahtari=anahtar, bayi=bayi).select_related("kontor").first()
             if mevcut is not None and hasattr(mevcut, "kontor"):
@@ -297,16 +318,18 @@ def yukleme_baslat(bayi, paket, hedef, *, kanal=Kanal.PANEL, bayi_ref="", anahta
                     return mevcut
                 raise YuklemeYapilamaz("Bu referans numarası daha önce başka bir işlemde kullanıldı.")
         if kanal == Kanal.PANEL and hedef:
-            yakin = Islem.objects.filter(
-                bayi=bayi,
-                hedef=hedef,
-                paket=paket,
-                olusturma_tarihi__gte=timezone.now() - TEKRAR_KORUMASI,
-            ).exclude(durum=IslemDurumu.IPTAL)
-            if yakin.exists():
+            ayni = Islem.objects.filter(bayi=bayi, hedef=hedef, paket=paket)
+            if ayni.filter(durum__in=ACIK_DURUMLAR).exists():
                 raise YuklemeYapilamaz(
-                    "Bu numaraya aynı paket az önce gönderildi. İkinci kez yüklemek "
-                    "istiyorsan bir dakika sonra yeniden dene."
+                    "Bu numaraya aynı paket şu an yükleniyor. Sonucu Yüklemelerim'de "
+                    "görürsün; ikinci kez gönderme."
+                )
+            if ayni.filter(
+                olusturma_tarihi__gte=timezone.now() - TEKRAR_KORUMASI
+            ).exclude(durum=IslemDurumu.IPTAL).exists():
+                raise YuklemeYapilamaz(
+                    "Bu numaraya aynı paket az önce yüklendi. İkinci kez yüklemek "
+                    "istiyorsan iki dakika sonra yeniden dene."
                 )
 
         siparis = Siparis.objects.create(
@@ -325,6 +348,7 @@ def yukleme_baslat(bayi, paket, hedef, *, kanal=Kanal.PANEL, bayi_ref="", anahta
             kategori=kategori,
             paket_adi=paket.ad,
             hedef=hedef,
+            tavsiye_fiyati=paket.tavsiye_fiyati or None,
             kanal=kanal,
             bayi_ref=bayi_ref,
         )
@@ -782,6 +806,32 @@ def fiyat_listesini_cek(saglayici):
         saglayici.son_liste_cekme = timezone.now()
         saglayici.save(update_fields=["son_liste_cekme", "guncelleme_tarihi"])
     return len(fiyatlar), guncellenen
+
+
+def tavsiyeyi_operatorden_al(paketler):
+    """Seçili paketlerin tavsiye fiyatını operatör sorgusunda görülen fiyattan yazar.
+
+    Eşleşme kategori + kupür kodudur. Operatörde hiç görülmemiş paket
+    atlanır. Dönüş: (güncellenen, atlanan).
+    """
+    from apps.kontor.models import GorulenPaket
+
+    guncellenen = atlanan = 0
+    for paket in paketler:
+        fiyat = (
+            GorulenPaket.objects.filter(kategori_id=paket.kategori_id, kod=paket.kod, fiyat__isnull=False)
+            .order_by("-son_gorulme")
+            .values_list("fiyat", flat=True)
+            .first()
+        )
+        if fiyat is None:
+            atlanan += 1
+            continue
+        if paket.tavsiye_fiyati != fiyat:
+            paket.tavsiye_fiyati = fiyat
+            paket.save(update_fields=["tavsiye_fiyati", "guncelleme_tarihi"])
+        guncellenen += 1
+    return guncellenen, atlanan
 
 
 def acik_islemler():

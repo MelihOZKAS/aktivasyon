@@ -15,7 +15,22 @@
       <h2 class="baslik mt-1 text-2xl font-bold">{{ paket.ad }}</h2>
       {% if paket.icerik %}<p class="mt-1 text-sm text-murekkep-yumusak">{{ paket.icerik }}</p>{% endif %}
       {% if paket.aciklama %}<p class="mt-1 text-sm text-soluk">{{ paket.aciklama }}</p>{% endif %}
+      {% comment %}
+        Tavsiye fiyatı varsa büyük rakam müşterinin fiyatı; bayinin alışı ve
+        kazancı gözle açılır. Yoksa bayinin fiyatı düz yazılır.
+      {% endcomment %}
+      {% if paket.tavsiye %}
+      <div class="mt-3 flex items-center gap-2">
+        <p class="rakam text-2xl font-bold">{{ paket.tavsiye|para }} ₺</p>
+        {% include "kontor/parca_goz.html" %}
+      </div>
+      <p data-alis hidden class="mt-1 text-sm text-murekkep-yumusak">
+        Alışın <b class="rakam">{{ paket.fiyat|para }} ₺</b>
+        <span class="text-soluk">· kazancın {{ paket.kazanc|para }} ₺</span>
+      </p>
+      {% else %}
       <p class="rakam mt-3 text-2xl font-bold">{{ paket.fiyat|para }} ₺</p>
+      {% endif %}
 
       {% if not yeterli %}
       <div class="sim mt-5 rounded-kart border border-uyari/40 bg-uyari/5 p-4">
@@ -65,14 +80,39 @@
   </div>
 </div>
 
+{% comment %}
+  Çift gönderim kilidi. Form gönderildiği anda işaretlenir; ikinci dokunuş
+  (çift tıklama, sabırsız bayi) hiç istek atmaz. Düğme de aynı anda kilitlenir
+  ve "Gönderiliyor…" der. Yavaş bağlantıda bayi geri tuşuyla dönerse düğme
+  açılır ama aynı işlem anahtarını taşır: sunucu yeni işlem açmaz, var olanı
+  gösterir. Son kapı yine sunucudadır (cüzdan kilidi, işlem anahtarı, aynı
+  numaraya süren işlem) — bu yalnızca bayiye işin sürdüğünü gösterir.
+{% endcomment %}
 <script>
   (function () {
     var form = document.getElementById("yukle-formu");
     if (!form) return;
-    form.addEventListener("submit", function () {
-      var dugme = form.querySelector("[data-gonder]");
-      // Doğrulamadan geçti, gidiyor: ikinci basış yeni istek açmasın.
-      setTimeout(function () { dugme.disabled = true; dugme.textContent = "Gönderiliyor…"; }, 0);
+    var dugme = form.querySelector("[data-gonder]");
+    var etiket = dugme.textContent;
+    form.addEventListener("submit", function (olay) {
+      if (form.dataset.gonderildi) {
+        olay.preventDefault();
+        return;
+      }
+      form.dataset.gonderildi = "1";
+      // Düğme bir sonraki karede kilitlenir: aynı anda kilitlenen düğme
+      // bazı tarayıcılarda gönderimi iptal ediyor. O arada gelen ikinci
+      // dokunuşu yukarıdaki işaret durdurur.
+      requestAnimationFrame(function () {
+        dugme.disabled = true;
+        dugme.textContent = "Gönderiliyor…";
+      });
+    });
+    window.addEventListener("pageshow", function (olay) {
+      if (!olay.persisted) return;
+      delete form.dataset.gonderildi;
+      dugme.disabled = false;
+      dugme.textContent = etiket;
     });
   })();
 </script>
