@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "apps.destek",
     "apps.magaza",
     "apps.esim",
+    "apps.kontor",
 ]
 
 MIDDLEWARE = [
@@ -359,6 +360,35 @@ UNFOLD = {
                     {"title": "Yüklemeler", "icon": "add_circle", "link": "/yonetim/esim/yukleme/"},
                     {"title": "Ülkeler", "icon": "flag", "link": "/yonetim/esim/ulke/"},
                     {"title": "Sağlayıcılar", "icon": "hub", "link": "/yonetim/esim/saglayici/"},
+                ],
+            },
+            {
+                "title": "Kontör",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "İşlemler",
+                        "icon": "cell_tower",
+                        "link": "/yonetim/kontor/islem/",
+                        # Askıya düşen ya da uzun süredir sonuç bekleyen işlem: karar bekleyen iş.
+                        "badge": "apps.rozetler.askidaki_kontorler",
+                    },
+                    {"title": "Paketler", "icon": "sell", "link": "/yonetim/kontor/paket/"},
+                    {
+                        "title": "Operatörde Görülen",
+                        "icon": "new_releases",
+                        "link": "/yonetim/kontor/gorulenpaket/?katalog=yeni",
+                        # Sorguda görülüp katalogda olmayan paket: eklenecek ya da yok sayılacak.
+                        "badge": "apps.rozetler.yeni_kontor_paketleri",
+                    },
+                    {"title": "Kategoriler", "icon": "category", "link": "/yonetim/kontor/kategori/"},
+                    {"title": "Sağlayıcılar", "icon": "hub", "link": "/yonetim/kontor/saglayici/"},
+                    {
+                        "title": "Sağlayıcı Fiyatları",
+                        "icon": "receipt_long",
+                        "link": "/yonetim/kontor/saglayicipaketi/",
+                    },
+                    {"title": "Bayi API Erişimleri", "icon": "key", "link": "/yonetim/kontor/apierisimi/"},
                 ],
             },
             {

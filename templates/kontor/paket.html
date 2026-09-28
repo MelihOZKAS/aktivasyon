@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}{{ paket.ad }}{% endblock %}
+{% block sayfa_basligi %}Kontör{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-xl">
+  <a href="{{ kategori.get_absolute_url }}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← {{ kategori.ad }}</a>
+
+  <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+    <div class="p-5 sm:p-6">
+      <p class="text-sm font-medium"
+         {% if kategori.operator %}style="color: {{ kategori.operator.renk|okunur_renk }}"{% endif %}>{{ kategori.ad }}</p>
+      <h2 class="baslik mt-1 text-2xl font-bold">{{ paket.ad }}</h2>
+      {% if paket.icerik %}<p class="mt-1 text-sm text-murekkep-yumusak">{{ paket.icerik }}</p>{% endif %}
+      {% if paket.aciklama %}<p class="mt-1 text-sm text-soluk">{{ paket.aciklama }}</p>{% endif %}
+      <p class="rakam mt-3 text-2xl font-bold">{{ paket.fiyat|para }} ₺</p>
+
+      {% if not yeterli %}
+      <div class="sim mt-5 rounded-kart border border-uyari/40 bg-uyari/5 p-4">
+        <p class="text-sm font-semibold text-uyari">Bakiyen bu pakete yetmiyor</p>
+        <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
+          Bakiyen <b>{{ bakiye|para }} ₺</b>, paket <b>{{ paket.fiyat|para }} ₺</b>.
+          Kontör bakiyeden yüklenir, borca yazılmaz.
+        </p>
+        <a href="{% url 'bayi:cuzdan' %}" class="dugme dugme-sessiz mt-3 inline-flex text-sm">Cüzdana git</a>
+      </div>
+      {% else %}
+      {% comment %}
+        Gönder düğmesi basılınca kilitlenir: yavaş bağlantıda ikinci basış
+        ikinci yükleme olmasın. Sunucu tarafında da aynı anahtar ve aynı
+        numaraya bir dakika içinde aynı paket reddedilir.
+      {% endcomment %}
+      <form method="post" action="{% url 'kontor:yukle' kategori.slug paket.kod %}" class="mt-5" id="yukle-formu">
+        {% csrf_token %}
+        <input type="hidden" name="islem_anahtari" value="{{ islem_anahtari }}">
+        {% if kategori.hedef != "yok" %}
+        <label for="hedef" class="mb-1.5 block text-sm font-semibold">{{ kategori.hedef_basligi }}</label>
+        {% if kategori.hedef == "telefon" %}
+        <input id="hedef" name="hedef" value="{{ hedef }}" required autofocus
+               class="girdi rakam w-full text-lg tracking-wide" type="tel" inputmode="numeric"
+               autocomplete="off" placeholder="5XX XXX XX XX" maxlength="17">
+        <p class="mt-1.5 text-xs text-soluk">Başında 0 olsa da olur; boşluk bırakabilirsin.</p>
+        {% else %}
+        <input id="hedef" name="hedef" value="{{ hedef }}" required autofocus
+               class="girdi w-full text-lg" type="text" autocomplete="off" maxlength="64"
+               autocapitalize="off" spellcheck="false">
+        {% endif %}
+        {% endif %}
+
+        <div class="sim my-4 rounded-kart border border-cizgi bg-zemin p-4">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-sm text-soluk">Bakiyenden düşecek</span>
+            <span class="rakam text-xl font-bold">{{ paket.fiyat|para }} ₺</span>
+          </div>
+          <p class="mt-1 text-xs text-soluk">Yüklenemezse tutar kendiliğinden bakiyene döner.</p>
+        </div>
+        <button type="submit" class="dugme dugme-birincil w-full" data-gonder>
+          {% if kategori.hedef == "yok" %}Pini al{% else %}Yükle{% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var form = document.getElementById("yukle-formu");
+    if (!form) return;
+    form.addEventListener("submit", function () {
+      var dugme = form.querySelector("[data-gonder]");
+      // Doğrulamadan geçti, gidiyor: ikinci basış yeni istek açmasın.
+      setTimeout(function () { dugme.disabled = true; dugme.textContent = "Gönderiliyor…"; }, 0);
+    });
+  })();
+</script>
+{% endblock %}

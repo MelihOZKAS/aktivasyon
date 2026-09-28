@@ -1,0 +1,143 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Kontör işleminde yöneticinin kararı. Her düğme POST'tur ve para ya da
+  sağlayıcı oynattığı için ne yapacağını üstünde yazar.
+
+  Sınıflar unfold'un derlenmiş CSS'inden gelir; bizim static/app.css
+  yönetim panelinde yüklü değildir. Renkler satır içi.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-3xl space-y-4">
+
+  <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    <div class="mb-3 flex flex-wrap items-center gap-3">
+      <span style="background:{{ durum_rengi }};color:#fff;padding:.15rem .6rem;border-radius:999px;font-size:.8rem;font-weight:600">{{ islem.get_durum_display }}</span>
+      <a href="{% url 'admin:kontor_islem_change' islem.pk %}" class="text-sm underline">Kaydın ayrıntısı</a>
+    </div>
+    <ul class="space-y-1.5 text-sm">
+      <li class="flex justify-between gap-4 border-b border-base-100 py-1 dark:border-base-800"><span class="text-base-500">Bayi</span><span class="font-medium">{{ islem.bayi }}</span></li>
+      <li class="flex justify-between gap-4 border-b border-base-100 py-1 dark:border-base-800"><span class="text-base-500">Paket</span><span class="font-medium">{{ islem.kategori.ad|default:"" }} · {{ islem.paket_adi }}</span></li>
+      <li class="flex justify-between gap-4 border-b border-base-100 py-1 dark:border-base-800"><span class="text-base-500">Numara / hesap</span><span class="font-mono font-semibold">{{ islem.hedef|default:"—" }}</span></li>
+      <li class="flex justify-between gap-4 border-b border-base-100 py-1 dark:border-base-800"><span class="text-base-500">Bayiden alınan</span><span class="font-semibold">{{ islem.siparis.tutar }} ₺</span></li>
+      <li class="flex justify-between gap-4 py-1"><span class="text-base-500">Açıldı</span><span>{{ islem.olusturma_tarihi|date:"d.m.Y H:i:s" }} · {{ islem.get_kanal_display }}</span></li>
+    </ul>
+    {% if islem.sonuc_mesaji %}<p class="mt-3 text-sm"><b>Sonuç:</b> {{ islem.sonuc_mesaji }}</p>{% endif %}
+  </div>
+
+  <div class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    <h3 class="mb-3 font-semibold">Gönderimler</h3>
+    {% if denemeler %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-base-500">
+          <th class="py-1 pr-3">Zaman</th><th class="py-1 pr-3">Sağlayıcı</th><th class="py-1 pr-3">Ref</th>
+          <th class="py-1 pr-3">Durum</th><th class="py-1">Cevap</th>
+        </tr></thead>
+        <tbody>
+        {% for d in denemeler %}
+        <tr class="border-t border-base-100 align-top dark:border-base-800">
+          <td class="py-1.5 pr-3 whitespace-nowrap">{{ d.olusturma_tarihi|date:"H:i:s" }}</td>
+          <td class="py-1.5 pr-3">{{ d.saglayici }}{% if d.elle %} <i>(elle)</i>{% endif %}</td>
+          <td class="py-1.5 pr-3 font-mono">{{ d.ref }}{% if d.uzak_ref %}<br><span class="text-base-500">{{ d.uzak_ref }}</span>{% endif %}</td>
+          <td class="py-1.5 pr-3 whitespace-nowrap"><b>{{ d.get_durum_display }}</b></td>
+          <td class="py-1.5 font-mono text-xs" style="word-break:break-all">
+            {{ d.gonderim_cevabi|truncatechars:200 }}{% if d.sonuc_cevabi %}<br><span class="text-base-500">Sorgu: {{ d.sonuc_cevabi|truncatechars:200 }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-sm text-base-500">Henüz hiçbir sağlayıcıya gönderilmedi.</p>
+    {% endif %}
+  </div>
+
+  {% if islem.acik %}
+
+  {% if islem.durum == "askida" %}
+  <div class="rounded-default p-4 text-sm leading-relaxed" style="border:1px solid #D42046;background:#FCEAEE">
+    <b>Bu işlem askıda.</b> Son gönderimin cevabı anlaşılamadı: numaraya
+    <b>yüklenmiş de olabilir, yüklenmemiş de.</b> Sistem kendiliğinden hiçbir
+    şey yapmaz; para bayiden düşülü duruyor. Önce <b>Sonucu sorgula</b>'yı
+    deneyin ya da sağlayıcının panelinden bu numaraya bakın.
+  </div>
+  {% endif %}
+
+  {% comment %} 1. Sorgu: salt okuma, her zaman güvenli. {% endcomment %}
+  <form method="post" class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    {% csrf_token %}
+    <input type="hidden" name="karar" value="sorgula">
+    <h3 class="font-semibold">Sonucu sorgula</h3>
+    <p class="mb-3 mt-1 text-sm text-base-500">Sağlayıcıya yalnızca “yüklendi mi?” diye sorulur, hiçbir şey gönderilmez. İstediğiniz kadar basabilirsiniz.</p>
+    <button type="submit" class="rounded-default border border-base-200 px-4 py-2 font-medium dark:border-base-700">Sonucu sorgula</button>
+  </form>
+
+  {% comment %} 2. Yüklendi say {% endcomment %}
+  <form method="post" class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    {% csrf_token %}
+    <input type="hidden" name="karar" value="yuklendi">
+    <h3 class="font-semibold">Yüklendi say</h3>
+    <p class="mb-3 mt-1 text-sm text-base-500">Sağlayıcının panelinden baktınız ve yüklenmiş. İşlem kapanır, para bayide düşülü kalır.</p>
+    <div class="mb-3 grid gap-3 sm:grid-cols-2">
+      <label class="text-sm">Alış (boşsa sağlayıcının bildirdiği / sıradaki fiyat)
+        <input name="alis" inputmode="decimal" class="mt-1 w-full rounded-default border border-base-200 px-3 py-2 dark:border-base-700 dark:bg-base-900">
+      </label>
+      <label class="text-sm">Bayiye gösterilecek mesaj / pin
+        <input name="mesaj" class="mt-1 w-full rounded-default border border-base-200 px-3 py-2 dark:border-base-700 dark:bg-base-900">
+      </label>
+    </div>
+    <button type="submit" class="rounded-default px-4 py-2 font-medium text-white" style="background:#0F8A4D">Yüklendi olarak kapat</button>
+  </form>
+
+  {% comment %} 3. Elle gönderim: tek bilinçli yeniden gönderim yolu. {% endcomment %}
+  {% if islem.durum == "askida" and saglayicilar %}
+  <form method="post" class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900"
+        onsubmit="return confirm('Bu işlem seçilen sağlayıcıya GÖNDERİLECEK. Önceki gönderim yüklendiyse numaraya iki kez yüklenir. Emin misiniz?');">
+    {% csrf_token %}
+    <input type="hidden" name="karar" value="gonder">
+    <h3 class="font-semibold">Sağlayıcıya gönder</h3>
+    <p class="mb-3 mt-1 text-sm text-base-500">
+      {% if belirsiz_var %}<b style="color:#D42046">Dikkat:</b> önceki gönderimin sonucu belirsiz. Yüklenmediğinden emin değilseniz göndermeyin —
+      iki kez yüklenirse ikisinin parası da sağlayıcılarda düşer.{% else %}Önceki gönderimler reddedildi; sıradakine göndermek güvenli.{% endif %}
+      Sağlayıcı reddederse işlem askıda kalır.
+    </p>
+    <div class="mb-3">
+      <select name="saglayici" class="w-full rounded-default border border-base-200 px-3 py-2 dark:border-base-700 dark:bg-base-900">
+        {% for s in saglayicilar %}
+        <option value="{{ s.saglayici.pk }}" {% if s.denendi %}style="color:#D42046"{% endif %}>
+          {{ s.rota.sira }}. {{ s.saglayici }}{% if s.denendi %} — bu işlem buraya daha önce gönderildi{% endif %}{% if s.rota.alis_fiyati %} · alış {{ s.rota.alis_fiyati }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="rounded-default px-4 py-2 font-medium text-white" style="background:#B45309">Gönder</button>
+  </form>
+  {% endif %}
+
+  {% endif %}
+
+  {% comment %} 4. İptal + iade: sonuçlanmış (yüklenmiş) işlemde de açık. {% endcomment %}
+  {% if islem.durum != "iptal" %}
+  <form method="post" class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900"
+        onsubmit="return confirm('{{ islem.siparis.tutar }} ₺ bayiye iade edilecek. Emin misiniz?');">
+    {% csrf_token %}
+    <input type="hidden" name="karar" value="iptal">
+    <h3 class="font-semibold">İptal et ve iade et</h3>
+    <p class="mb-3 mt-1 text-sm text-base-500">
+      <b>{{ islem.siparis.tutar }} ₺</b> ters kayıtla bayinin bakiyesine döner.
+      {% if islem.durum == "basarili" %}<b style="color:#D42046">İşlem yüklendi görünüyor</b> — iade bizden çıkar; yalnızca sağlayıcı yüklemeyi geri aldıysa yapın.
+      {% elif belirsiz_var %}Sağlayıcıda yüklendiyse o parayı biz ödemiş oluruz; önce sorgulayın.{% endif %}
+    </p>
+    <label class="mb-3 block text-sm">Sebep (bayi görür)
+      <input name="mesaj" class="mt-1 w-full rounded-default border border-base-200 px-3 py-2 dark:border-base-700 dark:bg-base-900" placeholder="Numara hatalı, paket bu hatta yüklenemiyor…">
+    </label>
+    <button type="submit" class="rounded-default px-4 py-2 font-medium text-white" style="background:#D42046">İptal et ve iade et</button>
+  </form>
+  {% endif %}
+
+  <a href="{% url 'admin:kontor_islem_changelist' %}" class="inline-block rounded-default border border-base-200 px-4 py-2 font-medium dark:border-base-700">Listeye dön</a>
+</div>
+{% endblock %}

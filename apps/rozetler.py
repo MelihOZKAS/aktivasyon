@@ -58,6 +58,45 @@ def takilan_esimler(request):
     )
 
 
+def askidaki_kontorler(request):
+    """Karar bekleyen kontör işlemleri.
+
+    Askıda: sağlayıcının cevabı anlaşılamadı, sistem kendiliğinden hiçbir şey
+    yapmıyor — yönetici bakmadıkça para bayide düşülü kalır. Beş dakikadan
+    uzun süren "işlemde" de sayılır: normalde bir iki dakikada sonuçlanır,
+    uzadıysa sağlayıcıda sorun var.
+    """
+    from datetime import timedelta
+
+    from django.db.models import Q
+    from django.utils import timezone
+
+    from apps.kontor.models import Islem, IslemDurumu
+
+    return _sayi(
+        Islem.objects.filter(
+            Q(durum=IslemDurumu.ASKIDA)
+            | Q(
+                durum__in=(IslemDurumu.SIRADA, IslemDurumu.ISLEMDE),
+                olusturma_tarihi__lt=timezone.now() - timedelta(minutes=5),
+            )
+        )
+    )
+
+
+def yeni_kontor_paketleri(request):
+    """Operatörün sorgusunda görülen, kataloğumuzda karşılığı olmayan paketler.
+
+    Yönetici ya kataloğa ekler ya "yok say" der; ikisinde de sayıdan düşer.
+    """
+    from django.db.models import Exists, OuterRef
+
+    from apps.kontor.models import GorulenPaket, Paket
+
+    katalogda = Paket.objects.filter(kategori_id=OuterRef("kategori_id"), kod=OuterRef("kod"))
+    return _sayi(GorulenPaket.objects.filter(yok_say=False).exclude(Exists(katalogda)))
+
+
 def _sayi(sorgu):
     adet = sorgu.count()
     if not adet:
@@ -88,7 +127,11 @@ def yanit_bekleyen_talepler(request):
 
 
 def bekleyen_siparisler(request):
-    """Verilmiş ama henüz teslim edilmemiş ürün siparişleri."""
+    """Verilmiş ama henüz teslim edilmemiş ürün siparişleri.
+
+    Süren kontör işlemi de bir "verilmiş sipariş"tir ama hazırlanacak bir
+    ürün değil; onu kendi rozeti sayar (`askidaki_kontorler`).
+    """
     from apps.magaza.models import Siparis, SiparisDurumu
 
-    return _sayi(Siparis.objects.filter(durum=SiparisDurumu.VERILDI))
+    return _sayi(Siparis.objects.filter(durum=SiparisDurumu.VERILDI, kontor__isnull=True))

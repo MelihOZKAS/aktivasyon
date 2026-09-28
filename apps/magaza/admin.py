@@ -119,6 +119,10 @@ class SiparisAdmin(ModelAdmin):
     def get_queryset(self, request):
         return (
             super().get_queryset(request)
+            # Kontör işlemleri kendi ekranında yönetilir: iptal ya da teslim
+            # burada yapılsaydı sağlayıcı atlanırdı. Günde yüzlercesi bu
+            # listeyi de boğardı. (get_object da bu sorguyu kullanır.)
+            .filter(kontor__isnull=True)
             .select_related("bayi", "bayi__bayi_profili", "urun", "esim", "esim_yukleme")
         )
 

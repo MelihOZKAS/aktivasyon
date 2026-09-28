@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}{{ kategori.ad }}{% endblock %}
+{% block sayfa_basligi %}Kontör{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-4xl">
+  <a href="{% url 'kontor:kategoriler' %}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← Kontör</a>
+
+  <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div class="min-w-0">
+      <h2 class="baslik text-2xl font-bold"
+          {% if kategori.operator %}style="color: {{ kategori.operator.renk|okunur_renk }}"{% endif %}>{{ kategori.ad }}</h2>
+      {% if kategori.aciklama %}
+      <p class="mt-1 whitespace-pre-line text-sm text-soluk">{{ kategori.aciklama }}</p>
+      {% endif %}
+    </div>
+    <div class="sim shrink-0 rounded-kart border border-cizgi bg-yuzey px-4 py-3">
+      <p class="text-xs font-semibold text-soluk">Bakiyen</p>
+      <p class="rakam mt-0.5 text-xl font-bold">{{ bakiye|para }} ₺</p>
+    </div>
+  </div>
+
+  {% if kategori.sorgu_kaynagi %}
+  {% comment %}
+    Numara sorgusu: sonuç bu formun altına HTMX ile gelir. Salt okumadır;
+    cevap gelmese de aşağıdaki liste seçilebilir kalır.
+  {% endcomment %}
+  <form hx-get="{% url 'kontor:sorgu' kategori.slug %}" hx-target="#sorgu-sonucu" hx-swap="outerHTML"
+        hx-disabled-elt="find button" class="mb-3 flex gap-2">
+    <input name="hedef" type="tel" inputmode="numeric" autocomplete="off" required maxlength="17"
+           class="girdi rakam min-w-0 flex-1 text-lg" placeholder="5XX XXX XX XX" aria-label="Numara">
+    <button type="submit" class="dugme dugme-birincil shrink-0">Sorgula</button>
+  </form>
+  <div id="sorgu-sonucu"></div>
+  {% endif %}
+
+  {% if paketler %}
+  {% if paketler|length > 8 %}
+  <input type="search" id="paket-ara" class="girdi mb-4 w-full" placeholder="Paket ara… (15 GB, 1000 DK, 100)"
+         autocomplete="off" inputmode="search">
+  {% endif %}
+
+  {% comment %}
+    Paket kartı: ad, içerik (DK · GB · gün), bayinin ödeyeceği fiyat.
+    Bakiyesi yetmeyen paket gizlenmez; fiyatı uyarı renginde yazılır,
+    sebebi paket sayfasında.
+  {% endcomment %}
+  <div id="paket-listesi" class="grid gap-2 sm:grid-cols-2">
+    {% for paket in paketler %}
+    <a href="{% url 'kontor:paket' kategori.slug paket.kod %}"
+       data-ara="{{ paket.ad|lower }} {{ paket.icerik|lower }} {{ paket.kod }}"
+       class="kart-secim sim yuzey flex min-h-16 items-center gap-3 border border-cizgi px-4 py-3 transition">
+      <span class="min-w-0 flex-1">
+        <span class="block font-medium">{{ paket.ad }}</span>
+        {% if paket.icerik or paket.aciklama %}
+        <span class="mt-0.5 block text-xs text-soluk">{{ paket.icerik }}{% if paket.icerik and paket.aciklama %} · {% endif %}{{ paket.aciklama }}</span>
+        {% endif %}
+      </span>
+      <span class="rakam shrink-0 font-semibold {% if paket.fiyat > bakiye %}text-uyari{% endif %}">{{ paket.fiyat|para }} ₺</span>
+    </a>
+    {% endfor %}
+  </div>
+  <p id="paket-yok" hidden class="mt-4 text-sm text-soluk">Aramaya uyan paket yok.</p>
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">Bu kategoride şu an satışta paket yok.</p>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    var kutu = document.getElementById("paket-ara");
+    var liste = document.getElementById("paket-listesi");
+    var yok = document.getElementById("paket-yok");
+    if (!kutu || !liste) return;
+    var kartlar = Array.prototype.slice.call(liste.children);
+    function kucult(m) { return m.replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr"); }
+    kutu.addEventListener("input", function () {
+      var aranan = kucult(kutu.value.trim());
+      var gorunen = 0;
+      kartlar.forEach(function (k) {
+        var uydu = !aranan || kucult(k.dataset.ara).indexOf(aranan) !== -1;
+        k.hidden = !uydu;
+        if (uydu) gorunen++;
+      });
+      yok.hidden = gorunen > 0;
+    });
+  })();
+</script>
+{% endblock %}

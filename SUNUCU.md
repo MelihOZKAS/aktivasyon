@@ -119,6 +119,14 @@ Container açılırken `entrypoint.sh` şunları kendiliğinden yapar:
 veritabanını bekler → `manage.py kurulum` (migration + başlangıç verisi) →
 `collectstatic --noinput --clear` (eski tasarımın dosyaları silinir).
 
+Aynı komut **kontör işçisini** (`kontor_isci_fadil`) de açar: işlemdekilerin
+sonucunu sağlayıcılardan sorar. Açılış betiğini atlar — kurulumu yalnızca
+`app_fadil` yapar. Çalıştığını görmek için:
+
+```bash
+docker compose logs --tail=20 kontor_isci_fadil     # "Kontör işçisi başladı" beklenir
+```
+
 ---
 
 ## 5 · Veritabanını sıfırla ve yeniden kur
@@ -220,6 +228,10 @@ kalan dördü panelden girilir — **sıra önemli**, her adım öncekine dayan�
 | + | SIM Stoğu | Kartları tek tek gir, bayilere zimmetle |
 | + | eSIM → Sağlayıcılar | eSIM Access hesabının erişim kodu ve gizli anahtarı, varsayılan kâr oranı. Kaydedince satırdaki **Eşitle** kataloğu çeker |
 | + | eSIM → Paketler | Üstteki **Kuru güncelle** TCMB'den USD kurunu alır — kur girilmeden eSIM satışı kapalıdır. İstenmeyen ülke/paket kapatılır, kâr oranı toplu işlemle değiştirilir |
+| + | Kontör → Sağlayıcılar | Her kontör sitesi: yazılımı (Znet/Gencan, Teknografi, kntryeni), adres, kullanıcı adı, şifre. **Sıradaki Referans No**'yu eski sistemde o hesapla kullanılan sayının üstünde başlat — sağlayıcı aynı numarayı ikinci kez kabul etmez |
+| + | Kontör → Kategoriler | Vodafone TL, Turkcell Paket, PUBG UC… Operatör/tip kodu (vodafone / ses): bayi programları kategoriyi bununla ister |
+| + | Kontör → Paketler | Kupür kodu, ad, içerik, bayiye satış. Sayfanın altındaki **Sağlayıcı sırası**: hangi siteye hangi sırayla gideceği. Listedeki toplu işlemler: *sağlayıcı sırasına ekle*, *fiyat uygula (alış + %)* |
+| + | Kontör → Bayi API Erişimleri | Kendi programından yükleyen bayi için: bayiyi seç, kaydet, **Yeni şifre**. Ekrandaki adres/bayi kodu/şifreyi bayiye ver |
 | + | Bayi Grupları → eSIM Satış Kârı | Gruptaki bayinin müşteriye kârı, tam sayı yüzde. Bayi paketi listedeki satış fiyatından öder (230 ₺); ekranda %25 eklenmiş tavsiye fiyatı görür (287 ₺), kazancı yanında yazar. Boş ya da 0 ise tavsiye gösterilmez |
 
 Bunlar bitince günlük işte elle yapılan tek şey **başvuru durumunu
@@ -245,6 +257,17 @@ girince iki düğmeye basmak yeter.
 Sağlayıcıdaki dolar bakiyesi bitince sipariş "the balance is insufficient"
 ile düşer ve bayiye para kendiliğinden iade edilir; bakiyeyi eSIM Access
 panelinden yüklersin, sistemde bir şey yapmak gerekmez.
+
+### Kontör: askıdaki işlem
+
+Kontör işlemleri kendiliğinden gönderilir, sonuçlanır, yüklenemezse iade
+edilir. **Aynı işlem bir sağlayıcıya kendiliğinden ikinci kez gitmez.**
+Sağlayıcı açıkça reddederse sıradakine geçilir; cevabı anlaşılamazsa
+(zaman aşımı, sunucu hatası, tanınmayan metin) işlem **askıya** düşer ve
+yan menüdeki Kontör → İşlemler rozeti sayar. Satırdaki **Karar**:
+önce *Sonucu sorgula* (hiçbir şey göndermez), olmazsa sağlayıcının
+panelinden numaraya bak; yüklendiyse *Yüklendi say*, yüklenmediyse
+*Sağlayıcıya gönder* ya da *İptal et ve iade et*.
 
 ---
 

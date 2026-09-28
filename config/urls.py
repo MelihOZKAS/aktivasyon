@@ -20,6 +20,7 @@ urlpatterns = [
     path("destek/", include("apps.destek.urls", namespace="destek")),
     path("", include("apps.esim.urls", namespace="esim")),
     path("", include("apps.magaza.urls", namespace="magaza")),
+    path("", include("apps.kontor.urls", namespace="kontor")),
 ]
 
 # Tarife, kampanya ve operatör görselleri DEBUG'dan bağımsız sunulur:

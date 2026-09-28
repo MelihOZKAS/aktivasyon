@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}{{ islem.paket_adi }}{% endblock %}
+{% block sayfa_basligi %}Kontör{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-xl">
+  <a href="{% url 'kontor:islemler' %}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← Yüklemelerim</a>
+
+  <div class="yuzey mb-4 rounded-kart border border-cizgi p-5">
+    <p class="text-sm font-medium"
+       {% if islem.kategori.operator %}style="color: {{ islem.kategori.operator.renk|okunur_renk }}"{% endif %}>{{ islem.kategori.ad|default:"Kontör" }}</p>
+    <h2 class="baslik mt-1 text-xl font-bold">{{ islem.paket_adi }}</h2>
+    <dl class="mt-3 space-y-1.5 text-sm">
+      {% if islem.hedef %}
+      <div class="flex justify-between gap-4 border-b border-cizgi py-1.5">
+        <dt class="text-soluk">{{ islem.kategori.hedef_basligi|default:"Numara" }}</dt>
+        <dd class="rakam font-semibold">{{ islem.hedef|telefon }}</dd>
+      </div>
+      {% endif %}
+      <div class="flex justify-between gap-4 border-b border-cizgi py-1.5">
+        <dt class="text-soluk">Tutar</dt>
+        <dd class="rakam font-semibold">{{ islem.siparis.tutar|para }} ₺</dd>
+      </div>
+      <div class="flex justify-between gap-4 py-1.5">
+        <dt class="text-soluk">Referans</dt>
+        <dd class="rakam">{{ islem.siparis.referans_no }} · {{ islem.olusturma_tarihi|date:"d.m.Y H:i" }}</dd>
+      </div>
+    </dl>
+  </div>
+
+  {% include "kontor/parca_durum.html" %}
+
+  {% if islem.paket and islem.kategori.aktif and islem.durum != "askida" %}
+  <a href="{% url 'kontor:paket' islem.kategori.slug islem.paket.kod %}{% if islem.hedef %}?hedef={{ islem.hedef|urlencode }}{% endif %}"
+     class="dugme dugme-sessiz mt-4 w-full text-sm">Aynı paketi yeniden yükle</a>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}Kontör ve pin{% endblock %}
+{% block sayfa_basligi %}Kontör{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-4xl">
+
+  <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h2 class="baslik text-2xl font-bold">Kontör, paket ve oyun pini</h2>
+      <p class="mt-1 text-sm text-soluk">
+        Operatörü ya da oyunu seç, paketi seç, numarayı yaz. Tutar bakiyenden
+        düşer; yüklenemezse kendiliğinden geri gelir.
+      </p>
+    </div>
+    <div class="sim shrink-0 rounded-kart border border-cizgi bg-yuzey px-4 py-3">
+      <p class="text-xs font-semibold text-soluk">Bakiyen</p>
+      <p class="rakam mt-0.5 text-xl font-bold">{{ bakiye|para }} ₺</p>
+    </div>
+  </div>
+
+  {% if kategoriler %}
+  {% comment %}
+    Kategori kartı operatörün marka rengini sol şeritte taşır: renk burada
+    "hangi operatör" bilgisidir. Oyun kategorilerinde operatör yok, şerit gri.
+  {% endcomment %}
+  <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    {% for kategori in kategoriler %}
+    <a href="{{ kategori.get_absolute_url }}"
+       class="kart-secim sim yuzey flex min-h-14 items-center gap-3 border border-cizgi px-4 py-3 transition">
+      <span class="h-8 w-1.5 shrink-0 rounded-full"
+            style="background: {% if kategori.operator %}{{ kategori.operator.renk|okunur_renk }}{% else %}var(--color-silik){% endif %}"></span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate font-medium">{{ kategori.ad }}</span>
+        {% if kategori.operator %}<span class="block truncate text-xs text-soluk">{{ kategori.operator.ad }}</span>{% endif %}
+      </span>
+      <span class="text-soluk" aria-hidden="true">→</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">Şu an satışta kontör ya da pin yok.</p>
+  </div>
+  {% endif %}
+
+  <section class="mt-10">
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="baslik font-semibold">Son yüklemelerin</h2>
+      <a href="{% url 'kontor:islemler' %}" class="inline-flex min-h-11 items-center text-sm font-medium text-vurgu">Hepsi</a>
+    </div>
+    {% if son_islemler %}
+    <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+      {% for islem in son_islemler %}
+      {% include "kontor/parca_islem.html" %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-soluk">Henüz yükleme yapmadın.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

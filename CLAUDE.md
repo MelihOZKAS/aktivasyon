@@ -32,6 +32,7 @@ Bu ilkeyi bozan bir çözüm önerme.
 | Destek | `apps/destek` | Bayi–yönetim yazışması |
 | Mağaza | `apps/magaza` | Bayinin hakedişiyle aldığı ürünler |
 | eSIM | `apps/esim` | Sağlayıcı API'lerinden çekilen yurt dışı internet paketleri, kur ve kâr oranıyla satış, QR teslimi |
+| Kontör | `apps/kontor` | TL, paket ve oyun pini yükleme; sağlayıcı sırası, askı ve iade; bayi programları için Znet uyumlu API |
 
 ## Kurulum sırası
 
@@ -315,6 +316,74 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   yakar, sağlayıcı da artık iptal etmez.
   · Sadece sabit paketler alınır; günlük (dataType 2) paketler kademeli
   indirimle fiyatlandığı için bu sürümde katalogda yok.
+- **Kontör, paket ve oyun pini ayrı bir bölümdür** (`apps/kontor`,
+  `/kontor/…`, menüde eSIM'in altında). Bayi numarayı yazar, işlem
+  anlaşılan bir **sağlayıcıya** (Znet/Gencan, Teknografi, kntryeni — hepsi
+  ayrı yazılım şirketi, protokolleri eski projeden `Site/kontor` aktarıldı)
+  iletilir. Para yine `magaza.Siparis` üzerinden (`urun_adi="<kategori> ·
+  <paket>"`): açılınca bakiyeden düşer, borca yazılmaz, iptalde ters kayıt.
+  Kontör siparişi mağazanın listelerine, rozetine ve admin'ine girmez
+  (`kontor__isnull=True`) — iptal orada yapılsaydı sağlayıcı atlanırdı.
+  · **Tek gönderim ilkesi.** Her istek karşı sitede canlı paradır; aynı
+  işlem bir sağlayıcıya **kendiliğinden asla ikinci kez gitmez**. Gönderim
+  ağa çıkmadan `Deneme` olarak commit edilir; süreç yarıda ölürse kayıt
+  "Gönderiliyor"da kalır ve bir sonraki tur işlemi **askıya** alır. Cevap
+  anlaşılamazsa (zaman aşımı, 5xx, `OK|8` gibi tanınmayan kod) yine askı:
+  para bayiden düşülü kalır, yönetici **Karar** ekranından *Sonucu sorgula*
+  (salt okuma) / *Yüklendi say* / *Sağlayıcıya gönder* / *İptal et ve iade
+  et* seçer. Sıradaki sağlayıcıya kendiliğinden geçiş **yalnızca kesin
+  retle** olur: sağlayıcı açıkça reddetti (`OK|3`, `_HATA`, `98`) ya da
+  bağlantı hiç kurulamadı (`kesin_gitmedi`), ya da sonuç sorgusu "iptal"
+  dedi — işlem orada hiç yüklenmedi. Askıdaki işlemde sorgu "iptal" derse
+  işlem askıda kalır, gönderim yöneticinin kararıdır.
+  · **`ATOMIC_REQUESTS` açık; sağlayıcıyla konuşan her görünüm
+  `non_atomic_requests`'tir** (bayi yükleme/durum, bayi API'si, admin karar
+  ekranı). İstek transaction'ında gönderim kaydı commit edilmez, süreç
+  düşünce kaybolur ve işçi aynı işlemi ikinci kez gönderirdi. `_gonder`
+  açık transaction içinden çağrılırsa `RuntimeError` verir
+  (`KONTOR_ATOMIK_DENETIMI`; testler kapatır).
+  · **Aynı işlemi iki süreç yürütmez:** `Islem.kilit_bitis` süreli
+  sahipliktir (`services.sahiplik`), HTTP beklerken satır kilidi tutulmaz.
+  İşi yürütenler: açılışta arka plan iş parçacığı, bayinin durum sayfası
+  (HTMX 3 sn), bayi programının `tl_kontrol` sorgusu ve işçi
+  (`manage.py kontor_isle --dongu`, docker-compose'da `kontor_isci_fadil`).
+  Sonuç sorgusu `SORGU_ARALIGI`'ndan sık gitmez.
+  · **Sağlayıcı referansı sayaçtır** (`Saglayici.ref_sayaci`): sağlayıcı
+  aynı `tekilnumara`'yı ikinci kez kabul etmez, eski sistemde kullanılan
+  hesapta sayaç eski değerin üstünden başlatılır.
+  · **Katalog veridir:** `Kategori` (operatör, hedef türü — telefon / oyuncu
+  ID / pin —, protokol kodları `api_operator`+`api_tip`), `Paket` (kupür
+  kodu, içerik, satış), `Rota` (eski api1/api2/api3: hangi sağlayıcıya,
+  hangi sırayla, hangi kodla; boş kod paketinkine düşer), `PaketFiyati`
+  (bayi grubuna özel satış; girilmeyen grup paketin fiyatını öder). Alış
+  bilgisi rotadadır; fiyat listesi veren sağlayıcıda (**Fiyat listesini
+  çek**) kendiliğinden güncellenir, satışa dokunulmaz. Eski sistemin iade
+  tutarını koda gömen (`95.5`) hatası burada yok: iade her zaman siparişin
+  kendi tutarıdır.
+  · **Bayi programları Znet protokolüyle bağlanır** (`/servis/tl_servis.php`,
+  `/servis/tl_kontrol.php`, `apps/kontor/api.py`). Şifre hesap parolası
+  değildir: `ApiErisimi`'nde üretilir, bir kez gösterilir, SHA-256 özeti
+  saklanır (rastgele anahtar; her istekte PBKDF2 yakmaya değmez). Aynı
+  `tekilnumara` aynı işlemi döndürür — program zaman aşımında yeniden
+  gönderince ikinci yükleme olmaz; başka numarayla aynı referans reddedilir.
+  Askıdaki işlem programa `2:islemde` görünür.
+  · Panelden aynı numaraya aynı paket bir dakika içinde ikinci kez açılmaz
+  (`TEKRAR_KORUMASI`); gönder düğmesi basılınca kilitlenir.
+  · **Numara sorgusu kaynak dosyasıdır** (`apps/kontor/sorgu/`): her dosya
+  bir fonksiyonu `@kaynak(kod, ad)` ile kaydeder (`numara -> list[SorguPaketi]`),
+  kategori `sorgu_kaynagi` ile birini seçer. Ekran dönen kodları `Paket.kod`
+  ile eşleştirir; sorgu salt okumadır, 5 dk önbelleğe alınır ve hata
+  verirse satış sürer. Vodafone kaynağı `sorgu/vodafone.py`: istemci
+  (`vodafone_istemci.py`) yönetimin yazdığı koddur, olduğu gibi durur;
+  zaman aşımı 8 sn — sorgu bayinin isteği içinde çalışır, üç gunicorn
+  işçisi uzun beklemeye gelmez. Hat sahibinin maskeli adı yalnızca
+  `Kategori.sorgu_sahibi_goster` açıkken istenir, ekranda gösterilir,
+  veritabanına yazılmaz. Taze (önbellekten olmayan) her cevaptaki paketler
+  `GorulenPaket`'e işlenir: katalogda karşılığı olmayan "yeni"dir, rozetle
+  sayılır; **Kataloğa ekle** paketi fiyatsız ve sağlayıcısız açar (bayiye
+  görünmez), **Yok say** rozetten düşürür. Fiyat değişimi `onceki_fiyat`'ta
+  durur. Ucuz alternatif paket seçimi (eski `Sorgu.php`
+  akışı) bu sürümde yok.
 - **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme
   bildiriminin `durum` alanı formda düzenlenebilir; yönetici "Onaylandı"
   seçip kaydedince bildirim onaylanmış **görünüyor** ama para hiç hareket

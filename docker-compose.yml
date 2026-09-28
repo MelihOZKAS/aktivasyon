@@ -31,6 +31,25 @@ services:
     networks:
       - main_fadil
       - bridge_network
+  # Kontör işçisi: işlemdekilerin sonucunu sağlayıcılardan sorar, bayi
+  # sayfayı kapatsa da yüklenen kapanır, yüklenemeyen iade edilir. Aynı
+  # imaj; açılış betiği (kurulum, collectstatic) atlanır — onu app_fadil
+  # çalıştırır, ikisi aynı anda migration yapmasın.
+  kontor_isci_fadil:
+    container_name: kontor_isci_fadil
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - aktivasyon/docker.env
+    volumes:
+      - .:/srv/app_fadil
+    depends_on:
+      - app_fadil
+    entrypoint: ["python", "manage.py", "kontor_isle", "--dongu"]
+    restart: unless-stopped
+    networks:
+      - main_fadil
 
 networks:
   main_fadil:

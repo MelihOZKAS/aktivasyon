@@ -1,0 +1,79 @@
+{% load panel %}
+{% comment %}
+  İşlemin sonucu. Sürerken kutu birkaç saniyede bir kendini yeniler (HTMX);
+  sonuçlanınca hx- öznitelikleri düşer, sorgu durur. Askıdaki işlem bayiye
+  "kontrol ediliyor" diye görünür — sağlayıcının iç mesajı ona gösterilmez,
+  daha seyrek sorulur.
+{% endcomment %}
+<div id="kontor-durum"
+     {% if islem.acik %}hx-get="{% url 'kontor:islem-durum' islem.siparis.referans_no %}"
+     hx-trigger="every {% if islem.durum == 'askida' %}15s{% else %}3s{% endif %}" hx-swap="outerHTML"{% endif %}>
+
+  {% if islem.durum == "basarili" %}
+  <div class="sim rounded-kart border border-olumlu/40 bg-olumlu/5 p-5">
+    <p class="baslik text-lg font-bold text-olumlu">
+      {% if islem.kategori.hedef == "yok" %}Pin hazır{% else %}Yüklendi{% endif %}
+    </p>
+    {% if islem.sonuc_mesaji %}
+    {% comment %}
+      Pin kodu ve sağlayıcının mesajı buradadır; bayi müşteriye okur ya da
+      kopyalayıp gönderir.
+    {% endcomment %}
+    <p class="rakam mt-2 break-all rounded-lg border border-cizgi bg-yuzey p-3 text-base font-semibold">{{ islem.sonuc_mesaji }}</p>
+    <button type="button" class="dugme dugme-sessiz mt-3 text-sm" data-kopyala="{{ islem.sonuc_mesaji }}">Kopyala</button>
+    {% endif %}
+  </div>
+
+  {% elif islem.durum == "iptal" %}
+  <div class="sim rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-5">
+    <p class="baslik text-lg font-bold text-olumsuz">Yüklenemedi</p>
+    <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
+      <b class="rakam">{{ islem.siparis.tutar|para }} ₺</b> bakiyene geri yazıldı.
+      {% if islem.sonuc_mesaji %}<br>Sebep: {{ islem.sonuc_mesaji }}{% endif %}
+    </p>
+  </div>
+
+  {% elif islem.durum == "askida" %}
+  <div class="sim rounded-kart border border-uyari/40 bg-uyari/5 p-5">
+    <p class="baslik flex items-center gap-2 font-semibold text-uyari">
+      <span class="gonderim-sinyali" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      Kontrol ediliyor
+    </p>
+    <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
+      Operatörden net cevap gelmedi; yönetim işlemi kontrol ediyor. Numaraya
+      <b>ikinci kez yükleme yapma</b> — iki kez yüklenebilir. Yüklenmediği
+      anlaşılırsa tutar bakiyene döner.
+    </p>
+  </div>
+
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-5">
+    <p class="baslik flex items-center gap-2 font-semibold">
+      <span class="gonderim-sinyali text-vurgu" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      Yükleniyor…
+    </p>
+    <p class="mt-1 text-sm text-soluk">
+      Genellikle birkaç saniye, bazen bir iki dakika sürer. Sayfa kendini
+      yeniler; bekleyebilir ya da başka işe geçebilirsin, sonuç
+      <a href="{% url 'kontor:islemler' %}" class="font-medium text-vurgu underline">yüklemelerinde</a> görünür.
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    // Parça HTMX ile yeniden geldiğinde dinleyici ikinci kez bağlanmasın.
+    if (window.kontorKopyalaBagli) return;
+    window.kontorKopyalaBagli = true;
+    document.addEventListener("click", function (olay) {
+      var dugme = olay.target.closest("[data-kopyala]");
+      if (!dugme || !navigator.clipboard) return;
+      navigator.clipboard.writeText(dugme.dataset.kopyala).then(function () {
+        var eski = dugme.textContent;
+        dugme.textContent = "Kopyalandı";
+        setTimeout(function () { dugme.textContent = eski; }, 1500);
+      });
+    });
+  })();
+</script>

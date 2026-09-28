@@ -1,0 +1,36 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Paket listesindeki toplu işlemlerin ara formu. Seçilen kayıtlar gizli
+  alanlarda taşınır; "uygula" ile aynı işleme geri POST'lanır.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <form method="post" class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+    {% csrf_token %}
+    <p class="mb-4 text-sm leading-relaxed text-base-500">{{ aciklama }}</p>
+
+    {% for alan in form %}
+    <div class="mb-4">
+      <label for="{{ alan.id_for_label }}" class="mb-1 block text-sm font-medium">{{ alan.label }}</label>
+      {{ alan }}
+      {% for hata in alan.errors %}<p class="mt-1 text-sm" style="color:#D42046">{{ hata }}</p>{% endfor %}
+    </div>
+    {% endfor %}
+
+    <p class="mb-2 text-sm font-medium">Seçilen {{ secilenler|length }} paket</p>
+    <ul class="mb-5 max-h-60 overflow-y-auto text-sm text-base-500">
+      {% for kayit in secilenler %}
+      <li>{{ kayit }}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ kayit.pk }}"></li>
+      {% endfor %}
+    </ul>
+
+    <input type="hidden" name="action" value="{{ eylem }}">
+    <div class="flex flex-wrap gap-3">
+      <button type="submit" name="uygula" value="1" class="rounded-default bg-primary-600 px-4 py-2 font-medium text-white">Uygula</button>
+      <a href="{% url 'admin:kontor_paket_changelist' %}" class="rounded-default border border-base-200 px-4 py-2 font-medium dark:border-base-700">Vazgeç</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

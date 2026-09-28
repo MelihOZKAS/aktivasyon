@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block baslik %}Yüklemelerim{% endblock %}
+{% block sayfa_basligi %}Kontör{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-3xl">
+  <a href="{% url 'kontor:kategoriler' %}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← Kontör</a>
+  <h2 class="baslik mb-4 text-2xl font-bold">Yüklemelerim</h2>
+
+  <form method="get" class="mb-4 flex flex-col gap-2 sm:flex-row">
+    <input type="search" name="q" value="{{ q }}" class="girdi flex-1"
+           placeholder="Numara, referans ya da paket…" autocomplete="off">
+    <div class="flex gap-2">
+      <select name="durum" class="girdi flex-1 sm:flex-none" aria-label="Durum">
+        <option value="">Hepsi</option>
+        {% for deger, ad in durumlar %}
+        <option value="{{ deger }}" {% if deger == durum %}selected{% endif %}>{{ ad }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="dugme dugme-sessiz text-sm">Ara</button>
+    </div>
+  </form>
+
+  {% if sayfa.object_list %}
+  <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+    {% for islem in sayfa %}
+    {% include "kontor/parca_islem.html" %}
+    {% endfor %}
+  </div>
+
+  {% if sayfa.has_other_pages %}
+  <div class="mt-4 flex items-center justify-between text-sm">
+    {% if sayfa.has_previous %}
+    <a href="?sayfa={{ sayfa.previous_page_number }}&q={{ q|urlencode }}&durum={{ durum }}" class="dugme dugme-sessiz">← Önceki</a>
+    {% else %}<span></span>{% endif %}
+    <span class="text-soluk">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
+    {% if sayfa.has_next %}
+    <a href="?sayfa={{ sayfa.next_page_number }}&q={{ q|urlencode }}&durum={{ durum }}" class="dugme dugme-sessiz">Sonraki →</a>
+    {% else %}<span></span>{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">{% if q or durum %}Aramaya uyan yükleme yok.{% else %}Henüz yükleme yapmadın.{% endif %}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

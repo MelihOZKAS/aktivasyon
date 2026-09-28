@@ -1,0 +1,48 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Bayi programının şifresi. Sistem yalnızca özetini saklar: şifre bu
+  yanıtta bir kez görünür, sonra kimse bakamaz. GET onay, POST üretim —
+  düz bir bağlantı bayinin programını sessizce kilitlemesin.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-default border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    {% if sifre %}
+    <p class="mb-4 text-sm text-base-500">
+      <b>{{ erisim.kullanici }}</b> için yeni şifre üretildi; eskisi artık geçersiz.
+      Bu şifre bir daha gösterilmeyecek.
+    </p>
+    <pre id="mesaj" class="mb-4 overflow-x-auto rounded-md border border-base-200 p-4 font-mono text-sm dark:border-base-700"
+>Kontör programı ayarları (Znet uyumlu)
+Adres: {{ adres }}
+Bayi kodu: {{ erisim.bayi_kodu }}
+Şifre: {{ sifre }}</pre>
+    <div class="flex flex-wrap gap-3">
+      <button type="button" id="kopyala" class="rounded-md bg-primary-600 px-4 py-2 font-medium text-white">Kopyala</button>
+      <a href="{% url 'admin:kontor_apierisimi_changelist' %}" class="rounded-md border border-base-200 px-4 py-2 font-medium dark:border-base-700">Listeye dön</a>
+    </div>
+    <script>
+      document.getElementById("kopyala").addEventListener("click", function () {
+        var dugme = this;
+        navigator.clipboard.writeText(document.getElementById("mesaj").textContent).then(function () {
+          dugme.textContent = "Kopyalandı";
+        });
+      });
+    </script>
+    {% else %}
+    <p class="mb-4 text-sm leading-relaxed text-base-500">
+      <b>{{ erisim.kullanici }}</b> (bayi kodu <b>{{ erisim.bayi_kodu }}</b>) için yeni bir API
+      şifresi üretilecek ve bir kez gösterilecek. {% if erisim.anahtar_ozeti %}Eski şifre anında
+      geçersiz olur: bayinin programı yeni şifre yazılana kadar yükleme yapamaz.{% endif %}
+    </p>
+    <form method="post" class="flex flex-wrap gap-3">
+      {% csrf_token %}
+      <button type="submit" class="rounded-md bg-primary-600 px-4 py-2 font-medium text-white">Şifre üret</button>
+      <a href="{% url 'admin:kontor_apierisimi_changelist' %}" class="rounded-md border border-base-200 px-4 py-2 font-medium dark:border-base-700">Vazgeç</a>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

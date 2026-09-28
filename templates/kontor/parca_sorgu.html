@@ -1,0 +1,55 @@
+{% load panel %}
+{% comment %}
+  Numara sorgusunun sonucu. Eşleşen paket kataloğumuzdaki pakettir:
+  fiyatı ve numara dolu gelen "Yükle" bağlantısıyla çizilir. Eşleşmeyenler
+  (sorgu kaynağında var, bizde satışta yok) yalnızca bilgi olarak yazılır.
+  Hata satışı durdurmaz: aşağıdaki paket listesi yine seçilebilir.
+{% endcomment %}
+<div id="sorgu-sonucu" class="mb-5">
+  {% if hata %}
+  <div class="sim rounded-kart border border-uyari/40 bg-uyari/5 p-4 text-sm">
+    <p class="font-semibold text-uyari">Sorgulanamadı</p>
+    <p class="mt-1 text-murekkep-yumusak">{{ hata }} Aşağıdaki paketlerden yine seçebilirsin.</p>
+  </div>
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-4">
+    {% comment %}
+      Hat sahibinin maskeli adı: bayi müşteriye "adınız bu mu?" diye teyit
+      eder, yanlış numaraya yükleme yapılmaz. Hiçbir yere kaydedilmez.
+    {% endcomment %}
+    {% if sahip %}
+    <p class="mb-2 text-sm">
+      <span class="text-soluk">Hat sahibi</span> <b class="rakam">{{ sahip }}</b>
+      <span class="block text-xs text-soluk">Müşteriye adını teyit ettir; farklıysa numarayı kontrol et.</span>
+    </p>
+    {% endif %}
+    <p class="text-sm font-semibold">
+      <span class="rakam">{{ numara|telefon }}</span> numarasının alabileceği paketler
+    </p>
+    {% if eslesen %}
+    <div class="mt-3 grid gap-2">
+      {% for paket in eslesen %}
+      <a href="{% url 'kontor:paket' kategori.slug paket.kod %}?hedef={{ numara }}"
+         class="kart-secim sim flex min-h-14 items-center gap-3 border border-cizgi bg-yuzey px-4 py-3 transition">
+        <span class="min-w-0 flex-1">
+          <span class="block font-medium">{{ paket.ad }}</span>
+          {% if paket.icerik %}<span class="mt-0.5 block text-xs text-soluk">{{ paket.icerik }}</span>{% endif %}
+        </span>
+        <span class="rakam shrink-0 font-semibold">{{ paket.fiyat|para }} ₺</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="mt-2 text-sm text-soluk">Bu numaranın alabileceği paketlerden hiçbiri bizde satışta değil.</p>
+    {% endif %}
+    {% if diger %}
+    <details class="mt-3 text-sm">
+      <summary class="cursor-pointer font-medium text-soluk">Bizde satışta olmayan {{ diger|length }} paket</summary>
+      <ul class="mt-2 space-y-1 text-murekkep-yumusak">
+        {% for p in diger %}<li>{{ p.ad|default:p.kod }}{% if p.gun %} · {{ p.gun }} gün{% endif %} <span class="text-soluk">({{ p.kod }})</span></li>{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
