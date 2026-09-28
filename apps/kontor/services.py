@@ -119,14 +119,18 @@ def bayi_fiyati(bayi, paket):
 
 def satistaki_paketler(kategori, bayi):
     """Kategorinin bayiye fiyatı olan, satıştaki paketleri."""
-    paketler = fiyatlandir(Paket.objects.satista().filter(kategori=kategori), bayi)
+    paketler = fiyatlandir(
+        Paket.objects.satista().filter(kategori=kategori).select_related("kategori"), bayi
+    )
     return [p for p in paketler if p.fiyat > 0]
 
 
-def kategori_listesi():
-    """Satışta en az bir paketi olan kategoriler, operatör sırasıyla."""
+def kategori_listesi(*, oyun=False):
+    """Satışta en az bir paketi olan kategoriler; kontör ya da oyun bölümü."""
     return (
-        Kategori.objects.filter(aktif=True, pk__in=Paket.objects.satista().values("kategori"))
+        Kategori.objects.filter(
+            aktif=True, oyun=oyun, pk__in=Paket.objects.satista().values("kategori")
+        )
         .select_related("operator")
         .order_by("sira", "operator__sira", "ad")
     )

@@ -32,7 +32,7 @@ from django.db.models import F, Q
 from django.urls import reverse
 
 from apps.katalog.models import ZamanDamgali
-from apps.katalog.utils import turkce_slug
+from apps.katalog.utils import kucult, turkce_slug
 from apps.kontor.saglayicilar import saglayici_secenekleri, saglayici_sinifi
 from apps.kontor.sorgu import kaynak_secenekleri
 
@@ -154,12 +154,31 @@ class Hedef(models.TextChoices):
 class Kategori(ZamanDamgali):
     """Vodafone TL, Turkcell Paket, PUBG Mobile UC…
 
-    Bayi önce kategoriyi seçer. Operatör varsa kart marka rengini taşır;
-    oyun kategorilerinde operatör boştur.
+    Bayi önce kategoriyi seçer. Operatör varsa kart marka rengini taşır.
+    **Oyun kategorileri ayrı bölümdedir** (`oyun`): bayi menüsünde "Oyun &
+    Pin" altında, `/oyun/…` adresinde, logosuyla listelenir; kontör
+    listesine karışmaz. Satış, para ve sağlayıcı kuralları ikisinde aynıdır —
+    ayrılan yalnızca vitrin.
     """
 
     ad = models.CharField("Ad", max_length=120, unique=True)
     slug = models.SlugField("Kısa Ad", max_length=140, unique=True, blank=True)
+    oyun = models.BooleanField(
+        "Oyun / E-pin",
+        default=False,
+        help_text=(
+            "İşaretlenirse bayi menüsünde kontörden ayrı “Oyun & Pin” bölümünde görünür. "
+            "Pin satışında “Yükleme Nereye”yi “Hedef yok”, oyuncu ID ile yüklemede "
+            "“Oyuncu / hesap numarası” seçin."
+        ),
+    )
+    gorsel = models.ImageField(
+        "Logo",
+        upload_to="oyun/",
+        blank=True,
+        null=True,
+        help_text="Oyun kartında gösterilir (kare, sade logo). Küçültülüp WebP'ye çevrilir.",
+    )
     operator = models.ForeignKey(
         "katalog.Operator",
         verbose_name="Operatör",
@@ -242,6 +261,7 @@ class Kategori(ZamanDamgali):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = turkce_slug(self.ad)
+        self.gorsel = kucult(self.gorsel)
         self.api_operator = self.api_operator.strip().lower()
         self.api_tip = self.api_tip.strip().lower()
         super().save(*args, **kwargs)
@@ -266,8 +286,24 @@ class Kategori(ZamanDamgali):
                 )
         super().validate_constraints(exclude=(exclude or set()) | {"api_operator", "api_tip"})
 
+    # Oyun ve kontör aynı görünümleri kullanır, adresleri ayrıdır
+    # (/oyun/pubg-mobile/, /kontor/vodafone-paket/). Şablonlar adresi
+    # buradan alır, `{% url %}` ile kurmaz — hangi bölüm olduğunu bilmesinler.
+
     def get_absolute_url(self):
-        return reverse("kontor:kategori", args=[self.slug])
+        return reverse("kontor:oyun" if self.oyun else "kontor:kategori", args=[self.slug])
+
+    @property
+    def sorgu_url(self):
+        return reverse("kontor:oyun-sorgu" if self.oyun else "kontor:sorgu", args=[self.slug])
+
+    @property
+    def liste_url(self):
+        return reverse("kontor:oyunlar" if self.oyun else "kontor:kategoriler")
+
+    @property
+    def bolum_adi(self):
+        return "Oyun & Pin" if self.oyun else "Kontör"
 
     @property
     def hedef_basligi(self):
@@ -363,6 +399,15 @@ class Paket(ZamanDamgali):
     def save(self, *args, **kwargs):
         self.kod = self.kod.strip()
         super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        ad = "kontor:oyun-paket" if self.kategori.oyun else "kontor:paket"
+        return reverse(ad, args=[self.kategori.slug, self.kod])
+
+    @property
+    def yukle_url(self):
+        ad = "kontor:oyun-yukle" if self.kategori.oyun else "kontor:yukle"
+        return reverse(ad, args=[self.kategori.slug, self.kod])
 
     @property
     def icerik(self):

@@ -2,11 +2,11 @@
 {% load panel %}
 
 {% block baslik %}{{ kategori.ad }}{% endblock %}
-{% block sayfa_basligi %}Kontör{% endblock %}
+{% block sayfa_basligi %}{{ kategori.bolum_adi }}{% endblock %}
 
 {% block icerik %}
 <div class="mx-auto max-w-4xl">
-  <a href="{% url 'kontor:kategoriler' %}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← Kontör</a>
+  <a href="{{ kategori.liste_url }}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← {{ kategori.bolum_adi }}</a>
 
   <div class="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
     <div class="min-w-0">
@@ -27,7 +27,7 @@
     Numara sorgusu: sonuç bu formun altına HTMX ile gelir. Salt okumadır;
     cevap gelmese de aşağıdaki liste seçilebilir kalır.
   {% endcomment %}
-  <form hx-get="{% url 'kontor:sorgu' kategori.slug %}" hx-target="#sorgu-sonucu" hx-swap="outerHTML"
+  <form hx-get="{{ kategori.sorgu_url }}" hx-target="#sorgu-sonucu" hx-swap="outerHTML"
         hx-disabled-elt="find button" class="mb-3 flex gap-2">
     <input name="hedef" type="tel" inputmode="numeric" autocomplete="off" required maxlength="17"
            class="girdi rakam min-w-0 flex-1 text-lg" placeholder="5XX XXX XX XX" aria-label="Numara">
@@ -54,7 +54,7 @@
   {% endcomment %}
   <div id="paket-listesi" class="grid gap-2 sm:grid-cols-2">
     {% for paket in paketler %}
-    <a href="{% url 'kontor:paket' kategori.slug paket.kod %}"
+    <a href="{{ paket.get_absolute_url }}"
        data-ara="{{ paket.ad|lower }} {{ paket.icerik|lower }} {{ paket.kod }}"
        class="kart-secim sim yuzey flex min-h-16 items-center gap-3 border border-cizgi px-4 py-3 transition">
       <span class="min-w-0 flex-1">

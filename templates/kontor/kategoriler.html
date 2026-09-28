@@ -1,19 +1,27 @@
 {% extends "base.html" %}
 {% load panel %}
 
-{% block baslik %}Kontör ve pin{% endblock %}
-{% block sayfa_basligi %}Kontör{% endblock %}
+{% block baslik %}{% if oyun %}Oyun & Pin{% else %}Kontör{% endif %}{% endblock %}
+{% block sayfa_basligi %}{% if oyun %}Oyun & Pin{% else %}Kontör{% endif %}{% endblock %}
 
 {% block icerik %}
 <div class="mx-auto max-w-4xl">
 
   <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
     <div>
-      <h2 class="baslik text-2xl font-bold">Kontör, paket ve oyun pini</h2>
+      {% if oyun %}
+      <h2 class="baslik text-2xl font-bold">Oyun ve e-pin</h2>
       <p class="mt-1 text-sm text-soluk">
-        Operatörü ya da oyunu seç, paketi seç, numarayı yaz. Tutar bakiyenden
-        düşer; yüklenemezse kendiliğinden geri gelir.
+        Oyunu seç, paketi seç. Pin kodu ekrana gelir; oyuncu ID ile yüklenen
+        oyunlarda ID'yi yazarsın. Tutar bakiyenden düşer, olmazsa geri gelir.
       </p>
+      {% else %}
+      <h2 class="baslik text-2xl font-bold">Kontör ve paket</h2>
+      <p class="mt-1 text-sm text-soluk">
+        Operatörü seç, paketi seç, numarayı yaz. Tutar bakiyenden düşer;
+        yüklenemezse kendiliğinden geri gelir.
+      </p>
+      {% endif %}
     </div>
     <div class="sim shrink-0 rounded-kart border border-cizgi bg-yuzey px-4 py-3">
       <p class="text-xs font-semibold text-soluk">Bakiyen</p>
@@ -21,10 +29,29 @@
     </div>
   </div>
 
-  {% if kategoriler %}
+  {% if kategoriler and oyun %}
+  {% comment %}
+    Oyun kartı logosuyla tanınır: bayi PUBG'yi adından önce ikonundan bulur.
+    Logo yoksa adın baş harfi durur, kart boş kalmaz.
+  {% endcomment %}
+  <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+    {% for kategori in kategoriler %}
+    <a href="{{ kategori.get_absolute_url }}"
+       class="kart-secim sim yuzey flex min-h-32 flex-col items-center justify-center gap-2 border border-cizgi p-4 text-center transition">
+      {% if kategori.gorsel %}
+      <img src="{{ kategori.gorsel.url }}" alt="" width="56" height="56" loading="lazy"
+           class="h-14 w-14 rounded-xl object-cover">
+      {% else %}
+      <span class="baslik grid h-14 w-14 place-items-center rounded-xl bg-zemin-koyu text-xl font-bold text-murekkep-yumusak">{{ kategori.ad|slice:":1" }}</span>
+      {% endif %}
+      <span class="line-clamp-2 text-sm font-medium">{{ kategori.ad }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% elif kategoriler %}
   {% comment %}
     Kategori kartı operatörün marka rengini sol şeritte taşır: renk burada
-    "hangi operatör" bilgisidir. Oyun kategorilerinde operatör yok, şerit gri.
+    "hangi operatör" bilgisidir. Operatörsüz kategoride şerit gri.
   {% endcomment %}
   <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
     {% for kategori in kategoriler %}
@@ -42,7 +69,7 @@
   </div>
   {% else %}
   <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
-    <p class="text-sm text-soluk">Şu an satışta kontör ya da pin yok.</p>
+    <p class="text-sm text-soluk">{% if oyun %}Şu an satışta oyun ya da pin yok.{% else %}Şu an satışta kontör yok.{% endif %}</p>
   </div>
   {% endif %}
 

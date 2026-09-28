@@ -29,7 +29,7 @@
     {% if eslesen %}
     <div class="mt-3 grid gap-2">
       {% for paket in eslesen %}
-      <a href="{% url 'kontor:paket' kategori.slug paket.kod %}?hedef={{ numara }}"
+      <a href="{{ paket.get_absolute_url }}?hedef={{ numara }}"
          class="kart-secim sim flex min-h-14 items-center gap-3 border border-cizgi bg-yuzey px-4 py-3 transition">
         <span class="min-w-0 flex-1">
           <span class="block font-medium">{{ paket.ad }}</span>

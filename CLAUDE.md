@@ -317,7 +317,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   · Sadece sabit paketler alınır; günlük (dataType 2) paketler kademeli
   indirimle fiyatlandığı için bu sürümde katalogda yok.
 - **Kontör, paket ve oyun pini ayrı bir bölümdür** (`apps/kontor`,
-  `/kontor/…`, menüde eSIM'in altında). Bayi numarayı yazar, işlem
+  `/kontor/…`, menüde eSIM'in altında). **Oyunlar kendi vitrinindedir**
+  (`Kategori.oyun`, menüde "Oyun & Pin", `/oyun/…`, logolu kartlar —
+  `Kategori.gorsel`, `oyun/` klasörü `ACIK_KLASORLER`'de): aynı görünümler,
+  aynı para ve sağlayıcı kuralları, ayrı liste. Şablonlar adresi modelden
+  alır (`get_absolute_url`, `sorgu_url`, `yukle_url`, `liste_url`), bölümü
+  bilmez; kategori yanlış bölümün adresinden istenirse doğrusuna yönlenir. Bayi numarayı yazar, işlem
   anlaşılan bir **sağlayıcıya** (Znet/Gencan, Teknografi, kntryeni — hepsi
   ayrı yazılım şirketi, protokolleri eski projeden `Site/kontor` aktarıldı)
   iletilir. Para yine `magaza.Siparis` üzerinden (`urun_adi="<kategori> ·

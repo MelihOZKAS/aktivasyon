@@ -1,11 +1,15 @@
 """Bayi tarafı: kategori, paket, yükleme ve işlemin sonucu.
 
-`/kontor/…` altında, `@bayi_gerekli` ile korunur. Akış tezgâhtaki sırayla
+`/kontor/…` ve oyunlar için `/oyun/…` altında, `@bayi_gerekli` ile
+korunur. İki bölüm aynı görünümleri kullanır; `oyun` URL'den gelir ve
+yalnızca hangi kategorilerin listeleneceğini belirler. Kategori yanlış
+bölümün adresinden istenirse doğrusuna yönlenir. Akış tezgâhtaki sırayla
 aynıdır: operatörü/oyunu seç → paketi seç → numarayı yaz → yükle. Yükleme
 basılınca bayi sağlayıcıyı beklemez; işlem sayfasına düşer, sayfa sonucu
 kendisi sorar.
 """
 
+from functools import wraps
 from urllib.parse import urlencode
 from uuid import uuid4
 
@@ -15,7 +19,6 @@ from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 
 from apps.bayi.telefon import normalize
 from apps.bayi.yetki import bayi_gerekli
@@ -54,26 +57,49 @@ def _islemler(request):
 
 @login_required
 @bayi_gerekli
-def kategoriler(request):
+def kategoriler(request, oyun=False):
     return render(
         request,
         "kontor/kategoriler.html",
         {
-            "kategoriler": kategori_listesi(),
+            "oyun": oyun,
+            "kategoriler": kategori_listesi(oyun=oyun),
             "bakiye": _bakiye(request),
-            "son_islemler": _islemler(request)[:SON_ISLEM_ADEDI],
+            "son_islemler": _islemler(request).filter(kategori__oyun=oyun)[:SON_ISLEM_ADEDI],
         },
     )
 
 
-def _satistaki_kategori(slug):
-    return get_object_or_404(Kategori.objects.select_related("operator"), slug=slug, aktif=True)
+class _YanlisBolum(Exception):
+    def __init__(self, kategori):
+        self.kategori = kategori
+
+
+def _satistaki_kategori(slug, oyun=False):
+    kategori_kaydi = get_object_or_404(Kategori.objects.select_related("operator"), slug=slug, aktif=True)
+    if kategori_kaydi.oyun != oyun:
+        raise _YanlisBolum(kategori_kaydi)
+    return kategori_kaydi
+
+
+def _bolum(gorunum):
+    """Kategori öbür bölümdeyse (oyun ↔ kontör) doğru adrese yönlendirir."""
+
+    @wraps(gorunum)
+    def sarmalayici(request, *args, **kwargs):
+        try:
+            return gorunum(request, *args, **kwargs)
+        except _YanlisBolum as hata:
+            return redirect(hata.kategori.get_absolute_url())
+
+    return sarmalayici
 
 
 @login_required
 @bayi_gerekli
-def kategori(request, slug):
-    kategori_kaydi = _satistaki_kategori(slug)
+@_bolum
+def kategori(request, slug, oyun=False):
+    kategori_kaydi = _satistaki_kategori(slug, oyun)
     paketler = satistaki_paketler(kategori_kaydi, request.user)
     return render(
         request,
@@ -89,9 +115,10 @@ def kategori(request, slug):
 
 @login_required
 @bayi_gerekli
-def sorgu(request, slug):
+@_bolum
+def sorgu(request, slug, oyun=False):
     """HTMX: numaranın alabileceği paketler. Salt okuma, para oynamaz."""
-    kategori_kaydi = _satistaki_kategori(slug)
+    kategori_kaydi = _satistaki_kategori(slug, oyun)
     baglam = {"kategori": kategori_kaydi, "bakiye": _bakiye(request)}
     try:
         baglam.update(numarayi_sorgula(kategori_kaydi, request.GET.get("hedef", ""), request.user))
@@ -101,19 +128,22 @@ def sorgu(request, slug):
 
 
 def _paket(kategori_kaydi, kod):
-    return get_object_or_404(Paket.objects.satista(), kategori=kategori_kaydi, kod=kod)
+    return get_object_or_404(
+        Paket.objects.satista().select_related("kategori"), kategori=kategori_kaydi, kod=kod
+    )
 
 
 @login_required
 @bayi_gerekli
-def paket(request, slug, kod):
+@_bolum
+def paket(request, slug, kod, oyun=False):
     """Numaranın yazıldığı ve ödemenin onaylandığı sayfa.
 
     Listede tek dokunuşla para düşmesin: bayi ne yüklediğini, fiyatını ve
     numarayı burada bir kez daha görür. Bakiye yetmiyorsa düğme gizlenmez,
     sebebi yazılır.
     """
-    kategori_kaydi = _satistaki_kategori(slug)
+    kategori_kaydi = _satistaki_kategori(slug, oyun)
     paket_kaydi = fiyatlandir([_paket(kategori_kaydi, kod)], request.user)[0]
     bakiye = _bakiye(request)
     return render(
@@ -133,11 +163,12 @@ def paket(request, slug, kod):
 @atomik_degil
 @login_required
 @bayi_gerekli
-def yukle(request, slug, kod):
-    if request.method != "POST":
-        return redirect("kontor:paket", slug=slug, kod=kod)
-    kategori_kaydi = _satistaki_kategori(slug)
+@_bolum
+def yukle(request, slug, kod, oyun=False):
+    kategori_kaydi = _satistaki_kategori(slug, oyun)
     paket_kaydi = _paket(kategori_kaydi, kod)
+    if request.method != "POST":
+        return redirect(paket_kaydi.get_absolute_url())
     hedef = request.POST.get("hedef", "")
     anahtar = (request.POST.get("islem_anahtari") or "").strip()[:64] or None
     try:
@@ -152,8 +183,7 @@ def yukle(request, slug, kod):
     except SiparisVerilemez as hata:
         messages.error(request, str(hata))
         # Yazdığı numara kaybolmasın; bayi düzeltip yeniden basar.
-        adres = reverse("kontor:paket", args=[slug, kod])
-        return redirect(f"{adres}?{urlencode({'hedef': hedef.strip()[:64]})}")
+        return redirect(f"{paket_kaydi.get_absolute_url()}?{urlencode({'hedef': hedef.strip()[:64]})}")
     return redirect("kontor:islem", referans=islem.siparis.referans_no)
 
 

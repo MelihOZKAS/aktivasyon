@@ -974,3 +974,50 @@ class TavsiyeTestleri(Temel):
         )
         paket, _ = gorulen_paketi_kataloga_ekle(yeni)
         self.assertEqual(paket.tavsiye_fiyati, TL("99.90"))
+
+
+class OyunBolumuTestleri(Temel):
+    def setUp(self):
+        super().setUp()
+        self.oyun = Kategori.objects.create(ad="PUBG Mobile UC", oyun=True, hedef=Hedef.YOK)
+        self.pin = Paket.objects.create(kategori=self.oyun, kod="UC60", ad="60 UC", satis_fiyati=TL("40"))
+        Rota.objects.create(paket=self.pin, saglayici=self.bir)
+        self.client.force_login(self.bayi)
+
+    def test_oyun_ve_kontor_ayri_listelenir(self):
+        kontor = self.client.get(reverse("kontor:kategoriler"))
+        self.assertContains(kontor, "Vodafone Paket")
+        self.assertNotContains(kontor, "PUBG Mobile UC")
+        oyunlar = self.client.get(reverse("kontor:oyunlar"))
+        self.assertContains(oyunlar, "PUBG Mobile UC")
+        self.assertNotContains(oyunlar, "Vodafone Paket")
+
+    def test_adresler_bolume_gore(self):
+        self.assertEqual(self.oyun.get_absolute_url(), "/oyun/pubg-mobile-uc/")
+        self.assertEqual(self.pin.get_absolute_url(), "/oyun/pubg-mobile-uc/UC60/")
+        self.assertEqual(self.paket.get_absolute_url(), "/kontor/vodafone-paket/100/")
+        yanit = self.client.get(self.oyun.get_absolute_url())
+        self.assertContains(yanit, 'href="/oyun/pubg-mobile-uc/UC60/"')
+        self.assertContains(yanit, "Oyun &amp; Pin")
+
+    def test_yanlis_bolumden_gelen_dogrusuna_yonlenir(self):
+        yanit = self.client.get("/kontor/pubg-mobile-uc/")
+        self.assertRedirects(yanit, "/oyun/pubg-mobile-uc/", fetch_redirect_response=False)
+        yanit = self.client.get("/oyun/vodafone-paket/100/")
+        self.assertRedirects(yanit, "/kontor/vodafone-paket/", fetch_redirect_response=False)
+
+    def test_pin_oyun_adresinden_alinir(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            yanit = self.client.post(self.pin.yukle_url, {"islem_anahtari": "o1"})
+        islem = Islem.objects.get()
+        self.assertRedirects(yanit, islem.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual((islem.hedef, islem.kategori), ("", self.oyun))
+        self.assertEqual(self.bakiye(), TL("460.00"))
+        # Son işlemler de bölümüne göre ayrılır.
+        self.assertContains(self.client.get(reverse("kontor:oyunlar")), "60 UC")
+        self.assertNotContains(self.client.get(reverse("kontor:kategoriler")), "60 UC")
+
+    def test_menude_iki_ayri_madde(self):
+        yanit = self.client.get(reverse("kontor:oyunlar"))
+        self.assertContains(yanit, 'href="/oyun/"')
+        self.assertContains(yanit, 'href="/kontor/"')

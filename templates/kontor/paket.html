@@ -2,7 +2,7 @@
 {% load panel %}
 
 {% block baslik %}{{ paket.ad }}{% endblock %}
-{% block sayfa_basligi %}Kontör{% endblock %}
+{% block sayfa_basligi %}{{ kategori.bolum_adi }}{% endblock %}
 
 {% block icerik %}
 <div class="mx-auto max-w-xl">
@@ -37,7 +37,7 @@
         <p class="text-sm font-semibold text-uyari">Bakiyen bu pakete yetmiyor</p>
         <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
           Bakiyen <b>{{ bakiye|para }} ₺</b>, paket <b>{{ paket.fiyat|para }} ₺</b>.
-          Kontör bakiyeden yüklenir, borca yazılmaz.
+          Yükleme bakiyeden yapılır, borca yazılmaz.
         </p>
         <a href="{% url 'bayi:cuzdan' %}" class="dugme dugme-sessiz mt-3 inline-flex text-sm">Cüzdana git</a>
       </div>
@@ -47,7 +47,7 @@
         ikinci yükleme olmasın. Sunucu tarafında da aynı anahtar ve aynı
         numaraya bir dakika içinde aynı paket reddedilir.
       {% endcomment %}
-      <form method="post" action="{% url 'kontor:yukle' kategori.slug paket.kod %}" class="mt-5" id="yukle-formu">
+      <form method="post" action="{{ paket.yukle_url }}" class="mt-5" id="yukle-formu">
         {% csrf_token %}
         <input type="hidden" name="islem_anahtari" value="{{ islem_anahtari }}">
         {% if kategori.hedef != "yok" %}

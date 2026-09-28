@@ -395,12 +395,12 @@ class GorulenPaketAdmin(ModelAdmin):
 
 @admin.register(Kategori)
 class KategoriAdmin(ModelAdmin):
-    list_display = ("ad", "operator", "hedef", "api_kodu", "paket_sayisi", "sira", "aktif")
+    list_display = ("ad", "oyun", "operator", "hedef", "api_kodu", "paket_sayisi", "sira", "aktif")
     list_editable = ("sira", "aktif")
-    list_filter = ("aktif", "operator", "hedef")
+    list_filter = ("oyun", "aktif", "operator", "hedef")
     search_fields = ("ad", "api_operator", "api_tip")
     fieldsets = (
-        (None, {"fields": ("ad", "slug", "operator", "aciklama", "sira", "aktif")}),
+        (None, {"fields": ("ad", "slug", "oyun", "operator", "gorsel", "aciklama", "sira", "aktif")}),
         (
             "Yükleme",
             {
