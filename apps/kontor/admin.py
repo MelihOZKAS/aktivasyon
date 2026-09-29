@@ -498,34 +498,41 @@ def _ondalik(metin):
 
 @admin.register(FiyatGrubu)
 class FiyatGrubuAdmin(ModelAdmin):
-    """Perakende, Toptan… Genel oran grubun sayfasında, paket kuralları kendi sayfasında.
+    """Perakende, Toptan… Grubun sayfası **tek sayfadır**: üstte ayarlar, altta paket fiyatları.
 
-    Paketler binlerce olabilir; grubun düzenleme formuna gömülünce her
-    açılışta hepsi çiziliyordu. **Paket fiyatları** ekranı operatöre/kategoriye
-    süzülür, sayfa başı 50 paket gösterir ve her paket için yöntem seçtirir:
-    grubun oranı (kural yok), net fiyat, alış + %, alış + ₺. Solda kutucuklar
-    işaretlenip üstteki çubukla seçilenlere tek seferde aynı kural yazılır.
+    Bir süre grup formu ayrı, paket fiyatları listedeki ayrı bir düğmenin
+    arkasındaydı; yönetici gruba tıklayıp yalnızca oranı görüyor, net fiyatı
+    nereye yazacağını bulamıyordu ("içerisi aynı, niye ayrı?"). Artık
+    değiştirme adresi paket fiyatlarına yönlenir (`change_view`). Paketler
+    binlerce olabilir: operatör/kategoriye süzülür, sayfa başı 50. Yöntem
+    seçmeden yazılan rakam net fiyattır; alış + % ve alış + ₺ isteğe bağlı.
     """
 
     list_display = (
-        "ad", "oran", "ek_tutar", "ornek", "kural_sayisi", "varsayilan", "bayi_sayisi", "paket_fiyatlari_dugmesi",
+        "ad", "kural_sayisi", "oran", "ek_tutar", "ornek", "varsayilan", "bayi_sayisi",
     )
     list_editable = ("oran", "ek_tutar")
     search_fields = ("ad",)
 
-    def get_fieldsets(self, request, obj=None):
-        aciklama = (
-            "<b>Genel oran:</b> kendi kuralı olmayan her paket alış × (1 + oran/100) + ek tutar "
-            "öder; alış, paketin sıradaki ilk açık sağlayıcısınınkidir. Pakete <b>net fiyat</b> "
-            "(444,15), <b>alış + %</b> ya da <b>alış + ₺</b> yazmak için "
-        )
-        if obj is not None:
-            adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[obj.pk])
-            aciklama += f'<a href="{adres}" style="text-decoration:underline;font-weight:600">Paket fiyatları</a> ekranını açın.'
-        else:
-            aciklama += "grubu kaydedip <b>Paket fiyatları</b> ekranını açın."
-        aciklama += " Bayiyi gruba <b>Cüzdanlar</b> listesinden ya da kullanıcı sayfasından bağlayın."
-        return ((None, {"fields": ("ad", ("oran", "ek_tutar"), "varsayilan", "aciklama"), "description": aciklama}),)
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("ad", "varsayilan", "aciklama", ("oran", "ek_tutar")),
+                "description": (
+                    "Grubu kaydedince paket fiyatları ekranı açılır; her pakete bayinin "
+                    "ödeyeceği net rakamı yazarsın. Oran isteğe bağlıdır."
+                ),
+            },
+        ),
+    )
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        """Grubun sayfası paket fiyatlarıdır; ayarlar da o sayfanın üstünde durur."""
+        return redirect("admin:kontor_fiyatgrubu_paketler", object_id)
+
+    def response_add(self, request, obj, post_url_continue=None):
+        return redirect("admin:kontor_fiyatgrubu_paketler", obj.pk)
 
     def get_queryset(self, request):
         return (
@@ -534,11 +541,13 @@ class FiyatGrubuAdmin(ModelAdmin):
             .annotate(_bayi=Count("cuzdanlar", distinct=True), _kural=Count("paket_fiyatlari", distinct=True))
         )
 
-    @display(description="Örnek")
+    @display(description="Kuralsız paket")
     def ornek(self, obj):
+        if not obj.genel_kural_var:
+            return format_html('<span style="color:#6F7B8F">satılmaz</span>')
         return f"{ORNEK_ALIS:.0f} ₺ alış → {obj.fiyat(ORNEK_ALIS)} ₺"
 
-    @display(description="Kendi kuralı olan paket", ordering="_kural")
+    @display(description="Fiyatı yazılı paket", ordering="_kural")
     def kural_sayisi(self, obj):
         return obj._kural or "—"
 
@@ -546,14 +555,6 @@ class FiyatGrubuAdmin(ModelAdmin):
     def bayi_sayisi(self, obj):
         adres = reverse("admin:finans_cuzdan_changelist") + f"?kontor_grubu__id__exact={obj.pk}"
         return format_html('<a href="{}">{}</a>', adres, obj._bayi)
-
-    @display(description="")
-    def paket_fiyatlari_dugmesi(self, obj):
-        return format_html(
-            '<a href="{}" style="{}">Paket fiyatları</a>',
-            reverse("admin:kontor_fiyatgrubu_paketler", args=[obj.pk]),
-            DUGME_STILI.format("#0D1320"),
-        )
 
     def get_urls(self):
         return [
@@ -593,13 +594,36 @@ class FiyatGrubuAdmin(ModelAdmin):
         sayfadakiler = list(sayfa.object_list)
         kurallar = {k.paket_id: k for k in grup.paket_fiyatlari.filter(paket__in=sayfadakiler)}
 
+        GrupFormu = forms.modelform_factory(
+            FiyatGrubu,
+            fields=("ad", "varsayilan", "aciklama", "oran", "ek_tutar"),
+            localized_fields=("oran", "ek_tutar"),
+            widgets={
+                "ad": UnfoldAdminTextInputWidget,
+                "aciklama": UnfoldAdminTextInputWidget,
+                "oran": UnfoldAdminTextInputWidget(attrs={"inputmode": "decimal", "placeholder": "boş"}),
+                "ek_tutar": UnfoldAdminTextInputWidget(attrs={"inputmode": "decimal", "placeholder": "boş"}),
+            },
+        )
+        grup_formu = GrupFormu(request.POST if "_grup" in request.POST else None, instance=grup)
+        if "_grup" in request.POST:
+            if grup_formu.is_valid():
+                grup_formu.save()
+                self.message_user(request, f"{grup}: grup ayarları kaydedildi.", messages.SUCCESS)
+                return HttpResponseRedirect(request.get_full_path())
+            self.message_user(request, "Grup ayarları kaydedilmedi; hatayı düzeltin.", messages.ERROR)
+
         hatalar = {}
-        if request.method == "POST":
+        if request.method == "POST" and "_grup" not in request.POST:
             gecerli = {y for y, _ in FiyatYontemi.choices}
             yazilacak = []
             for paket in sayfadakiler:
                 yontem = request.POST.get(f"yontem_{paket.pk}", "")
                 ham = request.POST.get(f"deger_{paket.pk}", "")
+                if not ham.strip():
+                    yontem = ""  # boş kutu = bu pakette fiyat yok (genel kural ya da satılmaz)
+                elif not yontem:
+                    yontem = FiyatYontemi.NET  # yöntem seçmeden rakam yazan net fiyat demek ister
                 if yontem not in gecerli:
                     yazilacak.append((paket, None, None))
                     continue
@@ -607,9 +631,6 @@ class FiyatGrubuAdmin(ModelAdmin):
                     deger = _ondalik(ham)
                 except (InvalidOperation, ValueError):
                     hatalar[paket.pk] = "Rakam anlaşılamadı."
-                    continue
-                if deger is None:
-                    hatalar[paket.pk] = "Değer yazın ya da yöntemi “Grubun oranı” yapın."
                     continue
                 yazilacak.append((paket, yontem, deger))
             if not hatalar:
@@ -636,7 +657,7 @@ class FiyatGrubuAdmin(ModelAdmin):
         for paket in sayfadakiler:
             alis = paket.ilk_alis()
             kural = kurallar.get(paket.pk)
-            if request.method == "POST":
+            if request.method == "POST" and "_grup" not in request.POST:
                 yontem = request.POST.get(f"yontem_{paket.pk}", "")
                 deger = request.POST.get(f"deger_{paket.pk}", "")
             else:
@@ -661,9 +682,10 @@ class FiyatGrubuAdmin(ModelAdmin):
             "admin/kontor/grup_paket_fiyatlari.html",
             {
                 **self.admin_site.each_context(request),
-                "title": f"{grup} · paket fiyatları",
+                "title": f"{grup} · kontör fiyatları",
                 "opts": self.model._meta,
                 "grup": grup,
+                "grup_formu": grup_formu,
                 "satirlar": satirlar,
                 "sayfa": sayfa,
                 "sorgu": sorgu.urlencode(),

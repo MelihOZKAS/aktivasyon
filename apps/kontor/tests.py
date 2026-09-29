@@ -797,8 +797,11 @@ class YonetimTestleri(Temel):
     def test_grup_paket_fiyatlari_ekrani(self):
         grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"))
         adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
+        # Grubun sayfası = paket fiyatları; ayrı bir form yok.
+        yanit = self.client.get(reverse("admin:kontor_fiyatgrubu_change", args=[grup.pk]))
+        self.assertRedirects(yanit, adres, fetch_redirect_response=False)
         yanit = self.client.get(adres)
-        self.assertContains(yanit, "105,00 ₺")  # kuralsız paket orandan
+        self.assertContains(yanit, "105,00 ₺")  # kuralsız paket genel orandan
         yontem, deger = f"yontem_{self.paket.pk}", f"deger_{self.paket.pk}"
         self.assertEqual(self.client.post(adres, {yontem: "net", deger: "444,15"}).status_code, 302)
         kural = PaketFiyati.objects.get(grup=grup, paket=self.paket)
@@ -808,17 +811,35 @@ class YonetimTestleri(Temel):
         self.cuzdan.save()
         self.bayi.refresh_from_db()
         self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("107.00"))
-        # Yöntemi boş (grubun oranı) yapınca kural silinir.
-        self.client.post(adres, {yontem: "", deger: ""})
+        # Yöntem seçmeden yazılan rakam net fiyattır.
+        self.client.post(adres, {yontem: "", deger: "120"})
+        self.assertEqual(PaketFiyati.objects.get(grup=grup).yontem, "net")
+        # Kutu boşaltılınca kural silinir.
+        self.client.post(adres, {yontem: "net", deger: ""})
         self.assertFalse(PaketFiyati.objects.filter(grup=grup).exists())
+
+    def test_genel_kural_bossa_fiyatsiz_paket_satilmaz(self):
+        grup = FiyatGrubu.objects.create(ad="Perakende")
+        self.cuzdan.kontor_grubu = grup
+        self.cuzdan.save()
+        self.bayi.refresh_from_db()
+        self.assertEqual(satistaki_paketler(self.kategori, self.bayi), [])
+        PaketFiyati.objects.create(paket=self.paket, grup=grup, deger=TL("444.15"))
+        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("444.15"))
+
+    def test_grup_ayarlari_ayni_sayfadan_kaydedilir(self):
+        grup = FiyatGrubu.objects.create(ad="Perakende")
+        adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
+        yanit = self.client.post(adres, {"_grup": "1", "ad": "Perakende", "aciklama": "", "oran": "2,5", "ek_tutar": ""})
+        self.assertEqual(yanit.status_code, 302)
+        grup.refresh_from_db()
+        self.assertEqual((grup.oran, grup.ek_tutar), (TL("2.5"), None))
 
     def test_grup_paket_fiyatlari_bozuk_deger_kaydetmez(self):
         grup = FiyatGrubu.objects.create(ad="Toptan")
         adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
         yanit = self.client.post(adres, {f"yontem_{self.paket.pk}": "net", f"deger_{self.paket.pk}": "abc"})
         self.assertContains(yanit, "Rakam anlaşılamadı")
-        yanit = self.client.post(adres, {f"yontem_{self.paket.pk}": "yuzde", f"deger_{self.paket.pk}": ""})
-        self.assertContains(yanit, "Değer yazın")
         self.assertFalse(PaketFiyati.objects.exists())
 
     def test_grup_paket_fiyatlari_suzulur_ve_sayfalanir(self):

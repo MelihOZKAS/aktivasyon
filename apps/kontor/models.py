@@ -336,21 +336,26 @@ class FiyatGrubu(ZamanDamgali):
     """
 
     ad = models.CharField("Grup Adı", max_length=100, unique=True)
+    # Genel kural isteğe bağlıdır: ikisi de boşsa kendi kuralı (net fiyat,
+    # alış + %, alış + ₺) olmayan paket bu gruba **satılmaz**. Bir süre 0
+    # varsayılandı ve kuralsız paket alış fiyatına, kârsız satılıyordu.
     oran = models.DecimalField(
-        "Alışın Üstüne (%)",
+        "Kuralsız paket: alışın üstüne (%)",
         max_digits=6,
         decimal_places=2,
-        default=SIFIR,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(SIFIR)],
-        help_text="Alış 100 ₺, oran 3 → bayi 103 ₺ öder.",
+        help_text="İsteğe bağlı. Boşsa (ek tutar da boşsa) fiyatı yazılmamış paket bu gruba satılmaz.",
     )
     ek_tutar = models.DecimalField(
-        "Ek Tutar (₺)",
+        "Kuralsız paket: ek tutar (₺)",
         max_digits=10,
         decimal_places=2,
-        default=SIFIR,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(SIFIR)],
-        help_text="Yüzdenin üstüne her pakete eklenen sabit tutar. Çoğu zaman 0.",
+        help_text="İsteğe bağlı; yüzdenin üstüne eklenir.",
     )
     varsayilan = models.BooleanField(
         "Varsayılan",
@@ -366,7 +371,7 @@ class FiyatGrubu(ZamanDamgali):
     class Meta:
         verbose_name = "Kontör Fiyat Grubu"
         verbose_name_plural = "Kontör Fiyat Grupları"
-        ordering = ["oran", "ek_tutar", "ad"]
+        ordering = ["ad"]
         constraints = [
             models.UniqueConstraint(
                 fields=["varsayilan"], condition=Q(varsayilan=True), name="kontor_tek_varsayilan_grup"
@@ -385,11 +390,15 @@ class FiyatGrubu(ZamanDamgali):
                 )
         super().validate_constraints(exclude=(exclude or set()) | {"varsayilan"})
 
+    @property
+    def genel_kural_var(self):
+        return self.oran is not None or self.ek_tutar is not None
+
     def fiyat(self, alis):
-        """Alıştan bayinin ödeyeceği tutar; alış yoksa `None` (rakam uydurulmaz)."""
-        if alis is None:
+        """Kuralsız paketin fiyatı: genel kural yoksa ya da alış yoksa `None` (satılmaz)."""
+        if alis is None or not self.genel_kural_var:
             return None
-        return (alis * (1 + self.oran / 100) + self.ek_tutar).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        return (alis * (1 + (self.oran or 0) / 100) + (self.ek_tutar or 0)).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
     @classmethod
     def varsayilani(cls):

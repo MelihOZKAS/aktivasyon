@@ -1,9 +1,10 @@
 {% extends "admin/base_site.html" %}
 
 {% comment %}
-  Bir fiyat grubunda paket paket fiyat kuralı. Her satırda yöntem:
-  "Grubun oranı" (kural yok) · Net fiyat (alışa bakılmaz) · Alış + % ·
-  Alış + ₺. Soldaki kutucuklar işaretlenip üstteki çubukla seçilenlere aynı
+  Fiyat grubunun tek sayfası: üstte grubun ayarları, altta paket paket
+  bayinin ödeyeceği fiyat. Rakam yazmak yeter (net fiyat); isteyen satırda
+  yöntemi Alış + % ya da Alış + ₺ yapar. Yöntem boşsa grubun genel kuralı,
+  o da boşsa paket bu gruba satılmaz. Soldaki kutucuklar işaretlenip üstteki çubukla seçilenlere aynı
   kural tek seferde yazılır; kayıt yine alttaki Kaydet ile olur.
 
   Operatöre/kategoriye süzülür, sayfa başı 50 paket: bir operatörde bin
@@ -24,12 +25,34 @@
 </style>
 
 <div class="space-y-4">
-  <p class="text-sm text-base-500" style="max-width:56rem">
-    Kuralı olmayan paket <b>grubun oranından</b> hesaplanır
-    (şu an: alış + %{{ grup.oran }}{% if grup.ek_tutar %} + {{ grup.ek_tutar }} ₺{% endif %};
-    <a href="{% url 'admin:kontor_fiyatgrubu_change' grup.pk %}" style="text-decoration:underline">oranı değiştir</a>).
-    <b>Net fiyat</b> alışa bakmaz, yazdığın rakamı bayi öder (444,15).
-    <b>Alış + %</b> ve <b>Alış + ₺</b> paketin ilk açık sağlayıcısının alışını kullanır; alış yoksa paket bu gruba satılmaz.
+  <form method="post" class="rounded-default border border-base-200 bg-white p-4">
+    {% csrf_token %}
+    <div class="flex flex-wrap items-end gap-3">
+      {% for alan in grup_formu %}
+      {% if alan.name == "varsayilan" %}
+      <label class="flex items-center gap-2 text-sm" style="min-height:44px">{{ alan }} Varsayılan grup
+        <span class="gf-soluk">(grubu seçilmemiş bayi bunu öder)</span></label>
+      {% else %}
+      <label class="flex flex-col text-sm" style="flex:1 1 {% if alan.name == 'ad' or alan.name == 'aciklama' %}14rem{% else %}10rem{% endif %}">
+        {{ alan.label }}{{ alan }}
+        {% for hata in alan.errors %}<span style="color:#D42046;font-size:.75rem">{{ hata }}</span>{% endfor %}
+      </label>
+      {% endif %}
+      {% endfor %}
+      <button type="submit" name="_grup" value="1" class="gf-dugme">Grubu kaydet</button>
+    </div>
+    {% for hata in grup_formu.non_field_errors %}<p style="color:#D42046;font-size:.8rem">{{ hata }}</p>{% endfor %}
+    <p class="gf-soluk" style="margin-top:.5rem">
+      Oran ve ek tutar isteğe bağlıdır: yalnızca aşağıda fiyatı yazılmamış paketlere uygulanır
+      (alış × (1 + oran/100) + ek tutar). İkisi de boşsa fiyatı yazılmamış paket bu gruba satılmaz.
+      <a href="{% url 'admin:kontor_fiyatgrubu_delete' grup.pk %}" style="color:#D42046;margin-left:.5rem">Grubu sil</a>
+    </p>
+  </form>
+
+  <p class="text-sm" style="max-width:56rem">
+    Paketin kutusuna bayinin ödeyeceği <b>net rakamı</b> yaz (444,15) — alışa bakılmaz.
+    İstersen satırın yöntemini <b>Alış + %</b> ya da <b>Alış + ₺</b> yap; o zaman paketin ilk açık
+    sağlayıcısının alışı kullanılır, alış yoksa paket satılmaz.
   </p>
 
   <form method="get" class="flex flex-wrap items-end gap-2">
@@ -64,10 +87,10 @@
     <div class="flex flex-wrap items-center gap-2 rounded-default border border-base-200 bg-white p-3" style="position:sticky;top:0;z-index:5">
       <span class="text-sm font-semibold">Seçilenlere (<span id="gf-secili">0</span>):</span>
       <select id="gf-toplu-yontem" class="gf-girdi" aria-label="Toplu yöntem">
-        <option value="">Grubun oranı</option>
         {% for kod, ad in yontemler %}<option value="{{ kod }}">{{ ad }}</option>{% endfor %}
+        <option value="">Fiyatı kaldır</option>
       </select>
-      <input id="gf-toplu-deger" class="gf-girdi" inputmode="decimal" placeholder="Değer" style="width:8rem" aria-label="Toplu değer">
+      <input id="gf-toplu-deger" class="gf-girdi" inputmode="decimal" placeholder="Fiyat" style="width:8rem" aria-label="Toplu değer">
       <button type="button" id="gf-toplu-uygula" class="gf-dugme">Seçilenlere yaz</button>
       <span class="gf-soluk">Yazılır, kaydetmek için alttaki düğme.</span>
     </div>
@@ -79,14 +102,14 @@
             <th style="width:2.5rem"><input type="checkbox" id="gf-hepsi" aria-label="Bu sayfadaki hepsini seç" style="width:20px;height:20px"></th>
             <th>Paket</th>
             <th>Alış</th>
+            <th>Fiyat</th>
             <th>Yöntem</th>
-            <th>Değer</th>
             <th>Bayi öder</th>
           </tr>
         </thead>
         <tbody>
         {% for s in satirlar %}
-          <tr data-alis="{{ s.alis|default_if_none:''|stringformat:'s' }}" data-oran="{{ grup.oran|stringformat:'s' }}" data-ek="{{ grup.ek_tutar|stringformat:'s' }}">
+          <tr data-alis="{{ s.alis|default_if_none:''|stringformat:'s' }}" data-oran="{{ grup.oran|default_if_none:''|stringformat:'s' }}" data-ek="{{ grup.ek_tutar|default_if_none:''|stringformat:'s' }}">
             <td><input type="checkbox" class="gf-sec" aria-label="{{ s.paket.ad }} seç" style="width:20px;height:20px"></td>
             <td>
               <span class="font-medium">{{ s.paket.ad }}</span>{% if not s.paket.aktif %} <span class="gf-soluk">(pasif)</span>{% endif %}<br>
@@ -94,14 +117,14 @@
             </td>
             <td>{% if s.alis is not None %}{{ s.alis }}{% else %}<span style="color:#D42046">yok</span>{% endif %}</td>
             <td>
-              <select name="yontem_{{ s.paket.pk }}" class="gf-girdi gf-yontem" aria-label="Yöntem">
-                <option value="">Grubun oranı</option>
-                {% for kod, ad in yontemler %}<option value="{{ kod }}" {% if s.yontem == kod %}selected{% endif %}>{{ ad }}</option>{% endfor %}
-              </select>
+              <input name="deger_{{ s.paket.pk }}" value="{{ s.deger }}" class="gf-girdi gf-deger" inputmode="decimal" style="width:7.5rem" placeholder="{% if s.orandan is not None %}{{ s.orandan }}{% endif %}" aria-label="Fiyat">
+              {% if s.hata %}<br><span style="color:#D42046;font-size:.75rem">{{ s.hata }}</span>{% endif %}
             </td>
             <td>
-              <input name="deger_{{ s.paket.pk }}" value="{{ s.deger }}" class="gf-girdi gf-deger" inputmode="decimal" style="width:7.5rem" aria-label="Değer">
-              {% if s.hata %}<br><span style="color:#D42046;font-size:.75rem">{{ s.hata }}</span>{% endif %}
+              <select name="yontem_{{ s.paket.pk }}" class="gf-girdi gf-yontem" aria-label="Yöntem">
+                <option value="">{% if grup.genel_kural_var %}Genel kural{% else %}— yok —{% endif %}</option>
+                {% for kod, ad in yontemler %}<option value="{{ kod }}" {% if s.yontem == kod %}selected{% endif %}>{{ ad }}</option>{% endfor %}
+              </select>
             </td>
             <td class="gf-sonuc font-semibold">{% if s.sonuc is not None %}{{ s.sonuc }} ₺{% else %}<span style="color:#D42046">satılmaz</span>{% endif %}</td>
           </tr>
@@ -154,7 +177,8 @@
     else if (alis !== null) {
       if (yontem === "yuzde") sonuc = deger === null ? null : alis * (1 + deger / 100);
       else if (yontem === "tutar") sonuc = deger === null ? null : alis + deger;
-      else sonuc = alis * (1 + sayi(satir.dataset.oran) / 100) + sayi(satir.dataset.ek);
+      else if (satir.dataset.oran || satir.dataset.ek)
+        sonuc = alis * (1 + (sayi(satir.dataset.oran) || 0) / 100) + (sayi(satir.dataset.ek) || 0);
     }
     hucre.innerHTML = sonuc === null
       ? '<span style="color:#D42046">' + (yontem && deger === null ? "değer yazın" : "satılmaz") + "</span>"
@@ -163,7 +187,13 @@
 
   form.addEventListener("input", function (e) {
     var satir = e.target.closest("tr[data-oran]");
-    if (satir && (e.target.classList.contains("gf-deger") || e.target.classList.contains("gf-yontem"))) hesapla(satir);
+    if (!satir) return;
+    // Yöntem seçmeden rakam yazan net fiyat demek ister.
+    if (e.target.classList.contains("gf-deger")) {
+      var yontem = satir.querySelector(".gf-yontem");
+      if (!yontem.value && e.target.value.trim()) yontem.value = "net";
+    }
+    if (e.target.classList.contains("gf-deger") || e.target.classList.contains("gf-yontem")) hesapla(satir);
   });
   form.addEventListener("change", function (e) {
     var satir = e.target.closest("tr[data-oran]");
