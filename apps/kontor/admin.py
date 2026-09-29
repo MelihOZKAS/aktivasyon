@@ -880,7 +880,7 @@ class PaketAdmin(ModelAdmin):
     def alis_gosterimi(self, obj):
         rota = self._ilk_rota(obj)
         if rota is None or rota.alis_fiyati is None:
-            return format_html('<span style="color:#D42046">girilmedi</span>')
+            return format_html('<span style="color:#6F7B8F">—</span>')
         return format_html(
             '{}<br><span style="color:#6F7B8F;font-size:.7rem">{}</span>', rota.alis_fiyati, rota.saglayici
         )
@@ -893,7 +893,7 @@ class PaketAdmin(ModelAdmin):
         gruplar = _gruplar()
         if not gruplar:
             fiyat = obj.satis_fiyati
-            return fiyat if fiyat else format_html('<span style="color:#D42046">fiyat yok — satılmaz</span>')
+            return fiyat if fiyat else format_html('<span style="color:#6F7B8F">fiyat yok</span>')
         alis = obj.ilk_alis()
         ozel = {f.grup_id: f.fiyat for f in obj.grup_fiyatlari.all()}
         satirlar = []
@@ -951,14 +951,14 @@ class PaketAdmin(ModelAdmin):
             eksikler.append("Paket pasif.")
         if not obj.kategori.aktif:
             eksikler.append(f"“{obj.kategori}” kategorisi pasif.")
+        # Sağlayıcı eksikliği bayiden saklamaz: işlem açılır, askıya düşer.
+        notlar = []
         rotalar = list(obj.rotalar.all())
-        if not rotalar:
-            eksikler.append(
-                "Hiçbir sağlayıcıya bağlı değil — yüklemeyi yapacak kimse yok. Aşağıdaki "
-                "Sağlayıcı sırası tablosuna “Başka bir Sağlayıcı ekle” ile sağlayıcıyı ekleyin."
+        if not any(r.aktif and r.saglayici.aktif for r in rotalar):
+            notlar.append(
+                "Açık bir sağlayıcıya bağlı değil: bayi alırsa işlem askıya düşer, "
+                "yönetimden elle gönderilir ya da “Yüklendi say” denir."
             )
-        elif not any(r.aktif and r.saglayici.aktif for r in rotalar):
-            eksikler.append("Bağlı sağlayıcıların hepsi kapalı (satırda ya da Sağlayıcılar ekranında).")
         gruplar = _gruplar()
         fiyatli = {f.grup_id for f in obj.grup_fiyatlari.all()}
         if gruplar and not fiyatli:
@@ -968,8 +968,9 @@ class PaketAdmin(ModelAdmin):
         if not eksikler:
             satilan = [g.ad for g in gruplar if g.pk in fiyatli] if gruplar else []
             return format_html(
-                '<b style="color:#0F8A4D">Evet</b>{}',
+                '<b style="color:#0F8A4D">Evet</b>{}{}',
                 f" — {', '.join(satilan)} grubundaki bayiler görür." if satilan else "",
+                format_html('<br><span style="color:#6F7B8F">{}</span>', notlar[0]) if notlar else "",
             )
         return format_html(
             '<b style="color:#D42046">Hayır</b><ul style="margin:.25rem 0 0 1rem;list-style:disc">{}</ul>',
@@ -980,7 +981,7 @@ class PaketAdmin(ModelAdmin):
     def rota_gosterimi(self, obj):
         rotalar = list(obj.rotalar.all())
         if not rotalar:
-            return format_html('<b style="color:#D42046">yok — satılmaz</b>')
+            return format_html('<span style="color:#6F7B8F">— (askıya düşer)</span>')
         return format_html_join(
             " → ",
             '<span style="{}">{}</span>',
@@ -1297,8 +1298,16 @@ class IslemAdmin(ModelAdmin):
         saglayicilar = [
             {"saglayici": r.saglayici, "denendi": r.saglayici_id in denenen, "rota": r}
             for r in rotalar
-            if r.saglayici.aktif
+            if r.saglayici.aktif and r.aktif
         ]
+        # Paket hiçbir açık sağlayıcıya bağlı değilse işlem buraya bu yüzden
+        # düştü: bütün açık sağlayıcılar seçilebilir, paketin kendi kodu gider.
+        baglisiz = not saglayicilar
+        if baglisiz:
+            saglayicilar = [
+                {"saglayici": sg, "denendi": sg.pk in denenen, "rota": None}
+                for sg in Saglayici.objects.filter(aktif=True).order_by("ad")
+            ]
         return render(
             request,
             "admin/kontor/islem_karar.html",
@@ -1306,6 +1315,7 @@ class IslemAdmin(ModelAdmin):
                 **self.admin_site.each_context(request),
                 "title": f"Kontör işlemi · {islem.siparis.referans_no}",
                 "opts": self.model._meta,
+                "baglisiz": baglisiz,
                 "islem": islem,
                 "denemeler": denemeler,
                 "saglayicilar": saglayicilar,

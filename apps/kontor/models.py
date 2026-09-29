@@ -315,13 +315,14 @@ class Kategori(ZamanDamgali):
 
 class PaketSorgusu(models.QuerySet):
     def satista(self):
-        """Aktif, kategorisi açık ve en az bir aktif sağlayıcıya yolu olan paketler."""
-        return self.filter(
-            aktif=True,
-            kategori__aktif=True,
-            rotalar__aktif=True,
-            rotalar__saglayici__aktif=True,
-        ).distinct()
+        """Aktif ve kategorisi açık paketler.
+
+        Sağlayıcıya bağlı olmak şart değildir: bağlı değilse işlem açılır ve
+        askıya düşer, yönetim elle yükler (yönetici: "api boşsa hata vermesine
+        gerek yok, bizim adminde düşer"). Bayiye görünmesi için fiyat yine
+        gerekir — o süzme `satistaki_paketler`'dedir.
+        """
+        return self.filter(aktif=True, kategori__aktif=True)
 
 
 class FiyatGrubu(ZamanDamgali):

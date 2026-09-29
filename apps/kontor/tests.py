@@ -310,11 +310,16 @@ class AcmaTestleri(Temel):
         with self.assertRaises(ValidationError):
             ikinci.full_clean()
 
-    def test_rotasiz_paket_satilmaz(self):
+    def test_saglayicisiz_paket_satilir_ve_askiya_duser(self):
         self.paket.rotalar.all().delete()
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi), [])
-        with self.assertRaises(YuklemeYapilamaz):
-            self.yukle()
+        self.assertEqual(satistaki_paketler(self.kategori, self.bayi), [self.paket])
+        islem = self.yukle()
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        self.assertEqual(self.bakiye(), TL("390.00"))  # para düşülü, yönetim karar verir
+        # Yönetim elle yükleyip "Yüklendi say" der.
+        yuklendi_say(islem, alis=TL("100"))
+        islem.refresh_from_db()
+        self.assertEqual(islem.durum, IslemDurumu.BASARILI)
 
     def test_hesap_hedefi_serbest_pin_hedefsiz(self):
         oyun = Kategori.objects.create(ad="PUBG UC", hedef=Hedef.YOK)
@@ -777,7 +782,7 @@ class YonetimTestleri(Temel):
         self.assertContains(self.client.get(adres), "Evet")
         self.paket.rotalar.all().delete()
         yanit = self.client.get(adres)
-        self.assertContains(yanit, "Hiçbir sağlayıcıya bağlı değil")
+        self.assertContains(yanit, "askıya düşer")
         FiyatGrubu.objects.create(ad="Parakende")
         self.assertContains(self.client.get(adres), "Hiçbir fiyat grubunda Bayi Satış Tutarı yazılı değil")
 
@@ -825,6 +830,19 @@ class YonetimTestleri(Temel):
         yanit = self.client.get(reverse("admin:kontor_paket_change", args=[self.paket.pk]))
         self.assertNotContains(yanit, 'name="rotalar-0-uzak_kod"')
         self.assertNotContains(yanit, 'name="rotalar-0-alis_fiyati"')
+
+    def test_saglayicisiz_islem_karar_ekranindan_gonderilir(self):
+        self.paket.rotalar.all().delete()
+        islem = self.yukle()
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        adres = reverse("admin:kontor_islem_karar", args=[islem.pk])
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "bağlı değil")
+        self.assertContains(yanit, "İki")
+        self.client.post(adres, {"karar": "gonder", "saglayici": self.iki.pk})
+        self.assertEqual(DURUM["İki"]["gonderilen"][-1][2], "100")  # paketin kendi kodu
+        islem.refresh_from_db()
+        self.assertEqual(islem.durum, IslemDurumu.ISLEMDE)
 
     def test_grup_sayfasi_bayi_satis_tutari(self):
         grup = FiyatGrubu.objects.create(ad="Toptan")

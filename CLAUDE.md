@@ -413,8 +413,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   girdirme. Paket sayfasının üstündeki **"Bayiye görünüyor mu?"**
   (`PaketAdmin.satis_durumu`) paketi bayiden saklayan her sebebi sayar:
   pasif paket/kategori, bağlı sağlayıcı yok ya da hepsi kapalı, hiçbir
-  grupta fiyat yok. "Bayi kontörü göremiyor" şikâyetinde ilk bakılacak yer;
-  en sık sebep "Kataloğa ekle" ile açılıp sağlayıcıya bağlanmamış paket.
+  grupta fiyat yok. "Bayi kontörü göremiyor" şikâyetinde ilk bakılacak yer.
+  **Sağlayıcıya bağlı olmamak paketi saklamaz** (`PaketSorgusu.satista`
+  yalnızca aktifliğe bakar): bayi alırsa işlem **askıya** düşer, iptal
+  edilmez; karar ekranı paket bağlı değilse bütün açık sağlayıcıları
+  sunar (paketin kendi kodu gider), yönetici elle yüklediyse "Yüklendi
+  say" der. Bir süre bağlı olmayan paket bayiden saklanıyordu ve yönetici
+  "api boşsa hata vermesine gerek yok, bizim adminde düşer" dedi. Listede
+  eksik sağlayıcı/alış kırmızı hata değil, soluk bilgi olarak yazılır.
   Kademe başvurudaki bayi grubundan **ayrıdır** (`Cuzdan.kontor_grubu`;
   Cüzdanlar listesinden satırda verilir). Grubu boş bayi **varsayılan**
   gruba düşer (tek olabilir); o da yoksa paketin `satis_fiyati`nı öder —

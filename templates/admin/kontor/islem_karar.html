@@ -100,7 +100,9 @@
     <input type="hidden" name="karar" value="gonder">
     <h3 class="font-semibold">Sağlayıcıya gönder</h3>
     <p class="mb-3 mt-1 text-sm text-base-500">
-      {% if belirsiz_var %}<b style="color:#D42046">Dikkat:</b> önceki gönderimin sonucu belirsiz. Yüklenmediğinden emin değilseniz göndermeyin —
+      {% if baglisiz %}Paket açık bir sağlayıcıya bağlı değil; bu yüzden askıya düştü. Seçtiğin sağlayıcıya
+      paketin kendi kodu ({{ islem.paket.kod|default:"—" }}) gider. Elle yüklediysen “Yüklendi say”ı kullan.
+      {% elif belirsiz_var %}<b style="color:#D42046">Dikkat:</b> önceki gönderimin sonucu belirsiz. Yüklenmediğinden emin değilseniz göndermeyin —
       iki kez yüklenirse ikisinin parası da sağlayıcılarda düşer.{% else %}Önceki gönderimler reddedildi; sıradakine göndermek güvenli.{% endif %}
       Sağlayıcı reddederse işlem askıda kalır.
     </p>
@@ -108,7 +110,7 @@
       <select name="saglayici" class="w-full rounded-default border border-base-200 px-3 py-2 dark:border-base-700 dark:bg-base-900">
         {% for s in saglayicilar %}
         <option value="{{ s.saglayici.pk }}" {% if s.denendi %}style="color:#D42046"{% endif %}>
-          {{ s.rota.sira }}. {{ s.saglayici }}{% if s.denendi %} — bu işlem buraya daha önce gönderildi{% endif %}{% if s.rota.alis_fiyati %} · alış {{ s.rota.alis_fiyati }}{% endif %}
+          {% if s.rota %}{{ s.rota.sira }}. {% endif %}{{ s.saglayici }}{% if s.denendi %} — bu işlem buraya daha önce gönderildi{% endif %}{% if s.rota.alis_fiyati %} · alış {{ s.rota.alis_fiyati }}{% endif %}
         </option>
         {% endfor %}
       </select>

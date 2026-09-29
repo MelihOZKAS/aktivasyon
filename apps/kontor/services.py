@@ -625,8 +625,15 @@ def _siradakine_gonder(islem):
             _iptal_et(islem, PAKET_YOK_MESAJI)
             return
 
+    kalan = _kalan_rotalar(islem)
+    if not kalan and not islem.denemeler.exists():
+        # Hiçbir sağlayıcıya bağlı değil: iptal değil askı — yönetim bir
+        # sağlayıcı seçip gönderir ya da elle yükleyip "Yüklendi say" der.
+        _askiya_al(islem)
+        return
+
     son_ret = ""
-    for rota in _kalan_rotalar(islem):
+    for rota in kalan:
         _uzat(islem.pk)
         deneme = _gonder(
             islem, rota.saglayici, rota.gidecek_kod, rota.gidecek_operator, rota.gidecek_tip, paket=rota.paket
