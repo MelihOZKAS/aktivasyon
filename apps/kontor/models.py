@@ -572,15 +572,27 @@ class Rota(models.Model):
         return self.uzak_tip or self.paket.kategori.api_tip
 
 
+class FiyatYontemi(models.TextChoices):
+    NET = "net", "Net fiyat"
+    YUZDE = "yuzde", "Alış + %"
+    TUTAR = "tutar", "Alış + ₺"
+
+
 class PaketFiyati(models.Model):
-    """İstisna: bu pakette bu grubun sabit fiyatı. Girilmeyen grup alıştan hesaplanır."""
+    """Bu pakette bu grubun kendi kuralı; girilmeyen paket grubun oranından hesaplanır.
+
+    Yönetici paket paket seçer: net fiyat (444,15 — alışa bakılmaz), alışın
+    üstüne yüzde ya da alışın üstüne sabit tutar.
+    """
 
     paket = models.ForeignKey(Paket, verbose_name="Paket", related_name="grup_fiyatlari", on_delete=models.CASCADE)
     grup = models.ForeignKey(
         FiyatGrubu, verbose_name="Fiyat Grubu", related_name="paket_fiyatlari", on_delete=models.CASCADE
     )
-    fiyat = models.DecimalField(
-        "Satış", max_digits=12, decimal_places=2, validators=[MinValueValidator(SIFIR)]
+    yontem = models.CharField("Yöntem", max_length=10, choices=FiyatYontemi.choices, default=FiyatYontemi.NET)
+    deger = models.DecimalField(
+        "Değer", max_digits=12, decimal_places=2, validators=[MinValueValidator(SIFIR)],
+        help_text="Net fiyatta satış tutarı; Alış + % yöntemde yüzde; Alış + ₺ yöntemde eklenen tutar.",
     )
 
     class Meta:
@@ -591,7 +603,19 @@ class PaketFiyati(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.grup}: {self.fiyat}"
+        return f"{self.grup}: {self.get_yontem_display()} {self.deger}"
+
+    def hesapla(self, alis):
+        """Bayinin ödeyeceği; alışa dayanan yöntemde alış yoksa `None`."""
+        if self.yontem == FiyatYontemi.NET:
+            return self.deger
+        if alis is None:
+            return None
+        if self.yontem == FiyatYontemi.YUZDE:
+            tutar = alis * (1 + self.deger / 100)
+        else:
+            tutar = alis + self.deger
+        return tutar.quantize(Decimal("0.01"), ROUND_HALF_UP)
 
 
 class GorulenPaket(models.Model):

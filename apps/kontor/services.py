@@ -96,17 +96,18 @@ def bayi_grubu(bayi):
     return grup or FiyatGrubu.varsayilani()
 
 
-def grup_fiyati(paket, grup, ozel=None):
+def grup_fiyati(paket, grup, kurallar=None):
     """Paketin bu gruptaki fiyatı. Tek hesap yeri: bayi ekranı da admin de buradan.
 
-    Sıra: pakette gruba girilmiş sabit fiyat (istisna) → alış × grup oranı →
-    grup yoksa paketin kendi satış fiyatı. Alışı girilmemiş paketin grupta
-    fiyatı yoktur (`None`); satılmaz, rakam uydurulmaz.
+    Sıra: pakette bu gruba yazılmış kural (`PaketFiyati`: net fiyat, alış + %,
+    alış + ₺) → grubun genel oranı → grup yoksa paketin kendi satış fiyatı.
+    Alışa dayanan hesapta alış yoksa `None`: paket satılmaz, rakam uydurulmaz.
+    `kurallar` paket id → `PaketFiyati` sözlüğüdür (liste başına bir sorgu).
     """
     if grup is None:
         return paket.satis_fiyati
-    if ozel is not None and paket.pk in ozel:
-        return ozel[paket.pk]
+    if kurallar is not None and paket.pk in kurallar:
+        return kurallar[paket.pk].hesapla(paket.ilk_alis())
     return grup.fiyat(paket.ilk_alis())
 
 
@@ -120,13 +121,11 @@ def fiyatlandir(paketler, bayi):
     paketler = list(paketler)
     prefetch_related_objects(paketler, "rotalar__saglayici")
     grup = bayi_grubu(bayi)
-    ozel = {}
+    kurallar = {}
     if grup is not None and paketler:
-        ozel = dict(
-            PaketFiyati.objects.filter(grup=grup, paket__in=paketler).values_list("paket_id", "fiyat")
-        )
+        kurallar = {k.paket_id: k for k in PaketFiyati.objects.filter(grup=grup, paket__in=paketler)}
     for paket in paketler:
-        paket.fiyat = grup_fiyati(paket, grup, ozel) or SIFIR
+        paket.fiyat = grup_fiyati(paket, grup, kurallar) or SIFIR
         paket.tavsiye = paket.tavsiye_fiyati if paket.tavsiye_fiyati else None
         paket.kazanc = (paket.tavsiye - paket.fiyat) if paket.tavsiye is not None else None
     return paketler
@@ -136,23 +135,32 @@ def bayi_fiyati(bayi, paket):
     return fiyatlandir([paket], bayi)[0].fiyat
 
 
-def satistaki_paketler(kategori, bayi):
-    """Kategorinin bayiye fiyatı olan, satıştaki paketleri."""
-    paketler = fiyatlandir(
-        Paket.objects.satista().filter(kategori=kategori).select_related("kategori"), bayi
-    )
-    return [p for p in paketler if p.fiyat > 0]
+def satistaki_paketler(kategori, bayi, *, ara=""):
+    """Kategorinin bayiye fiyatı olan, satıştaki paketleri; `ara` ad/kod/içerikte arar."""
+    paketler = Paket.objects.satista().filter(kategori=kategori).select_related("kategori")
+    for kelime in (ara or "").split():
+        paketler = paketler.filter(Q(ad__icontains=kelime) | Q(kod__icontains=kelime) | Q(aciklama__icontains=kelime))
+    return [p for p in fiyatlandir(paketler, bayi) if p.fiyat > 0]
 
 
-def kategori_listesi(*, oyun=False):
-    """Satışta en az bir paketi olan kategoriler; kontör ya da oyun bölümü."""
-    return (
+def kategori_listesi(*, oyun=False, bayi=None):
+    """Satışta en az bir paketi olan kategoriler; kontör ya da oyun bölümü.
+
+    `bayi` verilirse yalnızca o bayiye fiyatı olan paketi bulunan kategoriler
+    gelir — fiyatsız kategori listede görünüp içi boş açılmasın.
+    """
+    kategoriler = (
         Kategori.objects.filter(
             aktif=True, oyun=oyun, pk__in=Paket.objects.satista().values("kategori")
         )
         .select_related("operator")
         .order_by("sira", "operator__sira", "ad")
     )
+    if bayi is None:
+        return kategoriler
+    paketler = Paket.objects.satista().filter(kategori__in=kategoriler)
+    fiyatli = {p.kategori_id for p in fiyatlandir(paketler, bayi) if p.fiyat > 0}
+    return [k for k in kategoriler if k.pk in fiyatli]
 
 
 def hedefi_dogrula(kategori, hedef):

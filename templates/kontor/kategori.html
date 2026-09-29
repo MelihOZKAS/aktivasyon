@@ -36,17 +36,26 @@
   <div id="sorgu-sonucu"></div>
   {% endif %}
 
-  {% if paketler %}
+  {% comment %}
+    Arama sunucuda yapılır ve liste sayfa başı 50 pakettir: bir operatörde
+    bin paket olabilir, hepsini çizip tarayıcıda süzmek telefonu yoruyordu.
+  {% endcomment %}
+  {% if paketler or ara %}
   <div class="mb-4 flex items-center gap-2">
-    {% if paketler|length > 8 %}
-    <input type="search" id="paket-ara" class="girdi min-w-0 flex-1" placeholder="Paket ara… (15 GB, 1000 DK, 100)"
-           autocomplete="off" inputmode="search">
+    {% if paketler|length > 8 or ara or sayfa.has_other_pages %}
+    <form method="get" class="flex min-w-0 flex-1 gap-2" role="search">
+      <input type="search" name="q" value="{{ ara }}" class="girdi min-w-0 flex-1"
+             placeholder="Paket ara… (15 GB, 1000 DK, 100)" autocomplete="off" inputmode="search">
+      <button type="submit" class="dugme dugme-sessiz shrink-0">Ara</button>
+    </form>
     {% else %}
     <p class="flex-1 text-sm text-soluk">{% if tavsiye_var %}Fiyatlar müşteriye satış fiyatıdır.{% endif %}</p>
     {% endif %}
     {% if tavsiye_var %}{% include "kontor/parca_goz.html" %}{% endif %}
   </div>
+  {% endif %}
 
+  {% if paketler %}
   {% comment %}
     Paket kartı: ad, içerik (DK · GB · gün), bayinin ödeyeceği fiyat.
     Bakiyesi yetmeyen paket gizlenmez; fiyatı uyarı renginde yazılır,
@@ -55,7 +64,6 @@
   <div id="paket-listesi" class="grid gap-2 sm:grid-cols-2">
     {% for paket in paketler %}
     <a href="{{ paket.get_absolute_url }}"
-       data-ara="{{ paket.ad|lower }} {{ paket.icerik|lower }} {{ paket.kod }}"
        class="kart-secim sim yuzey flex min-h-16 items-center gap-3 border border-cizgi px-4 py-3 transition">
       <span class="min-w-0 flex-1">
         <span class="block font-medium">{{ paket.ad }}</span>
@@ -67,32 +75,27 @@
     </a>
     {% endfor %}
   </div>
-  <p id="paket-yok" hidden class="mt-4 text-sm text-soluk">Aramaya uyan paket yok.</p>
+
+  {% if sayfa.has_other_pages %}
+  <nav class="mt-4 flex items-center justify-between gap-2 text-sm" aria-label="Sayfalar">
+    {% if sayfa.has_previous %}
+    <a href="?{% if ara %}q={{ ara|urlencode }}&amp;{% endif %}sayfa={{ sayfa.previous_page_number }}" class="dugme dugme-sessiz">← Önceki</a>
+    {% else %}<span></span>{% endif %}
+    <span class="text-soluk">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }} · {{ sayfa.paginator.count }} paket</span>
+    {% if sayfa.has_next %}
+    <a href="?{% if ara %}q={{ ara|urlencode }}&amp;{% endif %}sayfa={{ sayfa.next_page_number }}" class="dugme dugme-sessiz">Sonraki →</a>
+    {% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+  {% elif ara %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">“{{ ara }}” aramasına uyan paket yok.</p>
+    <a href="{{ kategori.get_absolute_url }}" class="mt-2 inline-flex min-h-11 items-center text-sm font-medium">Aramayı temizle</a>
+  </div>
   {% else %}
   <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
     <p class="text-sm text-soluk">Bu kategoride şu an satışta paket yok.</p>
   </div>
   {% endif %}
 </div>
-
-<script>
-  (function () {
-    var kutu = document.getElementById("paket-ara");
-    var liste = document.getElementById("paket-listesi");
-    var yok = document.getElementById("paket-yok");
-    if (!kutu || !liste) return;
-    var kartlar = Array.prototype.slice.call(liste.children);
-    function kucult(m) { return m.replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr"); }
-    kutu.addEventListener("input", function () {
-      var aranan = kucult(kutu.value.trim());
-      var gorunen = 0;
-      kartlar.forEach(function (k) {
-        var uydu = !aranan || kucult(k.dataset.ara).indexOf(aranan) !== -1;
-        k.hidden = !uydu;
-        if (uydu) gorunen++;
-      });
-      yok.hidden = gorunen > 0;
-    });
-  })();
-</script>
 {% endblock %}

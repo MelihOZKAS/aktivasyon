@@ -60,6 +60,7 @@ from apps.kontor.services import (
     iptal_et,
     isle,
     sahiplik,
+    kategori_listesi,
     satistaki_paketler,
     sonucu_sorgula,
     yukleme_baslat,
@@ -289,10 +290,43 @@ class AcmaTestleri(Temel):
     def test_gruba_ozel_sabit_fiyat_istisnadir(self):
         grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"))
         self._gruba_bagla(grup)
-        PaketFiyati.objects.create(paket=self.paket, grup=grup, fiyat=TL("103.00"))
+        PaketFiyati.objects.create(paket=self.paket, grup=grup, deger=TL("103.00"))
         self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("103.00"))
         self.yukle()
         self.assertEqual(self.bakiye(), TL("397.00"))
+
+    def test_yuzde_kurali_alisa_dayanir(self):
+        grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("50"))
+        self._gruba_bagla(grup)
+        PaketFiyati.objects.create(paket=self.paket, grup=grup, yontem="yuzde", deger=TL("2.5"))
+        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("102.50"))
+        Rota.objects.update(alis_fiyati=None)
+        self.assertEqual(satistaki_paketler(self.kategori, self.bayi), [])
+
+    def test_net_fiyat_alissiz_da_satilir(self):
+        grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"))
+        self._gruba_bagla(grup)
+        Rota.objects.update(alis_fiyati=None)
+        PaketFiyati.objects.create(paket=self.paket, grup=grup, yontem="net", deger=TL("444.15"))
+        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("444.15"))
+
+    def test_fiyatsiz_kategori_bayinin_listesinde_yok(self):
+        self._gruba_bagla(FiyatGrubu.objects.create(ad="Toptan", oran=TL("5")))
+        self.assertEqual(list(kategori_listesi(bayi=self.bayi)), [self.kategori])
+        Rota.objects.update(alis_fiyati=None)
+        self.assertEqual(list(kategori_listesi(bayi=self.bayi)), [])
+
+    def test_bayi_kategori_sayfasi_sayfalanir_ve_aranir(self):
+        for i in range(60):
+            paket = Paket.objects.create(kategori=self.kategori, kod=f"K{i}", ad=f"Ek paket {i}", satis_fiyati=TL("5"))
+            Rota.objects.create(paket=paket, saglayici=self.bir, alis_fiyati=TL("4"))
+        self.client.force_login(self.bayi)
+        adres = reverse("kontor:kategori", args=[self.kategori.slug])
+        yanit = self.client.get(adres)
+        self.assertEqual(len(yanit.context["paketler"]), 50)
+        self.assertContains(yanit, "1 / 2 · 61 paket")
+        yanit = self.client.get(adres + "?q=kolay")
+        self.assertEqual([p.pk for p in yanit.context["paketler"]], [self.paket.pk])
 
     def test_tek_varsayilan_grup(self):
         FiyatGrubu.objects.create(ad="Perakende", varsayilan=True)
@@ -760,19 +794,48 @@ class YonetimTestleri(Temel):
         yanit = self.client.get(reverse("admin:kontor_paket_change", args=[self.paket.pk]))
         self.assertNotContains(yanit, 'name="satis_fiyati"')
 
-    def test_grup_sayfasindan_duz_rakam_girilir(self):
+    def test_grup_paket_fiyatlari_ekrani(self):
         grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"))
-        adres = reverse("admin:kontor_fiyatgrubu_change", args=[grup.pk])
+        adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
         yanit = self.client.get(adres)
-        self.assertContains(yanit, 'placeholder="105,00"')
-        alan = f"paket_{self.paket.pk}"
-        veri = {"ad": "Toptan", "oran": "5", "ek_tutar": "0", "aciklama": "", alan: "345,66"}
-        self.assertEqual(self.client.post(adres, veri).status_code, 302)
-        self.assertEqual(PaketFiyati.objects.get(grup=grup, paket=self.paket).fiyat, TL("345.66"))
-        # Kutu boşaltılınca orana döner.
-        veri[alan] = ""
-        self.client.post(adres, veri)
+        self.assertContains(yanit, "105,00 ₺")  # kuralsız paket orandan
+        yontem, deger = f"yontem_{self.paket.pk}", f"deger_{self.paket.pk}"
+        self.assertEqual(self.client.post(adres, {yontem: "net", deger: "444,15"}).status_code, 302)
+        kural = PaketFiyati.objects.get(grup=grup, paket=self.paket)
+        self.assertEqual((kural.yontem, kural.deger), ("net", TL("444.15")))
+        self.client.post(adres, {yontem: "tutar", deger: "7"})
+        self.cuzdan.kontor_grubu = grup
+        self.cuzdan.save()
+        self.bayi.refresh_from_db()
+        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("107.00"))
+        # Yöntemi boş (grubun oranı) yapınca kural silinir.
+        self.client.post(adres, {yontem: "", deger: ""})
         self.assertFalse(PaketFiyati.objects.filter(grup=grup).exists())
+
+    def test_grup_paket_fiyatlari_bozuk_deger_kaydetmez(self):
+        grup = FiyatGrubu.objects.create(ad="Toptan")
+        adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
+        yanit = self.client.post(adres, {f"yontem_{self.paket.pk}": "net", f"deger_{self.paket.pk}": "abc"})
+        self.assertContains(yanit, "Rakam anlaşılamadı")
+        yanit = self.client.post(adres, {f"yontem_{self.paket.pk}": "yuzde", f"deger_{self.paket.pk}": ""})
+        self.assertContains(yanit, "Değer yazın")
+        self.assertFalse(PaketFiyati.objects.exists())
+
+    def test_grup_paket_fiyatlari_suzulur_ve_sayfalanir(self):
+        grup = FiyatGrubu.objects.create(ad="Toptan")
+        for i in range(60):
+            Paket.objects.create(kategori=self.kategori, kod=f"K{i}", ad=f"Ek paket {i}")
+        adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "1 / 2 · 61 paket")
+        yanit = self.client.get(adres + "?q=Kolay")
+        self.assertContains(yanit, "Kolay Paket 15")
+        self.assertNotContains(yanit, "Ek paket 1<")
+        # POST yalnızca o sayfadaki paketleri yazar: 2. sayfadaki kural korunur.
+        ikinci = Paket.objects.order_by("sira", "ad").last()
+        PaketFiyati.objects.create(paket=ikinci, grup=grup, deger=TL("5"))
+        self.client.post(adres, {})
+        self.assertTrue(PaketFiyati.objects.filter(paket=ikinci).exists())
 
     def test_api_sifresi_post_ile_uretilir(self):
         erisim = ApiErisimi.objects.create(kullanici=self.bayi)

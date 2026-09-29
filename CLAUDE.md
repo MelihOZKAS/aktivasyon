@@ -368,24 +368,34 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   fiyat listesi veren sağlayıcıda (**Fiyat listesini çek**) kendiliğinden
   güncellenir. Tek sağlayıcının bütün alışları **Sağlayıcı Alışları**
   ekranında (`RotaAdmin`, satırda düzenlenir) toplu girilir.
-  · **Bayinin fiyatı paket paket girilmez, alıştan hesaplanır.** Yönetici
-  "her pakete her grup için fiyat girmek" istemedi: `FiyatGrubu`
-  (Perakende, Toptan…) tek oran taşır, bayi `alış × (1 + oran/100) + ek
-  tutar` öder. Alış, sıradaki **ilk açık** sağlayıcınınkidir; alış değişince
-  bütün fiyatlar kendiliğinden değişir, saklanan bir satış rakamı yoktur.
+  · **Bayinin fiyatı kontör fiyat grubundan gelir** (`FiyatGrubu`:
+  Perakende, Toptan…). Grubun genel oranı kuralı olmayan her pakete
+  uygulanır: `alış × (1 + oran/100) + ek tutar`. Pakete özel kural
+  (`PaketFiyati`) üç yöntemdir: **net fiyat** (444,15 — alışa bakılmaz),
+  **alış + %**, **alış + ₺**. Yönetici önce "her pakete her grup için fiyat
+  girmek istemem" dedi, sonra "istediğime net rakam, istediğime alış + %
+  ya da + ₺" istedi; ikisi birlikte yaşar, "mod" seçimi yoktur. Alış,
+  sıradaki **ilk açık** sağlayıcınınkidir; alış değişince orana bağlı
+  fiyatlar kendiliğinden değişir, saklanan bir satış rakamı yoktur. Alışa
+  dayanan hesapta alış yoksa paket o gruba satılmaz, rakam uydurulmaz.
+  Tek hesap `services.grup_fiyati`; bayi ekranı, paket listesindeki
+  "Bayiye satış · kâr" sütunu ve grubun ekranı oradan geçer.
   Kademe başvurudaki bayi grubundan **ayrıdır** (`Cuzdan.kontor_grubu`;
-  Cüzdanlar listesinden satırda verilir): kontörde toptan çalışan bayi
-  başvuruda başka kademede olabilir. Grubu boş bayi **varsayılan** gruba
-  düşer (tek olabilir); o da yoksa paketin `satis_fiyati`nı öder — alan
-  yalnızca o durumda formda görünür. Alışı olmayan paket gruptaki bayiye
-  satılmaz, rakam uydurulmaz. **Düz rakam da girilebilir** (`PaketFiyati`):
-  grubun sayfasında her aktif paketin kutusu vardır, yazılan rakam (500,
-  345,66) orandan önce gelir, boş kutu orana döner ve hesaplanan rakam kutunun
-  içinde soluk yazar. Yönetici ikisini karıştırır — çoğu paket orandan,
-  birkaçı elle; ayrı bir "mod" seçimi yoktur. Tek hesap `services.grup_fiyati`; bayi ekranı da
-  paket listesindeki "Bayiye satış · kâr" sütunu da oradan geçer. Eski sistemin iade
-  tutarını koda gömen (`95.5`) hatası burada yok: iade her zaman siparişin
-  kendi tutarıdır.
+  Cüzdanlar listesinden satırda verilir). Grubu boş bayi **varsayılan**
+  gruba düşer (tek olabilir); o da yoksa paketin `satis_fiyati`nı öder —
+  alan yalnızca o durumda formda görünür.
+  Paket kuralları grubun formuna değil **Paket fiyatları** ekranına
+  (`FiyatGrubuAdmin.paket_fiyatlari`) girilir: bir operatörde bin paket
+  olabilir, forma gömülünce her açılışta hepsi çiziliyordu. Ekran operatöre,
+  kategoriye ve adla süzülür, **sayfa başı 50** paket; POST yalnızca o
+  sayfadaki paketleri yazar. Soldaki kutucuklar + üstteki çubuk seçilenlere
+  aynı kuralı yazar; "Bayi öder" sütunu yazarken tarayıcıda güncellenir.
+  · **Paket çok olabilir; hiçbir liste hepsini çizmez.** Kontör admin
+  listeleri sayfa başı 50 ve operatör süzgecilidir; bayinin kategori
+  sayfası da sunucuda arar (`?q=`) ve 50'şer sayfalar. Tarayıcıda süzen
+  eski arama bin kartı çizip gizliyordu. Kategori ekranı bayiye fiyatı
+  olmayan kategoriyi hiç listelemez (`kategori_listesi(bayi=…)`) — içi boş
+  açılmasın. Yeni bir paket listesi yazarsan sayfala.
   · **Bayi programları Znet protokolüyle bağlanır** (`/servis/tl_servis.php`,
   `/servis/tl_kontrol.php`, `apps/kontor/api.py`). Şifre hesap parolası
   değildir: `ApiErisimi`'nde üretilir, bir kez gösterilir, SHA-256 özeti

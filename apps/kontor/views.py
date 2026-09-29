@@ -43,6 +43,8 @@ SON_ISLEM_ADEDI = 5
 # de ancak commit edilince diğer süreçlere görünür.
 atomik_degil = transaction.non_atomic_requests
 
+PAKET_SAYFASI = 50
+
 
 def _bakiye(request):
     cuzdan = getattr(request.user, "cuzdan", None)
@@ -63,7 +65,7 @@ def kategoriler(request, oyun=False):
         "kontor/kategoriler.html",
         {
             "oyun": oyun,
-            "kategoriler": kategori_listesi(oyun=oyun),
+            "kategoriler": kategori_listesi(oyun=oyun, bayi=request.user),
             "bakiye": _bakiye(request),
             "son_islemler": _islemler(request).filter(kategori__oyun=oyun)[:SON_ISLEM_ADEDI],
         },
@@ -100,15 +102,21 @@ def _bolum(gorunum):
 @_bolum
 def kategori(request, slug, oyun=False):
     kategori_kaydi = _satistaki_kategori(slug, oyun)
-    paketler = satistaki_paketler(kategori_kaydi, request.user)
+    ara = request.GET.get("q", "").strip()[:60]
+    paketler = satistaki_paketler(kategori_kaydi, request.user, ara=ara)
+    # Bir operatörde bin paket olabilir; kart kart hepsini çizmek telefonu da
+    # sunucuyu da yorar. Fiyat hesabı ucuzdur (dört sorgu), çizim sayfa başı.
+    sayfa = Paginator(paketler, PAKET_SAYFASI).get_page(request.GET.get("sayfa"))
     return render(
         request,
         "kontor/kategori.html",
         {
             "kategori": kategori_kaydi,
-            "paketler": paketler,
+            "paketler": sayfa.object_list,
+            "sayfa": sayfa,
+            "ara": ara,
             "bakiye": _bakiye(request),
-            "tavsiye_var": any(p.tavsiye for p in paketler),
+            "tavsiye_var": any(p.tavsiye for p in sayfa.object_list),
         },
     )
 
