@@ -98,7 +98,7 @@ class SahteAdaptor(Adaptor):
             raise SaglayiciHatasi("Bağlantı reddedildi", kesin_gitmedi=True)
         if davranis == "zaman":
             raise SaglayiciHatasi("20 saniyede cevap vermedi")
-        if davranis == "red":
+        if davranis == "red" or uzak_kod in d.get("red_kodlar", ()):
             return GonderimSonucu(Gonderim.RED, mesaj="Yetersiz bakiye", ham="OK|3|Yetersiz bakiye|0.00")
         if davranis == "belirsiz":
             return GonderimSonucu(Gonderim.BELIRSIZ, mesaj="??", ham="OK|8|Bekleyin|0")
@@ -744,7 +744,7 @@ class YonetimTestleri(Temel):
 
     def test_listeler_acilir(self):
         self.yukle()
-        for ad in ("islem", "paket", "kategori", "saglayici", "saglayicipaketi", "apierisimi", "fiyatgrubu", "rota"):
+        for ad in ("islem", "paket", "kategori", "saglayici", "saglayicipaketi", "apierisimi", "fiyatgrubu"):
             yanit = self.client.get(reverse(f"admin:kontor_{ad}_changelist"))
             self.assertEqual(yanit.status_code, 200, ad)
         islem = Islem.objects.get()
@@ -764,8 +764,10 @@ class YonetimTestleri(Temel):
         self.assertContains(yanit, "Toptan: <b>105.00</b>")
         self.assertContains(yanit, "Perakende: <b>—</b>")
         self.assertEqual(self.client.get(reverse("admin:kontor_fiyatgrubu_changelist")).status_code, 200)
-        yanit = self.client.get(reverse("admin:kontor_rota_changelist") + f"?saglayici__id__exact={self.iki.pk}")
-        self.assertContains(yanit, "V100")
+        yanit = self.client.get(
+            reverse("admin:kontor_saglayici_change", args=[self.iki.pk]) + f"?operator={self.operator.pk}"
+        )
+        self.assertContains(yanit, 'value="V100"')
         # Varsayılan grup varken grupsuz fiyat alanı formda yok.
         yanit = self.client.get(reverse("admin:kontor_paket_change", args=[self.paket.pk]))
         self.assertNotContains(yanit, 'name="satis_fiyati"')
@@ -788,6 +790,41 @@ class YonetimTestleri(Temel):
             )
         yanit = self.client.get(reverse("admin:kontor_gorulenpaket_changelist"))
         self.assertEqual([g.kod for g in yanit.context["cl"].result_list], ["3", "2", "1"])
+
+    def test_saglayici_sayfasinda_karsi_kod_ve_alis(self):
+        adres = reverse("admin:kontor_saglayici_change", args=[self.bir.pk])
+        # Operatör seçilmeden paket listesi gelmez.
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "Paketleri görmek için operatör seç")
+        self.assertNotContains(yanit, f'name="kod_{self.paket.pk}"')
+        yanit = self.client.get(adres + f"?operator={self.operator.pk}")
+        self.assertContains(yanit, f'name="kod_{self.paket.pk}"')
+        # Bizim kod yalnızca görünür; düzenlenecek alanı yok.
+        self.assertNotContains(yanit, f'name="paket_kod_{self.paket.pk}"')
+        yeni = Paket.objects.create(kategori=self.kategori, kod="200", ad="Yeni paket")
+        kaydet = reverse("admin:kontor_saglayici_paketler", args=[self.bir.pk]) + f"?operator={self.operator.pk}"
+        veri = {
+            "paket": [self.paket.pk, yeni.pk],
+            f"kod_{self.paket.pk}": "Z-100", f"alis_{self.paket.pk}": "98,50", f"gonder_{self.paket.pk}": "1",
+            f"kod_{yeni.pk}": "Z-200", f"alis_{yeni.pk}": "40", f"gonder_{yeni.pk}": "1",
+        }
+        self.assertEqual(self.client.post(kaydet, veri).status_code, 302)
+        rota = Rota.objects.get(paket=self.paket, saglayici=self.bir)
+        self.assertEqual((rota.uzak_kod, rota.alis_fiyati, rota.aktif), ("Z-100", TL("98.50"), True))
+        # Bağlı olmayan paket bu sağlayıcıya bağlandı, sıranın sonuna.
+        yeni_rota = Rota.objects.get(paket=yeni, saglayici=self.bir)
+        self.assertEqual((yeni_rota.uzak_kod, yeni_rota.alis_fiyati, yeni_rota.sira), ("Z-200", TL("40"), 1))
+        # Karşı kod bizimkiyle aynıysa saklanmaz; Gönder kaldırılınca rota pasif.
+        veri.update({f"kod_{self.paket.pk}": "100"})
+        del veri[f"gonder_{self.paket.pk}"]
+        self.client.post(kaydet, veri)
+        rota.refresh_from_db()
+        self.assertEqual((rota.uzak_kod, rota.aktif), ("", False))
+
+    def test_paket_sayfasinda_karsi_kod_duzenlenmez(self):
+        yanit = self.client.get(reverse("admin:kontor_paket_change", args=[self.paket.pk]))
+        self.assertNotContains(yanit, 'name="rotalar-0-uzak_kod"')
+        self.assertNotContains(yanit, 'name="rotalar-0-alis_fiyati"')
 
     def test_grup_sayfasi_bayi_satis_tutari(self):
         grup = FiyatGrubu.objects.create(ad="Toptan")
@@ -1106,6 +1143,133 @@ class VodafoneSorguTestleri(TestCase):
             sinif.return_value.get_public_token.side_effect = requests.ConnectionError("yok")
             with self.assertRaisesMessage(SorguHatasi, "ulaşılamadı"):
                 kaynak_getir("vodafone").fonksiyon("5321234567")
+
+
+ALT_SORGU = {"kodlar": [], "hata": False, "cagri": 0}
+
+
+@kaynak("alt-sorgu", "Alternatif test sorgusu")
+def _alt_sorgusu(numara, *, sahip=False):
+    ALT_SORGU["cagri"] += 1
+    if ALT_SORGU["hata"]:
+        raise SorguHatasi("Kaynak cevap vermedi.")
+    return [SorguPaketi(kod=k, ad=f"P{k}") for k in ALT_SORGU["kodlar"]]
+
+
+@override_settings(KONTOR_ARKA_PLAN=False, KONTOR_ATOMIK_DENETIMI=False, CACHES=TEST_ONBELLEK)
+class AlternatifTestleri(Temel):
+    """Bayi X'i alır; numara aynısını ya da fazlasını ucuza veren Y'yi alabiliyorsa Y gider."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import caches
+
+        caches["kontor_sorgu"].clear()
+        ALT_SORGU.update(kodlar=[], hata=False, cagri=0)
+        self.kategori.sorgu_kaynagi = "alt-sorgu"
+        self.kategori.sorgu_sahibi_goster = False
+        self.kategori.save()
+        # Ana paket: 1000 DK · 15 GB · 30 gün, alış 100 (Bir) / 102 (İki), satış 110.
+        self.ucuz = self._paket("200", internet_mb=20000, alis="90")  # fazlası, ucuz → alternatif
+        self._paket("300", internet_mb=10000, alis="80")  # az internet → değil
+        self._paket("400", internet_mb=20000, alis="105")  # pahalı → değil
+        self.en_ucuz = self._paket("500", internet_mb=15000, alis="85")  # aynısı, en ucuz
+
+    def _paket(self, kod, *, internet_mb, alis):
+        paket = Paket.objects.create(
+            kategori=self.kategori, kod=kod, ad=f"Paket {kod}", satis_fiyati=TL("110"),
+            dakika=1000, internet_mb=internet_mb, gun=30,
+        )
+        Rota.objects.create(paket=paket, saglayici=self.bir, sira=1, alis_fiyati=TL(alis))
+        return paket
+
+    def giden_kodlar(self):
+        return [g[2] for g in DURUM["Bir"]["gonderilen"]] + [g[2] for g in DURUM["İki"]["gonderilen"]]
+
+    def test_alternatifler_ucuzdan_pahaliya(self):
+        self.assertEqual(self.paket.alternatifleri(), [self.en_ucuz, self.ucuz])
+        # Referans dakika, GB ve gün; SMS'e bakılmaz.
+        self.paket.sms = 250
+        self.paket.save()
+        self.assertEqual(self.paket.alternatifleri(), [self.en_ucuz, self.ucuz])
+        self.en_ucuz.alternatif_yapilmasin = True
+        self.en_ucuz.save()
+        self.assertEqual(self.paket.alternatifleri(), [self.ucuz])
+        self.paket.alternatif_yapilmasin = True
+        self.assertEqual(self.paket.alternatifleri(), [])
+
+    def test_numaranin_alabildigi_ucuz_alternatif_gider(self):
+        ALT_SORGU["kodlar"] = ["100", "200"]  # 500 numarada yok
+        islem = self.yukle()
+        self.assertEqual(self.giden_kodlar(), ["200"])
+        _ayar("Bir", sorgu="basarili", mesaj="Paket 200 yüklendi")
+        islem = isle(islem.pk, zorla=True)
+        self.assertEqual(islem.durum, IslemDurumu.BASARILI)
+        self.assertTrue(islem.alternatif_gonderildi)
+        # Bayi istediğini görür ve onun fiyatını öder; kâr alternatifin alışıyla.
+        self.assertEqual(islem.paket_adi, "Kolay Paket 15")
+        self.assertEqual(islem.sonuc_mesaji, "Yüklendi.")
+        self.assertEqual(self.bakiye(), TL("390.00"))
+        self.assertEqual(islem.alis_tutari, TL("90"))
+        self.assertEqual(islem.kar, TL("20.00"))
+
+    def test_alternatif_reddedilirse_sonra_ana_paket(self):
+        ALT_SORGU["kodlar"] = ["100", "200", "500"]
+        _ayar("Bir", red_kodlar={"500", "200"})
+        islem = self.yukle()
+        # İki alternatif de kesin retle döndü; sıra ana pakete gelir, Bir kabul eder.
+        self.assertEqual(self.giden_kodlar(), ["500", "200", "100"])
+        self.assertEqual(islem.durum, IslemDurumu.ISLEMDE)
+        self.assertFalse(islem.alternatif_gonderildi)
+
+    def test_ana_paket_ve_alternatif_numarada_yoksa_iptal_ve_iade(self):
+        ALT_SORGU["kodlar"] = ["300", "999"]
+        islem = self.yukle()
+        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
+        self.assertEqual(self.giden_kodlar(), [])
+        self.assertIn("alamıyor", islem.sonuc_mesaji)
+        self.assertEqual(self.bakiye(), TL("500.00"))
+
+    def test_ana_paket_numarada_yok_ama_alternatif_var(self):
+        ALT_SORGU["kodlar"] = ["200"]
+        _ayar("Bir", red_kodlar={"200"})
+        islem = self.yukle()
+        # Alternatif reddedildi, ana paket numarada yok: denenmez, iade.
+        self.assertEqual(self.giden_kodlar(), ["200"])
+        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
+        self.assertEqual(self.bakiye(), TL("500.00"))
+
+    def test_sorgu_hata_verirse_ana_paket_gider(self):
+        ALT_SORGU["hata"] = True
+        self.yukle()
+        self.assertEqual(self.giden_kodlar(), ["100"])
+
+    def test_bayinin_sorgusu_onbellekten_kullanilir(self):
+        ALT_SORGU["kodlar"] = ["100", "500"]
+        from apps.kontor.services import numarayi_sorgula
+
+        numarayi_sorgula(self.kategori, "5329998877", self.bayi)
+        self.yukle(hedef="5329998877")
+        self.assertEqual(ALT_SORGU["cagri"], 1)
+        self.assertEqual(self.giden_kodlar(), ["500"])
+
+    def test_alternatif_yapilmasin_sorguya_gitmez(self):
+        self.paket.alternatif_yapilmasin = True
+        self.paket.save()
+        ALT_SORGU["kodlar"] = ["100", "500"]
+        self.yukle()
+        self.assertEqual(ALT_SORGU["cagri"], 0)
+        self.assertEqual(self.giden_kodlar(), ["100"])
+
+    def test_bayi_ekraninda_alternatif_gorunmez(self):
+        ALT_SORGU["kodlar"] = ["100", "500"]
+        islem = self.yukle()
+        _ayar("Bir", sorgu="basarili", mesaj="Paket 500 yüklendi")
+        isle(islem.pk, zorla=True)
+        self.client.force_login(self.bayi)
+        yanit = self.client.get(islem.get_absolute_url())
+        self.assertContains(yanit, "Kolay Paket 15")
+        self.assertNotContains(yanit, "Paket 500")
 
 
 class TavsiyeTestleri(Temel):

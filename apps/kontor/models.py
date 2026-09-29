@@ -417,6 +417,14 @@ class Paket(ZamanDamgali):
             "düğmesiyle açılır. Operatör sorgusunda görülen fiyattan doldurulabilir."
         ),
     )
+    alternatif_yapilmasin = models.BooleanField(
+        "Alternatif yapılmasın",
+        default=False,
+        help_text=(
+            "İşaretliyse bu paket istendiğinde yerine ucuz alternatif gönderilmez, "
+            "başka paketin alternatifi olarak da kullanılmaz."
+        ),
+    )
     sira = models.PositiveIntegerField("Sıra", default=0)
     aktif = models.BooleanField("Aktif", default=True)
 
@@ -459,6 +467,36 @@ class Paket(ZamanDamgali):
             if rota.aktif and rota.saglayici.aktif:
                 return rota.alis_fiyati
         return None
+
+    def alternatifleri(self):
+        """Bu paket yerine gönderilebilecek, bize daha ucuza gelen paketler.
+
+        Aynı kategoride, satışta, alışı bundan düşük ve dakikası, GB'si ve
+        günü en az bunun kadar olanlar; en ucuzu önce. SMS bilerek bakılmaz
+        (yönetimin kararı: referans bu üçü). Müşteri
+        aynısını ya da fazlasını alır, aradaki maliyet bize kalır. Saklanmaz,
+        her seferinde hesaplanır: eski sistemde liste elle "yap"ılıyordu ve
+        alış değişince bayatlıyordu. Numaranın bunlardan hangisini
+        alabileceğine gönderim anındaki sorgu karar verir.
+        """
+        alis = self.ilk_alis()
+        if alis is None or self.alternatif_yapilmasin:
+            return []
+        adaylar = (
+            Paket.objects.satista()
+            .filter(
+                kategori_id=self.kategori_id,
+                alternatif_yapilmasin=False,
+                dakika__gte=self.dakika,
+                internet_mb__gte=self.internet_mb,
+                gun__gte=self.gun,
+            )
+            .exclude(pk=self.pk)
+            .prefetch_related("rotalar__saglayici")
+        )
+        ucuzlar = [(p.ilk_alis(), p) for p in adaylar]
+        ucuzlar = [(a, p) for a, p in ucuzlar if a is not None and a < alis]
+        return [p for _, p in sorted(ucuzlar, key=lambda x: (x[0], x[1].pk))]
 
     def get_absolute_url(self):
         ad = "kontor:oyun-paket" if self.kategori.oyun else "kontor:paket"
@@ -705,6 +743,10 @@ class Islem(ZamanDamgali):
         help_text="İşlemin şu an bulunduğu ya da yüklendiği sağlayıcı.",
     )
     alis_tutari = models.DecimalField("Alış", max_digits=12, decimal_places=2, null=True, blank=True)
+    # Gönderim planı: sırayla denenecek paketler (ucuz alternatifler, sonra
+    # ana paket). İlk gönderimde numara sorgusundan çıkarılır ve yazılır;
+    # süreç yarıda ölse de aynı sırayla devam edilir. Boşsa henüz çıkmadı.
+    plan = models.JSONField("Gönderim Planı", null=True, blank=True, editable=False)
     sonuc_tarihi = models.DateTimeField("Sonuç Tarihi", null=True, blank=True)
     son_sorgu = models.DateTimeField("Son Sorgu", null=True, blank=True, editable=False)
     # Aynı işlemi iki süreç (işçi, bayinin sayfası, bayi programının sorgusu)
@@ -741,6 +783,25 @@ class Islem(ZamanDamgali):
         return self.siparis.tutar
 
     @property
+    def gonderilen_paket(self):
+        """Sağlayıcıya en son giden (reddedilmemiş) paket; alternatifse istenenden farklı.
+
+        `denemeler__paket` önceden getirildiyse ek sorgu atmaz.
+        """
+        son = None
+        for deneme in self.denemeler.all():
+            if deneme.durum != DenemeDurumu.REDDEDILDI:
+                son = deneme
+        if son is None or son.paket_id is None:
+            return None
+        return son.paket
+
+    @property
+    def alternatif_gonderildi(self):
+        paket = self.gonderilen_paket
+        return paket is not None and paket.pk != self.paket_id
+
+    @property
     def kar(self):
         if self.durum != IslemDurumu.BASARILI or self.alis_tutari is None:
             return None
@@ -767,6 +828,15 @@ class Deneme(models.Model):
     islem = models.ForeignKey(Islem, verbose_name="İşlem", related_name="denemeler", on_delete=models.CASCADE)
     saglayici = models.ForeignKey(
         Saglayici, verbose_name="Sağlayıcı", related_name="denemeler", on_delete=models.PROTECT
+    )
+    paket = models.ForeignKey(
+        Paket,
+        verbose_name="Gönderilen Paket",
+        related_name="+",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Alternatif gönderildiyse bayinin istediğinden farklıdır. Boşsa işlemin paketi.",
     )
     ref = models.CharField("Bizim Referans", max_length=40)
     uzak_ref = models.CharField("Sağlayıcının İşlem No", max_length=64, blank=True)

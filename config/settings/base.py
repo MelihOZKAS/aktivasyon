@@ -397,7 +397,6 @@ UNFOLD = {
                     },
                     {"title": "Kategoriler", "icon": "category", "link": "/yonetim/kontor/kategori/"},
                     {"title": "Sağlayıcılar", "icon": "hub", "link": "/yonetim/kontor/saglayici/"},
-                    {"title": "Sağlayıcı Alışları", "icon": "payments", "link": "/yonetim/kontor/rota/"},
                     {
                         "title": "Sağlayıcı Fiyatları",
                         "icon": "receipt_long",

@@ -366,8 +366,29 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   hangi sırayla, hangi kodla ve **o sağlayıcıdan alışı**; boş kod paketinkine
   düşer). Aynı paket her sağlayıcıdan ayrı fiyata alınır; alış rotadadır,
   fiyat listesi veren sağlayıcıda (**Fiyat listesini çek**) kendiliğinden
-  güncellenir. Tek sağlayıcının bütün alışları **Sağlayıcı Alışları**
-  ekranında (`RotaAdmin`, satırda düzenlenir) toplu girilir.
+  güncellenir. **Karşı site kodu ve alış sağlayıcının sayfasından girilir**
+  (formun altındaki Paketler tablosu, `SaglayiciAdmin.paketleri_kaydet`):
+  bizim kod salt okunur, karşı kod ve alış düzenlenir, "Gönder" rotanın
+  aktifliğidir; bağlı olmayan pakete kod yazılınca rota sıranın sonuna açılır.
+  Operatör seçilmeden liste gelmez, sayfa başı 50. Paket sayfasındaki sıra
+  tablosunda bu iki alan yalnızca görünür, ayrı "Sağlayıcı Alışları"
+  listesi kaldırıldı — aynı rakam iki yerden girilmesin.
+  · **Ucuz alternatif** (`Paket.alternatifleri`): bayi X'i aldığında numara
+  X'in dakikası, GB'si ve günü en az kadar olan ve bize daha ucuza gelen
+  bir paketi alabiliyorsa o gönderilir. **Referans yalnızca dakika, GB,
+  gün** (yönetimin kararı; SMS'e bakılmaz). Liste saklanmaz, alıştan
+  hesaplanır — eski sistemde elle "yap"ılıyor ve bayatlıyordu; pakette
+  "Alternatif yapılmasın" anahtarı var. İlk gönderimde plan çıkar
+  (`services._plani_cikar`, `Islem.plan`): numara sorgusu (bayinin
+  sorgusuyla aynı önbellek) → sorguda olan alternatifler ucuzdan pahalıya →
+  sorguda varsa ana paket. Bir sonrakine yalnızca kesin retle geçilir.
+  Ana paket de alternatif de sorguda yoksa sağlayıcıya gidilmez, **iptal +
+  iade** (vergi borcu olabilir). Sorgu hata verirse plan yalnızca ana
+  pakettir — sorgu satışı durdurmaz. Her gönderim giden paketi taşır
+  (`Deneme.paket`); kâr onun alışıyla hesaplanır. **Bayi alternatifi
+  görmez**: ekranda ve bayi programında istediği paket ve onun fiyatı
+  durur, sağlayıcının mesajı (yüklenen paketin adını taşıyabilir) yerine
+  "Yüklendi." yazılır; yönetim işlem kaydında "→ … (alternatif)" görür.
   · **Bayinin fiyatı kontör fiyat grubundan gelir** (`FiyatGrubu`:
   Perakende, Toptan…) ve **her pakette tek bir net rakamdır**
   (`PaketFiyati.fiyat`, ekranda "Bayi Satış Tutarı"). Fiyatı yazılmayan

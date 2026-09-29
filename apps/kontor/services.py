@@ -224,28 +224,18 @@ def sorgu_onbellegini_sil(numara):
         logger.exception("Sorgu önbelleği silinemedi (%s)", numara)
 
 
-def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
-    """Kategorinin sorgu kaynağına sorar, sonucu kataloğumuzla eşleştirir.
+def _kaynaga_sor(kategori, numara, *, yenile=False):
+    """Kategorinin sorgu kaynağının cevabı; önbellekli. `{"sonuc", "zaman"}`.
 
-    Dönüş: `{"numara", "sahip", "zaman", "eslesen": [Paket]}`. Bizde satışta
-    olmayan paketler bayiye dönmez; `GorulenPaket`'e işlenir.
-    Eşleşme kupür koduyladır (`Paket.kod`); eşleşen pakete bayinin fiyatı
-    yazılır. Hat sahibinin maskeli adı yalnızca kategoride açıksa istenir,
-    ekranda gösterilir, veritabanına yazılmaz. Sonuç `ONBELLEK_SURESI`
-    boyunca saklanır; `yenile` bunu atlar (en sık `YENILEME_ARALIGI`'nda
-    bir). Taze cevaptaki paketler `GorulenPaket` listesine işlenir. Kaynak
-    yoksa, hata verirse `SorguHatasi` — ekran sebebini yazar, satış sürer.
+    Bayinin ekranındaki sorgu da gönderim planı da buradan geçer, aynı
+    anahtarı kullanır: bayi az önce sorguladıysa plan Vodafone'a ikinci kez
+    gitmez. Kaynak yoksa ya da hata verirse `SorguHatasi`.
     """
     from apps.kontor.sorgu import SorguHatasi, SorguSonucu, kaynak_getir
 
     kaynak = kaynak_getir(kategori.sorgu_kaynagi) if kategori.sorgu_kaynagi else None
     if kaynak is None:
         raise SorguHatasi("Bu kategoride numara sorgusu tanımlı değil.")
-    try:
-        numara = hedefi_dogrula(kategori, hedef)
-    except YuklemeYapilamaz as hata:
-        raise SorguHatasi(str(hata))
-
     sahip_iste = kategori.sorgu_sahibi_goster
     onbellek = _onbellek()
     anahtar = _sorgu_anahtari(kaynak.kod, numara, sahip_iste)
@@ -265,6 +255,29 @@ def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
         kayit = {"sonuc": sonuc, "zaman": timezone.now()}
         onbellek.set(anahtar, kayit, ONBELLEK_SURESI)
         gorulenleri_yaz(kaynak.kod, kategori, sonuc.paketler)
+    return kayit
+
+
+def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
+    """Kategorinin sorgu kaynağına sorar, sonucu kataloğumuzla eşleştirir.
+
+    Dönüş: `{"numara", "sahip", "zaman", "eslesen": [Paket]}`. Bizde satışta
+    olmayan paketler bayiye dönmez; `GorulenPaket`'e işlenir.
+    Eşleşme kupür koduyladır (`Paket.kod`); eşleşen pakete bayinin fiyatı
+    yazılır. Hat sahibinin maskeli adı yalnızca kategoride açıksa istenir,
+    ekranda gösterilir, veritabanına yazılmaz. Sonuç `ONBELLEK_SURESI`
+    boyunca saklanır; `yenile` bunu atlar (en sık `YENILEME_ARALIGI`'nda
+    bir). Taze cevaptaki paketler `GorulenPaket` listesine işlenir. Kaynak
+    yoksa, hata verirse `SorguHatasi` — ekran sebebini yazar, satış sürer.
+    """
+    from apps.kontor.sorgu import SorguHatasi
+
+    try:
+        numara = hedefi_dogrula(kategori, hedef)
+    except YuklemeYapilamaz as hata:
+        raise SorguHatasi(str(hata))
+    sahip_iste = kategori.sorgu_sahibi_goster
+    kayit = _kaynaga_sor(kategori, numara, yenile=yenile)
 
     sonuc = kayit["sonuc"]
     kodlar = {str(p.kod).strip() for p in sonuc.paketler}
@@ -552,8 +565,48 @@ def bekleyenleri_isle():
     return len(pkler)
 
 
+PAKET_YOK_MESAJI = (
+    "Bu numara bu paketi şu an alamıyor (vergi borcu ya da TL yüklemesi gerekebilir). "
+    "Tutar iade edildi."
+)
+
+
+def _plani_cikar(islem):
+    """Sırayla denenecek paketler: numaranın alabildiği ucuz alternatifler, sonra ana paket.
+
+    Kategoride sorgu yoksa, paket "alternatif yapılmasın"sa ya da sorgu hata
+    verirse plan yalnızca ana pakettir — sorgu satışı durdurmaz. Sorgu
+    başarılı ama ana paket de hiçbir alternatif de listede yoksa plan boştur:
+    işlem sağlayıcıya hiç gitmeden iptal edilir (eski sistemde de öyleydi;
+    boşuna gönderim ve ret beklemesi olmaz).
+    """
+    from apps.kontor.sorgu import SorguHatasi
+
+    paket = islem.paket
+    if paket is None:
+        return []
+    kategori = paket.kategori
+    if not kategori.sorgu_kaynagi or not islem.hedef or paket.alternatif_yapilmasin:
+        return [paket.pk]
+    try:
+        kayit = _kaynaga_sor(kategori, islem.hedef)
+    except SorguHatasi as hata:
+        logger.warning("Gönderim öncesi sorgu yapılamadı (%s): %s", islem.pk, hata)
+        return [paket.pk]
+    kodlar = {str(p.kod).strip() for p in kayit["sonuc"].paketler}
+    plan = [p.pk for p in paket.alternatifleri() if p.kod in kodlar]
+    if paket.kod in kodlar:
+        plan.append(paket.pk)
+    return plan
+
+
 def _siradakine_gonder(islem):
-    """Denenmemiş sağlayıcılara sırayla gönderir; kabul ya da belirsizde durur."""
+    """Plandaki paketleri, her birinin sağlayıcılarına sırayla gönderir.
+
+    Kabul ya da belirsizde durur. Bir sonrakine (sıradaki sağlayıcı ya da
+    plandaki sıradaki paket) **yalnızca kesin retle** geçilir: tek gönderim
+    ilkesi alternatifte de geçerlidir.
+    """
     yarim = islem.denemeler.filter(durum=DenemeDurumu.GONDERILIYOR)
     if yarim.exists():
         # Önceki süreç istek atarken öldü: gitti mi gitmedi mi bilinmiyor.
@@ -565,10 +618,19 @@ def _siradakine_gonder(islem):
         _askiya_al(islem)
         return
 
+    if islem.plan is None:
+        islem.plan = _plani_cikar(islem)
+        islem.save(update_fields=["plan", "guncelleme_tarihi"])
+        if not islem.plan and islem.paket_id is not None:
+            _iptal_et(islem, PAKET_YOK_MESAJI)
+            return
+
     son_ret = ""
     for rota in _kalan_rotalar(islem):
         _uzat(islem.pk)
-        deneme = _gonder(islem, rota.saglayici, rota.gidecek_kod, rota.gidecek_operator, rota.gidecek_tip)
+        deneme = _gonder(
+            islem, rota.saglayici, rota.gidecek_kod, rota.gidecek_operator, rota.gidecek_tip, paket=rota.paket
+        )
         if deneme.durum != DenemeDurumu.REDDEDILDI:
             return  # kabul edildi ya da askıya alındı
         son_ret = _ret_metni(deneme)
@@ -577,22 +639,35 @@ def _siradakine_gonder(islem):
 
 
 def _kalan_rotalar(islem):
-    if islem.paket_id is None:
+    """Planın sırasıyla, henüz denenmemiş (paket, sağlayıcı) çiftleri."""
+    plan = islem.plan if islem.plan is not None else ([islem.paket_id] if islem.paket_id else [])
+    if not plan:
         return []
-    denenen = islem.denemeler.values_list("saglayici_id", flat=True)
-    return list(
-        Rota.objects.filter(paket_id=islem.paket_id, aktif=True, saglayici__aktif=True)
-        .exclude(saglayici_id__in=denenen)
+    denenen = set(islem.denemeler.values_list("paket_id", "saglayici_id"))
+    rotalar = {}
+    for rota in (
+        Rota.objects.filter(paket_id__in=plan, aktif=True, saglayici__aktif=True)
         .select_related("saglayici", "paket", "paket__kategori")
-    )
+    ):
+        rotalar.setdefault(rota.paket_id, []).append(rota)
+    kalan = []
+    for paket_id in plan:
+        for rota in rotalar.get(paket_id, []):
+            # Paketi boş eski gönderimler işlemin kendi paketidir.
+            if (paket_id, rota.saglayici_id) in denenen:
+                continue
+            if paket_id == islem.paket_id and (None, rota.saglayici_id) in denenen:
+                continue
+            kalan.append(rota)
+    return kalan
 
 
 def _ret_metni(deneme):
     return (deneme.sonuc_cevabi or deneme.gonderim_cevabi or "").strip()[:200]
 
 
-def _gonder(islem, saglayici, kod, operator, tip, *, elle=False):
-    """Tek bir gönderim. Deneme ağa çıkmadan önce yazılır."""
+def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
+    """Tek bir gönderim. Deneme ağa çıkmadan önce yazılır; `paket` giden pakettir."""
     if connection.in_atomic_block and getattr(settings, "KONTOR_ATOMIK_DENETIMI", True):
         # Açık bir transaction'da deneme commit edilmez; süreç düşerse kayıt
         # kaybolur ve işlem ikinci kez gönderilir. Çağıran görünüm
@@ -600,6 +675,7 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False):
         raise RuntimeError("Kontör gönderimi transaction içinden yapılamaz.")
     deneme = Deneme.objects.create(
         islem=islem,
+        paket=paket or islem.paket,
         saglayici=saglayici,
         ref=saglayici.yeni_ref(),
         uzak_kod=kod,
@@ -696,11 +772,12 @@ def _sor(deneme):
     return sonuc
 
 
-def _rota_alisi(islem, saglayici):
-    if islem.paket_id is None:
+def _rota_alisi(paket_id, saglayici):
+    """Gönderilen paketin o sağlayıcıdaki alışı; alternatifte ana paketinki değil."""
+    if paket_id is None:
         return None
     return (
-        Rota.objects.filter(paket_id=islem.paket_id, saglayici=saglayici)
+        Rota.objects.filter(paket_id=paket_id, saglayici=saglayici)
         .values_list("alis_fiyati", flat=True)
         .first()
     )
@@ -715,7 +792,11 @@ def _basarili(islem, deneme, *, mesaj="", alis=None, olusturan=None):
             alis = deneme.alis if deneme is not None and deneme.alis is not None else None
         if deneme is not None:
             if alis is None:
-                alis = _rota_alisi(kilitli, deneme.saglayici)
+                alis = _rota_alisi(deneme.paket_id or kilitli.paket_id, deneme.saglayici)
+            if deneme.paket_id and deneme.paket_id != kilitli.paket_id:
+                # Alternatif yüklendi. Bayi yalnızca istediği paketi görür;
+                # sağlayıcının mesajı yüklenen paketin adını taşıyabilir.
+                mesaj = ""
             deneme.durum = DenemeDurumu.BASARILI
             deneme.alis = alis
             deneme.save(update_fields=["durum", "alis", "guncelleme_tarihi"])
@@ -847,8 +928,10 @@ def elle_gonder(islem, saglayici, *, olusturan=None):
             raise KararVerilemez("Yalnızca askıdaki işlem elle gönderilir.")
         if not saglayici.aktif:
             raise KararVerilemez(f"{saglayici} kapalı.")
-        rota = Rota.objects.filter(paket_id=islem.paket_id, saglayici=saglayici).first()
-        paket = islem.paket
+        # Askıya düşen gönderim alternatifse aynı paket başka sağlayıcıya gider.
+        son = islem.denemeler.select_related("paket").last()
+        paket = (son.paket if son is not None and son.paket_id else None) or islem.paket
+        rota = Rota.objects.filter(paket=paket, saglayici=saglayici).first() if paket else None
         kod = rota.gidecek_kod if rota else (paket.kod if paket else "")
         operator = rota.gidecek_operator if rota else (islem.kategori.api_operator if islem.kategori else "")
         tip = rota.gidecek_tip if rota else (islem.kategori.api_tip if islem.kategori else "")
@@ -857,7 +940,7 @@ def elle_gonder(islem, saglayici, *, olusturan=None):
 
         islem.durum = IslemDurumu.SIRADA
         islem.save(update_fields=["durum", "guncelleme_tarihi"])
-        deneme = _gonder(islem, saglayici, kod, operator, tip, elle=True)
+        deneme = _gonder(islem, saglayici, kod, operator, tip, elle=True, paket=paket)
         if deneme.durum == DenemeDurumu.REDDEDILDI:
             _askiya_al(islem)
         return deneme

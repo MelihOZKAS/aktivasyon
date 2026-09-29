@@ -136,6 +136,8 @@ class SaglayiciFormu(forms.ModelForm):
 @admin.register(Saglayici)
 class SaglayiciAdmin(ModelAdmin):
     form = SaglayiciFormu
+    # Formun altında, formun dışında: paketlerin karşı sitedeki kodu ve alışı.
+    change_form_outer_after_template = "admin/kontor/saglayici_paketleri.html"
     list_display = ("ad", "tur_gosterimi", "aktif", "adres", "rota_sayisi", "son_24_saat", "islem_dugmeleri")
     list_filter = ("aktif", "tur")
     readonly_fields = ("son_liste_cekme",)
@@ -145,9 +147,9 @@ class SaglayiciAdmin(ModelAdmin):
             {
                 "fields": ("ad", "tur", "aktif"),
                 "description": (
-                    "İşlemleri ilettiğimiz bayi sistemi. Hangi paketin buraya gideceği "
-                    "paketin kendi sayfasındaki <b>Sağlayıcı sırası</b> tablosundan "
-                    "belirlenir. Kapatılan sağlayıcıya hiçbir işlem gitmez, sıradaki denenir."
+                    "İşlemleri ilettiğimiz bayi sistemi. Paketlerin bu sitedeki kodu ve alışı "
+                    "sayfanın altındaki <b>Paketler</b> tablosundan girilir; sıra paketin kendi "
+                    "sayfasındadır. Kapatılan sağlayıcıya hiçbir işlem gitmez, sıradaki denenir."
                 ),
             },
         ),
@@ -184,9 +186,9 @@ class SaglayiciAdmin(ModelAdmin):
 
     @display(description="Paket", ordering="_rota")
     def rota_sayisi(self, obj):
-        """Sağlayıcının paketleri ve alışları: tıklanınca alışlar toplu girilir."""
-        adres = reverse("admin:kontor_rota_changelist") + f"?saglayici__id__exact={obj.pk}"
-        return format_html('<a href="{}">{} paket · alışlar</a>', adres, obj._rota)
+        """Sağlayıcının paketleri: kodları ve alışları sağlayıcının sayfasında girilir."""
+        adres = reverse("admin:kontor_saglayici_change", args=[obj.pk]) + "#paketler"
+        return format_html('<a href="{}">{} paket · kodlar ve alışlar</a>', adres, obj._rota)
 
     @display(description="Son 24 saat")
     def son_24_saat(self, obj):
@@ -217,8 +219,132 @@ class SaglayiciAdmin(ModelAdmin):
             etiket += f" ({localtime(obj.son_liste_cekme):%d.%m %H:%M})"
         return _post_dugmesi(reverse("admin:kontor_saglayici_liste_cek", args=[obj.pk]), etiket)
 
+    # -- Paketler tablosu --------------------------------------------------
+    #
+    # Karşı sitenin paket kodu ve alışı eskiden paketin sayfasındaki sağlayıcı
+    # tablosunda ve ayrı bir "Sağlayıcı Alışları" listesinde giriliyordu.
+    # Yönetici bir sağlayıcının kodlarını onun listesine bakarak giriyor:
+    # yeri sağlayıcının sayfasıdır. Bizim kod salt okunur (paketin kimliği,
+    # bayi programları onunla ister). Liste operatör seçilmeden gelmez ve
+    # sayfa başı 50'dir — bir operatörde bin paket olabilir.
+
+    def _paket_tablosu(self, request, saglayici):
+        operator_id = request.GET.get("operator", "")
+        kategori_id = request.GET.get("kategori", "")
+        ara = request.GET.get("q", "").strip()[:60]
+        operatorler = list(
+            Operator.objects.filter(kontor_kategorileri__isnull=False).distinct().order_by("sira", "ad")
+        )
+        tablo = {
+            "operatorler": operatorler,
+            "kategoriler": list(
+                Kategori.objects.filter(operator_id=operator_id).order_by("sira", "ad") if operator_id.isdigit() else []
+            ),
+            "secili_operator": operator_id,
+            "secili_kategori": kategori_id,
+            "ara": ara,
+            "satirlar": None,
+        }
+        if not operator_id.isdigit():
+            return tablo
+        paketler = (
+            Paket.objects.filter(kategori__operator_id=operator_id)
+            .select_related("kategori")
+            .order_by("kategori__sira", "kategori__ad", "sira", "ad")
+        )
+        if kategori_id.isdigit():
+            paketler = paketler.filter(kategori_id=kategori_id)
+        for kelime in ara.split():
+            paketler = paketler.filter(Q(ad__icontains=kelime) | Q(kod__icontains=kelime))
+        sayfa = Paginator(paketler, PAKET_FIYAT_SAYFASI).get_page(request.GET.get("sayfa"))
+        rotalar = {
+            r.paket_id: r for r in Rota.objects.filter(saglayici=saglayici, paket__in=list(sayfa.object_list))
+        }
+        sorgu = request.GET.copy()
+        sorgu.pop("sayfa", None)
+        tablo.update(
+            satirlar=[{"paket": p, "rota": rotalar.get(p.pk)} for p in sayfa.object_list],
+            sayfa=sayfa,
+            sorgu=sorgu.urlencode(),
+            kaydet_url=reverse("admin:kontor_saglayici_paketler", args=[saglayici.pk]) + "?" + request.GET.urlencode(),
+        )
+        return tablo
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        saglayici = self.get_object(request, object_id)
+        if saglayici is not None:
+            extra_context["paket_tablosu"] = self._paket_tablosu(request, saglayici)
+        return super().change_view(request, object_id, form_url, extra_context)
+
+    def paketleri_kaydet(self, request, object_id):
+        """Tablonun POST'u: karşı site kodu, alış ve "bu sağlayıcıya gönder".
+
+        Rotası olmayan pakete kod ya da alış yazılırsa rota açılır (sıranın
+        sonuna); "Gönder" işaretliyse paket bu sağlayıcıya da gider — ekran
+        kod yazılınca kutuyu kendiliğinden işaretler, yönetici kaldırabilir. Karşı kod bizimkiyle aynı
+        ya da boşsa saklanmaz — boş kod paketin kendi kodunun gideceği demek.
+        Yalnızca bu sayfadaki paketler yazılır.
+        """
+        saglayici = self.get_object(request, object_id)
+        if saglayici is None:
+            raise Http404("Sağlayıcı bulunamadı.")
+        if not self.has_change_permission(request, saglayici):
+            raise PermissionDenied
+        geri = reverse("admin:kontor_saglayici_change", args=[saglayici.pk]) + "?" + request.GET.urlencode() + "#paketler"
+        if request.method != "POST":
+            return HttpResponseRedirect(geri)
+        pkler = [int(p) for p in request.POST.getlist("paket") if p.isdigit()]
+        paketler = {p.pk: p for p in Paket.objects.filter(pk__in=pkler)}
+        rotalar = {r.paket_id: r for r in Rota.objects.filter(saglayici=saglayici, paket_id__in=paketler)}
+        yazilacak, hatalar = [], []
+        for pk, paket in paketler.items():
+            uzak = request.POST.get(f"kod_{pk}", "").strip()[:60]
+            if uzak == paket.kod:
+                uzak = ""
+            try:
+                alis = _ondalik(request.POST.get(f"alis_{pk}", ""))
+            except (InvalidOperation, ValueError):
+                hatalar.append(paket.ad)
+                continue
+            gonder = request.POST.get(f"gonder_{pk}") == "1"
+            yazilacak.append((paket, uzak, alis, gonder))
+        if hatalar:
+            self.message_user(
+                request, f"Alışı anlaşılamayan satırlar kaydedilmedi: {', '.join(hatalar)}", messages.ERROR
+            )
+            return HttpResponseRedirect(geri)
+        acilan = degisen = 0
+        with transaction.atomic():
+            for paket, uzak, alis, gonder in yazilacak:
+                rota = rotalar.get(paket.pk)
+                if rota is None:
+                    if not (gonder or uzak or alis is not None):
+                        continue
+                    son = Rota.objects.filter(paket=paket).order_by("-sira").values_list("sira", flat=True).first()
+                    Rota.objects.create(
+                        paket=paket, saglayici=saglayici, sira=(son or 0) + 1,
+                        uzak_kod=uzak, alis_fiyati=alis, aktif=gonder,
+                    )
+                    acilan += 1
+                    continue
+                if (rota.uzak_kod, rota.alis_fiyati, rota.aktif) != (uzak, alis, gonder):
+                    rota.uzak_kod, rota.alis_fiyati, rota.aktif = uzak, alis, gonder
+                    rota.save(update_fields=["uzak_kod", "alis_fiyati", "aktif"])
+                    degisen += 1
+        mesaj = f"{saglayici}: {degisen} paket güncellendi"
+        if acilan:
+            mesaj += f", {acilan} paket bu sağlayıcıya bağlandı"
+        self.message_user(request, mesaj + ".", messages.SUCCESS)
+        return HttpResponseRedirect(geri)
+
     def get_urls(self):
         return [
+            path(
+                "<int:object_id>/paketler/",
+                self.admin_site.admin_view(self.paketleri_kaydet),
+                name="kontor_saglayici_paketler",
+            ),
             path(
                 "<int:object_id>/liste-cek/",
                 self.admin_site.admin_view(self.liste_cek),
@@ -246,39 +372,6 @@ class SaglayiciAdmin(ModelAdmin):
                 messages.SUCCESS,
             )
         return redirect("admin:kontor_saglayici_changelist")
-
-
-@admin.register(Rota)
-class RotaAdmin(ModelAdmin):
-    """Sağlayıcı Alışları: her sağlayıcıdan her paketin alışı tek listede.
-
-    Aynı paket her sağlayıcıdan farklı fiyata alınır; alış rotanın üstündedir.
-    Paket sayfasındaki tablo tek paketin sağlayıcılarını gösterir, burası
-    tek sağlayıcının bütün paketlerini — fiyat listesi gelince satır satır
-    buradan yazılır. Bayinin fiyatı sıradaki ilk açık sağlayıcının alışından
-    hesaplanır.
-    """
-
-    list_display = ("paket", "kategori", "saglayici", "sira", "gidecek_kod_gosterimi", "alis_fiyati", "aktif")
-    list_display_links = ("paket",)
-    list_editable = ("sira", "alis_fiyati", "aktif")
-    list_filter = ("saglayici", "paket__kategori__operator", "paket__kategori", "aktif")
-    search_fields = ("paket__ad", "paket__kod", "uzak_kod", "paket__kategori__ad")
-    list_per_page = 50
-    ordering = ("saglayici__ad", "paket__kategori__sira", "paket__kategori__ad", "paket__sira", "paket__ad")
-    fields = ("paket", "saglayici", "sira", "uzak_kod", "uzak_operator", "uzak_tip", "alis_fiyati", "aktif")
-    autocomplete_fields = ("paket",)
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related("paket__kategori", "saglayici")
-
-    @display(description="Kategori", ordering="paket__kategori__ad")
-    def kategori(self, obj):
-        return obj.paket.kategori
-
-    @display(description="Sağlayıcıdaki kodu")
-    def gidecek_kod_gosterimi(self, obj):
-        return obj.gidecek_kod
 
 
 @admin.register(SaglayiciPaketi)
@@ -667,9 +760,14 @@ class FiyatGrubuAdmin(ModelAdmin):
 class RotaInline(TabularInline):
     model = Rota
     extra = 0
-    fields = ("sira", "saglayici", "uzak_kod", "uzak_operator", "uzak_tip", "alis_fiyati", "aktif")
+    fields = ("sira", "saglayici", "uzak_kod", "alis_fiyati", "uzak_operator", "uzak_tip", "aktif")
+    # Karşı site kodu ve alış sağlayıcının sayfasından girilir; burada görünür.
+    readonly_fields = ("uzak_kod", "alis_fiyati")
     verbose_name = "Sağlayıcı"
-    verbose_name_plural = "Sağlayıcı sırası — küçük sıra önce denenir; boş kodlarda paketin kodu gider"
+    verbose_name_plural = (
+        "Sağlayıcı sırası — küçük sıra önce denenir. Karşı site kodu ve alış "
+        "sağlayıcının sayfasındaki Paketler tablosundan girilir."
+    )
 
 
 class SaglayiciyaEkleFormu(forms.Form):
@@ -721,7 +819,7 @@ class PaketAdmin(ModelAdmin):
     # Bayinin fiyatı tek yerden girilir: grubun sayfası. Burada yalnızca okunur.
     inlines = (RotaInline,)
     actions = ("saglayiciya_ekle", "tavsiyeyi_operatorden_al")
-    readonly_fields = ("grup_fiyatlari", "satis_durumu")
+    readonly_fields = ("grup_fiyatlari", "satis_durumu", "alternatif_listesi")
 
     def get_fieldsets(self, request, obj=None):
         fiyat = ["tavsiye_fiyati", "grup_fiyatlari"]
@@ -740,6 +838,19 @@ class PaketAdmin(ModelAdmin):
             (None, {"fields": ust + ("kategori", "kod", "ad", "aciklama", "sira", "aktif")}),
             ("İçerik", {"fields": (("dakika", "internet_mb", "sms", "gun"),)}),
             ("Fiyat", {"fields": fiyat, "description": aciklama}),
+            (
+                "Alternatif",
+                {
+                    "fields": ("alternatif_yapilmasin",) + (("alternatif_listesi",) if obj is not None else ()),
+                    "description": (
+                        "Bayi bu paketi aldığında, numara aynı içeriği ya da fazlasını daha ucuza "
+                        "veren bir paketi alabiliyorsa o gönderilir; bayi yine bu paketin fiyatını "
+                        "öder ve yalnızca bu paketi görür. Reddedilirse sıradaki, en son bu paket "
+                        "denenir. Numara ne bunu ne alternatifi alabiliyorsa sağlayıcıya gidilmez, "
+                        "tutar iade edilir. Yalnızca numara sorgusu olan kategorilerde çalışır."
+                    ),
+                },
+            ),
         )
 
     def get_queryset(self, request):
@@ -800,6 +911,30 @@ class PaketAdmin(ModelAdmin):
             '<span style="white-space:nowrap">{}: <b>{}</b> <span style="color:{}">{}</span>'
             '<span style="color:#6F7B8F;font-size:.7rem">{}</span></span>',
             ((ad, fiyat, renk, kar, not_) for ad, fiyat, kar, renk, not_ in satirlar),
+        )
+
+    @display(description="Alternatifleri")
+    def alternatif_listesi(self, obj):
+        """Şu anki alış fiyatlarıyla hesaplanan liste; saklanmaz."""
+        if obj is None or obj.pk is None:
+            return "—"
+        if obj.alternatif_yapilmasin:
+            return "Kapalı."
+        if not obj.kategori.sorgu_kaynagi:
+            return "Kategoride numara sorgusu yok; alternatif denenmez."
+        alis = obj.ilk_alis()
+        if alis is None:
+            return "Bu paketin alışı yok; ucuzu hesaplanamaz."
+        alternatifler = obj.alternatifleri()
+        if not alternatifler:
+            return "Aynı içeriği ya da fazlasını daha ucuza veren paket yok."
+        return format_html(
+            '<ol style="margin:0 0 0 1rem;list-style:decimal">{}</ol>',
+            format_html_join(
+                "",
+                '<li>{} <span style="color:#6F7B8F">({} · alış {} ₺, {} ₺ ucuz)</span></li>',
+                ((p.ad, p.icerik or p.kod, p.ilk_alis(), alis - p.ilk_alis()) for p in alternatifler),
+            ),
         )
 
     @display(description="Bayiye görünüyor mu?")
@@ -877,7 +1012,7 @@ class PaketAdmin(ModelAdmin):
 
         Rota zaten varsa sırası ve kodları güncellenir, yenisi açılmaz.
         Kod boş kalır — paketin kendi kodu gider; farklıysa satırda düzeltilir.
-        Alış **Sağlayıcı Alışları** ekranından toplu girilir.
+        Karşı site kodu ve alış sağlayıcının sayfasındaki Paketler tablosundan girilir.
         """
         form = SaglayiciyaEkleFormu(request.POST if "uygula" in request.POST else None)
         if "uygula" in request.POST and form.is_valid():
@@ -898,7 +1033,7 @@ class PaketAdmin(ModelAdmin):
             self.message_user(
                 request,
                 f"{veri['saglayici']}: {eklenen} pakete eklendi, {guncellenen} paketin sırası güncellendi. "
-                "Alışları Sağlayıcı Alışları ekranından girin.",
+                "Karşı site kodlarını ve alışları sağlayıcının sayfasından girin.",
                 messages.SUCCESS,
             )
             return None
@@ -932,7 +1067,7 @@ class DenemeInline(TabularInline):
     extra = 0
     can_delete = False
     fields = (
-        "olusturma_tarihi", "saglayici", "ref", "uzak_ref", "uzak_kod", "durum", "elle",
+        "olusturma_tarihi", "saglayici", "paket", "ref", "uzak_ref", "uzak_kod", "durum", "elle",
         "alis", "gonderim_cevabi", "sonuc_cevabi",
     )
     readonly_fields = fields
@@ -983,6 +1118,7 @@ class IslemAdmin(ModelAdmin):
     readonly_fields = (
         "siparis", "bayi", "kategori", "paket", "paket_adi", "hedef", "kanal", "bayi_ref", "durum",
         "sonuc_mesaji", "saglayici", "alis_tutari", "sonuc_tarihi", "olusturma_tarihi",
+        "gonderilen_gosterimi",
     )
     fieldsets = (
         (
@@ -997,7 +1133,9 @@ class IslemAdmin(ModelAdmin):
         (
             "Sonuç",
             {
-                "fields": ("durum", "saglayici", "alis_tutari", "sonuc_mesaji", "sonuc_tarihi"),
+                "fields": (
+                    "durum", "gonderilen_gosterimi", "saglayici", "alis_tutari", "sonuc_mesaji", "sonuc_tarihi",
+                ),
                 "description": (
                     "Durum elle değiştirilmez: para ve sağlayıcı ona bağlı. Karar vermek için "
                     "listedeki ya da sayfanın üstündeki <b>Karar</b> düğmesini kullanın."
@@ -1011,6 +1149,7 @@ class IslemAdmin(ModelAdmin):
             super()
             .get_queryset(request)
             .select_related("siparis", "bayi", "bayi__bayi_profili", "kategori", "saglayici")
+            .prefetch_related("denemeler__paket")
             .distinct()
         )
 
@@ -1030,10 +1169,31 @@ class IslemAdmin(ModelAdmin):
 
     @display(description="Paket")
     def paket_gosterimi(self, obj):
+        alt = ""
+        if obj.alternatif_gonderildi:
+            alt = format_html(
+                '<br><span style="color:#0F8A4D;font-size:.75rem">→ {} (alternatif)</span>',
+                obj.gonderilen_paket.ad,
+            )
         return format_html(
-            '{}<br><span style="color:#6F7B8F;font-size:.75rem">{}</span>',
+            '{}{}<br><span style="color:#6F7B8F;font-size:.75rem">{}</span>',
             obj.paket_adi,
+            alt,
             obj.kategori.ad if obj.kategori else "",
+        )
+
+    @display(description="Gönderilen paket")
+    def gonderilen_gosterimi(self, obj):
+        """Bayi istediğini görür; burada yüklenen (ucuz alternatif olabilir) yazar."""
+        paket = obj.gonderilen_paket
+        if paket is None:
+            return "—"
+        if paket.pk == obj.paket_id:
+            return format_html("{} <span style=\"color:#6F7B8F\">(istenen paket)</span>", paket.ad)
+        return format_html(
+            '<b style="color:#0F8A4D">{}</b> — alternatif; bayi “{}” görür, fiyatını öder.',
+            paket.ad,
+            obj.paket_adi,
         )
 
     @display(description="Tutar", ordering="siparis__tutar")
@@ -1124,11 +1284,14 @@ class IslemAdmin(ModelAdmin):
             return HttpResponseRedirect(geri)
 
         islem.refresh_from_db()
-        denemeler = list(islem.denemeler.select_related("saglayici"))
-        denenen = {d.saglayici_id for d in denemeler}
+        denemeler = list(islem.denemeler.select_related("saglayici", "paket"))
+        # Elle gönderim son gidenin paketiyle yapılır (alternatif olabilir);
+        # sağlayıcı listesi de o paketin sırasıdır.
+        son_paket_id = (denemeler[-1].paket_id if denemeler else None) or islem.paket_id
+        denenen = {d.saglayici_id for d in denemeler if (d.paket_id or islem.paket_id) == son_paket_id}
         rotalar = (
-            list(Rota.objects.filter(paket_id=islem.paket_id).select_related("saglayici"))
-            if islem.paket_id
+            list(Rota.objects.filter(paket_id=son_paket_id).select_related("saglayici"))
+            if son_paket_id
             else []
         )
         saglayicilar = [

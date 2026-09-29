@@ -1,0 +1,117 @@
+{% comment %}
+  Sağlayıcının sayfasında, formun dışında: seçilen operatörün paketleri.
+  Satırda bizim kod (salt okunur), karşı sitedeki kod ve karşı site alışı;
+  "Gönder" kutusu paketin bu sağlayıcıya gidip gitmeyeceğidir. Operatör
+  seçilmeden liste gelmez, sayfa başı 50 paket (bir operatörde bin paket
+  olabilir). Karşı kod boşsa bizim kod gider.
+
+  Sınıflar unfold'un derlenmiş CSS'inden; bizim app.css yönetimde yüklü
+  değil, kutular satır içi stille. Girdiler 16px (iOS yakınlaştırmasın).
+{% endcomment %}
+{% if paket_tablosu %}
+{% with t=paket_tablosu %}
+<style>
+  .sp-girdi { border:1px solid #d6dce5; border-radius:.375rem; padding:.45rem .6rem; font-size:16px; background:#fff; min-height:44px; }
+  .sp-tablo td, .sp-tablo th { padding:.5rem .4rem; vertical-align:middle; }
+  .sp-tablo tbody tr { border-top:1px solid #eef1f5; }
+  .sp-dugme { border:1px solid #d6dce5; border-radius:.375rem; padding:.5rem .9rem; font-weight:600; font-size:.875rem; min-height:44px; background:#fff; cursor:pointer; }
+  .sp-birincil { background:#0D1320; color:#fff; border-color:#0D1320; }
+  .sp-soluk { color:#6F7B8F; font-size:.75rem; }
+</style>
+
+<div id="paketler" class="mt-8 space-y-3">
+  <h2 class="text-lg font-semibold">Paketler — bu sitedeki kodu ve alışı</h2>
+  <p class="text-sm text-base-500" style="max-width:56rem">
+    Operatörü seç; paketlerin <b>karşı sitedeki kodunu</b> ve <b>alışını</b> yaz. Bizim kod değişmez.
+    Karşı kod boşsa bizim kod gider. Bağlı olmayan pakete kod ya da alış yazarsan paket bu sağlayıcıya da
+    bağlanır (sıranın sonuna); <b>Gönder</b> kutusunu kaldırırsan bu sağlayıcıya gitmez.
+  </p>
+
+  <form method="get" action="#paketler" class="flex flex-wrap items-end gap-2">
+    <label class="flex flex-col text-sm">Operatör
+      <select name="operator" class="sp-girdi" onchange="this.form.kategori && (this.form.kategori.value=''); this.form.submit()">
+        <option value="">— Seç —</option>
+        {% for o in t.operatorler %}<option value="{{ o.pk }}" {% if t.secili_operator == o.pk|stringformat:"s" %}selected{% endif %}>{{ o.ad }}</option>{% endfor %}
+      </select>
+    </label>
+    {% if t.kategoriler %}
+    <label class="flex flex-col text-sm">Kategori
+      <select name="kategori" class="sp-girdi" onchange="this.form.submit()">
+        <option value="">Hepsi</option>
+        {% for k in t.kategoriler %}<option value="{{ k.pk }}" {% if t.secili_kategori == k.pk|stringformat:"s" %}selected{% endif %}>{{ k.ad }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    {% if t.secili_operator %}
+    <label class="flex flex-col text-sm" style="flex:1 1 12rem">Ara
+      <input type="search" name="q" value="{{ t.ara }}" class="sp-girdi" placeholder="Paket adı ya da kodu">
+    </label>
+    <button type="submit" class="sp-dugme">Süz</button>
+    {% endif %}
+  </form>
+
+  {% if t.satirlar is None %}
+  <p class="text-sm text-base-500">Paketleri görmek için operatör seç.</p>
+  {% else %}
+  <form method="post" action="{{ t.kaydet_url }}">
+    {% csrf_token %}
+    <div class="overflow-x-auto rounded-default border border-base-200 bg-white">
+      <table class="sp-tablo w-full text-sm" style="min-width:24rem">
+        <thead>
+          <tr class="text-left text-base-500">
+            <th>Paket · bizim kod</th>
+            <th>Karşı site kodu</th>
+            <th>Karşı site alış</th>
+            <th>Gönder</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in t.satirlar %}
+          <tr>
+            <td>
+              <input type="hidden" name="paket" value="{{ s.paket.pk }}">
+              <span class="font-medium">{{ s.paket.ad }}</span>{% if not s.paket.aktif %} <span class="sp-soluk">(pasif)</span>{% endif %}<br>
+              <span class="sp-soluk">{{ s.paket.kategori.ad }} · <b class="font-mono">{{ s.paket.kod }}</b></span>
+            </td>
+            <td><input name="kod_{{ s.paket.pk }}" value="{{ s.rota.uzak_kod|default:'' }}" class="sp-girdi sp-alan" style="width:6.5rem"
+                       placeholder="{{ s.paket.kod }}" autocomplete="off" aria-label="{{ s.paket.ad }} karşı site kodu"></td>
+            <td><input name="alis_{{ s.paket.pk }}" value="{% if s.rota.alis_fiyati is not None %}{{ s.rota.alis_fiyati }}{% endif %}" class="sp-girdi sp-alan"
+                       style="width:5.5rem" inputmode="decimal" placeholder="—" aria-label="{{ s.paket.ad }} karşı site alış"></td>
+            <td><input type="checkbox" name="gonder_{{ s.paket.pk }}" value="1" class="sp-gonder" {% if s.rota and s.rota.aktif %}checked{% endif %}
+                       style="width:20px;height:20px" aria-label="{{ s.paket.ad }} bu sağlayıcıya gönderilsin"></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="4" class="text-base-500" style="padding:1.5rem">Süzgece uyan paket yok.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
+      <button type="submit" class="sp-dugme sp-birincil">Paketleri kaydet</button>
+      {% if t.sayfa.has_other_pages %}
+      <nav class="flex items-center gap-2 text-sm" aria-label="Sayfalar">
+        {% if t.sayfa.has_previous %}<a class="sp-dugme" href="?{{ t.sorgu }}&amp;sayfa={{ t.sayfa.previous_page_number }}#paketler">← Önceki</a>{% endif %}
+        <span class="text-base-500">{{ t.sayfa.number }} / {{ t.sayfa.paginator.num_pages }} · {{ t.sayfa.paginator.count }} paket</span>
+        {% if t.sayfa.has_next %}<a class="sp-dugme" href="?{{ t.sorgu }}&amp;sayfa={{ t.sayfa.next_page_number }}#paketler">Sonraki →</a>{% endif %}
+      </nav>
+      {% else %}
+      <span class="text-sm text-base-500">{{ t.sayfa.paginator.count }} paket</span>
+      {% endif %}
+    </div>
+  </form>
+  <script>
+    // Bağlı olmayan pakete kod ya da alış yazılınca "Gönder" kendiliğinden işaretlenir.
+    document.querySelectorAll("#paketler .sp-alan").forEach(function (girdi) {
+      girdi.addEventListener("input", function () {
+        var kutu = girdi.closest("tr").querySelector(".sp-gonder");
+        if (girdi.value.trim() && !kutu.dataset.dokunuldu) kutu.checked = true;
+      });
+    });
+    document.querySelectorAll("#paketler .sp-gonder").forEach(function (kutu) {
+      kutu.addEventListener("change", function () { kutu.dataset.dokunuldu = "1"; });
+    });
+  </script>
+  {% endif %}
+</div>
+{% endwith %}
+{% endif %}
