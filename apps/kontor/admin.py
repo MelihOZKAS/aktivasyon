@@ -340,6 +340,9 @@ class GorulenPaketAdmin(ModelAdmin):
     fields = readonly_fields + ("yok_say",)
     actions = ("yok_say_isaretle", "yok_saymayi_kaldir")
     list_per_page = 50
+    # En yeni yakalanan paket her zaman en üstte. Aynı sorgudan gelenlerin
+    # zamanı neredeyse aynı; pk eşitliği bozar, sıra sayfa sayfa oynamaz.
+    ordering = ("-ilk_gorulme", "-pk")
 
     def has_add_permission(self, request):
         return False

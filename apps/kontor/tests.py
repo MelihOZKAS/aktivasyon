@@ -779,6 +779,16 @@ class YonetimTestleri(Temel):
         FiyatGrubu.objects.create(ad="Parakende")
         self.assertContains(self.client.get(adres), "Hiçbir fiyat grubunda Bayi Satış Tutarı yazılı değil")
 
+    def test_gorulen_paketlerde_en_yeni_ustte(self):
+        from apps.kontor.models import GorulenPaket
+
+        for kod in ("1", "2", "3"):
+            GorulenPaket.objects.create(
+                kaynak="vodafone", kod=kod, ad=f"P{kod}", kategori=self.kategori, son_gorulme=timezone.now()
+            )
+        yanit = self.client.get(reverse("admin:kontor_gorulenpaket_changelist"))
+        self.assertEqual([g.kod for g in yanit.context["cl"].result_list], ["3", "2", "1"])
+
     def test_grup_sayfasi_bayi_satis_tutari(self):
         grup = FiyatGrubu.objects.create(ad="Toptan")
         adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])

@@ -201,8 +201,14 @@ def _onbellek():
     return caches["kontor_sorgu"]
 
 
+# Sonuç biçimi ya da kaynak eşleşmesi değişince artar: önbellekteki eski
+# kayıtlar (ör. Vodafone'un `id`siyle yazılmış yanlış kodlar) 12 saat daha
+# ekranda kalmasın. v2: Vodafone kodu `reasonCode`.
+SORGU_SURUMU = 2
+
+
 def _sorgu_anahtari(kaynak_kodu, numara, sahip):
-    return f"kontor-sorgu:{kaynak_kodu}:{numara}:{int(bool(sahip))}"
+    return f"kontor-sorgu:v{SORGU_SURUMU}:{kaynak_kodu}:{numara}:{int(bool(sahip))}"
 
 
 def sorgu_onbellegini_sil(numara):
