@@ -363,10 +363,24 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   · **Katalog veridir:** `Kategori` (operatör, hedef türü — telefon / oyuncu
   ID / pin —, protokol kodları `api_operator`+`api_tip`), `Paket` (kupür
   kodu, içerik, satış), `Rota` (eski api1/api2/api3: hangi sağlayıcıya,
-  hangi sırayla, hangi kodla; boş kod paketinkine düşer), `PaketFiyati`
-  (bayi grubuna özel satış; girilmeyen grup paketin fiyatını öder). Alış
-  bilgisi rotadadır; fiyat listesi veren sağlayıcıda (**Fiyat listesini
-  çek**) kendiliğinden güncellenir, satışa dokunulmaz. Eski sistemin iade
+  hangi sırayla, hangi kodla ve **o sağlayıcıdan alışı**; boş kod paketinkine
+  düşer). Aynı paket her sağlayıcıdan ayrı fiyata alınır; alış rotadadır,
+  fiyat listesi veren sağlayıcıda (**Fiyat listesini çek**) kendiliğinden
+  güncellenir. Tek sağlayıcının bütün alışları **Sağlayıcı Alışları**
+  ekranında (`RotaAdmin`, satırda düzenlenir) toplu girilir.
+  · **Bayinin fiyatı paket paket girilmez, alıştan hesaplanır.** Yönetici
+  "her pakete her grup için fiyat girmek" istemedi: `FiyatGrubu`
+  (Perakende, Toptan…) tek oran taşır, bayi `alış × (1 + oran/100) + ek
+  tutar` öder. Alış, sıradaki **ilk açık** sağlayıcınınkidir; alış değişince
+  bütün fiyatlar kendiliğinden değişir, saklanan bir satış rakamı yoktur.
+  Kademe başvurudaki bayi grubundan **ayrıdır** (`Cuzdan.kontor_grubu`;
+  Cüzdanlar listesinden satırda verilir): kontörde toptan çalışan bayi
+  başvuruda başka kademede olabilir. Grubu boş bayi **varsayılan** gruba
+  düşer (tek olabilir); o da yoksa paketin `satis_fiyati`nı öder — alan
+  yalnızca o durumda formda görünür. Alışı olmayan paket gruptaki bayiye
+  satılmaz, rakam uydurulmaz. `PaketFiyati` istisnadır: bir pakette bir
+  grubun sabit fiyatı. Tek hesap `services.grup_fiyati`; bayi ekranı da
+  paket listesindeki "Bayiye satış · kâr" sütunu da oradan geçer. Eski sistemin iade
   tutarını koda gömen (`95.5`) hatası burada yok: iade her zaman siparişin
   kendi tutarıdır.
   · **Bayi programları Znet protokolüyle bağlanır** (`/servis/tl_servis.php`,

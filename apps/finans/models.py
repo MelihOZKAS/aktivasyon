@@ -108,6 +108,17 @@ class Cuzdan(ZamanDamgali):
         blank=True,
         on_delete=models.SET_NULL,
     )
+    # Kontörde ayrı kademe (Perakende, Toptan…): başvuru grubundan bağımsız,
+    # bayinin fiyatı paketin alışından bu grubun oranıyla hesaplanır.
+    kontor_grubu = models.ForeignKey(
+        "kontor.FiyatGrubu",
+        verbose_name="Kontör Fiyat Grubu",
+        related_name="cuzdanlar",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text="Boşsa varsayılan kontör grubu geçerlidir.",
+    )
     bakiye = models.DecimalField("Bakiye", max_digits=12, decimal_places=2, default=SIFIR)
     borc = models.DecimalField("Borç", max_digits=12, decimal_places=2, default=SIFIR)
     islem_yapabilir = models.BooleanField(

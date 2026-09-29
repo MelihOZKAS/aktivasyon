@@ -31,7 +31,7 @@ from functools import partial
 
 from django.conf import settings
 from django.db import connection, transaction
-from django.db.models import Q
+from django.db.models import Q, prefetch_related_objects
 from django.utils import timezone
 
 from apps.bayi.telefon import TELEFON_DESENI, normalize
@@ -45,6 +45,7 @@ from apps.kontor.models import (
     ACIK_DURUMLAR,
     Deneme,
     DenemeDurumu,
+    FiyatGrubu,
     Hedef,
     Islem,
     IslemDurumu,
@@ -53,6 +54,7 @@ from apps.kontor.models import (
     Paket,
     PaketFiyati,
     Rota,
+    SIFIR,
     SaglayiciPaketi,
 )
 from apps.kontor.saglayicilar import Gonderim, SaglayiciHatasi, Sorgu
@@ -88,18 +90,35 @@ class KararVerilemez(Exception):
 
 
 def bayi_grubu(bayi):
+    """Bayinin kontör fiyat grubu; seçilmemişse varsayılan grup, o da yoksa `None`."""
     cuzdan = getattr(bayi, "cuzdan", None)
-    return getattr(cuzdan, "grup", None) if cuzdan else None
+    grup = getattr(cuzdan, "kontor_grubu", None) if cuzdan else None
+    return grup or FiyatGrubu.varsayilani()
+
+
+def grup_fiyati(paket, grup, ozel=None):
+    """Paketin bu gruptaki fiyatı. Tek hesap yeri: bayi ekranı da admin de buradan.
+
+    Sıra: pakette gruba girilmiş sabit fiyat (istisna) → alış × grup oranı →
+    grup yoksa paketin kendi satış fiyatı. Alışı girilmemiş paketin grupta
+    fiyatı yoktur (`None`); satılmaz, rakam uydurulmaz.
+    """
+    if grup is None:
+        return paket.satis_fiyati
+    if ozel is not None and paket.pk in ozel:
+        return ozel[paket.pk]
+    return grup.fiyat(paket.ilk_alis())
 
 
 def fiyatlandir(paketler, bayi):
     """Her pakete `fiyat` (bayinin ödeyeceği), `tavsiye` ve `kazanc` yazar.
 
-    `fiyat` bayinin grubuna özel fiyat, yoksa paketin fiyatıdır. `tavsiye`
-    paketin müşteriye önerilen fiyatıdır (grup değiştirmez); yoksa `None` ve
-    ekran bayinin fiyatını düz yazar.
+    `fiyat` bayinin kontör grubundan hesaplanır (`grup_fiyati`); hesaplanamıyorsa
+    0'dır ve paket satılmaz. `tavsiye` paketin müşteriye önerilen fiyatıdır
+    (grup değiştirmez); yoksa `None` ve ekran bayinin fiyatını düz yazar.
     """
     paketler = list(paketler)
+    prefetch_related_objects(paketler, "rotalar__saglayici")
     grup = bayi_grubu(bayi)
     ozel = {}
     if grup is not None and paketler:
@@ -107,7 +126,7 @@ def fiyatlandir(paketler, bayi):
             PaketFiyati.objects.filter(grup=grup, paket__in=paketler).values_list("paket_id", "fiyat")
         )
     for paket in paketler:
-        paket.fiyat = ozel.get(paket.pk, paket.satis_fiyati)
+        paket.fiyat = grup_fiyati(paket, grup, ozel) or SIFIR
         paket.tavsiye = paket.tavsiye_fiyati if paket.tavsiye_fiyati else None
         paket.kazanc = (paket.tavsiye - paket.fiyat) if paket.tavsiye is not None else None
     return paketler

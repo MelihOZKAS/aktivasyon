@@ -277,12 +277,16 @@ class CuzdanAdmin(ModelAdmin):
     list_display = (
         "bayi_gosterimi",
         "grup",
+        "kontor_grubu",
         "bakiye_gosterimi",
         "borc_gosterimi",
         "islem_yapabilir",
         "bakiye_yukle_baglantisi",
     )
-    list_filter = ("grup", "islem_yapabilir")
+    list_filter = ("grup", "kontor_grubu", "islem_yapabilir")
+    # Kontör kademesi listeden verilir: yönetici bayileri Perakende/Toptan
+    # diye tek ekranda dağıtır, her bayinin sayfasını açmaz.
+    list_editable = ("kontor_grubu",)
     search_fields = (
         "bayi__username", "bayi__first_name", "bayi__last_name",
         "bayi__bayi_profili__unvan",
@@ -290,7 +294,7 @@ class CuzdanAdmin(ModelAdmin):
     autocomplete_fields = ("bayi", "grup")
     readonly_fields = ("bakiye", "borc")
     fieldsets = (
-        ("Bayi", {"fields": ("bayi", "grup", "islem_yapabilir")}),
+        ("Bayi", {"fields": ("bayi", "grup", "kontor_grubu", "islem_yapabilir")}),
         (
             "Durum",
             {

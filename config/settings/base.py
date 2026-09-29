@@ -387,6 +387,7 @@ UNFOLD = {
                         "badge": "apps.rozetler.askidaki_kontorler",
                     },
                     {"title": "Paketler", "icon": "sell", "link": "/yonetim/kontor/paket/"},
+                    {"title": "Fiyat Grupları", "icon": "groups", "link": "/yonetim/kontor/fiyatgrubu/"},
                     {
                         "title": "Operatörde Görülen",
                         "icon": "new_releases",
@@ -396,6 +397,7 @@ UNFOLD = {
                     },
                     {"title": "Kategoriler", "icon": "category", "link": "/yonetim/kontor/kategori/"},
                     {"title": "Sağlayıcılar", "icon": "hub", "link": "/yonetim/kontor/saglayici/"},
+                    {"title": "Sağlayıcı Alışları", "icon": "payments", "link": "/yonetim/kontor/rota/"},
                     {
                         "title": "Sağlayıcı Fiyatları",
                         "icon": "receipt_long",

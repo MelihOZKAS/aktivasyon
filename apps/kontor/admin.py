@@ -8,8 +8,9 @@ onları sayar, satırdaki **Karar** düğmesi ne yapılabileceğini anlatan
 ekranı açar.
 """
 
+from contextvars import ContextVar
 from datetime import timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from django import forms
 from django.contrib import admin, messages
@@ -24,17 +25,16 @@ from django.utils.timezone import localtime
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
 from unfold.widgets import (
-    UnfoldAdminDecimalFieldWidget,
     UnfoldAdminSelectWidget,
     UnfoldAdminTextInputWidget,
 )
 
 from apps.bayi.etiket import kullanici_etiketi_html
 from apps.filtreler import GunAraligiFiltresi
-from apps.finans.models import BayiGrubu
 from apps.kontor.models import (
     ApiErisimi,
     Deneme,
+    FiyatGrubu,
     GorulenPaket,
     Islem,
     IslemDurumu,
@@ -51,6 +51,7 @@ from apps.kontor.services import (
     KararVerilemez,
     elle_gonder,
     fiyat_listesini_cek,
+    grup_fiyati,
     gorulen_paketi_kataloga_ekle,
     tavsiyeyi_operatorden_al,
     iptal_et,
@@ -179,7 +180,9 @@ class SaglayiciAdmin(ModelAdmin):
 
     @display(description="Paket", ordering="_rota")
     def rota_sayisi(self, obj):
-        return obj._rota
+        """Sağlayıcının paketleri ve alışları: tıklanınca alışlar toplu girilir."""
+        adres = reverse("admin:kontor_rota_changelist") + f"?saglayici__id__exact={obj.pk}"
+        return format_html('<a href="{}">{} paket · alışlar</a>', adres, obj._rota)
 
     @display(description="Son 24 saat")
     def son_24_saat(self, obj):
@@ -239,6 +242,39 @@ class SaglayiciAdmin(ModelAdmin):
                 messages.SUCCESS,
             )
         return redirect("admin:kontor_saglayici_changelist")
+
+
+@admin.register(Rota)
+class RotaAdmin(ModelAdmin):
+    """Sağlayıcı Alışları: her sağlayıcıdan her paketin alışı tek listede.
+
+    Aynı paket her sağlayıcıdan farklı fiyata alınır; alış rotanın üstündedir.
+    Paket sayfasındaki tablo tek paketin sağlayıcılarını gösterir, burası
+    tek sağlayıcının bütün paketlerini — fiyat listesi gelince satır satır
+    buradan yazılır. Bayinin fiyatı sıradaki ilk açık sağlayıcının alışından
+    hesaplanır.
+    """
+
+    list_display = ("paket", "kategori", "saglayici", "sira", "gidecek_kod_gosterimi", "alis_fiyati", "aktif")
+    list_display_links = ("paket",)
+    list_editable = ("sira", "alis_fiyati", "aktif")
+    list_filter = ("saglayici", "paket__kategori", "aktif")
+    search_fields = ("paket__ad", "paket__kod", "uzak_kod", "paket__kategori__ad")
+    list_per_page = 200
+    ordering = ("saglayici__ad", "paket__kategori__sira", "paket__kategori__ad", "paket__sira", "paket__ad")
+    fields = ("paket", "saglayici", "sira", "uzak_kod", "uzak_operator", "uzak_tip", "alis_fiyati", "aktif")
+    autocomplete_fields = ("paket",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("paket__kategori", "saglayici")
+
+    @display(description="Kategori", ordering="paket__kategori__ad")
+    def kategori(self, obj):
+        return obj.paket.kategori
+
+    @display(description="Sağlayıcıdaki kodu")
+    def gidecek_kod_gosterimi(self, obj):
+        return obj.gidecek_kod
 
 
 @admin.register(SaglayiciPaketi)
@@ -434,6 +470,47 @@ class KategoriAdmin(ModelAdmin):
         return f"{obj.api_operator} / {obj.api_tip or '—'}"
 
 
+# -- Fiyat grupları ------------------------------------------------------
+
+ORNEK_ALIS = Decimal("100.00")
+
+
+@admin.register(FiyatGrubu)
+class FiyatGrubuAdmin(ModelAdmin):
+    """Perakende, Toptan… Bayinin fiyatı paket paket girilmez, buradan hesaplanır."""
+
+    list_display = ("ad", "oran", "ek_tutar", "ornek", "varsayilan", "bayi_sayisi", "aciklama")
+    list_editable = ("oran", "ek_tutar")
+    search_fields = ("ad",)
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": ("ad", ("oran", "ek_tutar"), "varsayilan", "aciklama"),
+                "description": (
+                    "Bayinin ödeyeceği tutar = paketin alışı × (1 + oran/100) + ek tutar. "
+                    "Alış, paketin sıradaki ilk açık sağlayıcısınınkidir. Bayiyi gruba "
+                    "<b>Cüzdanlar</b> listesinden ya da kullanıcı sayfasından bağlayın; "
+                    "bir pakette farklı fiyat gerekirse paketin sayfasındaki istisna "
+                    "tablosuna yazın."
+                ),
+            },
+        ),
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_bayi=Count("cuzdanlar"))
+
+    @display(description="Örnek")
+    def ornek(self, obj):
+        return f"{ORNEK_ALIS:.0f} ₺ alış → {obj.fiyat(ORNEK_ALIS)} ₺"
+
+    @display(description="Bayi", ordering="_bayi")
+    def bayi_sayisi(self, obj):
+        adres = reverse("admin:finans_cuzdan_changelist") + f"?kontor_grubu__id__exact={obj.pk}"
+        return format_html('<a href="{}">{}</a>', adres, obj._bayi)
+
+
 # -- Paket ----------------------------------------------------------------
 
 
@@ -449,7 +526,10 @@ class PaketFiyatiInline(TabularInline):
     model = PaketFiyati
     extra = 0
     fields = ("grup", "fiyat")
-    verbose_name_plural = "Bayi grubuna özel fiyat — girilmeyen grup paketin fiyatını öder"
+    verbose_name = "İstisna"
+    verbose_name_plural = (
+        "Gruba özel sabit fiyat — yalnızca istisna için; girilmeyen grup alıştan hesaplanır"
+    )
 
 
 class SaglayiciyaEkleFormu(forms.Form):
@@ -467,18 +547,16 @@ class SaglayiciyaEkleFormu(forms.Form):
     )
 
 
-class FiyatFormu(forms.Form):
-    yuzde = forms.DecimalField(
-        label="Alışın üstüne (%)", min_value=0, max_digits=6, decimal_places=2,
-        widget=UnfoldAdminDecimalFieldWidget,
-    )
-    grup = forms.ModelChoiceField(
-        BayiGrubu.objects.all(),
-        label="Bayi grubu",
-        required=False,
-        empty_label="— Paketin kendi fiyatı (herkes) —",
-        widget=UnfoldAdminSelectWidget,
-    )
+# Paket listesinde her satır bütün grupları çizer; gruplar istek başına bir
+# kez okunur (ModelAdmin tek nesnedir, iş parçacıkları arasında paylaşılır).
+_GRUPLAR = ContextVar("kontor_fiyat_gruplari", default=None)
+
+
+def _gruplar():
+    gruplar = _GRUPLAR.get()
+    if gruplar is None:
+        gruplar = list(FiyatGrubu.objects.all())
+    return gruplar
 
 
 @admin.register(Paket)
@@ -488,38 +566,52 @@ class PaketAdmin(ModelAdmin):
         "kategori",
         "kod",
         "icerik_gosterimi",
-        "satis_fiyati",
-        "tavsiye_fiyati",
         "alis_gosterimi",
-        "kar_gosterimi",
+        "grup_fiyatlari",
+        "tavsiye_fiyati",
         "rota_gosterimi",
         "aktif",
     )
-    list_editable = ("satis_fiyati", "tavsiye_fiyati", "aktif")
+    list_editable = ("tavsiye_fiyati", "aktif")
     list_filter = ("aktif", "kategori", "rotalar__saglayici")
     search_fields = ("ad", "kod", "kategori__ad")
     list_per_page = 100
     inlines = (RotaInline, PaketFiyatiInline)
-    actions = ("saglayiciya_ekle", "fiyat_uygula", "tavsiyeyi_operatorden_al")
-    fieldsets = (
-        (None, {"fields": ("kategori", "kod", "ad", "aciklama", "sira", "aktif")}),
-        ("İçerik", {"fields": (("dakika", "internet_mb", "sms", "gun"),)}),
-        (
-            "Fiyat",
-            {
-                "fields": ("satis_fiyati", "tavsiye_fiyati"),
-                "description": (
-                    "<b>Bayiye Satış</b> bayinin bakiyesinden düşer (gruba özel fiyat alttaki "
-                    "tablodan). <b>Tavsiye Satış</b> bayinin müşteriye söyleyeceği fiyattır; "
-                    "bayi ekranında büyük rakam odur, aradaki fark bayinin kazancı olarak "
-                    "göz düğmesinin arkasında durur."
-                ),
-            },
-        ),
-    )
+    actions = ("saglayiciya_ekle", "tavsiyeyi_operatorden_al")
+    readonly_fields = ("grup_fiyatlari",)
+
+    def get_fieldsets(self, request, obj=None):
+        fiyat = ["tavsiye_fiyati", "grup_fiyatlari"]
+        aciklama = (
+            "Bayinin ödeyeceği tutar girilmez: aşağıdaki <b>Sağlayıcı sırası</b> tablosundaki "
+            "alıştan, bayinin <b>kontör fiyat grubunun</b> oranıyla hesaplanır. "
+            "<b>Tavsiye Satış</b> bayinin müşteriye söyleyeceği fiyattır; bayi ekranında "
+            "büyük rakam odur, aradaki fark bayinin kazancı olarak göz düğmesinin arkasında durur."
+        )
+        # Varsayılan grup yoksa grupsuz bayi paketin kendi fiyatını öder; o
+        # zaman alan gerekir. Varsayılan grup varken hiçbir bayiye uymaz, gizlenir.
+        if FiyatGrubu.varsayilani() is None:
+            fiyat.append("satis_fiyati")
+        return (
+            (None, {"fields": ("kategori", "kod", "ad", "aciklama", "sira", "aktif")}),
+            ("İçerik", {"fields": (("dakika", "internet_mb", "sms", "gun"),)}),
+            ("Fiyat", {"fields": fiyat, "description": aciklama}),
+        )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("kategori").prefetch_related("rotalar__saglayici")
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("kategori")
+            .prefetch_related("rotalar__saglayici", "grup_fiyatlari")
+        )
+
+    def changelist_view(self, request, extra_context=None):
+        belirtec = _GRUPLAR.set(list(FiyatGrubu.objects.all()))
+        try:
+            return super().changelist_view(request, extra_context)
+        finally:
+            _GRUPLAR.reset(belirtec)
 
     def _ilk_rota(self, obj):
         rotalar = [r for r in obj.rotalar.all() if r.aktif and r.saglayici.aktif]
@@ -533,17 +625,38 @@ class PaketAdmin(ModelAdmin):
     def alis_gosterimi(self, obj):
         rota = self._ilk_rota(obj)
         if rota is None or rota.alis_fiyati is None:
-            return format_html('<span style="color:#94A3B8">—</span>')
-        return rota.alis_fiyati
+            return format_html('<span style="color:#D42046">girilmedi</span>')
+        return format_html(
+            '{}<br><span style="color:#6F7B8F;font-size:.7rem">{}</span>', rota.alis_fiyati, rota.saglayici
+        )
 
-    @display(description="Kâr")
-    def kar_gosterimi(self, obj):
-        """İlk sağlayıcının alışına göre; alış girilmemişse rakam uydurulmaz."""
-        rota = self._ilk_rota(obj)
-        if rota is None or rota.alis_fiyati is None or not obj.satis_fiyati:
-            return format_html('<span style="color:#94A3B8">—</span>')
-        kar = obj.satis_fiyati - rota.alis_fiyati
-        return format_html('<b style="color:{}">{}</b>', "#0F8A4D" if kar > 0 else "#D42046", kar)
+    @display(description="Bayiye satış · kâr")
+    def grup_fiyatlari(self, obj):
+        """Her grubun ödeyeceği ve bizim kârımız; hesap `grup_fiyati`ndan, bayi ekranıyla aynı."""
+        if obj is None or obj.pk is None:
+            return "—"
+        gruplar = _gruplar()
+        if not gruplar:
+            fiyat = obj.satis_fiyati
+            return fiyat if fiyat else format_html('<span style="color:#D42046">fiyat yok — satılmaz</span>')
+        alis = obj.ilk_alis()
+        ozel = {f.grup_id: f.fiyat for f in obj.grup_fiyatlari.all()}
+        satirlar = []
+        for grup in gruplar:
+            fiyat = ozel[grup.pk] if grup.pk in ozel else grup.fiyat(alis)
+            if fiyat is None:
+                satirlar.append((grup.ad, "—", "", "#94A3B8", ""))
+                continue
+            kar = fiyat - alis if alis is not None else None
+            renk = "#0F8A4D" if kar is None or kar > 0 else "#D42046"
+            kar_metni = f"{'+' if kar > 0 else ''}{kar}" if kar is not None else ""
+            satirlar.append((grup.ad, fiyat, kar_metni, renk, " (istisna)" if grup.pk in ozel else ""))
+        return format_html_join(
+            format_html("<br>"),
+            '<span style="white-space:nowrap">{}: <b>{}</b> <span style="color:{}">{}</span>'
+            '<span style="color:#6F7B8F;font-size:.7rem">{}</span></span>',
+            ((ad, fiyat, renk, kar, not_) for ad, fiyat, kar, renk, not_ in satirlar),
+        )
 
     @display(description="Sağlayıcı sırası")
     def rota_gosterimi(self, obj):
@@ -581,6 +694,7 @@ class PaketAdmin(ModelAdmin):
 
         Rota zaten varsa sırası ve kodları güncellenir, yenisi açılmaz.
         Kod boş kalır — paketin kendi kodu gider; farklıysa satırda düzeltilir.
+        Alış **Sağlayıcı Alışları** ekranından toplu girilir.
         """
         form = SaglayiciyaEkleFormu(request.POST if "uygula" in request.POST else None)
         if "uygula" in request.POST and form.is_valid():
@@ -600,7 +714,8 @@ class PaketAdmin(ModelAdmin):
                 guncellenen += not yeni
             self.message_user(
                 request,
-                f"{veri['saglayici']}: {eklenen} pakete eklendi, {guncellenen} paketin sırası güncellendi.",
+                f"{veri['saglayici']}: {eklenen} pakete eklendi, {guncellenen} paketin sırası güncellendi. "
+                "Alışları Sağlayıcı Alışları ekranından girin.",
                 messages.SUCCESS,
             )
             return None
@@ -611,45 +726,6 @@ class PaketAdmin(ModelAdmin):
             "Sağlayıcı sırasına ekle",
             "Seçili paketler bu sağlayıcıya da gidebilir hâle gelir. Sıra küçükse önce o denenir.",
             "saglayiciya_ekle",
-        )
-
-    @admin.action(description="Seçili paketlere fiyat uygula (alış + %%)")
-    def fiyat_uygula(self, request, queryset):
-        """Satışı ilk sağlayıcının alışının üstüne yüzde koyarak yazar.
-
-        Alışı girilmemiş paket atlanır ve sayılır — rakam uydurulmaz.
-        Grup seçilirse o gruba özel fiyat yazılır, paketin kendi fiyatı durur.
-        """
-        form = FiyatFormu(request.POST if "uygula" in request.POST else None)
-        if "uygula" in request.POST and form.is_valid():
-            yuzde = form.cleaned_data["yuzde"]
-            grup = form.cleaned_data["grup"]
-            yazilan = atlanan = 0
-            for paket in queryset.prefetch_related("rotalar__saglayici"):
-                rota = self._ilk_rota(paket)
-                if rota is None or rota.alis_fiyati is None:
-                    atlanan += 1
-                    continue
-                fiyat = (rota.alis_fiyati * (1 + yuzde / 100)).quantize(Decimal("0.01"), ROUND_HALF_UP)
-                if grup is None:
-                    paket.satis_fiyati = fiyat
-                    paket.save(update_fields=["satis_fiyati", "guncelleme_tarihi"])
-                else:
-                    PaketFiyati.objects.update_or_create(paket=paket, grup=grup, defaults={"fiyat": fiyat})
-                yazilan += 1
-            hedef = f"“{grup}” grubunun" if grup else "paketlerin kendi"
-            mesaj = f"{yazilan} paketin {hedef} fiyatı alış + %{yuzde:g} yapıldı."
-            if atlanan:
-                mesaj += f" {atlanan} paketin alışı girilmemiş, dokunulmadı."
-            self.message_user(request, mesaj, messages.SUCCESS if not atlanan else messages.WARNING)
-            return None
-        return self._ara_form(
-            request,
-            queryset,
-            form,
-            "Fiyat uygula",
-            "Satış fiyatı, paketin sıradaki ilk sağlayıcısının alışına bu yüzde eklenerek yazılır.",
-            "fiyat_uygula",
         )
 
     @admin.action(description="Tavsiye fiyatını operatörün fiyatından al")

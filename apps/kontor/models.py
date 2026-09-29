@@ -12,8 +12,10 @@ yönetici karar verir. Yalnızca sağlayıcı açıkça reddederse (işlem orada
 hiç açılmadı) sıradaki sağlayıcıya geçilir.
 
 Katalog veridir: kategori (Vodafone TL, Turkcell Paket, PUBG Mobile UC…),
-paket, paketin hangi sağlayıcılara hangi sırayla gideceği (`Rota`) ve bayi
-grubuna göre fiyat panelden girilir.
+paket, paketin hangi sağlayıcılara hangi sırayla gideceği ve her
+sağlayıcıdan alışı (`Rota`), bayinin kontör fiyat grubu (`FiyatGrubu`:
+Perakende, Toptan…) panelden girilir. Bayinin fiyatı saklanmaz, alıştan
+grubun oranıyla hesaplanır.
 
 Para `magaza.Siparis` üzerinden yürür — eSIM'deki gibi: işlem açılınca
 tutar bakiyeden düşer, borca yazılmaz; iptal olursa ters kayıtla döner.
@@ -22,7 +24,7 @@ tutar bakiyeden düşer, borca yazılmaz; iptal olursa ters kayıtla döner.
 import hashlib
 import hmac
 import secrets
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -323,6 +325,77 @@ class PaketSorgusu(models.QuerySet):
         ).distinct()
 
 
+class FiyatGrubu(ZamanDamgali):
+    """Bayinin kontör fiyat kademesi: Perakende, Toptan…
+
+    Bayinin ödeyeceği tutar paket paket girilmez; paketin alışından grubun
+    oranıyla hesaplanır: `alış × (1 + oran/100) + ek tutar`. Alış değişince
+    (elle ya da **Fiyat listesini çek** ile) bütün grupların fiyatı kendiliğinden
+    değişir. Başvuru fiyatlarındaki bayi grubundan bağımsızdır: kontörde
+    toptan çalışan bayi başvuruda başka kademede olabilir.
+    """
+
+    ad = models.CharField("Grup Adı", max_length=100, unique=True)
+    oran = models.DecimalField(
+        "Alışın Üstüne (%)",
+        max_digits=6,
+        decimal_places=2,
+        default=SIFIR,
+        validators=[MinValueValidator(SIFIR)],
+        help_text="Alış 100 ₺, oran 3 → bayi 103 ₺ öder.",
+    )
+    ek_tutar = models.DecimalField(
+        "Ek Tutar (₺)",
+        max_digits=10,
+        decimal_places=2,
+        default=SIFIR,
+        validators=[MinValueValidator(SIFIR)],
+        help_text="Yüzdenin üstüne her pakete eklenen sabit tutar. Çoğu zaman 0.",
+    )
+    varsayilan = models.BooleanField(
+        "Varsayılan",
+        default=False,
+        help_text=(
+            "Grubu seçilmemiş bayi bu grubun fiyatını öder. Yalnızca bir grup "
+            "varsayılan olabilir; hiçbiri değilse grupsuz bayi paketin kendi "
+            "satış fiyatını öder."
+        ),
+    )
+    aciklama = models.CharField("Açıklama", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Kontör Fiyat Grubu"
+        verbose_name_plural = "Kontör Fiyat Grupları"
+        ordering = ["oran", "ek_tutar", "ad"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["varsayilan"], condition=Q(varsayilan=True), name="kontor_tek_varsayilan_grup"
+            )
+        ]
+
+    def __str__(self):
+        return self.ad
+
+    def validate_constraints(self, exclude=None):
+        if self.varsayilan:
+            diger = FiyatGrubu.objects.filter(varsayilan=True).exclude(pk=self.pk).first()
+            if diger:
+                raise ValidationError(
+                    {"varsayilan": f"“{diger}” zaten varsayılan. Önce onun kutusunu kapatın."}
+                )
+        super().validate_constraints(exclude=(exclude or set()) | {"varsayilan"})
+
+    def fiyat(self, alis):
+        """Alıştan bayinin ödeyeceği tutar; alış yoksa `None` (rakam uydurulmaz)."""
+        if alis is None:
+            return None
+        return (alis * (1 + self.oran / 100) + self.ek_tutar).quantize(Decimal("0.01"), ROUND_HALF_UP)
+
+    @classmethod
+    def varsayilani(cls):
+        return cls.objects.filter(varsayilan=True).first()
+
+
 class Paket(ZamanDamgali):
     """Satılan tek şey: 100 TL, Kolay Paket 15, 660 UC…"""
 
@@ -344,14 +417,14 @@ class Paket(ZamanDamgali):
     sms = models.PositiveIntegerField("SMS", default=0)
     gun = models.PositiveIntegerField("Gün", default=0)
     satis_fiyati = models.DecimalField(
-        "Bayiye Satış",
+        "Grupsuz Bayiye Satış",
         max_digits=12,
         decimal_places=2,
         default=SIFIR,
         validators=[MinValueValidator(SIFIR)],
         help_text=(
-            "Bayinin bakiyesinden düşülecek tutar. Bayi grubuna özel fiyat alttaki "
-            "tablodan girilir; girilmeyen grup bunu öder. 0 ise paket satılmaz."
+            "Yalnızca kontör fiyat grubu olmayan bayi için (varsayılan grup da "
+            "yoksa). Gruptaki bayinin fiyatı alıştan hesaplanır."
         ),
     )
     tavsiye_fiyati = models.DecimalField(
@@ -399,6 +472,16 @@ class Paket(ZamanDamgali):
     def save(self, *args, **kwargs):
         self.kod = self.kod.strip()
         super().save(*args, **kwargs)
+
+    def ilk_alis(self):
+        """Sıradaki ilk açık sağlayıcının alışı — grup fiyatı bundan hesaplanır.
+
+        `rotalar__saglayici` önceden getirildiyse ek sorgu atmaz.
+        """
+        for rota in self.rotalar.all():
+            if rota.aktif and rota.saglayici.aktif:
+                return rota.alis_fiyati
+        return None
 
     def get_absolute_url(self):
         ad = "kontor:oyun-paket" if self.kategori.oyun else "kontor:paket"
@@ -490,11 +573,11 @@ class Rota(models.Model):
 
 
 class PaketFiyati(models.Model):
-    """Bayi grubuna özel satış fiyatı; girilmeyen grup paketin fiyatını öder."""
+    """İstisna: bu pakette bu grubun sabit fiyatı. Girilmeyen grup alıştan hesaplanır."""
 
     paket = models.ForeignKey(Paket, verbose_name="Paket", related_name="grup_fiyatlari", on_delete=models.CASCADE)
     grup = models.ForeignKey(
-        "finans.BayiGrubu", verbose_name="Bayi Grubu", related_name="kontor_fiyatlari", on_delete=models.CASCADE
+        FiyatGrubu, verbose_name="Fiyat Grubu", related_name="paket_fiyatlari", on_delete=models.CASCADE
     )
     fiyat = models.DecimalField(
         "Satış", max_digits=12, decimal_places=2, validators=[MinValueValidator(SIFIR)]

@@ -77,7 +77,7 @@ class CuzdanInline(StackedInline):
     model = Cuzdan
     can_delete = False
     extra = 0
-    fields = (("grup", "islem_yapabilir"), ("bakiye", "borc"))
+    fields = (("grup", "kontor_grubu"), "islem_yapabilir", ("bakiye", "borc"))
     readonly_fields = ("bakiye", "borc")
 
 
