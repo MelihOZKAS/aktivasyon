@@ -1,8 +1,9 @@
 {% load panel %}
 {% comment %}
-  Numara sorgusunun sonucu. Eşleşen paket kataloğumuzdaki pakettir:
-  fiyatı ve numara dolu gelen "Yükle" bağlantısıyla çizilir. Eşleşmeyenler
-  (sorgu kaynağında var, bizde satışta yok) yalnızca bilgi olarak yazılır.
+  Numara sorgusunun sonucu. Yalnızca bizde satışta olan paketler çizilir:
+  fiyatı ve numara dolu gelen "Yükle" bağlantısıyla. Kaynağın döndürüp
+  bizim satmadığımız paketler bayiye gösterilmez — alamayacağı paketin
+  listesi işine yaramıyordu; yönetim onları Operatörde Görülen'de görür.
   Hata satışı durdurmaz: aşağıdaki paket listesi yine seçilebilir.
 {% endcomment %}
 <div id="sorgu-sonucu" class="mb-5">
@@ -52,14 +53,6 @@
     </div>
     {% else %}
     <p class="mt-2 text-sm text-soluk">Bu numaranın alabileceği paketlerden hiçbiri bizde satışta değil.</p>
-    {% endif %}
-    {% if diger %}
-    <details class="mt-3 text-sm">
-      <summary class="cursor-pointer font-medium text-soluk">Bizde satışta olmayan {{ diger|length }} paket</summary>
-      <ul class="mt-2 space-y-1 text-murekkep-yumusak">
-        {% for p in diger %}<li>{{ p.ad|default:p.kod }}{% if p.gun %} · {{ p.gun }} gün{% endif %} <span class="text-soluk">({{ p.kod }})</span></li>{% endfor %}
-      </ul>
-    </details>
     {% endif %}
   </div>
   {% endif %}

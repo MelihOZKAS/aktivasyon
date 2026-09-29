@@ -897,7 +897,9 @@ class SorguTestleri(Temel):
         self.assertContains(yanit, "Kolay Paket 15")
         self.assertContains(yanit, "110,00")
         self.assertContains(yanit, "?hedef=5329998877")
-        self.assertContains(yanit, "Bizde satışta olmayan 1 paket")
+        # Bizde satışta olmayan paket bayiye gösterilmez.
+        self.assertNotContains(yanit, "Bizde yok")
+        self.assertNotContains(yanit, "satışta olmayan")
 
     def test_ayni_numara_onbellekten(self):
         self.client.get(self.adres, {"hedef": "5329998877"})

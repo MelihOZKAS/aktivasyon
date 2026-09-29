@@ -434,7 +434,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   bir fonksiyonu `@kaynak(kod, ad)` ile kaydeder
   (`(numara, *, sahip) -> SorguSonucu | list[SorguPaketi]`),
   kategori `sorgu_kaynagi` ile birini seçer. Ekran dönen kodları `Paket.kod`
-  ile eşleştirir; sorgu salt okumadır, 12 saat önbelleğe alınır (bayi
+  ile eşleştirir ve **yalnızca bizde satışta olanları** gösterir — kaynağın
+  döndürüp bizim satmadığımız paketler bayiye listelenmez (alamayacağı
+  paket işine yaramıyordu), yönetim onları Operatörde Görülen'de görür; sorgu salt okumadır, 12 saat önbelleğe alınır (bayi
   **Yenile** ile atlar, en sık dakikada bir; numaraya yükleme başarılı
   olunca o numaranın kaydı silinir — önbellek bu yüzden bellekte değil
   dosyadadır, `CACHES["kontor_sorgu"]`, `tmp/`: gunicorn işçileri ve kontör

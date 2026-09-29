@@ -227,7 +227,8 @@ def sorgu_onbellegini_sil(numara):
 def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
     """Kategorinin sorgu kaynağına sorar, sonucu kataloğumuzla eşleştirir.
 
-    Dönüş: `{"numara", "sahip", "zaman", "eslesen": [Paket], "diger": [SorguPaketi]}`.
+    Dönüş: `{"numara", "sahip", "zaman", "eslesen": [Paket]}`. Bizde satışta
+    olmayan paketler bayiye dönmez; `GorulenPaket`'e işlenir.
     Eşleşme kupür koduyladır (`Paket.kod`); eşleşen pakete bayinin fiyatı
     yazılır. Hat sahibinin maskeli adı yalnızca kategoride açıksa istenir,
     ekranda gösterilir, veritabanına yazılmaz. Sonuç `ONBELLEK_SURESI`
@@ -268,14 +269,11 @@ def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
     sonuc = kayit["sonuc"]
     kodlar = {str(p.kod).strip() for p in sonuc.paketler}
     eslesen = [p for p in satistaki_paketler(kategori, bayi) if p.kod in kodlar]
-    bizde = {p.kod for p in eslesen}
-    diger = [p for p in sonuc.paketler if str(p.kod).strip() not in bizde]
     return {
         "numara": numara,
         "sahip": sonuc.sahip if sahip_iste else "",
         "zaman": kayit["zaman"],
         "eslesen": eslesen,
-        "diger": diger,
     }
 
 
