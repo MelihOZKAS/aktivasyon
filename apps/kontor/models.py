@@ -400,8 +400,8 @@ class Paket(ZamanDamgali):
         default=SIFIR,
         validators=[MinValueValidator(SIFIR)],
         help_text=(
-            "Yalnızca kontör fiyat grubu olmayan bayi için (varsayılan grup da "
-            "yoksa). Gruptaki bayinin fiyatı alıştan hesaplanır."
+            "Yalnızca kontör fiyat grubu olmayan bayi öder (varsayılan grup da yoksa). "
+            "Bir grubu Fiyat Grupları'nda “Varsayılan” yaparsan bu alan kalkar."
         ),
     )
     tavsiye_fiyati = models.DecimalField(

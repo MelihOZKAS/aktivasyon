@@ -387,6 +387,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   paketler (`FiyatGrubuAdmin.paket_fiyatlari`; `change_view` oraya
   yönlenir). Operatöre, kategoriye ve adla süzülür, **sayfa başı 50**;
   POST yalnızca o sayfadaki paketleri yazar, boş kutu fiyatı siler.
+  Paket sayfasında grup fiyatı **yalnızca okunur**; satır içi tablo olarak
+  da duruyordu, yönetici "bu ne işe yarıyor?" dedi — aynı rakamı iki yerden
+  girdirme. Paket sayfasının üstündeki **"Bayiye görünüyor mu?"**
+  (`PaketAdmin.satis_durumu`) paketi bayiden saklayan her sebebi sayar:
+  pasif paket/kategori, bağlı sağlayıcı yok ya da hepsi kapalı, hiçbir
+  grupta fiyat yok. "Bayi kontörü göremiyor" şikâyetinde ilk bakılacak yer;
+  en sık sebep "Kataloğa ekle" ile açılıp sağlayıcıya bağlanmamış paket.
   Kademe başvurudaki bayi grubundan **ayrıdır** (`Cuzdan.kontor_grubu`;
   Cüzdanlar listesinden satırda verilir). Grubu boş bayi **varsayılan**
   gruba düşer (tek olabilir); o da yoksa paketin `satis_fiyati`nı öder —

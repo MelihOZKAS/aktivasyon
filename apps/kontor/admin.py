@@ -669,17 +669,6 @@ class RotaInline(TabularInline):
     verbose_name_plural = "Sağlayıcı sırası — küçük sıra önce denenir; boş kodlarda paketin kodu gider"
 
 
-class PaketFiyatiInline(TabularInline):
-    model = PaketFiyati
-    extra = 0
-    fields = ("grup", "fiyat")
-    verbose_name = "Grup fiyatı"
-    verbose_name_plural = (
-        "Fiyat grubuna göre bayiye satış — fiyatı yazılmayan grup bu paketi göremez "
-        "(toplu giriş: grubun sayfası)"
-    )
-
-
 class SaglayiciyaEkleFormu(forms.Form):
     saglayici = forms.ModelChoiceField(
         Saglayici.objects.all(), label="Sağlayıcı", widget=UnfoldAdminSelectWidget
@@ -724,15 +713,18 @@ class PaketAdmin(ModelAdmin):
     list_filter = ("aktif", "kategori__operator", "kategori", "rotalar__saglayici")
     search_fields = ("ad", "kod", "kategori__ad")
     list_per_page = 50
-    inlines = (RotaInline, PaketFiyatiInline)
+    # Grup fiyatı burada satır içi tablo olarak da duruyordu; aynı rakam
+    # grubun sayfasında da girildiği için yönetici "bu ne işe yarıyor?" dedi.
+    # Bayinin fiyatı tek yerden girilir: grubun sayfası. Burada yalnızca okunur.
+    inlines = (RotaInline,)
     actions = ("saglayiciya_ekle", "tavsiyeyi_operatorden_al")
-    readonly_fields = ("grup_fiyatlari",)
+    readonly_fields = ("grup_fiyatlari", "satis_durumu")
 
     def get_fieldsets(self, request, obj=None):
         fiyat = ["tavsiye_fiyati", "grup_fiyatlari"]
         aciklama = (
-            "Bayinin ödeyeceği tutar <b>kontör fiyat grubunun</b> sayfasından (ya da aşağıdaki "
-            "grup fiyatı tablosundan) girilir; fiyatı yazılmayan grup bu paketi göremez. "
+            "Bayinin ödeyeceği tutar <b>Kontör → Fiyat Grupları</b>'nda grubun sayfasından "
+            "girilir; fiyatı yazılmayan grup bu paketi göremez. "
             "<b>Tavsiye Satış</b> bayinin müşteriye söyleyeceği fiyattır; bayi ekranında "
             "büyük rakam odur, aradaki fark bayinin kazancı olarak göz düğmesinin arkasında durur."
         )
@@ -740,8 +732,9 @@ class PaketAdmin(ModelAdmin):
         # zaman alan gerekir. Varsayılan grup varken hiçbir bayiye uymaz, gizlenir.
         if FiyatGrubu.varsayilani() is None:
             fiyat.append("satis_fiyati")
+        ust = ("satis_durumu",) if obj is not None else ()
         return (
-            (None, {"fields": ("kategori", "kod", "ad", "aciklama", "sira", "aktif")}),
+            (None, {"fields": ust + ("kategori", "kod", "ad", "aciklama", "sira", "aktif")}),
             ("İçerik", {"fields": (("dakika", "internet_mb", "sms", "gun"),)}),
             ("Fiyat", {"fields": fiyat, "description": aciklama}),
         )
@@ -804,6 +797,45 @@ class PaketAdmin(ModelAdmin):
             '<span style="white-space:nowrap">{}: <b>{}</b> <span style="color:{}">{}</span>'
             '<span style="color:#6F7B8F;font-size:.7rem">{}</span></span>',
             ((ad, fiyat, renk, kar, not_) for ad, fiyat, kar, renk, not_ in satirlar),
+        )
+
+    @display(description="Bayiye görünüyor mu?")
+    def satis_durumu(self, obj):
+        """Paketin bayi ekranına çıkmasının şartlarını tek tek sayar.
+
+        "Bayi kontörü göremiyor" şikâyetinde sebep çoğu zaman bağlı sağlayıcı
+        olmamasıydı; liste sütununda yazıyordu ama paket sayfasında yoktu.
+        """
+        if obj is None or obj.pk is None:
+            return "—"
+        eksikler = []
+        if not obj.aktif:
+            eksikler.append("Paket pasif.")
+        if not obj.kategori.aktif:
+            eksikler.append(f"“{obj.kategori}” kategorisi pasif.")
+        rotalar = list(obj.rotalar.all())
+        if not rotalar:
+            eksikler.append(
+                "Hiçbir sağlayıcıya bağlı değil — yüklemeyi yapacak kimse yok. Aşağıdaki "
+                "Sağlayıcı sırası tablosuna “Başka bir Sağlayıcı ekle” ile sağlayıcıyı ekleyin."
+            )
+        elif not any(r.aktif and r.saglayici.aktif for r in rotalar):
+            eksikler.append("Bağlı sağlayıcıların hepsi kapalı (satırda ya da Sağlayıcılar ekranında).")
+        gruplar = _gruplar()
+        fiyatli = {f.grup_id for f in obj.grup_fiyatlari.all()}
+        if gruplar and not fiyatli:
+            eksikler.append("Hiçbir fiyat grubunda Bayi Satış Tutarı yazılı değil.")
+        if not gruplar and not obj.satis_fiyati:
+            eksikler.append("Fiyatı yok.")
+        if not eksikler:
+            satilan = [g.ad for g in gruplar if g.pk in fiyatli] if gruplar else []
+            return format_html(
+                '<b style="color:#0F8A4D">Evet</b>{}',
+                f" — {', '.join(satilan)} grubundaki bayiler görür." if satilan else "",
+            )
+        return format_html(
+            '<b style="color:#D42046">Hayır</b><ul style="margin:.25rem 0 0 1rem;list-style:disc">{}</ul>',
+            format_html_join("", "<li>{}</li>", ((e,) for e in eksikler)),
         )
 
     @display(description="Sağlayıcı sırası")

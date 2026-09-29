@@ -770,6 +770,15 @@ class YonetimTestleri(Temel):
         yanit = self.client.get(reverse("admin:kontor_paket_change", args=[self.paket.pk]))
         self.assertNotContains(yanit, 'name="satis_fiyati"')
 
+    def test_paket_sayfasi_neden_satilmadigini_yazar(self):
+        adres = reverse("admin:kontor_paket_change", args=[self.paket.pk])
+        self.assertContains(self.client.get(adres), "Evet")
+        self.paket.rotalar.all().delete()
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "Hiçbir sağlayıcıya bağlı değil")
+        FiyatGrubu.objects.create(ad="Parakende")
+        self.assertContains(self.client.get(adres), "Hiçbir fiyat grubunda Bayi Satış Tutarı yazılı değil")
+
     def test_grup_sayfasi_bayi_satis_tutari(self):
         grup = FiyatGrubu.objects.create(ad="Toptan")
         adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
