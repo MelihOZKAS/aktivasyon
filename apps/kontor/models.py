@@ -14,8 +14,7 @@ hiç açılmadı) sıradaki sağlayıcıya geçilir.
 Katalog veridir: kategori (Vodafone TL, Turkcell Paket, PUBG Mobile UC…),
 paket, paketin hangi sağlayıcılara hangi sırayla gideceği ve her
 sağlayıcıdan alışı (`Rota`), bayinin kontör fiyat grubu (`FiyatGrubu`:
-Perakende, Toptan…) panelden girilir. Bayinin fiyatı saklanmaz, alıştan
-grubun oranıyla hesaplanır.
+Perakende, Toptan…) ve her grubun paket paket net fiyatı panelden girilir.
 
 Para `magaza.Siparis` üzerinden yürür — eSIM'deki gibi: işlem açılınca
 tutar bakiyeden düşer, borca yazılmaz; iptal olursa ters kayıtla döner.
@@ -24,7 +23,7 @@ tutar bakiyeden düşer, borca yazılmaz; iptal olursa ters kayıtla döner.
 import hashlib
 import hmac
 import secrets
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -328,40 +327,19 @@ class PaketSorgusu(models.QuerySet):
 class FiyatGrubu(ZamanDamgali):
     """Bayinin kontör fiyat kademesi: Perakende, Toptan…
 
-    Bayinin ödeyeceği tutar paket paket girilmez; paketin alışından grubun
-    oranıyla hesaplanır: `alış × (1 + oran/100) + ek tutar`. Alış değişince
-    (elle ya da **Fiyat listesini çek** ile) bütün grupların fiyatı kendiliğinden
-    değişir. Başvuru fiyatlarındaki bayi grubundan bağımsızdır: kontörde
-    toptan çalışan bayi başvuruda başka kademede olabilir.
+    Her pakette grubun **tek bir net fiyatı** vardır (`PaketFiyati`); fiyatı
+    yazılmamış paket bu gruptaki bayiye satılmaz. Alış + % ya da alış + ₺
+    yalnızca yönetim ekranındaki hesap aracıdır: seçilen paketlerin fiyatını
+    alıştan hesaplayıp kutulara yazar, kaydedilen yine net rakamdır.
+    Başvuru fiyatlarındaki bayi grubundan bağımsızdır.
     """
 
     ad = models.CharField("Grup Adı", max_length=100, unique=True)
-    # Genel kural isteğe bağlıdır: ikisi de boşsa kendi kuralı (net fiyat,
-    # alış + %, alış + ₺) olmayan paket bu gruba **satılmaz**. Bir süre 0
-    # varsayılandı ve kuralsız paket alış fiyatına, kârsız satılıyordu.
-    oran = models.DecimalField(
-        "Kuralsız paket: alışın üstüne (%)",
-        max_digits=6,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(SIFIR)],
-        help_text="İsteğe bağlı. Boşsa (ek tutar da boşsa) fiyatı yazılmamış paket bu gruba satılmaz.",
-    )
-    ek_tutar = models.DecimalField(
-        "Kuralsız paket: ek tutar (₺)",
-        max_digits=10,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(SIFIR)],
-        help_text="İsteğe bağlı; yüzdenin üstüne eklenir.",
-    )
     varsayilan = models.BooleanField(
         "Varsayılan",
         default=False,
         help_text=(
-            "Grubu seçilmemiş bayi bu grubun fiyatını öder. Yalnızca bir grup "
+            "Grubu seçilmemiş bayi bu grubun fiyatlarını öder. Yalnızca bir grup "
             "varsayılan olabilir; hiçbiri değilse grupsuz bayi paketin kendi "
             "satış fiyatını öder."
         ),
@@ -389,16 +367,6 @@ class FiyatGrubu(ZamanDamgali):
                     {"varsayilan": f"“{diger}” zaten varsayılan. Önce onun kutusunu kapatın."}
                 )
         super().validate_constraints(exclude=(exclude or set()) | {"varsayilan"})
-
-    @property
-    def genel_kural_var(self):
-        return self.oran is not None or self.ek_tutar is not None
-
-    def fiyat(self, alis):
-        """Kuralsız paketin fiyatı: genel kural yoksa ya da alış yoksa `None` (satılmaz)."""
-        if alis is None or not self.genel_kural_var:
-            return None
-        return (alis * (1 + (self.oran or 0) / 100) + (self.ek_tutar or 0)).quantize(Decimal("0.01"), ROUND_HALF_UP)
 
     @classmethod
     def varsayilani(cls):
@@ -581,27 +549,15 @@ class Rota(models.Model):
         return self.uzak_tip or self.paket.kategori.api_tip
 
 
-class FiyatYontemi(models.TextChoices):
-    NET = "net", "Net fiyat"
-    YUZDE = "yuzde", "Alış + %"
-    TUTAR = "tutar", "Alış + ₺"
-
-
 class PaketFiyati(models.Model):
-    """Bu pakette bu grubun kendi kuralı; girilmeyen paket grubun oranından hesaplanır.
-
-    Yönetici paket paket seçer: net fiyat (444,15 — alışa bakılmaz), alışın
-    üstüne yüzde ya da alışın üstüne sabit tutar.
-    """
+    """Bu gruptaki bayinin bu paket için ödeyeceği net fiyat."""
 
     paket = models.ForeignKey(Paket, verbose_name="Paket", related_name="grup_fiyatlari", on_delete=models.CASCADE)
     grup = models.ForeignKey(
         FiyatGrubu, verbose_name="Fiyat Grubu", related_name="paket_fiyatlari", on_delete=models.CASCADE
     )
-    yontem = models.CharField("Yöntem", max_length=10, choices=FiyatYontemi.choices, default=FiyatYontemi.NET)
-    deger = models.DecimalField(
-        "Değer", max_digits=12, decimal_places=2, validators=[MinValueValidator(SIFIR)],
-        help_text="Net fiyatta satış tutarı; Alış + % yöntemde yüzde; Alış + ₺ yöntemde eklenen tutar.",
+    fiyat = models.DecimalField(
+        "Bayiye Satış", max_digits=12, decimal_places=2, validators=[MinValueValidator(SIFIR)]
     )
 
     class Meta:
@@ -612,19 +568,7 @@ class PaketFiyati(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.grup}: {self.get_yontem_display()} {self.deger}"
-
-    def hesapla(self, alis):
-        """Bayinin ödeyeceği; alışa dayanan yöntemde alış yoksa `None`."""
-        if self.yontem == FiyatYontemi.NET:
-            return self.deger
-        if alis is None:
-            return None
-        if self.yontem == FiyatYontemi.YUZDE:
-            tutar = alis * (1 + self.deger / 100)
-        else:
-            tutar = alis + self.deger
-        return tutar.quantize(Decimal("0.01"), ROUND_HALF_UP)
+        return f"{self.grup}: {self.fiyat}"
 
 
 class GorulenPaket(models.Model):

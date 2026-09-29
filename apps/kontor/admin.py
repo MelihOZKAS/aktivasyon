@@ -39,7 +39,6 @@ from apps.kontor.models import (
     ApiErisimi,
     Deneme,
     FiyatGrubu,
-    FiyatYontemi,
     GorulenPaket,
     Islem,
     IslemDurumu,
@@ -477,9 +476,6 @@ class KategoriAdmin(ModelAdmin):
 
 # -- Fiyat grupları ------------------------------------------------------
 
-ORNEK_ALIS = Decimal("100.00")
-
-
 PAKET_FIYAT_SAYFASI = 50
 
 
@@ -500,32 +496,22 @@ def _ondalik(metin):
 class FiyatGrubuAdmin(ModelAdmin):
     """Perakende, Toptan… Grubun sayfası **tek sayfadır**: üstte ayarlar, altta paket fiyatları.
 
-    Bir süre grup formu ayrı, paket fiyatları listedeki ayrı bir düğmenin
-    arkasındaydı; yönetici gruba tıklayıp yalnızca oranı görüyor, net fiyatı
-    nereye yazacağını bulamıyordu ("içerisi aynı, niye ayrı?"). Artık
-    değiştirme adresi paket fiyatlarına yönlenir (`change_view`). Paketler
-    binlerce olabilir: operatör/kategoriye süzülür, sayfa başı 50. Yöntem
-    seçmeden yazılan rakam net fiyattır; alış + % ve alış + ₺ isteğe bağlı.
+    Her pakette tek rakam durur: bu gruptaki bayinin ödeyeceği net fiyat.
+    Boş kutu = paket bu gruba satılmaz. Alış + % / alış + ₺ yalnızca üstteki
+    çubukta **hesap aracıdır**: seçilen paketlerin alışından fiyatı hesaplayıp
+    kutulara yazar, yönetici bakar, düzeltir, kaydeder.
+
+    Bu ekran iki kez yanlış kuruldu. Önce grup formu ayrı, paket fiyatları
+    listedeki ayrı bir düğmenin arkasındaydı ("içerisi aynı, niye ayrı?").
+    Sonra her satıra yöntem kutusu (net / alış + % / alış + ₺) ve grubun genel
+    oranı kondu; yönetici "yöntemin hepsi net fiyat olacak, her pakete aynı
+    444,10'u yazmanın anlamı yok" dedi. Satıra ikinci bir alan koyma.
+    Paketler binlerce olabilir: operatör/kategoriye süzülür, sayfa başı 50.
     """
 
-    list_display = (
-        "ad", "kural_sayisi", "oran", "ek_tutar", "ornek", "varsayilan", "bayi_sayisi",
-    )
-    list_editable = ("oran", "ek_tutar")
+    list_display = ("ad", "fiyatli_sayisi", "varsayilan", "bayi_sayisi", "aciklama")
     search_fields = ("ad",)
-
-    fieldsets = (
-        (
-            None,
-            {
-                "fields": ("ad", "varsayilan", "aciklama", ("oran", "ek_tutar")),
-                "description": (
-                    "Grubu kaydedince paket fiyatları ekranı açılır; her pakete bayinin "
-                    "ödeyeceği net rakamı yazarsın. Oran isteğe bağlıdır."
-                ),
-            },
-        ),
-    )
+    fields = ("ad", "varsayilan", "aciklama")
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
         """Grubun sayfası paket fiyatlarıdır; ayarlar da o sayfanın üstünde durur."""
@@ -538,18 +524,12 @@ class FiyatGrubuAdmin(ModelAdmin):
         return (
             super()
             .get_queryset(request)
-            .annotate(_bayi=Count("cuzdanlar", distinct=True), _kural=Count("paket_fiyatlari", distinct=True))
+            .annotate(_bayi=Count("cuzdanlar", distinct=True), _fiyatli=Count("paket_fiyatlari", distinct=True))
         )
 
-    @display(description="Kuralsız paket")
-    def ornek(self, obj):
-        if not obj.genel_kural_var:
-            return format_html('<span style="color:#6F7B8F">satılmaz</span>')
-        return f"{ORNEK_ALIS:.0f} ₺ alış → {obj.fiyat(ORNEK_ALIS)} ₺"
-
-    @display(description="Fiyatı yazılı paket", ordering="_kural")
-    def kural_sayisi(self, obj):
-        return obj._kural or "—"
+    @display(description="Fiyatı yazılı paket", ordering="_fiyatli")
+    def fiyatli_sayisi(self, obj):
+        return obj._fiyatli or "—"
 
     @display(description="Bayi", ordering="_bayi")
     def bayi_sayisi(self, obj):
@@ -592,18 +572,12 @@ class FiyatGrubuAdmin(ModelAdmin):
             paketler = paketler.filter(Q(ad__icontains=kelime) | Q(kod__icontains=kelime))
         sayfa = Paginator(paketler, PAKET_FIYAT_SAYFASI).get_page(request.GET.get("sayfa"))
         sayfadakiler = list(sayfa.object_list)
-        kurallar = {k.paket_id: k for k in grup.paket_fiyatlari.filter(paket__in=sayfadakiler)}
+        kayitlar = {k.paket_id: k for k in grup.paket_fiyatlari.filter(paket__in=sayfadakiler)}
 
         GrupFormu = forms.modelform_factory(
             FiyatGrubu,
-            fields=("ad", "varsayilan", "aciklama", "oran", "ek_tutar"),
-            localized_fields=("oran", "ek_tutar"),
-            widgets={
-                "ad": UnfoldAdminTextInputWidget,
-                "aciklama": UnfoldAdminTextInputWidget,
-                "oran": UnfoldAdminTextInputWidget(attrs={"inputmode": "decimal", "placeholder": "boş"}),
-                "ek_tutar": UnfoldAdminTextInputWidget(attrs={"inputmode": "decimal", "placeholder": "boş"}),
-            },
+            fields=("ad", "varsayilan", "aciklama"),
+            widgets={"ad": UnfoldAdminTextInputWidget, "aciklama": UnfoldAdminTextInputWidget},
         )
         grup_formu = GrupFormu(request.POST if "_grup" in request.POST else None, instance=grup)
         if "_grup" in request.POST:
@@ -613,63 +587,48 @@ class FiyatGrubuAdmin(ModelAdmin):
                 return HttpResponseRedirect(request.get_full_path())
             self.message_user(request, "Grup ayarları kaydedilmedi; hatayı düzeltin.", messages.ERROR)
 
+        fiyat_postu = request.method == "POST" and "_grup" not in request.POST
         hatalar = {}
-        if request.method == "POST" and "_grup" not in request.POST:
-            gecerli = {y for y, _ in FiyatYontemi.choices}
+        if fiyat_postu:
             yazilacak = []
             for paket in sayfadakiler:
-                yontem = request.POST.get(f"yontem_{paket.pk}", "")
-                ham = request.POST.get(f"deger_{paket.pk}", "")
-                if not ham.strip():
-                    yontem = ""  # boş kutu = bu pakette fiyat yok (genel kural ya da satılmaz)
-                elif not yontem:
-                    yontem = FiyatYontemi.NET  # yöntem seçmeden rakam yazan net fiyat demek ister
-                if yontem not in gecerli:
-                    yazilacak.append((paket, None, None))
-                    continue
                 try:
-                    deger = _ondalik(ham)
+                    yazilacak.append((paket, _ondalik(request.POST.get(f"fiyat_{paket.pk}", ""))))
                 except (InvalidOperation, ValueError):
                     hatalar[paket.pk] = "Rakam anlaşılamadı."
-                    continue
-                yazilacak.append((paket, yontem, deger))
             if not hatalar:
                 degisen = 0
                 with transaction.atomic():
-                    for paket, yontem, deger in yazilacak:
-                        kural = kurallar.get(paket.pk)
-                        if yontem is None:
-                            if kural:
-                                kural.delete()
+                    for paket, fiyat in yazilacak:
+                        kayit = kayitlar.get(paket.pk)
+                        if fiyat is None:
+                            if kayit:
+                                kayit.delete()
                                 degisen += 1
-                        elif kural is None:
-                            PaketFiyati.objects.create(paket=paket, grup=grup, yontem=yontem, deger=deger)
+                        elif kayit is None:
+                            PaketFiyati.objects.create(paket=paket, grup=grup, fiyat=fiyat)
                             degisen += 1
-                        elif (kural.yontem, kural.deger) != (yontem, deger):
-                            kural.yontem, kural.deger = yontem, deger
-                            kural.save(update_fields=["yontem", "deger"])
+                        elif kayit.fiyat != fiyat:
+                            kayit.fiyat = fiyat
+                            kayit.save(update_fields=["fiyat"])
                             degisen += 1
-                self.message_user(request, f"{grup}: {degisen} paketin fiyat kuralı kaydedildi.", messages.SUCCESS)
+                self.message_user(request, f"{grup}: {degisen} paketin fiyatı kaydedildi.", messages.SUCCESS)
                 return HttpResponseRedirect(request.get_full_path())
             self.message_user(request, "Bazı satırlar kaydedilmedi; kırmızı yazan satırları düzeltin.", messages.ERROR)
 
         satirlar = []
         for paket in sayfadakiler:
-            alis = paket.ilk_alis()
-            kural = kurallar.get(paket.pk)
-            if request.method == "POST" and "_grup" not in request.POST:
-                yontem = request.POST.get(f"yontem_{paket.pk}", "")
-                deger = request.POST.get(f"deger_{paket.pk}", "")
+            kayit = kayitlar.get(paket.pk)
+            if fiyat_postu:
+                deger = request.POST.get(f"fiyat_{paket.pk}", "")
             else:
-                yontem = kural.yontem if kural else ""
-                deger = str(kural.deger).replace(".", ",") if kural else ""
+                deger = str(kayit.fiyat).replace(".", ",") if kayit else ""
+            alis = paket.ilk_alis()
             satirlar.append(
                 {
                     "paket": paket,
                     "alis": alis,
-                    "orandan": grup.fiyat(alis),
-                    "sonuc": grup_fiyati(paket, grup, kurallar),
-                    "yontem": yontem,
+                    "kar": kayit.fiyat - alis if kayit and alis is not None else None,
                     "deger": deger,
                     "hata": hatalar.get(paket.pk, ""),
                 }
@@ -689,7 +648,6 @@ class FiyatGrubuAdmin(ModelAdmin):
                 "satirlar": satirlar,
                 "sayfa": sayfa,
                 "sorgu": sorgu.urlencode(),
-                "yontemler": FiyatYontemi.choices,
                 "operatorler": Operator.objects.filter(kontor_kategorileri__isnull=False).distinct().order_by("sira", "ad"),
                 "kategoriler": Kategori.objects.select_related("operator").order_by("oyun", "sira", "ad"),
                 "secili_operator": operator_id,
@@ -714,11 +672,11 @@ class RotaInline(TabularInline):
 class PaketFiyatiInline(TabularInline):
     model = PaketFiyati
     extra = 0
-    fields = ("grup", "yontem", "deger")
-    verbose_name = "Grup kuralı"
+    fields = ("grup", "fiyat")
+    verbose_name = "Grup fiyatı"
     verbose_name_plural = (
-        "Bu pakette gruba özel kural — girilmeyen grup kendi oranından hesaplanır "
-        "(toplu giriş: grubun Paket fiyatları ekranı)"
+        "Fiyat grubuna göre bayiye satış — fiyatı yazılmayan grup bu paketi göremez "
+        "(toplu giriş: grubun sayfası)"
     )
 
 
@@ -773,8 +731,8 @@ class PaketAdmin(ModelAdmin):
     def get_fieldsets(self, request, obj=None):
         fiyat = ["tavsiye_fiyati", "grup_fiyatlari"]
         aciklama = (
-            "Bayinin ödeyeceği tutar girilmez: aşağıdaki <b>Sağlayıcı sırası</b> tablosundaki "
-            "alıştan, bayinin <b>kontör fiyat grubunun</b> oranıyla hesaplanır. "
+            "Bayinin ödeyeceği tutar <b>kontör fiyat grubunun</b> sayfasından (ya da aşağıdaki "
+            "grup fiyatı tablosundan) girilir; fiyatı yazılmayan grup bu paketi göremez. "
             "<b>Tavsiye Satış</b> bayinin müşteriye söyleyeceği fiyattır; bayi ekranında "
             "büyük rakam odur, aradaki fark bayinin kazancı olarak göz düğmesinin arkasında durur."
         )
@@ -830,17 +788,17 @@ class PaketAdmin(ModelAdmin):
             fiyat = obj.satis_fiyati
             return fiyat if fiyat else format_html('<span style="color:#D42046">fiyat yok — satılmaz</span>')
         alis = obj.ilk_alis()
-        ozel = {f.grup_id: f for f in obj.grup_fiyatlari.all()}
+        ozel = {f.grup_id: f.fiyat for f in obj.grup_fiyatlari.all()}
         satirlar = []
         for grup in gruplar:
-            fiyat = ozel[grup.pk].hesapla(alis) if grup.pk in ozel else grup.fiyat(alis)
+            fiyat = ozel.get(grup.pk)
             if fiyat is None:
                 satirlar.append((grup.ad, "—", "", "#94A3B8", ""))
                 continue
             kar = fiyat - alis if alis is not None else None
             renk = "#0F8A4D" if kar is None or kar > 0 else "#D42046"
             kar_metni = f"{'+' if kar > 0 else ''}{kar}" if kar is not None else ""
-            satirlar.append((grup.ad, fiyat, kar_metni, renk, " (kural)" if grup.pk in ozel else ""))
+            satirlar.append((grup.ad, fiyat, kar_metni, renk, ""))
         return format_html_join(
             format_html("<br>"),
             '<span style="white-space:nowrap">{}: <b>{}</b> <span style="color:{}">{}</span>'

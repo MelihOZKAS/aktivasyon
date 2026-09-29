@@ -31,7 +31,7 @@ from functools import partial
 
 from django.conf import settings
 from django.db import connection, transaction
-from django.db.models import Q, prefetch_related_objects
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.bayi.telefon import TELEFON_DESENI, normalize
@@ -96,36 +96,34 @@ def bayi_grubu(bayi):
     return grup or FiyatGrubu.varsayilani()
 
 
-def grup_fiyati(paket, grup, kurallar=None):
+def grup_fiyati(paket, grup, fiyatlar=None):
     """Paketin bu gruptaki fiyatı. Tek hesap yeri: bayi ekranı da admin de buradan.
 
-    Sıra: pakette bu gruba yazılmış kural (`PaketFiyati`: net fiyat, alış + %,
-    alış + ₺) → grubun genel oranı → grup yoksa paketin kendi satış fiyatı.
-    Alışa dayanan hesapta alış yoksa `None`: paket satılmaz, rakam uydurulmaz.
-    `kurallar` paket id → `PaketFiyati` sözlüğüdür (liste başına bir sorgu).
+    Grup varsa pakete o grup için yazılmış net fiyat; yazılmamışsa `None` ve
+    paket bu gruba satılmaz. Grup yoksa paketin kendi satış fiyatı.
+    `fiyatlar` paket id → fiyat sözlüğüdür (liste başına bir sorgu).
     """
     if grup is None:
         return paket.satis_fiyati
-    if kurallar is not None and paket.pk in kurallar:
-        return kurallar[paket.pk].hesapla(paket.ilk_alis())
-    return grup.fiyat(paket.ilk_alis())
+    return (fiyatlar or {}).get(paket.pk)
 
 
 def fiyatlandir(paketler, bayi):
     """Her pakete `fiyat` (bayinin ödeyeceği), `tavsiye` ve `kazanc` yazar.
 
-    `fiyat` bayinin kontör grubundan hesaplanır (`grup_fiyati`); hesaplanamıyorsa
+    `fiyat` bayinin kontör grubundaki net fiyattır (`grup_fiyati`); yazılmamışsa
     0'dır ve paket satılmaz. `tavsiye` paketin müşteriye önerilen fiyatıdır
     (grup değiştirmez); yoksa `None` ve ekran bayinin fiyatını düz yazar.
     """
     paketler = list(paketler)
-    prefetch_related_objects(paketler, "rotalar__saglayici")
     grup = bayi_grubu(bayi)
-    kurallar = {}
+    fiyatlar = {}
     if grup is not None and paketler:
-        kurallar = {k.paket_id: k for k in PaketFiyati.objects.filter(grup=grup, paket__in=paketler)}
+        fiyatlar = dict(
+            PaketFiyati.objects.filter(grup=grup, paket__in=paketler).values_list("paket_id", "fiyat")
+        )
     for paket in paketler:
-        paket.fiyat = grup_fiyati(paket, grup, kurallar) or SIFIR
+        paket.fiyat = grup_fiyati(paket, grup, fiyatlar) or SIFIR
         paket.tavsiye = paket.tavsiye_fiyati if paket.tavsiye_fiyati else None
         paket.kazanc = (paket.tavsiye - paket.fiyat) if paket.tavsiye is not None else None
     return paketler

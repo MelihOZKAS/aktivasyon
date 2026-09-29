@@ -2,10 +2,10 @@
 
 {% comment %}
   Fiyat grubunun tek sayfası: üstte grubun ayarları, altta paket paket
-  bayinin ödeyeceği fiyat. Rakam yazmak yeter (net fiyat); isteyen satırda
-  yöntemi Alış + % ya da Alış + ₺ yapar. Yöntem boşsa grubun genel kuralı,
-  o da boşsa paket bu gruba satılmaz. Soldaki kutucuklar işaretlenip üstteki çubukla seçilenlere aynı
-  kural tek seferde yazılır; kayıt yine alttaki Kaydet ile olur.
+  "Bayi Satış Tutarı". Satırda tek rakam durur; boş = paket bu gruba
+  satılmaz. Alış + % / Alış + ₺ yalnızca üstteki çubukta hesap aracıdır:
+  işaretli satırların tutarını alıştan hesaplayıp kutulara yazar, kayıt
+  alttaki düğmeyle olur. Satıra yöntem kutusu koyma (bkz. FiyatGrubuAdmin).
 
   Operatöre/kategoriye süzülür, sayfa başı 50 paket: bir operatörde bin
   paket olabilir. Yalnızca bu sayfadaki paketler kaydedilir.
@@ -17,7 +17,7 @@
 {% block content %}
 <style>
   .gf-girdi { border:1px solid #d6dce5; border-radius:.375rem; padding:.45rem .6rem; font-size:16px; background:#fff; min-height:44px; }
-  .gf-tablo td, .gf-tablo th { padding:.5rem .6rem; vertical-align:middle; }
+  .gf-tablo td, .gf-tablo th { padding:.5rem .4rem; vertical-align:middle; }
   .gf-tablo tbody tr { border-top:1px solid #eef1f5; }
   .gf-dugme { border:1px solid #d6dce5; border-radius:.375rem; padding:.5rem .9rem; font-weight:600; font-size:.875rem; min-height:44px; background:#fff; cursor:pointer; }
   .gf-birincil { background:#0D1320; color:#fff; border-color:#0D1320; }
@@ -33,26 +33,22 @@
       <label class="flex items-center gap-2 text-sm" style="min-height:44px">{{ alan }} Varsayılan grup
         <span class="gf-soluk">(grubu seçilmemiş bayi bunu öder)</span></label>
       {% else %}
-      <label class="flex flex-col text-sm" style="flex:1 1 {% if alan.name == 'ad' or alan.name == 'aciklama' %}14rem{% else %}10rem{% endif %}">
+      <label class="flex flex-col text-sm" style="flex:1 1 14rem">
         {{ alan.label }}{{ alan }}
         {% for hata in alan.errors %}<span style="color:#D42046;font-size:.75rem">{{ hata }}</span>{% endfor %}
       </label>
       {% endif %}
       {% endfor %}
       <button type="submit" name="_grup" value="1" class="gf-dugme">Grubu kaydet</button>
+      <a href="{% url 'admin:kontor_fiyatgrubu_delete' grup.pk %}" class="text-sm" style="color:#D42046;min-height:44px;display:inline-flex;align-items:center">Grubu sil</a>
     </div>
     {% for hata in grup_formu.non_field_errors %}<p style="color:#D42046;font-size:.8rem">{{ hata }}</p>{% endfor %}
-    <p class="gf-soluk" style="margin-top:.5rem">
-      Oran ve ek tutar isteğe bağlıdır: yalnızca aşağıda fiyatı yazılmamış paketlere uygulanır
-      (alış × (1 + oran/100) + ek tutar). İkisi de boşsa fiyatı yazılmamış paket bu gruba satılmaz.
-      <a href="{% url 'admin:kontor_fiyatgrubu_delete' grup.pk %}" style="color:#D42046;margin-left:.5rem">Grubu sil</a>
-    </p>
   </form>
 
   <p class="text-sm" style="max-width:56rem">
-    Paketin kutusuna bayinin ödeyeceği <b>net rakamı</b> yaz (444,15) — alışa bakılmaz.
-    İstersen satırın yöntemini <b>Alış + %</b> ya da <b>Alış + ₺</b> yap; o zaman paketin ilk açık
-    sağlayıcısının alışı kullanılır, alış yoksa paket satılmaz.
+    Her paketin <b>Bayi Satış Tutarı</b>'nı yaz; bu gruptaki bayi o rakamı öder. Boş bırakılan paket bu gruba
+    satılmaz. Toplu fiyat için paketleri soldan işaretle, üstteki çubukta <b>Alış + %</b> ya da <b>Alış + ₺</b>
+    seç: işaretli paketlerin tutarı alıştan hesaplanıp kutulara yazılır, sonra kaydet.
   </p>
 
   <form method="get" class="flex flex-wrap items-end gap-2">
@@ -85,51 +81,46 @@
     {% csrf_token %}
 
     <div class="flex flex-wrap items-center gap-2 rounded-default border border-base-200 bg-white p-3" style="position:sticky;top:0;z-index:5">
-      <span class="text-sm font-semibold">Seçilenlere (<span id="gf-secili">0</span>):</span>
-      <select id="gf-toplu-yontem" class="gf-girdi" aria-label="Toplu yöntem">
-        {% for kod, ad in yontemler %}<option value="{{ kod }}">{{ ad }}</option>{% endfor %}
-        <option value="">Fiyatı kaldır</option>
+      <span class="text-sm font-semibold">İşaretli <span id="gf-secili">0</span> paket:</span>
+      <select id="gf-toplu-yontem" class="gf-girdi" aria-label="Hesap">
+        <option value="yuzde">Alış + %</option>
+        <option value="tutar">Alış + ₺</option>
       </select>
-      <input id="gf-toplu-deger" class="gf-girdi" inputmode="decimal" placeholder="Fiyat" style="width:8rem" aria-label="Toplu değer">
-      <button type="button" id="gf-toplu-uygula" class="gf-dugme">Seçilenlere yaz</button>
-      <span class="gf-soluk">Yazılır, kaydetmek için alttaki düğme.</span>
+      <input id="gf-toplu-deger" class="gf-girdi" inputmode="decimal" placeholder="örn. 3" style="width:7rem" aria-label="Yüzde ya da tutar">
+      <button type="button" id="gf-toplu-uygula" class="gf-dugme">Tutarı hesapla</button>
+      <button type="button" id="gf-toplu-sil" class="gf-dugme" style="color:#D42046">Tutarı sil</button>
+      <span id="gf-toplu-not" class="gf-soluk">Kutulara yazılır; kaydetmek için alttaki düğme.</span>
     </div>
 
     <div class="mt-3 overflow-x-auto rounded-default border border-base-200 bg-white">
-      <table class="gf-tablo w-full text-sm" style="min-width:44rem">
+      <table class="gf-tablo w-full text-sm" style="min-width:22rem">
         <thead>
           <tr class="text-left text-base-500">
-            <th style="width:2.5rem"><input type="checkbox" id="gf-hepsi" aria-label="Bu sayfadaki hepsini seç" style="width:20px;height:20px"></th>
+            <th style="width:2.5rem"><input type="checkbox" id="gf-hepsi" aria-label="Bu sayfadaki hepsini işaretle" style="width:20px;height:20px"></th>
             <th>Paket</th>
             <th>Alış</th>
-            <th>Fiyat</th>
-            <th>Yöntem</th>
-            <th>Bayi öder</th>
+            <th>Bayi Satış Tutarı</th>
+            <th>Kâr</th>
           </tr>
         </thead>
         <tbody>
         {% for s in satirlar %}
-          <tr data-alis="{{ s.alis|default_if_none:''|stringformat:'s' }}" data-oran="{{ grup.oran|default_if_none:''|stringformat:'s' }}" data-ek="{{ grup.ek_tutar|default_if_none:''|stringformat:'s' }}">
-            <td><input type="checkbox" class="gf-sec" aria-label="{{ s.paket.ad }} seç" style="width:20px;height:20px"></td>
+          <tr data-alis="{{ s.alis|default_if_none:''|stringformat:'s' }}">
+            <td><input type="checkbox" class="gf-sec" aria-label="{{ s.paket.ad }} işaretle" style="width:20px;height:20px"></td>
             <td>
               <span class="font-medium">{{ s.paket.ad }}</span>{% if not s.paket.aktif %} <span class="gf-soluk">(pasif)</span>{% endif %}<br>
               <span class="gf-soluk">{{ s.paket.kategori.ad }} · {{ s.paket.kod }}</span>
             </td>
-            <td>{% if s.alis is not None %}{{ s.alis }}{% else %}<span style="color:#D42046">yok</span>{% endif %}</td>
+            <td>{% if s.alis is not None %}{{ s.alis }}{% else %}<span style="color:#6F7B8F">—</span>{% endif %}</td>
             <td>
-              <input name="deger_{{ s.paket.pk }}" value="{{ s.deger }}" class="gf-girdi gf-deger" inputmode="decimal" style="width:7.5rem" placeholder="{% if s.orandan is not None %}{{ s.orandan }}{% endif %}" aria-label="Fiyat">
+              <input name="fiyat_{{ s.paket.pk }}" value="{{ s.deger }}" class="gf-girdi gf-fiyat" inputmode="decimal"
+                     style="width:6.5rem" placeholder="satılmaz" aria-label="{{ s.paket.ad }} bayi satış tutarı">
               {% if s.hata %}<br><span style="color:#D42046;font-size:.75rem">{{ s.hata }}</span>{% endif %}
             </td>
-            <td>
-              <select name="yontem_{{ s.paket.pk }}" class="gf-girdi gf-yontem" aria-label="Yöntem">
-                <option value="">{% if grup.genel_kural_var %}Genel kural{% else %}— yok —{% endif %}</option>
-                {% for kod, ad in yontemler %}<option value="{{ kod }}" {% if s.yontem == kod %}selected{% endif %}>{{ ad }}</option>{% endfor %}
-              </select>
-            </td>
-            <td class="gf-sonuc font-semibold">{% if s.sonuc is not None %}{{ s.sonuc }} ₺{% else %}<span style="color:#D42046">satılmaz</span>{% endif %}</td>
+            <td class="gf-kar">{% if s.kar is not None %}<span style="color:{% if s.kar > 0 %}#0F8A4D{% else %}#D42046{% endif %}">{{ s.kar }}</span>{% else %}<span style="color:#6F7B8F">—</span>{% endif %}</td>
           </tr>
         {% empty %}
-          <tr><td colspan="6" class="text-base-500" style="padding:1.5rem">Süzgece uyan paket yok.</td></tr>
+          <tr><td colspan="5" class="text-base-500" style="padding:1.5rem">Süzgece uyan paket yok.</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -156,6 +147,7 @@
   if (!form) return;
   var kutular = form.querySelectorAll(".gf-sec");
   var sayac = document.getElementById("gf-secili");
+  var not = document.getElementById("gf-toplu-not");
 
   function sayi(metin) {
     metin = (metin || "").trim().replace(/\s/g, "");
@@ -164,41 +156,20 @@
     var n = parseFloat(metin);
     return isNaN(n) ? null : n;
   }
-  function yuvarla(n) { return (Math.round(n * 100) / 100).toFixed(2).replace(".", ","); }
+  function yaz(n) { return (Math.round(n * 100) / 100).toFixed(2).replace(".", ","); }
 
-  // Satırın "Bayi öder" sütunu yazarken güncellenir; sunucudaki hesabın aynısı.
-  function hesapla(satir) {
-    var yontem = satir.querySelector(".gf-yontem").value;
-    var deger = sayi(satir.querySelector(".gf-deger").value);
+  // Kâr sütunu yazarken güncellenir.
+  function kar(satir) {
+    var fiyat = sayi(satir.querySelector(".gf-fiyat").value);
     var alis = sayi(satir.dataset.alis);
-    var hucre = satir.querySelector(".gf-sonuc");
-    var sonuc = null;
-    if (yontem === "net") sonuc = deger;
-    else if (alis !== null) {
-      if (yontem === "yuzde") sonuc = deger === null ? null : alis * (1 + deger / 100);
-      else if (yontem === "tutar") sonuc = deger === null ? null : alis + deger;
-      else if (satir.dataset.oran || satir.dataset.ek)
-        sonuc = alis * (1 + (sayi(satir.dataset.oran) || 0) / 100) + (sayi(satir.dataset.ek) || 0);
-    }
-    hucre.innerHTML = sonuc === null
-      ? '<span style="color:#D42046">' + (yontem && deger === null ? "değer yazın" : "satılmaz") + "</span>"
-      : yuvarla(sonuc) + " ₺";
+    var hucre = satir.querySelector(".gf-kar");
+    if (fiyat === null || alis === null) { hucre.innerHTML = '<span style="color:#6F7B8F">—</span>'; return; }
+    var k = fiyat - alis;
+    hucre.innerHTML = '<span style="color:' + (k > 0 ? "#0F8A4D" : "#D42046") + '">' + yaz(k) + "</span>";
   }
 
   form.addEventListener("input", function (e) {
-    var satir = e.target.closest("tr[data-oran]");
-    if (!satir) return;
-    // Yöntem seçmeden rakam yazan net fiyat demek ister.
-    if (e.target.classList.contains("gf-deger")) {
-      var yontem = satir.querySelector(".gf-yontem");
-      if (!yontem.value && e.target.value.trim()) yontem.value = "net";
-    }
-    if (e.target.classList.contains("gf-deger") || e.target.classList.contains("gf-yontem")) hesapla(satir);
-  });
-  form.addEventListener("change", function (e) {
-    var satir = e.target.closest("tr[data-oran]");
-    if (satir && e.target.classList.contains("gf-yontem")) hesapla(satir);
-    if (e.target.classList.contains("gf-sec")) say();
+    if (e.target.classList.contains("gf-fiyat")) kar(e.target.closest("tr"));
   });
 
   function say() {
@@ -206,22 +177,44 @@
     kutular.forEach(function (k) { if (k.checked) n++; });
     sayac.textContent = n;
   }
+  form.addEventListener("change", function (e) {
+    if (e.target.classList.contains("gf-sec")) say();
+  });
   document.getElementById("gf-hepsi").addEventListener("change", function () {
     var acik = this.checked;
     kutular.forEach(function (k) { k.checked = acik; });
     say();
   });
 
+  function isaretliler() {
+    return Array.prototype.filter.call(kutular, function (k) { return k.checked; })
+      .map(function (k) { return k.closest("tr"); });
+  }
+
+  // Alış + % / Alış + ₺: işaretli satırların tutarını alıştan hesaplayıp yazar.
   document.getElementById("gf-toplu-uygula").addEventListener("click", function () {
     var yontem = document.getElementById("gf-toplu-yontem").value;
-    var deger = document.getElementById("gf-toplu-deger").value;
-    kutular.forEach(function (k) {
-      if (!k.checked) return;
-      var satir = k.closest("tr");
-      satir.querySelector(".gf-yontem").value = yontem;
-      satir.querySelector(".gf-deger").value = yontem ? deger : "";
-      hesapla(satir);
+    var deger = sayi(document.getElementById("gf-toplu-deger").value);
+    var satirlar = isaretliler();
+    if (!satirlar.length) { not.textContent = "Önce soldan paket işaretle."; return; }
+    if (deger === null) { not.textContent = "Yüzde ya da tutarı yaz."; return; }
+    var yazilan = 0, alissiz = 0;
+    satirlar.forEach(function (satir) {
+      var alis = sayi(satir.dataset.alis);
+      if (alis === null) { alissiz++; return; }
+      var fiyat = yontem === "yuzde" ? alis * (1 + deger / 100) : alis + deger;
+      satir.querySelector(".gf-fiyat").value = yaz(fiyat);
+      kar(satir);
+      yazilan++;
     });
+    not.textContent = yazilan + " paketin tutarı yazıldı" +
+      (alissiz ? ", " + alissiz + " paketin alışı yok (elle yaz)" : "") + ". Kaydetmeyi unutma.";
+  });
+
+  document.getElementById("gf-toplu-sil").addEventListener("click", function () {
+    var satirlar = isaretliler();
+    satirlar.forEach(function (satir) { satir.querySelector(".gf-fiyat").value = ""; kar(satir); });
+    not.textContent = satirlar.length + " paketin tutarı silindi. Kaydedince bu gruba satılmazlar.";
   });
 })();
 </script>

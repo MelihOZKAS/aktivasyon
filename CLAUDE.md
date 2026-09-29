@@ -369,25 +369,24 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   güncellenir. Tek sağlayıcının bütün alışları **Sağlayıcı Alışları**
   ekranında (`RotaAdmin`, satırda düzenlenir) toplu girilir.
   · **Bayinin fiyatı kontör fiyat grubundan gelir** (`FiyatGrubu`:
-  Perakende, Toptan…). Yönetici paketin kutusuna bayinin ödeyeceği **net
-  rakamı** yazar (444,15 — alışa bakılmaz); isteyen satırda yöntemi
-  **alış + %** ya da **alış + ₺** yapar (`PaketFiyati.yontem`). Yöntem
-  seçmeden yazılan rakam net fiyattır, boşaltılan kutu kuralı siler.
-  Grubun oran/ek tutarı **isteğe bağlı genel kuraldır**: yalnızca fiyatı
-  yazılmamış pakete uygulanır; ikisi de boşsa o paket gruba **satılmaz**.
-  Bir süre 0 varsayılandı ve kuralsız paket alış fiyatına, kârsız
-  satılıyordu (`0008` 0/0'ları boşalttı). Alış, sıradaki **ilk açık**
-  sağlayıcınınkidir; alışa dayanan hesapta alış yoksa paket satılmaz.
-  Tek hesap `services.grup_fiyati`; bayi ekranı, paket listesindeki
-  "Bayiye satış · kâr" sütunu ve grubun sayfası oradan geçer.
-  **Grubun sayfası tek sayfadır:** üstte ayarlar, altta paket fiyatları
-  (`FiyatGrubuAdmin.paket_fiyatlari`; `change_view` oraya yönlenir). Bir
-  süre ayarlar bir formda, fiyatlar listedeki ayrı bir düğmenin arkasındaydı;
-  yönetici gruba tıklayıp yalnızca oranı görüyor, net fiyatı nereye
-  yazacağını bulamıyordu ("içerisi aynı, niye ayrı?"). Tablo operatöre,
-  kategoriye ve adla süzülür, **sayfa başı 50** paket; POST yalnızca o
-  sayfadaki paketleri yazar. Soldaki kutucuklar + üstteki çubuk seçilenlere
-  aynı kuralı yazar; "Bayi öder" sütunu yazarken tarayıcıda güncellenir.
+  Perakende, Toptan…) ve **her pakette tek bir net rakamdır**
+  (`PaketFiyati.fiyat`, ekranda "Bayi Satış Tutarı"). Fiyatı yazılmayan
+  paket o gruptaki bayiye satılmaz. Alış + % ve alış + ₺ yalnızca grubun
+  sayfasındaki **hesap aracıdır**: soldan işaretlenen paketlerin tutarını
+  alıştan hesaplayıp kutulara yazar, yönetici bakar ve kaydeder.
+  **Bu alan üç kez yanlış kuruldu.** Önce fiyat alıştan grubun oranıyla
+  hesaplanıyordu; sonra her satıra yöntem kutusu (net / alış + % / alış +
+  ₺) ve grubun genel oranı kondu — oran 0'ken fiyatsız paket alış
+  fiyatına, kârsız satılıyordu; bir de grubun formu ile fiyat tablosu
+  ayrı sayfalardaydı. Yönetici: "yöntemin hepsi net fiyat olacak",
+  "içerisi aynı, niye ayrı?". Ders: satırda tek rakam, hesap üstte araç,
+  tek sayfa. `0009` eski kuralları o günkü alışla net rakama çevirdi.
+  Tek hesap `services.grup_fiyati`; bayi ekranı ve paket listesindeki
+  "Bayiye satış · kâr" sütunu oradan geçer.
+  **Grubun sayfası tek sayfadır:** üstte ad/varsayılan/açıklama, altta
+  paketler (`FiyatGrubuAdmin.paket_fiyatlari`; `change_view` oraya
+  yönlenir). Operatöre, kategoriye ve adla süzülür, **sayfa başı 50**;
+  POST yalnızca o sayfadaki paketleri yazar, boş kutu fiyatı siler.
   Kademe başvurudaki bayi grubundan **ayrıdır** (`Cuzdan.kontor_grubu`;
   Cüzdanlar listesinden satırda verilir). Grubu boş bayi **varsayılan**
   gruba düşer (tek olabilir); o da yoksa paketin `satis_fiyati`nı öder —

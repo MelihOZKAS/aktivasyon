@@ -254,66 +254,42 @@ class AcmaTestleri(Temel):
         self.cuzdan.save()
         self.bayi.refresh_from_db()
 
-    def test_grup_fiyati_alistan_hesaplanir(self):
-        # Alış 100 (ilk sağlayıcı), %5 + 1 ₺ → 106; paketin kendi fiyatı (110) geçmez.
-        self._gruba_bagla(FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"), ek_tutar=TL("1")))
+    def _grup(self, ad="Toptan", fiyat=None, **kw):
+        grup = FiyatGrubu.objects.create(ad=ad, **kw)
+        if fiyat is not None:
+            PaketFiyati.objects.create(paket=self.paket, grup=grup, fiyat=fiyat)
+        return grup
+
+    def test_grup_fiyati_bayiden_kesilir(self):
+        self._gruba_bagla(self._grup(fiyat=TL("106.00")))
         self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("106.00"))
         self.yukle()
         self.assertEqual(self.bakiye(), TL("394.00"))
 
-    def test_alis_degisince_fiyat_kendiliginden_degisir(self):
-        self._gruba_bagla(FiyatGrubu.objects.create(ad="Toptan", oran=TL("10")))
-        Rota.objects.filter(saglayici=self.bir).update(alis_fiyati=TL("90.00"))
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("99.00"))
-
-    def test_kapali_saglayicinin_alisi_sayilmaz(self):
-        self._gruba_bagla(FiyatGrubu.objects.create(ad="Toptan", oran=TL("10")))
-        self.bir.aktif = False
-        self.bir.save()
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("112.20"))
-
-    def test_varsayilan_grup_grupsuz_bayiye_gecer(self):
-        FiyatGrubu.objects.create(ad="Perakende", oran=TL("8"), varsayilan=True)
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("108.00"))
-
-    def test_grup_yoksa_paketin_fiyati(self):
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("110.00"))
-
-    def test_alisi_olmayan_paket_gruptaki_bayiye_satilmaz(self):
-        self._gruba_bagla(FiyatGrubu.objects.create(ad="Toptan", oran=TL("5")))
-        Rota.objects.filter(saglayici=self.bir).update(alis_fiyati=None)
+    def test_fiyati_yazilmayan_paket_gruba_satilmaz(self):
+        self._gruba_bagla(self._grup())
         self.assertEqual(satistaki_paketler(self.kategori, self.bayi), [])
         with self.assertRaises(YuklemeYapilamaz):
             self.yukle()
         self.assertEqual(self.bakiye(), TL("500.00"))
 
-    def test_gruba_ozel_sabit_fiyat_istisnadir(self):
-        grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"))
-        self._gruba_bagla(grup)
-        PaketFiyati.objects.create(paket=self.paket, grup=grup, deger=TL("103.00"))
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("103.00"))
-        self.yukle()
-        self.assertEqual(self.bakiye(), TL("397.00"))
-
-    def test_yuzde_kurali_alisa_dayanir(self):
-        grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("50"))
-        self._gruba_bagla(grup)
-        PaketFiyati.objects.create(paket=self.paket, grup=grup, yontem="yuzde", deger=TL("2.5"))
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("102.50"))
+    def test_net_fiyat_alisa_bakmaz(self):
+        self._gruba_bagla(self._grup(fiyat=TL("444.15")))
         Rota.objects.update(alis_fiyati=None)
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi), [])
-
-    def test_net_fiyat_alissiz_da_satilir(self):
-        grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"))
-        self._gruba_bagla(grup)
-        Rota.objects.update(alis_fiyati=None)
-        PaketFiyati.objects.create(paket=self.paket, grup=grup, yontem="net", deger=TL("444.15"))
         self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("444.15"))
 
+    def test_varsayilan_grup_grupsuz_bayiye_gecer(self):
+        self._grup(ad="Perakende", fiyat=TL("108.00"), varsayilan=True)
+        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("108.00"))
+
+    def test_grup_yoksa_paketin_fiyati(self):
+        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("110.00"))
+
     def test_fiyatsiz_kategori_bayinin_listesinde_yok(self):
-        self._gruba_bagla(FiyatGrubu.objects.create(ad="Toptan", oran=TL("5")))
+        grup = self._grup(fiyat=TL("105.00"))
+        self._gruba_bagla(grup)
         self.assertEqual(list(kategori_listesi(bayi=self.bayi)), [self.kategori])
-        Rota.objects.update(alis_fiyati=None)
+        PaketFiyati.objects.all().delete()
         self.assertEqual(list(kategori_listesi(bayi=self.bayi)), [])
 
     def test_bayi_kategori_sayfasi_sayfalanir_ve_aranir(self):
@@ -781,64 +757,49 @@ class YonetimTestleri(Temel):
         self.assertNotEqual(yanit.status_code, 200)
 
     def test_fiyat_gruplari_ve_alislar_ekrani(self):
-        FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"))
-        FiyatGrubu.objects.create(ad="Perakende", oran=TL("10"), varsayilan=True)
+        toptan = FiyatGrubu.objects.create(ad="Toptan")
+        FiyatGrubu.objects.create(ad="Perakende", varsayilan=True)
+        PaketFiyati.objects.create(paket=self.paket, grup=toptan, fiyat=TL("105.00"))
         yanit = self.client.get(reverse("admin:kontor_paket_changelist"))
         self.assertContains(yanit, "Toptan: <b>105.00</b>")
-        self.assertContains(yanit, "Perakende: <b>110.00</b>")
-        yanit = self.client.get(reverse("admin:kontor_fiyatgrubu_changelist"))
-        self.assertContains(yanit, "100 ₺ alış → 105.00 ₺")
+        self.assertContains(yanit, "Perakende: <b>—</b>")
+        self.assertEqual(self.client.get(reverse("admin:kontor_fiyatgrubu_changelist")).status_code, 200)
         yanit = self.client.get(reverse("admin:kontor_rota_changelist") + f"?saglayici__id__exact={self.iki.pk}")
         self.assertContains(yanit, "V100")
         # Varsayılan grup varken grupsuz fiyat alanı formda yok.
         yanit = self.client.get(reverse("admin:kontor_paket_change", args=[self.paket.pk]))
         self.assertNotContains(yanit, 'name="satis_fiyati"')
 
-    def test_grup_paket_fiyatlari_ekrani(self):
-        grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"))
+    def test_grup_sayfasi_bayi_satis_tutari(self):
+        grup = FiyatGrubu.objects.create(ad="Toptan")
         adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
         # Grubun sayfası = paket fiyatları; ayrı bir form yok.
         yanit = self.client.get(reverse("admin:kontor_fiyatgrubu_change", args=[grup.pk]))
         self.assertRedirects(yanit, adres, fetch_redirect_response=False)
         yanit = self.client.get(adres)
-        self.assertContains(yanit, "105,00 ₺")  # kuralsız paket genel orandan
-        yontem, deger = f"yontem_{self.paket.pk}", f"deger_{self.paket.pk}"
-        self.assertEqual(self.client.post(adres, {yontem: "net", deger: "444,15"}).status_code, 302)
-        kural = PaketFiyati.objects.get(grup=grup, paket=self.paket)
-        self.assertEqual((kural.yontem, kural.deger), ("net", TL("444.15")))
-        self.client.post(adres, {yontem: "tutar", deger: "7"})
-        self.cuzdan.kontor_grubu = grup
-        self.cuzdan.save()
-        self.bayi.refresh_from_db()
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("107.00"))
-        # Yöntem seçmeden yazılan rakam net fiyattır.
-        self.client.post(adres, {yontem: "", deger: "120"})
-        self.assertEqual(PaketFiyati.objects.get(grup=grup).yontem, "net")
-        # Kutu boşaltılınca kural silinir.
-        self.client.post(adres, {yontem: "net", deger: ""})
+        self.assertContains(yanit, "Bayi Satış Tutarı")
+        self.assertNotContains(yanit, "Yöntem")
+        alan = f"fiyat_{self.paket.pk}"
+        self.assertEqual(self.client.post(adres, {alan: "444,15"}).status_code, 302)
+        self.assertEqual(PaketFiyati.objects.get(grup=grup, paket=self.paket).fiyat, TL("444.15"))
+        self.client.post(adres, {alan: "1.250,50"})
+        self.assertEqual(PaketFiyati.objects.get(grup=grup).fiyat, TL("1250.50"))
+        # Kutu boşaltılınca fiyat silinir, paket bu gruba satılmaz.
+        self.client.post(adres, {alan: ""})
         self.assertFalse(PaketFiyati.objects.filter(grup=grup).exists())
-
-    def test_genel_kural_bossa_fiyatsiz_paket_satilmaz(self):
-        grup = FiyatGrubu.objects.create(ad="Perakende")
-        self.cuzdan.kontor_grubu = grup
-        self.cuzdan.save()
-        self.bayi.refresh_from_db()
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi), [])
-        PaketFiyati.objects.create(paket=self.paket, grup=grup, deger=TL("444.15"))
-        self.assertEqual(satistaki_paketler(self.kategori, self.bayi)[0].fiyat, TL("444.15"))
 
     def test_grup_ayarlari_ayni_sayfadan_kaydedilir(self):
         grup = FiyatGrubu.objects.create(ad="Perakende")
         adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
-        yanit = self.client.post(adres, {"_grup": "1", "ad": "Perakende", "aciklama": "", "oran": "2,5", "ek_tutar": ""})
+        yanit = self.client.post(adres, {"_grup": "1", "ad": "Parakende", "aciklama": "", "varsayilan": "on"})
         self.assertEqual(yanit.status_code, 302)
         grup.refresh_from_db()
-        self.assertEqual((grup.oran, grup.ek_tutar), (TL("2.5"), None))
+        self.assertEqual((grup.ad, grup.varsayilan), ("Parakende", True))
 
     def test_grup_paket_fiyatlari_bozuk_deger_kaydetmez(self):
         grup = FiyatGrubu.objects.create(ad="Toptan")
         adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])
-        yanit = self.client.post(adres, {f"yontem_{self.paket.pk}": "net", f"deger_{self.paket.pk}": "abc"})
+        yanit = self.client.post(adres, {f"fiyat_{self.paket.pk}": "abc"})
         self.assertContains(yanit, "Rakam anlaşılamadı")
         self.assertFalse(PaketFiyati.objects.exists())
 
@@ -854,7 +815,7 @@ class YonetimTestleri(Temel):
         self.assertNotContains(yanit, "Ek paket 1<")
         # POST yalnızca o sayfadaki paketleri yazar: 2. sayfadaki kural korunur.
         ikinci = Paket.objects.order_by("sira", "ad").last()
-        PaketFiyati.objects.create(paket=ikinci, grup=grup, deger=TL("5"))
+        PaketFiyati.objects.create(paket=ikinci, grup=grup, fiyat=TL("5"))
         self.client.post(adres, {})
         self.assertTrue(PaketFiyati.objects.filter(paket=ikinci).exists())
 
