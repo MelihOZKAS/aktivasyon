@@ -604,7 +604,6 @@ class GorulenPaket(models.Model):
     fiyat_degisme = models.DateTimeField("Fiyat Değişti", null=True, blank=True)
     ilk_gorulme = models.DateTimeField("İlk Görülme", auto_now_add=True)
     son_gorulme = models.DateTimeField("Son Görülme")
-    gorulme_sayisi = models.PositiveIntegerField("Görülme", default=1)
     yok_say = models.BooleanField(
         "Yok Say",
         default=False,

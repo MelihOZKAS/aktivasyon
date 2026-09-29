@@ -452,7 +452,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `Kategori.sorgu_sahibi_goster` açıkken istenir, ekranda gösterilir,
   veritabanına yazılmaz (yalnızca 12 saatlik sorgu önbelleği dosyasında,
   sonucun parçası olarak durur). Taze (önbellekten olmayan) her cevaptaki paketler
-  `GorulenPaket`'e işlenir: katalogda karşılığı olmayan "yeni"dir, rozetle
+  `GorulenPaket`'e işlenir — **yazma en aza indirilir**: yalnızca yeni
+  paket, değişen fiyat/ad ya da son görülmesi bugünden eski kayıt yazılır;
+  aynı gün yeniden görülen değişmemiş paket için tek okuma sorgusu atılır
+  (her sorguda sayaç +1 yazılıyordu, sayaç kaldırıldı). Katalogda
+  karşılığı olmayan "yeni"dir, rozetle
   sayılır; **Kataloğa ekle** paketi fiyatsız ve sağlayıcısız açar (bayiye
   görünmez), **Yok say** rozetten düşürür. Fiyat değişimi `onceki_fiyat`'ta
   durur. Ucuz alternatif paket seçimi (eski `Sorgu.php`

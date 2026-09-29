@@ -282,27 +282,29 @@ def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
 def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
     """Sorguda görülen paketleri takip listesine işler; hata sorguyu düşürmez.
 
-    Var olanın son görülmesi ve sayısı güncellenir, fiyat değiştiyse eskisi
+    **Yazma en aza indirilir.** Her bayi sorgusu buradan geçiyor; bir süre
+    her görülen paketin sayacı artırılıp satırı yeniden kaydediliyordu.
+    Artık önce kilitsiz okunur, yalnızca değişen yazılır: yeni paket açılır;
+    var olanda fiyat, ad, açıklama ya da kategori değiştiyse ya da son görülme
+    **bugünden eskiyse** güncellenir. Aynı gün yeniden görülen, değişmemiş
+    paket için veritabanına hiç yazılmaz. Fiyat değiştiyse eskisi
     `onceki_fiyat`'a geçer. Yönetimin kararı (`yok_say`) korunur.
     """
     from apps.kontor.models import GorulenPaket
 
     simdi = timezone.now()
+    bugun = timezone.localdate(simdi)
     tekil = {str(p.kod).strip()[:60]: p for p in paketler if str(p.kod).strip()}
     if not tekil:
         return
     try:
-        with transaction.atomic():
-            mevcut = {
-                g.kod: g
-                for g in GorulenPaket.objects.select_for_update().filter(
-                    kaynak=kaynak_kodu, kod__in=tekil
-                )
-            }
-            for kod, veri in tekil.items():
-                gorulen = mevcut.get(kod)
-                if gorulen is None:
-                    GorulenPaket.objects.create(
+        mevcut = {g.kod: g for g in GorulenPaket.objects.filter(kaynak=kaynak_kodu, kod__in=tekil)}
+        yeniler, guncellenecek = [], []
+        for kod, veri in tekil.items():
+            gorulen = mevcut.get(kod)
+            if gorulen is None:
+                yeniler.append(
+                    GorulenPaket(
                         kaynak=kaynak_kodu,
                         kod=kod,
                         kategori=kategori,
@@ -311,18 +313,36 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
                         fiyat=veri.fiyat,
                         son_gorulme=simdi,
                     )
-                    continue
-                if veri.fiyat is not None and gorulen.fiyat is not None and veri.fiyat != gorulen.fiyat:
+                )
+                continue
+            degisti = False
+            if veri.fiyat is not None and veri.fiyat != gorulen.fiyat:
+                if gorulen.fiyat is not None:
                     gorulen.onceki_fiyat = gorulen.fiyat
                     gorulen.fiyat_degisme = simdi
-                if veri.fiyat is not None:
-                    gorulen.fiyat = veri.fiyat
-                gorulen.ad = (veri.ad or gorulen.ad)[:200]
-                gorulen.aciklama = veri.aciklama or gorulen.aciklama
+                gorulen.fiyat = veri.fiyat
+                degisti = True
+            for alan, deger in (("ad", (veri.ad or "")[:200]), ("aciklama", veri.aciklama or "")):
+                if deger and deger != getattr(gorulen, alan):
+                    setattr(gorulen, alan, deger)
+                    degisti = True
+            if kategori is not None and gorulen.kategori_id != kategori.pk:
                 gorulen.kategori = kategori
+                degisti = True
+            if degisti or timezone.localdate(gorulen.son_gorulme) < bugun:
                 gorulen.son_gorulme = simdi
-                gorulen.gorulme_sayisi += 1
-                gorulen.save()
+                guncellenecek.append(gorulen)
+        if not (yeniler or guncellenecek):
+            return
+        with transaction.atomic():
+            # Aynı anda iki sorgu aynı yeni paketi görürse tekil kısıt
+            # ikincisini sessizce atlar.
+            GorulenPaket.objects.bulk_create(yeniler, ignore_conflicts=True)
+            if guncellenecek:
+                GorulenPaket.objects.bulk_update(
+                    guncellenecek,
+                    ["fiyat", "onceki_fiyat", "fiyat_degisme", "ad", "aciklama", "kategori", "son_gorulme"],
+                )
     except Exception:
         logger.exception("Görülen paketler yazılamadı (%s)", kaynak_kodu)
 

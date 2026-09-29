@@ -329,13 +329,13 @@ class GorulenPaketAdmin(ModelAdmin):
 
     list_display = (
         "ad_gosterimi", "kod", "kategori", "fiyat_gosterimi", "ilk_gorulme", "son_gorulme",
-        "gorulme_sayisi", "katalog_durumu",
+        "katalog_durumu",
     )
     list_filter = (KatalogFiltresi, "kaynak", "kategori__operator", "kategori")
     search_fields = ("kod", "ad", "aciklama")
     readonly_fields = (
         "kaynak", "kod", "kategori", "ad", "aciklama", "fiyat", "onceki_fiyat", "fiyat_degisme",
-        "ilk_gorulme", "son_gorulme", "gorulme_sayisi",
+        "ilk_gorulme", "son_gorulme",
     )
     fields = readonly_fields + ("yok_say",)
     actions = ("yok_say_isaretle", "yok_saymayi_kaldir")

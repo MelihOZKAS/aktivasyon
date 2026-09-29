@@ -968,7 +968,8 @@ class SorguTestleri(Temel):
         SORGU["fiyat"] = TL("60")
         self.client.get(self.adres, {"hedef": "5329998877"})
         yeni = GorulenPaket.objects.get(kod="999")
-        self.assertEqual((yeni.fiyat, yeni.onceki_fiyat, yeni.gorulme_sayisi), (TL("60"), TL("50"), 2))
+        self.assertEqual((yeni.fiyat, yeni.onceki_fiyat), (TL("60"), TL("50")))
+        self.assertEqual(GorulenPaket.objects.filter(kod="999").count(), 1)
 
         yeni.yok_say = True
         yeni.save()
@@ -978,8 +979,28 @@ class SorguTestleri(Temel):
         from apps.kontor.models import GorulenPaket
 
         self.client.get(self.adres, {"hedef": "5329998877"})
+        ilk = GorulenPaket.objects.get(kod="999").son_gorulme
         self.client.get(self.adres, {"hedef": "5329998877"})
-        self.assertEqual(GorulenPaket.objects.get(kod="999").gorulme_sayisi, 1)
+        self.assertEqual(GorulenPaket.objects.get(kod="999").son_gorulme, ilk)
+
+    def test_ayni_gun_degismeyen_paket_yazilmaz(self):
+        from datetime import timedelta
+
+        from apps.kontor.models import GorulenPaket
+
+        self.client.get(self.adres, {"hedef": "5329998877"})
+        ilk = GorulenPaket.objects.get(kod="999").son_gorulme
+        from apps.kontor.services import gorulenleri_yaz
+
+        kayit = GorulenPaket.objects.get(kod="999")
+        paketler = [SorguPaketi(kod="999", ad=kayit.ad, aciklama=kayit.aciklama, fiyat=kayit.fiyat)]
+        with self.assertNumQueries(1):  # yalnızca okuma
+            gorulenleri_yaz("test-sorgu", self.kategori, paketler)
+        self.assertEqual(GorulenPaket.objects.get(kod="999").son_gorulme, ilk)
+        # Dünden kalmışsa tarih güncellenir.
+        GorulenPaket.objects.filter(kod="999").update(son_gorulme=ilk - timedelta(days=1))
+        gorulenleri_yaz("test-sorgu", self.kategori, paketler)
+        self.assertEqual(timezone.localdate(GorulenPaket.objects.get(kod="999").son_gorulme), timezone.localdate())
 
     def test_kataloga_ekle(self):
         from apps.kontor.models import GorulenPaket
