@@ -760,6 +760,20 @@ class YonetimTestleri(Temel):
         yanit = self.client.get(reverse("admin:kontor_paket_change", args=[self.paket.pk]))
         self.assertNotContains(yanit, 'name="satis_fiyati"')
 
+    def test_grup_sayfasindan_duz_rakam_girilir(self):
+        grup = FiyatGrubu.objects.create(ad="Toptan", oran=TL("5"))
+        adres = reverse("admin:kontor_fiyatgrubu_change", args=[grup.pk])
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, 'placeholder="105,00"')
+        alan = f"paket_{self.paket.pk}"
+        veri = {"ad": "Toptan", "oran": "5", "ek_tutar": "0", "aciklama": "", alan: "345,66"}
+        self.assertEqual(self.client.post(adres, veri).status_code, 302)
+        self.assertEqual(PaketFiyati.objects.get(grup=grup, paket=self.paket).fiyat, TL("345.66"))
+        # Kutu boşaltılınca orana döner.
+        veri[alan] = ""
+        self.client.post(adres, veri)
+        self.assertFalse(PaketFiyati.objects.filter(grup=grup).exists())
+
     def test_api_sifresi_post_ile_uretilir(self):
         erisim = ApiErisimi.objects.create(kullanici=self.bayi)
         adres = reverse("admin:kontor_apierisimi_sifre", args=[erisim.pk])

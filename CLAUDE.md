@@ -378,8 +378,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   başvuruda başka kademede olabilir. Grubu boş bayi **varsayılan** gruba
   düşer (tek olabilir); o da yoksa paketin `satis_fiyati`nı öder — alan
   yalnızca o durumda formda görünür. Alışı olmayan paket gruptaki bayiye
-  satılmaz, rakam uydurulmaz. `PaketFiyati` istisnadır: bir pakette bir
-  grubun sabit fiyatı. Tek hesap `services.grup_fiyati`; bayi ekranı da
+  satılmaz, rakam uydurulmaz. **Düz rakam da girilebilir** (`PaketFiyati`):
+  grubun sayfasında her aktif paketin kutusu vardır, yazılan rakam (500,
+  345,66) orandan önce gelir, boş kutu orana döner ve hesaplanan rakam kutunun
+  içinde soluk yazar. Yönetici ikisini karıştırır — çoğu paket orandan,
+  birkaçı elle; ayrı bir "mod" seçimi yoktur. Tek hesap `services.grup_fiyati`; bayi ekranı da
   paket listesindeki "Bayiye satış · kâr" sütunu da oradan geçer. Eski sistemin iade
   tutarını koda gömen (`95.5`) hatası burada yok: iade her zaman siparişin
   kendi tutarıdır.
