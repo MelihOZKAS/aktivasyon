@@ -361,8 +361,8 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
 def gorulen_paketi_kataloga_ekle(gorulen):
     """Görülen paketi kategorisine paket olarak açar; fiyatsız ve rotasız.
 
-    Satış fiyatı ve sağlayıcı sırası girilmeden paket satılmaz
-    (`satista`): açıldığı an bayiye görünmez, yönetici paketi tamamlar.
+    Fiyatı olmayan paket bayiye listelenmez (`satistaki_paketler`): açıldığı
+    an görünmez, yönetici fiyatını yazıp tamamlar.
     Dönüş: (paket, yeni_mi).
     """
     if gorulen.kategori_id is None:

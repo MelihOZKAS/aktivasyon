@@ -1071,7 +1071,7 @@ class SorguTestleri(Temel):
         paket = Paket.objects.get(kategori=self.kategori, kod="999")
         self.assertRedirects(yanit, reverse("admin:kontor_paket_change", args=[paket.pk]), fetch_redirect_response=False)
         self.assertEqual(paket.ad, "Bizde yok")
-        # Fiyatsız ve sağlayıcısız: bayiye görünmez.
+        # Fiyatsız: bayiye görünmez.
         self.assertNotIn(paket, satistaki_paketler(self.kategori, self.bayi))
 
     def test_kaynaksiz_kategoride_kutu_yok(self):

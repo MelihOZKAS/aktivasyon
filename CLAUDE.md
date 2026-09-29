@@ -486,10 +486,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   aynı gün yeniden görülen değişmemiş paket için tek okuma sorgusu atılır
   (her sorguda sayaç +1 yazılıyordu, sayaç kaldırıldı). Katalogda
   karşılığı olmayan "yeni"dir, rozetle
-  sayılır; **Kataloğa ekle** paketi fiyatsız ve sağlayıcısız açar (bayiye
-  görünmez), **Yok say** rozetten düşürür. Fiyat değişimi `onceki_fiyat`'ta
-  durur. Ucuz alternatif paket seçimi (eski `Sorgu.php`
-  akışı) bu sürümde yok.
+  sayılır; **Kataloğa ekle** paketi fiyatsız ve sağlayıcısız açar — fiyatı
+  (grubun sayfasında Bayi Satış Tutarı) yazılana kadar bayiye görünmez;
+  **Yok say** rozetten düşürür. Fiyat değişimi `onceki_fiyat`'ta durur.
+  Ucuz alternatif (eski `Sorgu.php` akışı) yukarıda: gönderim planı.
 - **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme
   bildiriminin `durum` alanı formda düzenlenebilir; yönetici "Onaylandı"
   seçip kaydedince bildirim onaylanmış **görünüyor** ama para hiç hareket

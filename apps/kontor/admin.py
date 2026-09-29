@@ -416,8 +416,8 @@ class GorulenPaketAdmin(ModelAdmin):
     """Operatörün numara sorgusunda görülen paketler.
 
     Günlük iş rozetteki "yeni" paketlere bakmaktır: satılacaksa **Kataloğa
-    ekle** (fiyatsız ve sağlayıcısız açılır, bayiye görünmez; paket
-    sayfasında tamamlanır), satılmayacaksa **Yok say**.
+    ekle** (fiyatsız ve sağlayıcısız açılır; fiyatı grubun sayfasında
+    yazılana kadar bayiye görünmez), satılmayacaksa **Yok say**.
     """
 
     list_display = (
@@ -509,8 +509,9 @@ class GorulenPaketAdmin(ModelAdmin):
             return redirect("admin:kontor_gorulenpaket_changelist")
         self.message_user(
             request,
-            f"“{paket.ad}” {'kataloğa eklendi' if yeni else 'zaten katalogdaydı'}. Satış fiyatını ve "
-            "sağlayıcı sırasını girin; ikisi girilmeden bayiye görünmez.",
+            f"“{paket.ad}” {'kataloğa eklendi' if yeni else 'zaten katalogdaydı'}. Fiyat grubunun "
+            "sayfasında Bayi Satış Tutarını yazın, fiyatı olmadan bayiye görünmez. Sağlayıcıya "
+            "bağlamazsanız alındığında işlem askıya düşer.",
             messages.SUCCESS if yeni else messages.INFO,
         )
         return redirect("admin:kontor_paket_change", paket.pk)
