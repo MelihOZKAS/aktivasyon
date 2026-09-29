@@ -1000,9 +1000,11 @@ class VodafoneSorguTestleri(TestCase):
             {
                 "description": "İnternet",
                 "kolayPacks": [
-                    {"id": 14690, "description": "Kolay Paket 15", "detail": "15 GB 30 gün",
+                    {"id": "/Prepaid/KolayPack/KP_INTEGRATED_OFFER_7", "reasonCode": "17776",
+                     "description": "Kolay Paket 15", "detail": "15 GB 30 gün",
                      "usageFee": {"value": 349.9, "unit": "TL"}},
-                    {"id": None, "description": "Kodsuz"},
+                    # reasonCode'suz paket atlanır; id'ye (Vodafone'un iç adı) düşülmez.
+                    {"id": "BKPM046", "description": "Kodsuz"},
                 ],
             }
         ]
@@ -1012,7 +1014,7 @@ class VodafoneSorguTestleri(TestCase):
         from apps.kontor.sorgu.vodafone import paketleri_coz
 
         (paket,) = paketleri_coz(self.CEVAP)
-        self.assertEqual((paket.kod, paket.ad, paket.aciklama), ("14690", "Kolay Paket 15", "15 GB 30 gün"))
+        self.assertEqual((paket.kod, paket.ad, paket.aciklama), ("17776", "Kolay Paket 15", "15 GB 30 gün"))
         self.assertEqual(paket.fiyat, TL("349.9"))
         self.assertEqual(paketleri_coz({}), [])
 
@@ -1029,7 +1031,7 @@ class VodafoneSorguTestleri(TestCase):
         istemci.get_public_token.assert_called_once_with("5321234567")
         istemci.get_kolay_packs.assert_called_once_with("PUB-KOLAY-x")
         istemci.get_masked_user_name.assert_not_called()  # istenmediyse ad çekilmez
-        self.assertEqual([p.kod for p in sonuc.paketler], ["14690"])
+        self.assertEqual([p.kod for p in sonuc.paketler], ["17776"])
         self.assertEqual(sonuc.sahip, "")
 
     def test_sahip_istenirse_maskeli_ad(self):

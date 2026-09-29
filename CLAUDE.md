@@ -439,7 +439,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   olunca o numaranın kaydı silinir — önbellek bu yüzden bellekte değil
   dosyadadır, `CACHES["kontor_sorgu"]`, `tmp/`: gunicorn işçileri ve kontör
   işçisi aynı kaydı görmeli) ve hata
-  verirse satış sürer. Vodafone kaynağı `sorgu/vodafone.py`: istemci
+  verirse satış sürer. Vodafone kaynağı `sorgu/vodafone.py`; paket kodu
+  cevaptaki **`reasonCode`**'dur (17776) — `id` Vodafone'un iç adıdır
+  (`/Prepaid/KolayPack/KP_INTEGRATED_OFFER_7`, `BKPM046`), bir süre o
+  okundu ve katalog yanlış kodla doldu. Ham cevap için `manage.py
+  vodafone_ham <numara>`. İstemci
   (`vodafone_istemci.py`) yönetimin yazdığı koddur, olduğu gibi durur
   (projede `requests` yalnızca onun için vardır; diğer dış istekler
   urllib'le yazıldı, yeni kodda da öyle kalsın);

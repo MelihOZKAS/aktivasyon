@@ -15,7 +15,7 @@ başka bir yere satır eklemek gerekmez::
     @kaynak("benim-kaynagim", "Benim sorgum")
     def sorgula(numara, *, sahip=False):   # numara: "5321234567"
         ...                                # hata olursa: raise SorguHatasi("sebep")
-        paketler = [SorguPaketi(kod="14690", ad="Kolay Paket 15", gun=30), ...]
+        paketler = [SorguPaketi(kod="17776", ad="Kolay Paket 15", gun=30), ...]
         return SorguSonucu(paketler, sahip="Ah*** Yı***" if sahip else "")
 
 `sahip` yalnızca kategoride "hat sahibini göster" açıkken doğrudur;

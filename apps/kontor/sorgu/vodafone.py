@@ -8,9 +8,12 @@ Hat sahibinin maskeli adı (`getMaskedUserName`) yalnızca kategoride
 "hat sahibini göster" açıkken istenir; ekranda gösterilir, saklanmaz.
 Alınamazsa paket sorgusu yine sonuç verir — ad teyit içindir, şart değil.
 
-Eşleşme `id` alanıyladır: kataloğumuzdaki paketin kupür kodu
-(`Paket.kod`) Vodafone'un paket ID'si olmalı (eski sistemde de öyleydi:
-14690, 13345…).
+Eşleşme `reasonCode` alanıyladır (17776…): kataloğumuzdaki paketin kupür
+kodu (`Paket.kod`) bu rakamdır, sağlayıcıya giden kod da odur. Bir süre
+`id` alanı okunuyordu; o alan Vodafone'un iç adıdır
+(`/Prepaid/KolayPack/KP_INTEGRATED_OFFER_7`, `BKPM046`) ve katalog bu
+kodlarla dolmuştu. `reasonCode`u olmayan paket atlanır — `id`ye geri
+düşülmez, yanlış kod sessizce kataloğa girmesin.
 """
 
 from decimal import Decimal, InvalidOperation
@@ -23,7 +26,7 @@ def paketleri_coz(cevap):
     paketler = []
     for kategori in (cevap or {}).get("kolayPackCategory") or []:
         for paket in kategori.get("kolayPacks") or []:
-            kod = str(paket.get("id") or "").strip()
+            kod = str(paket.get("reasonCode") or "").strip()
             if not kod:
                 continue
             ucret = paket.get("usageFee") or {}
