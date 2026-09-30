@@ -1480,6 +1480,18 @@ class TavsiyeTestleri(Temel):
         self.assertLess(icerik.index("B Ucuz"), icerik.index("C Tavsiyesiz"))
         self.assertLess(icerik.index("Kolay Paket 15"), icerik.index("A Pahalı"))
 
+    def test_bayi_ekraninda_yalnizca_girilen_icerik(self):
+        self.paket.aciklama = "750 DK, 250 SMS, 28 Gün Geçerli, Vergi Dahil"  # operatörden gelen
+        self.paket.save()
+        pin = Paket.objects.create(kategori=self.kategori, kod="P", ad="Pin", satis_fiyati=TL("40"), aciklama="Tek kullanımlık kod")
+        for adres in (self.kategori.get_absolute_url(), reverse("kontor:paket", args=[self.kategori.slug, self.paket.kod])):
+            yanit = self.client.get(adres)
+            self.assertContains(yanit, "1.000 DK · 15 GB · 30 gün")
+            self.assertNotContains(yanit, "Vergi Dahil")
+        # İçeriği girilmemiş pakette kart boş kalmasın: açıklama yazılır.
+        self.assertContains(self.client.get(self.kategori.get_absolute_url()), "Tek kullanımlık kod")
+        self.assertContains(self.client.get(reverse("kontor:paket", args=[self.kategori.slug, pin.kod])), "Tek kullanımlık kod")
+
     def test_ekranda_buyuk_rakam_tavsiye_alis_gozun_arkasinda(self):
         yanit = self.client.get(self.kategori.get_absolute_url())
         self.assertContains(yanit, "349,90")

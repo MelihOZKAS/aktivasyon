@@ -493,6 +493,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   sütunu tabanı gösterir). Doluysa bayi ekranında büyük rakam budur;
   bayinin alışı ve kazancı göz düğmesiyle açılır (`parca_fiyat.html`,
   `parca_goz.html`, tercih `sessionStorage`'da) — eSIM'deki kuralın aynısı.
+  Paketin alt satırında bayi yalnızca yönetimin girdiği **içeriği** görür
+  (DK · GB · SMS · gün); açıklama çoğu zaman operatör sorgusundan gelen
+  aynı bilginin tekrarıydı ve yalnızca içeriği olmayan pakette (oyun, pin)
+  gösterilir.
   Tavsiye grup başına değil paket başına tek rakamdır: müşterinin ödediği
   liste fiyatı bayiye göre değişmez. İşlem anındaki değer
   `Islem.tavsiye_fiyati`'nda saklanır.

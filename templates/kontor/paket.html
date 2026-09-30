@@ -13,8 +13,9 @@
       <p class="text-sm font-medium"
          {% if kategori.operator %}style="color: {{ kategori.operator.renk|okunur_renk }}"{% endif %}>{{ kategori.ad }}</p>
       <h2 class="baslik mt-1 text-2xl font-bold">{{ paket.ad }}</h2>
-      {% if paket.icerik %}<p class="mt-1 text-sm text-murekkep-yumusak">{{ paket.icerik }}</p>{% endif %}
-      {% if paket.aciklama %}<p class="mt-1 text-sm text-soluk">{{ paket.aciklama }}</p>{% endif %}
+      {# Kategori listesindeki kural: içerik varsa yalnızca o, yoksa açıklama. #}
+      {% if paket.icerik %}<p class="mt-1 text-sm text-murekkep-yumusak">{{ paket.icerik }}</p>
+      {% elif paket.aciklama %}<p class="mt-1 text-sm text-soluk">{{ paket.aciklama }}</p>{% endif %}
       {% comment %}
         Tavsiye fiyatı varsa büyük rakam müşterinin fiyatı; bayinin alışı ve
         kazancı gözle açılır. Yoksa bayinin fiyatı düz yazılır.
