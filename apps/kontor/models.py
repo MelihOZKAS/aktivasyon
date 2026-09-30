@@ -854,6 +854,14 @@ class Deneme(models.Model):
     )
     gonderim_cevabi = models.TextField("Gönderim Cevabı", blank=True)
     sonuc_cevabi = models.TextField("Son Sorgu Cevabı", blank=True)
+    saglayici_kaynakli = models.BooleanField(
+        "Sağlayıcı Tarafında",
+        default=False,
+        help_text=(
+            "Ret numaradan değil bizim hesaptan: sağlayıcıda bakiyemiz yetmedi ya da "
+            "bağlantı kurulamadı. Hiçbir sağlayıcı almazsa işlem iptal değil askıya düşer."
+        ),
+    )
     alis = models.DecimalField("Alış", max_digits=12, decimal_places=2, null=True, blank=True)
     olusturma_tarihi = models.DateTimeField("Gönderildi", auto_now_add=True)
     guncelleme_tarihi = models.DateTimeField("Güncellendi", auto_now=True)

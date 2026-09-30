@@ -2741,3 +2741,41 @@ class BozukSimTakasi(TestCase):
         self.assertIn("operatörden bekleniyor", icerik)
         self.assertIn("yerine kart verilecek", icerik)
         self.assertIn("ariza=bayide", icerik)
+
+
+class ParolaDegistirme(TestCase):
+    """Giriş yapmış kullanıcı kendi parolasını değiştirir; oturumu düşmez."""
+
+    def setUp(self):
+        self.bayi = User.objects.create_user("5321234567", password="eski-parola-91")
+        self.client.force_login(self.bayi)
+        self.adres = reverse("bayi:parola")
+
+    def test_parola_degisir_oturum_kalir(self):
+        cevap = self.client.post(
+            self.adres,
+            {"old_password": "eski-parola-91", "new_password1": "kavun-limon-7431", "new_password2": "kavun-limon-7431"},
+        )
+        self.assertEqual(cevap.status_code, 302)
+        self.bayi.refresh_from_db()
+        self.assertTrue(self.bayi.check_password("kavun-limon-7431"))
+        # update_session_auth_hash: aynı oturumla gezinmeye devam eder.
+        self.assertEqual(self.client.get(self.adres).status_code, 200)
+
+    def test_yanlis_eski_parola_reddedilir(self):
+        cevap = self.client.post(
+            self.adres,
+            {"old_password": "yanlis", "new_password1": "kavun-limon-7431", "new_password2": "kavun-limon-7431"},
+        )
+        self.assertEqual(cevap.status_code, 200)
+        self.bayi.refresh_from_db()
+        self.assertTrue(self.bayi.check_password("eski-parola-91"))
+
+    def test_menude_baglanti_var(self):
+        self.assertContains(self.client.get(reverse("bayi:panel")), self.adres)
+
+    def test_girissiz_giris_ekranina_gider(self):
+        self.client.logout()
+        cevap = self.client.get(self.adres)
+        self.assertEqual(cevap.status_code, 302)
+        self.assertIn(reverse("bayi:giris"), cevap["Location"])

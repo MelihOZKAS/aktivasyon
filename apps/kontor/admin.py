@@ -23,6 +23,7 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
+from django.utils.text import Truncator
 from django.utils.timezone import localtime
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
@@ -1211,7 +1212,17 @@ class IslemAdmin(ModelAdmin):
 
     @display(description="Durum", ordering="durum")
     def durum_rozeti(self, obj):
-        return _rozet(obj.get_durum_display(), DURUM_RENKLERI.get(obj.durum, "#6F7B8F"))
+        """İptalde ve askıda sebep rozetin altında: "neden?" için satırı açmak gerekmesin."""
+        rozet = _rozet(obj.get_durum_display(), DURUM_RENKLERI.get(obj.durum, "#6F7B8F"))
+        if obj.durum not in (IslemDurumu.IPTAL, IslemDurumu.ASKIDA) or not obj.sonuc_mesaji:
+            return rozet
+        return format_html(
+            '{}<div title="{}" style="margin-top:.25rem;max-width:16rem;font-size:.75rem;'
+            'white-space:normal;overflow-wrap:anywhere;opacity:.75">{}</div>',
+            rozet,
+            obj.sonuc_mesaji,
+            Truncator(obj.sonuc_mesaji).chars(90),
+        )
 
     @display(description="")
     def karar_dugmesi(self, obj):

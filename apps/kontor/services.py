@@ -57,7 +57,7 @@ from apps.kontor.models import (
     SIFIR,
     SaglayiciPaketi,
 )
-from apps.kontor.saglayicilar import Gonderim, SaglayiciHatasi, Sorgu
+from apps.kontor.saglayicilar import Gonderim, SaglayiciHatasi, Sorgu, bakiye_yetersiz_mi
 from apps.magaza.models import Siparis, SiparisDurumu
 
 logger = logging.getLogger(__name__)
@@ -600,12 +600,13 @@ def _plani_cikar(islem):
     return plan
 
 
-def _siradakine_gonder(islem):
+def _siradakine_gonder(islem, son_ret=""):
     """Plandaki paketleri, her birinin sağlayıcılarına sırayla gönderir.
 
     Kabul ya da belirsizde durur. Bir sonrakine (sıradaki sağlayıcı ya da
     plandaki sıradaki paket) **yalnızca kesin retle** geçilir: tek gönderim
-    ilkesi alternatifte de geçerlidir.
+    ilkesi alternatifte de geçerlidir. `son_ret` önceki reddin sebebidir
+    (sonuç sorgusunun "iptal"i): başka sağlayıcı kalmadıysa iptal onu yazar.
     """
     yarim = islem.denemeler.filter(durum=DenemeDurumu.GONDERILIYOR)
     if yarim.exists():
@@ -632,7 +633,6 @@ def _siradakine_gonder(islem):
         _askiya_al(islem)
         return
 
-    son_ret = ""
     for rota in kalan:
         _uzat(islem.pk)
         deneme = _gonder(
@@ -642,7 +642,31 @@ def _siradakine_gonder(islem):
             return  # kabul edildi ya da askıya alındı
         son_ret = _ret_metni(deneme)
 
+    kaynakli = (
+        islem.denemeler.filter(durum=DenemeDurumu.REDDEDILDI, saglayici_kaynakli=True)
+        .select_related("saglayici")
+        .order_by("pk")
+    )
+    if kaynakli:
+        # Sorun numarada değil bizim hesapta (sağlayıcıda bakiye bitti, site
+        # kapalı): iptal edip bayiye "yüklenemedi" demek yanlış olurdu.
+        # Yönetim bakiyeyi yükleyip aynı yere ya da başka sağlayıcıya gönderir.
+        _askiya_al(islem, sebep=_saglayici_sorunu_metni(kaynakli))
+        return
+    if not son_ret:
+        son = islem.denemeler.filter(durum=DenemeDurumu.REDDEDILDI).order_by("pk").last()
+        son_ret = _ret_metni(son) if son is not None else ""
     _iptal_et(islem, son_ret or "İşlem hiçbir sağlayıcıda yüklenemedi.")
+
+
+def _saglayici_sorunu_metni(denemeler):
+    """Askının sebebi, sağlayıcı sağlayıcı: "Kontorbizde: Yetersiz bakiye"."""
+    parcalar = []
+    for deneme in denemeler:
+        parca = f"{deneme.saglayici.ad}: {_ret_metni(deneme)}"
+        if parca not in parcalar:
+            parcalar.append(parca)
+    return "Sağlayıcı tarafında sorun — " + " · ".join(parcalar)
 
 
 def _kalan_rotalar(islem):
@@ -670,7 +694,15 @@ def _kalan_rotalar(islem):
 
 
 def _ret_metni(deneme):
-    return (deneme.sonuc_cevabi or deneme.gonderim_cevabi or "").strip()[:200]
+    """Reddin okunur sebebi: iptalde bayiye ve yönetime yazılan metin.
+
+    `_gonder` sağlayıcının çözülmüş mesajını `sebep`e koyar; ham cevap
+    (`OK|3|Yetersiz bakiye|0.00`) yalnızca o yoksa, veritabanından okunan
+    eski denemede yazılır. Ham cevap denemenin kendi satırında durur.
+    """
+    return (
+        getattr(deneme, "sebep", "") or deneme.sonuc_cevabi or deneme.gonderim_cevabi or ""
+    ).strip()[:200]
 
 
 def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
@@ -699,8 +731,10 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
         )
     except SaglayiciHatasi as hata:
         deneme.gonderim_cevabi = str(hata)
+        deneme.sebep = str(hata)
         if hata.kesin_gitmedi:
             deneme.durum = DenemeDurumu.REDDEDILDI
+            deneme.saglayici_kaynakli = True
             deneme.save()
             return deneme
         deneme.durum = DenemeDurumu.BELIRSIZ
@@ -724,7 +758,9 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
         islem.durum = IslemDurumu.ISLEMDE
         islem.save(update_fields=["durum", "guncelleme_tarihi"])
     elif sonuc.durum == Gonderim.RED:
+        deneme.sebep = (sonuc.mesaj or "").strip()
         deneme.durum = DenemeDurumu.REDDEDILDI
+        deneme.saglayici_kaynakli = bakiye_yetersiz_mi(sonuc.mesaj) or bakiye_yetersiz_mi(sonuc.ham)
         deneme.save()
     else:
         deneme.durum = DenemeDurumu.BELIRSIZ
@@ -733,9 +769,15 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
     return deneme
 
 
-def _askiya_al(islem):
+def _askiya_al(islem, sebep=""):
+    """İşlemi yönetimin kararına bırakır. `sebep` yönetim içindir (sağlayıcı
+    adını taşır); bayinin ekranı askıda sonuç mesajını göstermez."""
     islem.durum = IslemDurumu.ASKIDA
-    islem.save(update_fields=["durum", "guncelleme_tarihi"])
+    alanlar = ["durum", "guncelleme_tarihi"]
+    if sebep:
+        islem.sonuc_mesaji = sebep[:500]
+        alanlar.append("sonuc_mesaji")
+    islem.save(update_fields=alanlar)
 
 
 def _sonucu_sor(islem, *, zorla=False):
@@ -758,11 +800,12 @@ def _sonucu_sor(islem, *, zorla=False):
         _basarili(islem, deneme, mesaj=sonuc.mesaj, alis=sonuc.alis)
         return
     # İptal: sağlayıcı yüklemedi, para orada düşmedi; sıradakine geçilir.
+    # Başka sağlayıcı kalmadıysa iptalin sebebi sağlayıcının bu cevabıdır.
     deneme.durum = DenemeDurumu.REDDEDILDI
     deneme.save(update_fields=["durum", "guncelleme_tarihi"])
     islem.durum = IslemDurumu.SIRADA
     islem.save(update_fields=["durum", "guncelleme_tarihi"])
-    _siradakine_gonder(islem)
+    _siradakine_gonder(islem, son_ret=(sonuc.mesaj or "").strip() or _ret_metni(deneme))
 
 
 def _sor(deneme):
@@ -949,7 +992,7 @@ def elle_gonder(islem, saglayici, *, olusturan=None):
         islem.save(update_fields=["durum", "guncelleme_tarihi"])
         deneme = _gonder(islem, saglayici, kod, operator, tip, elle=True, paket=paket)
         if deneme.durum == DenemeDurumu.REDDEDILDI:
-            _askiya_al(islem)
+            _askiya_al(islem, sebep=f"{saglayici.ad}: {_ret_metni(deneme)}")
         return deneme
 
 

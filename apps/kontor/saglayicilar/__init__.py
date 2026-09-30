@@ -37,6 +37,19 @@ class SaglayiciHatasi(Exception):
         self.kesin_gitmedi = kesin_gitmedi
 
 
+def bakiye_yetersiz_mi(metin):
+    """Sağlayıcının reddi bizim bakiyemizin bitmesinden mi?
+
+    Protokollerin hiçbiri bunu ayrı bir kodla söylemiyor (Znet'te de `OK|3`,
+    "Yetersiz bakiye" metniyle); metinden okunur. Büyük harfli Türkçe
+    ("YETERSİZ BAKİYE") ve URL kodlu ham cevap da tanınır.
+    """
+    from urllib.parse import unquote_plus
+
+    metin = unquote_plus(metin or "").replace("İ", "i").replace("I", "ı").lower()
+    return "bakiye" in metin or "bakıye" in metin or "balance" in metin
+
+
 class Gonderim:
     """Sağlayıcının gönderime verdiği cevap."""
 

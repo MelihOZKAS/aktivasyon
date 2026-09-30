@@ -99,7 +99,8 @@ class SahteAdaptor(Adaptor):
         if davranis == "zaman":
             raise SaglayiciHatasi("20 saniyede cevap vermedi")
         if davranis == "red" or uzak_kod in d.get("red_kodlar", ()):
-            return GonderimSonucu(Gonderim.RED, mesaj="Yetersiz bakiye", ham="OK|3|Yetersiz bakiye|0.00")
+            mesaj = d.get("red_mesaj", "Numara hatalı")
+            return GonderimSonucu(Gonderim.RED, mesaj=mesaj, ham=f"OK|3|{mesaj}|0.00")
         if davranis == "belirsiz":
             return GonderimSonucu(Gonderim.BELIRSIZ, mesaj="??", ham="OK|8|Bekleyin|0")
         return GonderimSonucu(Gonderim.KABUL, uzak_ref=f"U{ref}", alis=d.get("alis"), ham="OK|1|Alındı|9.50")
@@ -381,7 +382,7 @@ class TekGonderimTestleri(Temel):
         _ayar("İki", gonderim="red")
         islem = self.yukle()
         self.assertEqual(islem.durum, IslemDurumu.IPTAL)
-        self.assertEqual(islem.sonuc_mesaji, "OK|3|Yetersiz bakiye|0.00")
+        self.assertEqual(islem.sonuc_mesaji, "Numara hatalı")  # ham cevap değil, sebep
         self.assertEqual(islem.siparis.durum, SiparisDurumu.IPTAL)
         self.assertEqual(self.bakiye(), TL("500.00"))
 
@@ -409,6 +410,55 @@ class TekGonderimTestleri(Temel):
         self.assertEqual(islem.durum, IslemDurumu.ISLEMDE)
         self.assertEqual(islem.saglayici, self.iki)
         self.assertEqual(len(DURUM["Bir"]["gonderilen"]), 1)
+
+    def test_son_saglayici_sorguda_iptal_derse_sebebi_yazilir(self):
+        _ayar("İki", gonderim="red")
+        islem = self.yukle()
+        _ayar("Bir", sorgu="iptal")
+        islem = isle(islem.pk, zorla=True)
+        # İki reddetti; ondan önce Bir sorguda iptal dedi.
+        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
+        self.assertEqual(islem.sonuc_mesaji, "Numara hatalı")
+
+    def test_tek_saglayici_sorguda_iptal_derse_sebebi_yazilir(self):
+        Rota.objects.filter(saglayici=self.iki).delete()
+        islem = self.yukle()
+        _ayar("Bir", sorgu="iptal")
+        islem = isle(islem.pk, zorla=True)
+        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
+        self.assertEqual(islem.sonuc_mesaji, "Numara hatalı")
+        self.assertIn("Numara hatalı", islem.siparis.yonetim_notu)
+
+    def test_saglayicida_bakiye_bitince_iptal_degil_askiya_duser(self):
+        _ayar("Bir", gonderim="red", red_mesaj="Yetersiz bakiye")
+        _ayar("İki", gonderim="red")
+        islem = self.yukle()
+        # Bir'in bakiyesi yetmedi, sıradaki yine denendi; o da aldırmadı.
+        self.assertEqual(len(DURUM["İki"]["gonderilen"]), 1)
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        self.assertIn("Yetersiz bakiye", islem.sonuc_mesaji)
+        self.assertIn(self.bir.ad, islem.sonuc_mesaji)
+        self.assertEqual(self.bakiye(), TL("390.00"))  # para bayiden düşülü kalır
+
+        # Bakiye yüklendi: yönetim aynı sağlayıcıya yeniden gönderir.
+        _ayar("Bir", gonderim="kabul")
+        deneme = elle_gonder(islem, self.bir)
+        islem.refresh_from_db()
+        self.assertEqual((deneme.durum, islem.durum), (DenemeDurumu.ISLEMDE, IslemDurumu.ISLEMDE))
+
+    def test_buyuk_harfli_bakiye_mesaji_da_taninir(self):
+        from apps.kontor.saglayicilar import bakiye_yetersiz_mi
+
+        self.assertTrue(bakiye_yetersiz_mi("YETERSİZ BAKİYE"))
+        self.assertTrue(bakiye_yetersiz_mi("OK%7C3%7CBakiyeniz+yetersiz%7C0"))
+        self.assertFalse(bakiye_yetersiz_mi("Numara hatalı"))
+
+    def test_hicbir_saglayiciya_baglanilamazsa_askiya_duser(self):
+        _ayar("Bir", gonderim="kopuk")
+        _ayar("İki", gonderim="kopuk")
+        islem = self.yukle()
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        self.assertEqual(self.bakiye(), TL("390.00"))
 
     def test_sorgu_hatasi_islemi_bozmaz(self):
         islem = self.yukle()

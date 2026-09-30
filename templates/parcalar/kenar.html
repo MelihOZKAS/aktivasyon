@@ -183,6 +183,11 @@
     </div>
     {% endif %}
 
+    <a href="{% url 'bayi:parola' %}" class="mx-3 flex min-h-11 items-center rounded-lg px-3 text-xs
+                                             font-medium text-soluk hover:text-murekkep">
+      Parolamı değiştir
+    </a>
+
     {% if user.is_staff %}
     <a href="/yonetim/" class="mx-3 mb-3 flex min-h-11 items-center rounded-lg px-3 text-xs
                                font-medium text-soluk hover:text-murekkep">

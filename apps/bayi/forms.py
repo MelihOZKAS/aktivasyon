@@ -1,7 +1,7 @@
 """Kamuya açık formlar."""
 
 from django import forms
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.forms import AuthenticationForm, PasswordChangeForm
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
@@ -163,3 +163,24 @@ class OdemeBildirimiFormu(forms.ModelForm):
             aktif=True, bayiye_gorunur=True
         )
         self.fields["banka"].empty_label = "Hangi hesaba yatırdın?"
+
+
+class ParolaDegistirmeFormu(PasswordChangeForm):
+    """Giriş yapmış kullanıcının kendi parolasını değiştirmesi.
+
+    Django'nun formu eski parolayı doğrular ve `AUTH_PASSWORD_VALIDATORS`
+    kurallarını uygular; burada yalnızca girdiler bizim görünüme uyar.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["old_password"].label = "Şu anki parolan"
+        self.fields["new_password1"].label = "Yeni parola"
+        self.fields["new_password2"].label = "Yeni parola (tekrar)"
+        for ad, alan in self.fields.items():
+            alan.widget.attrs.update(
+                {
+                    "class": "girdi",
+                    "autocomplete": "current-password" if ad == "old_password" else "new-password",
+                }
+            )

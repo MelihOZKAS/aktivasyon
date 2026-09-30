@@ -1,7 +1,7 @@
 """Bayi paneli: giriş, gösterge paneli ve cüzdan."""
 
 from django.contrib import messages
-from django.contrib.auth import logout
+from django.contrib.auth import logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
@@ -14,7 +14,7 @@ from urllib.parse import quote
 from django.views.decorators.http import require_POST
 
 from apps.basvurular.models import Basvuru, BasvuruDurumu
-from apps.bayi.forms import BayiBasvuruFormu, GirisFormu
+from apps.bayi.forms import BayiBasvuruFormu, GirisFormu, ParolaDegistirmeFormu
 from apps.bayi.models import Duyuru
 from apps.bayi.yetki import bayi_gerekli, baslangic_sayfasi, tedarikci_gerekli
 from apps.bildirim.telegram import bayi_basvurusu_bildir, odeme_bildirimi_bildir
@@ -147,6 +147,26 @@ def yonetim_girisi(request):
 def cikis(request):
     logout(request)
     return redirect("bayi:giris")
+
+
+@login_required
+def parola_degistir(request):
+    """Kullanıcı kendi parolasını değiştirir; bayi de tedarikçi de.
+
+    Unutulan parola burada değil, yönetimin "Yeni parola" düğmesinde
+    üretilir — bu ekran şu anki parolayı ister. Değiştiren oturumdan
+    düşmez (`update_session_auth_hash`); diğer cihazlardaki oturumlar düşer.
+    """
+    if request.method == "POST":
+        form = ParolaDegistirmeFormu(request.user, request.POST)
+        if form.is_valid():
+            kullanici = form.save()
+            update_session_auth_hash(request, kullanici)
+            messages.success(request, "Parolan değiştirildi. Bir dahaki girişte yeni parolanı kullan.")
+            return redirect(baslangic_sayfasi(kullanici))
+    else:
+        form = ParolaDegistirmeFormu(request.user)
+    return render(request, "bayi/parola.html", {"form": form})
 
 
 def _kategori_hakedisleri(kullanici):

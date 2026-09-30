@@ -341,6 +341,24 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   bağlantı hiç kurulamadı (`kesin_gitmedi`), ya da sonuç sorgusu "iptal"
   dedi — işlem orada hiç yüklenmedi. Askıdaki işlemde sorgu "iptal" derse
   işlem askıda kalır, gönderim yöneticinin kararıdır.
+  **İptalin sebebi her zaman yazılır** (`Islem.sonuc_mesaji`; admin
+  listesinde rozetin altında, bayinin ekranında "Sebep"). Sağlayıcının
+  çözülmüş mesajıdır, ham cevap (`OK|3|…`) değil — ham cevap denemenin
+  satırında durur. Kabul edilip sonuç sorgusunda "iptal" denen işlemde
+  sebep bir süre kayboluyor, "hiçbir sağlayıcıda yüklenemedi" yazılıyordu;
+  `_siradakine_gonder(son_ret=…)` sorgunun mesajını taşır. Sağlayıcı adı
+  iptal sebebine eklenmez: bayi de okuyor.
+  · **Sağlayıcı tarafındaki sorun iptal değil askıdır.** Sağlayıcı "yetersiz
+  bakiye" derse (bizim oradaki bakiyemiz bitti; metinden okunur,
+  `saglayicilar.bakiye_yetersiz_mi`) ya da bağlantı hiç kurulamazsa deneme
+  `saglayici_kaynakli` işaretlenir. Sıradaki sağlayıcı yine denenir; hiçbiri
+  almazsa işlem **askıya** düşer, para bayiden düşülü kalır ve sebebi
+  sağlayıcı adıyla yazılır ("Sağlayıcı tarafında sorun — Kontorbizde:
+  Yetersiz bakiye"; admin listesinde rozetin altında, bayi askıda "kontrol
+  ediliyor" görür). Yönetim bakiyeyi yükleyip Karar ekranından aynı
+  sağlayıcıya ya da başkasına gönderir. Numara/paket kaynaklı ret eskisi
+  gibi iptal + iadedir. Önce her ret iptaldi: karşı sitede bakiye bitince
+  bütün satışlar sebepsiz iptal görünüyordu.
   · **`ATOMIC_REQUESTS` açık; sağlayıcıyla konuşan her görünüm
   `non_atomic_requests`'tir** (bayi yükleme/durum, bayi API'si, admin karar
   ekranı). İstek transaction'ında gönderim kaydı commit edilmez, süreç
@@ -682,6 +700,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Başvuru mu düşmemiş, hesap mı açılmamış, parola mı yok, numara mı başka
   biçimde kaydedilmiş — dördü de giriş ekranında aynı hatayı gösterir. Komut
   parolayı göstermez, yalnızca var/yok der.
+- **Kullanıcı parolasını kendisi değiştirir** (`/parola/`,
+  `bayi.views.parola_degistir`; kenar menünün altında "Parolamı değiştir").
+  Şu anki parolayı ister, Django'nun parola kurallarından geçer, oturum
+  düşmez. Bir süre yoktu: bayi yönetimin verdiği parolayla kalıyordu.
 - **Parola unutulunca yönetici yenisini üretir; e-posta ile sıfırlama yoktur.**
   Kullanıcı listesinin her satırında ve kullanıcı sayfasının üstünde "Yeni
   parola" düğmesi var. `apps.bayi.parola.uret` telefonda okunabilecek bir

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block baslik %}Parola değiştir · Aktivasyon{% endblock %}
+{% block sayfa_basligi %}Parola{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-md space-y-6">
+  <div class="yuzey sim rounded-kart p-6">
+    <h2 class="baslik text-xl font-bold">Parolamı değiştir</h2>
+    <p class="mt-1.5 text-sm leading-relaxed text-soluk">
+      Önce şu anki parolanı yaz. Bu cihazda oturumun açık kalır, başka
+      cihazlarda yeniden giriş yapman gerekir.
+    </p>
+
+    <form method="post" class="mt-6 space-y-5">
+      {% csrf_token %}
+      {% for hata in form.non_field_errors %}
+      <p class="text-sm text-olumsuz">{{ hata }}</p>
+      {% endfor %}
+
+      {% for alan in form %}
+      <div>
+        <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5">{{ alan.label }}</label>
+        {{ alan }}
+        {% for hata in alan.errors %}
+        <p class="mt-1.5 text-sm text-olumsuz">{{ hata }}</p>
+        {% endfor %}
+        {% if alan.name == "new_password1" %}
+        <p class="mt-1.5 text-xs leading-relaxed text-soluk">
+          En az 8 karakter; yalnızca rakam ya da telefon numaran olmasın.
+        </p>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      <button type="submit" class="dugme dugme-birincil w-full">Parolayı değiştir</button>
+    </form>
+  </div>
+
+  <p class="text-sm leading-relaxed text-soluk">
+    Şu anki parolanı hatırlamıyorsan yönetimle iletişime geç; sana yeni bir
+    parola verilir.
+  </p>
+</div>
+{% endblock %}
