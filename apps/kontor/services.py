@@ -1066,16 +1066,45 @@ def operator_fiyatlari(paketler):
     }
 
 
-def tavsiyeyi_operatorden_al(paketler):
-    """Seçili paketlerin tavsiye fiyatını operatör sorgusunda görülen fiyattan yazar.
+TABAN_OPERATOR = "operator"
+TABAN_ALIS = "alis"
+ISLEM_AYNEN = "aynen"
+ISLEM_YUZDE = "yuzde"
+ISLEM_TUTAR = "tutar"
 
-    Operatörde hiç görülmemiş paket atlanır. Dönüş: (güncellenen, atlanan).
+
+def tabandan_hesapla(taban, islem, deger):
+    """Taban + % / + ₺ / aynen; kuruşa yuvarlanır. Eksi çıkarsa `None`."""
+    from decimal import ROUND_HALF_UP, Decimal
+
+    deger = Decimal(deger or 0)
+    if islem == ISLEM_YUZDE:
+        sonuc = taban * (1 + deger / 100)
+    elif islem == ISLEM_TUTAR:
+        sonuc = taban + deger
+    else:
+        sonuc = taban
+    sonuc = sonuc.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return sonuc if sonuc >= 0 else None
+
+
+def tavsiyeyi_hesapla(paketler, *, taban=TABAN_OPERATOR, islem=ISLEM_AYNEN, deger=0):
+    """Seçili paketlerin tavsiye satışını operatör fiyatından ya da alıştan hesaplayıp yazar.
+
+    Fiyat grubu sayfasındaki hesap aracının aynısı; farkı sonucun doğrudan
+    kaydedilmesi. Operatör fiyatı numara sorgusunda görülen fiyattır
+    (`operator_fiyatlari`), alış sıradaki ilk açık sağlayıcınınki. Tabanı
+    olmayan paket atlanır, tavsiyesine dokunulmaz. Dönüş: (güncellenen, atlanan).
     """
     paketler = list(paketler)
-    fiyatlar = operator_fiyatlari(paketler)
+    if taban == TABAN_OPERATOR:
+        tabanlar = operator_fiyatlari(paketler)
+    else:
+        tabanlar = {p.pk: p.ilk_alis() for p in paketler}
     guncellenen = atlanan = 0
     for paket in paketler:
-        fiyat = fiyatlar.get(paket.pk)
+        tutar = tabanlar.get(paket.pk)
+        fiyat = tabandan_hesapla(tutar, islem, deger) if tutar is not None else None
         if fiyat is None:
             atlanan += 1
             continue
@@ -1084,6 +1113,8 @@ def tavsiyeyi_operatorden_al(paketler):
             paket.save(update_fields=["tavsiye_fiyati", "guncelleme_tarihi"])
         guncellenen += 1
     return guncellenen, atlanan
+
+
 
 
 def acik_islemler():

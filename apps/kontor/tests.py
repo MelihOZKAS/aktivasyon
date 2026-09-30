@@ -1439,21 +1439,58 @@ class TavsiyeTestleri(Temel):
 
     def test_tavsiye_operatorden_alinir(self):
         from apps.kontor.models import GorulenPaket
-        from apps.kontor.services import gorulen_paketi_kataloga_ekle, tavsiyeyi_operatorden_al
+        from apps.kontor.services import gorulen_paketi_kataloga_ekle, tavsiyeyi_hesapla
 
         GorulenPaket.objects.create(
             kaynak="x", kod="100", kategori=self.kategori, fiyat=TL("359.90"), son_gorulme=timezone.now()
         )
         baska = Paket.objects.create(kategori=self.kategori, kod="200", ad="Görülmemiş")
-        self.assertEqual(tavsiyeyi_operatorden_al(Paket.objects.filter(pk__in=[self.paket.pk, baska.pk])), (1, 1))
+        secili = Paket.objects.filter(pk__in=[self.paket.pk, baska.pk])
+        self.assertEqual(tavsiyeyi_hesapla(secili), (1, 1))  # varsayılan: operatör fiyatı, aynen
         self.paket.refresh_from_db()
         self.assertEqual(self.paket.tavsiye_fiyati, TL("359.90"))
+        # Görülmemiş paketin tavsiyesine dokunulmaz.
+        baska.refresh_from_db()
+        self.assertIsNone(baska.tavsiye_fiyati)
+
+        tavsiyeyi_hesapla(secili, islem="yuzde", deger=TL("10"))
+        self.paket.refresh_from_db()
+        self.assertEqual(self.paket.tavsiye_fiyati, TL("395.89"))  # 359,90 × 1,10 = 395,89
+        tavsiyeyi_hesapla(secili, islem="tutar", deger=TL("-9.90"))
+        self.paket.refresh_from_db()
+        self.assertEqual(self.paket.tavsiye_fiyati, TL("350.00"))
+        # Alış tabanı: sıradaki ilk açık sağlayıcının alışı (100,00).
+        tavsiyeyi_hesapla(secili.prefetch_related("rotalar__saglayici"), taban="alis", islem="yuzde", deger=TL("25"))
+        self.paket.refresh_from_db()
+        self.assertEqual(self.paket.tavsiye_fiyati, TL("125.00"))
 
         yeni = GorulenPaket.objects.create(
             kaynak="x", kod="300", kategori=self.kategori, ad="Yeni", fiyat=TL("99.90"), son_gorulme=timezone.now()
         )
         paket, _ = gorulen_paketi_kataloga_ekle(yeni)
         self.assertEqual(paket.tavsiye_fiyati, TL("99.90"))
+
+    def test_paket_listesinde_tavsiye_hesaplanir(self):
+        from apps.kontor.models import GorulenPaket
+
+        GorulenPaket.objects.create(
+            kaynak="x", kod=self.paket.kod, kategori=self.kategori, fiyat=TL("200.00"), son_gorulme=timezone.now()
+        )
+        yonetici = User.objects.create_superuser("yonetici", password="x")
+        self.client.force_login(yonetici)
+        adres = reverse("admin:kontor_paket_changelist")
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "Operatör fiyatı")
+        self.assertContains(yanit, "200.00")
+        secim = {"action": "tavsiyeyi_hesapla", "_selected_action": [self.paket.pk]}
+        # Önce ara form; % seçip rakam yazılmazsa kaydedilmez.
+        self.assertContains(self.client.post(adres, secim), "Tavsiye satışı hesapla")
+        yanit = self.client.post(adres, {**secim, "uygula": "1", "taban": "operator", "islem": "yuzde", "deger": ""})
+        self.assertContains(yanit, "Yüzdeyi ya da tutarı yazın")
+        self.client.post(adres, {**secim, "uygula": "1", "taban": "operator", "islem": "yuzde", "deger": "7,5"})
+        self.paket.refresh_from_db()
+        self.assertEqual(self.paket.tavsiye_fiyati, TL("215.00"))
+
 
 
 class OyunBolumuTestleri(Temel):

@@ -16,7 +16,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import models, transaction
 from django.db.models import Count, Exists, OuterRef, Q, Subquery
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import redirect, render
@@ -57,8 +57,13 @@ from apps.kontor.services import (
     fiyat_listesini_cek,
     grup_fiyati,
     gorulen_paketi_kataloga_ekle,
+    ISLEM_AYNEN,
+    ISLEM_TUTAR,
+    ISLEM_YUZDE,
+    TABAN_ALIS,
+    TABAN_OPERATOR,
     operator_fiyatlari,
-    tavsiyeyi_operatorden_al,
+    tavsiyeyi_hesapla,
     iptal_et,
     sonucu_sorgula,
     yuklendi_say,
@@ -789,6 +794,35 @@ class SaglayiciyaEkleFormu(forms.Form):
     )
 
 
+class TavsiyeHesapFormu(forms.Form):
+    """Fiyat grubu sayfasındaki hesap aracının tavsiye satış için olanı."""
+
+    taban = forms.ChoiceField(
+        label="Neyin üstüne",
+        choices=((TABAN_OPERATOR, "Operatör fiyatı (numara sorgusunda görülen)"), (TABAN_ALIS, "Alış (sıradaki ilk sağlayıcı)")),
+        widget=UnfoldAdminSelectWidget,
+    )
+    islem = forms.ChoiceField(
+        label="Hesap",
+        choices=((ISLEM_AYNEN, "Aynen"), (ISLEM_YUZDE, "+ %"), (ISLEM_TUTAR, "+ ₺")),
+        widget=UnfoldAdminSelectWidget,
+    )
+    deger = forms.DecimalField(
+        label="Yüzde ya da tutar (eksi yazılırsa altına iner; “Aynen”de boş kalır)",
+        required=False,
+        max_digits=10,
+        decimal_places=2,
+        localize=True,
+        widget=UnfoldAdminTextInputWidget(attrs={"inputmode": "decimal", "placeholder": "örn. 5"}),
+    )
+
+    def clean(self):
+        veri = super().clean()
+        if veri.get("islem") in (ISLEM_YUZDE, ISLEM_TUTAR) and veri.get("deger") is None:
+            self.add_error("deger", "Yüzdeyi ya da tutarı yazın.")
+        return veri
+
+
 # Paket listesinde her satır bütün grupları çizer; gruplar istek başına bir
 # kez okunur (ModelAdmin tek nesnedir, iş parçacıkları arasında paylaşılır).
 _GRUPLAR = ContextVar("kontor_fiyat_gruplari", default=None)
@@ -810,6 +844,7 @@ class PaketAdmin(ModelAdmin):
         "icerik_gosterimi",
         "alis_gosterimi",
         "grup_fiyatlari",
+        "operator_fiyati_gosterimi",
         "tavsiye_fiyati",
         "rota_gosterimi",
         "aktif",
@@ -822,7 +857,7 @@ class PaketAdmin(ModelAdmin):
     # grubun sayfasında da girildiği için yönetici "bu ne işe yarıyor?" dedi.
     # Bayinin fiyatı tek yerden girilir: grubun sayfası. Burada yalnızca okunur.
     inlines = (RotaInline,)
-    actions = ("saglayiciya_ekle", "tavsiyeyi_operatorden_al")
+    actions = ("saglayiciya_ekle", "tavsiyeyi_hesapla")
     readonly_fields = ("grup_fiyatlari", "satis_durumu", "alternatif_listesi")
 
     def get_fieldsets(self, request, obj=None):
@@ -858,11 +893,23 @@ class PaketAdmin(ModelAdmin):
         )
 
     def get_queryset(self, request):
+        # Operatör fiyatı: `services.operator_fiyatlari` ile aynı eşleşme
+        # (kategori + kod, en son görülen), listede satır başına sorgu atmasın.
+        operator_fiyati = (
+            GorulenPaket.objects.filter(kategori_id=OuterRef("kategori_id"), kod=OuterRef("kod"), fiyat__isnull=False)
+            .order_by("-son_gorulme")
+            .values("fiyat")[:1]
+        )
         return (
             super()
             .get_queryset(request)
             .select_related("kategori")
             .prefetch_related("rotalar__saglayici", "grup_fiyatlari")
+            .annotate(
+                _operator_fiyati=Subquery(
+                    operator_fiyati, output_field=models.DecimalField(max_digits=12, decimal_places=2)
+                )
+            )
         )
 
     def changelist_view(self, request, extra_context=None):
@@ -1051,17 +1098,44 @@ class PaketAdmin(ModelAdmin):
             "saglayiciya_ekle",
         )
 
-    @admin.action(description="Tavsiye fiyatını operatörün fiyatından al")
-    def tavsiyeyi_operatorden_al(self, request, queryset):
-        """Numara sorgusunda görülen operatör fiyatını tavsiye olarak yazar."""
-        guncellenen, atlanan = tavsiyeyi_operatorden_al(queryset)
-        mesaj = f"{guncellenen} paketin tavsiye fiyatı operatörün fiyatından yazıldı."
-        if atlanan:
-            mesaj += (
-                f" {atlanan} paket operatör sorgusunda hiç görülmedi; onların tavsiyesini "
-                "elle girin."
+    @display(description="Operatör fiyatı", ordering="_operator_fiyati")
+    def operator_fiyati_gosterimi(self, obj):
+        """Numara sorgusunda görülen fiyat; tavsiye çoğu zaman bunun üstüne kurulur."""
+        if obj._operator_fiyati is None:
+            return format_html('<span style="color:#6F7B8F">—</span>')
+        return f"{obj._operator_fiyati:.2f}"
+
+    @admin.action(description="Tavsiye satışı hesapla (operatör fiyatı / alış + %% / ₺)")
+    def tavsiyeyi_hesapla(self, request, queryset):
+        """Tavsiye satışı operatör fiyatından ya da alıştan hesaplayıp yazar.
+
+        Fiyat grubu sayfasındaki hesap aracının aynısı; burada sonuç ara
+        formdan sonra doğrudan kaydedilir. Tabanı olmayan pakete dokunulmaz.
+        """
+        form = TavsiyeHesapFormu(request.POST if "uygula" in request.POST else None)
+        if "uygula" in request.POST and form.is_valid():
+            veri = form.cleaned_data
+            guncellenen, atlanan = tavsiyeyi_hesapla(
+                queryset.prefetch_related("rotalar__saglayici"),
+                taban=veri["taban"],
+                islem=veri["islem"],
+                deger=veri["deger"] or 0,
             )
-        self.message_user(request, mesaj, messages.SUCCESS if not atlanan else messages.WARNING)
+            mesaj = f"{guncellenen} paketin tavsiye satışı hesaplanıp yazıldı."
+            if atlanan:
+                eksik = "operatör sorgusunda hiç görülmedi" if veri["taban"] == TABAN_OPERATOR else "alışı yok"
+                mesaj += f" {atlanan} paket atlandı ({eksik}); onların tavsiyesi olduğu gibi kaldı."
+            self.message_user(request, mesaj, messages.SUCCESS if not atlanan else messages.WARNING)
+            return None
+        return self._ara_form(
+            request,
+            queryset,
+            form,
+            "Tavsiye satışı hesapla",
+            "Seçili paketlerin Tavsiye Satış'ı operatörün fiyatından ya da alıştan hesaplanıp kaydedilir. "
+            "Operatör fiyatı numara sorgusunda görülen fiyattır; hiç görülmemiş paket atlanır.",
+            "tavsiyeyi_hesapla",
+        )
 
 
 # -- İşlem ----------------------------------------------------------------

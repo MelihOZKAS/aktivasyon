@@ -483,8 +483,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dönülünce düğme açılır ama anahtar aynıdır. Bayi programında aynı
   `tekilnumara` aynı işlemi döndürür.
   · **Vitrin fiyatı müşteriye dönüktür** (`Paket.tavsiye_fiyati`, çoğu zaman
-  operatörün liste fiyatı; Kataloğa ekle ve "operatörün fiyatından al"
-  işlemi sorgudan doldurur). Doluysa bayi ekranında büyük rakam budur;
+  operatörün liste fiyatı; Kataloğa ekle sorgudan doldurur, paket
+  listesindeki **Tavsiye satışı hesapla** toplu işlemi operatör fiyatından
+  ya da alıştan aynen / + % / + ₺ hesaplayıp yazar — `services.tavsiyeyi_hesapla`,
+  fiyat grubu sayfasındaki hesap aracıyla aynı taban. Listede Operatör fiyatı
+  sütunu tabanı gösterir). Doluysa bayi ekranında büyük rakam budur;
   bayinin alışı ve kazancı göz düğmesiyle açılır (`parca_fiyat.html`,
   `parca_goz.html`, tercih `sessionStorage`'da) — eSIM'deki kuralın aynısı.
   Tavsiye grup başına değil paket başına tek rakamdır: müşterinin ödediği
