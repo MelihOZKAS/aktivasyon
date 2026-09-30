@@ -231,6 +231,17 @@ class Kategori(ZamanDamgali):
             "durdurmaz: cevap gelmezse paketler yine seçilebilir."
         ),
     )
+    gonderim_oncesi_sorgu = models.BooleanField(
+        "Göndermeden önce paket sorgusu",
+        default=False,
+        help_text=(
+            "Açıksa bayi paket aldığında işlem sağlayıcıya gitmeden önce numara sorgulanır: "
+            "sorguda aynı içeriği ya da fazlasını daha ucuza veren paket varsa önce o "
+            "gönderilir (ucuzdan pahalıya); yüklenirse işlem başarılı kapanır, başka paket "
+            "gönderilmez. Numara ne paketi ne alternatifini alabiliyorsa sağlayıcıya "
+            "gidilmez, tutar iade edilir. Numara Sorgusu seçili olmalı."
+        ),
+    )
     sorgu_sahibi_goster = models.BooleanField(
         "Hat Sahibini Göster",
         default=True,
@@ -266,6 +277,16 @@ class Kategori(ZamanDamgali):
         self.api_operator = self.api_operator.strip().lower()
         self.api_tip = self.api_tip.strip().lower()
         super().save(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        if self.gonderim_oncesi_sorgu and not self.sorgu_kaynagi:
+            raise ValidationError(
+                {
+                    "gonderim_oncesi_sorgu": "Önce Numara Sorgusu'nu seçin: sorgu kaynağı olmadan "
+                    "göndermeden önce sorgulanacak bir yer yok."
+                }
+            )
 
     def validate_constraints(self, exclude=None):
         # Ham kısıt adı yöneticiye bir şey anlatmıyor; çakışanı adıyla söyle.

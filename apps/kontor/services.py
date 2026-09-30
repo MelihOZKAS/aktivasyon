@@ -585,8 +585,9 @@ PAKET_YOK_MESAJI = (
 def _plani_cikar(islem):
     """Sırayla denenecek paketler: numaranın alabildiği ucuz alternatifler, sonra ana paket.
 
-    Kategoride sorgu yoksa, paket "alternatif yapılmasın"sa ya da sorgu hata
-    verirse plan yalnızca ana pakettir — sorgu satışı durdurmaz. Sorgu
+    Kategoride "göndermeden önce paket sorgusu" kapalıysa, sorgu kaynağı
+    yoksa, paket "alternatif yapılmasın"sa ya da sorgu hata verirse plan
+    yalnızca ana pakettir — sorgu satışı durdurmaz. Sorgu
     başarılı ama ana paket de hiçbir alternatif de listede yoksa plan boştur:
     işlem sağlayıcıya hiç gitmeden iptal edilir (eski sistemde de öyleydi;
     boşuna gönderim ve ret beklemesi olmaz).
@@ -597,7 +598,12 @@ def _plani_cikar(islem):
     if paket is None:
         return []
     kategori = paket.kategori
-    if not kategori.sorgu_kaynagi or not islem.hedef or paket.alternatif_yapilmasin:
+    if (
+        not kategori.gonderim_oncesi_sorgu
+        or not kategori.sorgu_kaynagi
+        or not islem.hedef
+        or paket.alternatif_yapilmasin
+    ):
         return [paket.pk]
     try:
         kayit = _kaynaga_sor(kategori, islem.hedef)

@@ -401,13 +401,23 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   aktifliğidir; bağlı olmayan pakete kod yazılınca rota sıranın sonuna açılır.
   Operatör seçilmeden liste gelmez, sayfa başı 50. Paket sayfasındaki sıra
   tablosunda bu iki alan yalnızca görünür, ayrı "Sağlayıcı Alışları"
-  listesi kaldırıldı — aynı rakam iki yerden girilmesin.
+  listesi kaldırıldı — aynı rakam iki yerden girilmesin. Çekilen fiyat
+  listesinin kendi ekranı ("Sağlayıcı Fiyatları") da kaldırıldı: hiçbir
+  yere bağlı değildi, alışlar çekimde doğrudan rotaya yazılır.
   · **Ucuz alternatif** (`Paket.alternatifleri`): bayi X'i aldığında numara
   X'in dakikası, GB'si ve günü en az kadar olan ve bize daha ucuza gelen
   bir paketi alabiliyorsa o gönderilir. **Referans yalnızca dakika, GB,
   gün** (yönetimin kararı; SMS'e bakılmaz). Liste saklanmaz, alıştan
   hesaplanır — eski sistemde elle "yap"ılıyor ve bayatlıyordu; pakette
-  "Alternatif yapılmasın" anahtarı var. İlk gönderimde plan çıkar
+  "Alternatif yapılmasın" anahtarı var. Plan yalnızca kategoride
+  **"Göndermeden önce paket sorgusu"** (`Kategori.gonderim_oncesi_sorgu`,
+  Kategoriler listesinde satırdan açılır) açıksa çıkar; kapalıysa sorguya
+  gidilmez, ana paket gönderilir. Numara Sorgusu seçilmeden açılamaz.
+  Önce sorgu kaynağı seçili her kategoride kendiliğinden yapılıyordu,
+  yönetici bunu göremiyordu; `0017` o kategorilerde açık getirdi.
+  Alternatiflerin listesi **paket sayfasındaki "Alternatif" bölümünde**
+  görünür — saklanmadığı için "güncelle" düğmesi yoktur, yeni paket ya da
+  alış değişince kendiliğinden yenidir. İlk gönderimde plan çıkar
   (`services._plani_cikar`, `Islem.plan`): numara sorgusu (bayinin
   sorgusuyla aynı önbellek) → sorguda olan alternatifler ucuzdan pahalıya →
   sorguda varsa ana paket. Bir sonrakine yalnızca kesin retle geçilir.

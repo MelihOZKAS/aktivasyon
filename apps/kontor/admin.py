@@ -47,7 +47,6 @@ from apps.kontor.models import (
     PaketFiyati,
     Rota,
     Saglayici,
-    SaglayiciPaketi,
 )
 from apps.kontor.saglayicilar import SaglayiciHatasi
 from apps.kontor.services import (
@@ -380,20 +379,9 @@ class SaglayiciAdmin(ModelAdmin):
         return redirect("admin:kontor_saglayici_changelist")
 
 
-@admin.register(SaglayiciPaketi)
-class SaglayiciPaketiAdmin(ModelAdmin):
-    """Sağlayıcının çekilen fiyat listesi: yalnızca okunur, eşleştirme için bakılır."""
-
-    list_display = ("saglayici", "kod", "ad", "operator", "tip", "fiyat", "cekilme")
-    list_filter = ("saglayici", "operator")
-    search_fields = ("kod", "ad")
-    list_per_page = 50
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
+# Sağlayıcının çekilen fiyat listesi (`SaglayiciPaketi`) yönetimde listelenmez:
+# hiçbir yere bağlı değildi, rota alışları çekim sırasında doğrudan güncellenir.
+# Yönetici "bunu göstermeye gerek yok" dedi.
 
 
 # -- Görülen paketler -------------------------------------------------------
@@ -538,16 +526,19 @@ class GorulenPaketAdmin(ModelAdmin):
 
 @admin.register(Kategori)
 class KategoriAdmin(ModelAdmin):
-    list_display = ("ad", "oyun", "operator", "hedef", "api_kodu", "paket_sayisi", "sira", "aktif")
-    list_editable = ("sira", "aktif")
-    list_filter = ("oyun", "aktif", "operator", "hedef")
+    list_display = (
+        "ad", "oyun", "operator", "hedef", "api_kodu", "paket_sayisi", "gonderim_oncesi_sorgu", "sira", "aktif",
+    )
+    # Göndermeden önce sorgu satırdan açılıp kapanır; her kategoride formu açmak gerekmesin.
+    list_editable = ("gonderim_oncesi_sorgu", "sira", "aktif")
+    list_filter = ("oyun", "aktif", "gonderim_oncesi_sorgu", "operator", "hedef")
     search_fields = ("ad", "api_operator", "api_tip")
     fieldsets = (
         (None, {"fields": ("ad", "slug", "oyun", "operator", "gorsel", "aciklama", "sira", "aktif")}),
         (
             "Yükleme",
             {
-                "fields": ("hedef", "hedef_etiketi", "sorgu_kaynagi", "sorgu_sahibi_goster"),
+                "fields": ("hedef", "hedef_etiketi", "sorgu_kaynagi", "gonderim_oncesi_sorgu", "sorgu_sahibi_goster"),
                 "description": "Bayinin formda ne yazacağı: telefon numarası, oyuncu ID ya da hiçbir şey (pin).",
             },
         ),

@@ -397,11 +397,6 @@ UNFOLD = {
                     },
                     {"title": "Kategoriler", "icon": "category", "link": "/yonetim/kontor/kategori/"},
                     {"title": "Sağlayıcılar", "icon": "hub", "link": "/yonetim/kontor/saglayici/"},
-                    {
-                        "title": "Sağlayıcı Fiyatları",
-                        "icon": "receipt_long",
-                        "link": "/yonetim/kontor/saglayicipaketi/",
-                    },
                     {"title": "Bayi API Erişimleri", "icon": "key", "link": "/yonetim/kontor/apierisimi/"},
                 ],
             },

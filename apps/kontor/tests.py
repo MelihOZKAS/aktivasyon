@@ -839,7 +839,7 @@ class YonetimTestleri(Temel):
 
     def test_listeler_acilir(self):
         self.yukle()
-        for ad in ("islem", "paket", "kategori", "saglayici", "saglayicipaketi", "apierisimi", "fiyatgrubu"):
+        for ad in ("islem", "paket", "kategori", "saglayici", "apierisimi", "fiyatgrubu"):
             yanit = self.client.get(reverse(f"admin:kontor_{ad}_changelist"))
             self.assertEqual(yanit.status_code, 200, ad)
         islem = Islem.objects.get()
@@ -1329,6 +1329,7 @@ class AlternatifTestleri(Temel):
         caches["kontor_sorgu"].clear()
         ALT_SORGU.update(kodlar=[], hata=False, cagri=0)
         self.kategori.sorgu_kaynagi = "alt-sorgu"
+        self.kategori.gonderim_oncesi_sorgu = True
         self.kategori.sorgu_sahibi_goster = False
         self.kategori.save()
         # Ana paket: 1000 DK · 15 GB · 30 gün, alış 100 (Bir) / 102 (İki), satış 110.
@@ -1347,6 +1348,22 @@ class AlternatifTestleri(Temel):
 
     def giden_kodlar(self):
         return [g[2] for g in DURUM["Bir"]["gonderilen"]] + [g[2] for g in DURUM["İki"]["gonderilen"]]
+
+    def test_gonderim_oncesi_sorgu_kapaliysa_sorulmaz_ana_paket_gider(self):
+        self.kategori.gonderim_oncesi_sorgu = False
+        self.kategori.save()
+        ALT_SORGU["kodlar"] = ["500", "200"]  # ucuz alternatifler numarada var
+        self.yukle()
+        self.assertEqual(ALT_SORGU["cagri"], 0)
+        self.assertEqual(self.giden_kodlar(), ["100"])
+
+    def test_gonderim_oncesi_sorgu_kaynaksiz_acilamaz(self):
+        from django.core.exceptions import ValidationError
+
+        self.kategori.sorgu_kaynagi = ""
+        with self.assertRaises(ValidationError) as hata:
+            self.kategori.full_clean()
+        self.assertIn("gonderim_oncesi_sorgu", hata.exception.message_dict)
 
     def test_alternatifler_ucuzdan_pahaliya(self):
         self.assertEqual(self.paket.alternatifleri(), [self.en_ucuz, self.ucuz])
