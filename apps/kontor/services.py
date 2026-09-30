@@ -43,6 +43,7 @@ from apps.finans.services import (
 )
 from apps.kontor.models import (
     ACIK_DURUMLAR,
+    BayiRotasi,
     Deneme,
     DenemeDurumu,
     FiyatGrubu,
@@ -693,18 +694,53 @@ def _saglayici_sorunu_metni(denemeler):
     return "Gönderilemedi — " + " · ".join(parcalar)
 
 
+def _plan_rotalari(islem, plan):
+    """{paket_id: [Rota]} — bayiye özel sıra varsa o, yoksa paketlerin genel sırası.
+
+    Bayiye özel sırada (`BayiRotasi`) paketin o sağlayıcıdaki `Rota`sı kod ve
+    alış için kullanılır (genel sırada kapalı olsa da: bayinin sırası
+    yönetimin açık kararıdır); paket o sağlayıcıya hiç bağlı değilse
+    kaydedilmemiş bir `Rota` kurulur, paketin kendi kodu gider.
+    """
+    ozel = list(
+        BayiRotasi.objects.filter(
+            bayi_id=islem.bayi_id, kategori_id=islem.kategori_id, aktif=True, saglayici__aktif=True
+        )
+        .select_related("saglayici")
+        .order_by("sira", "pk")
+    )
+    rotalar = {}
+    if not ozel:
+        for rota in (
+            Rota.objects.filter(paket_id__in=plan, aktif=True, saglayici__aktif=True)
+            .select_related("saglayici", "paket", "paket__kategori")
+        ):
+            rotalar.setdefault(rota.paket_id, []).append(rota)
+        return rotalar
+    paketler = Paket.objects.select_related("kategori").in_bulk(plan)
+    mevcut = {
+        (r.paket_id, r.saglayici_id): r
+        for r in Rota.objects.filter(paket_id__in=plan, saglayici_id__in=[o.saglayici_id for o in ozel])
+        .select_related("saglayici", "paket", "paket__kategori")
+    }
+    for paket_id in plan:
+        paket = paketler.get(paket_id)
+        if paket is None:
+            continue
+        rotalar[paket_id] = [
+            mevcut.get((paket_id, o.saglayici_id)) or Rota(paket=paket, saglayici=o.saglayici, sira=o.sira)
+            for o in ozel
+        ]
+    return rotalar
+
+
 def _kalan_rotalar(islem):
     """Planın sırasıyla, henüz denenmemiş (paket, sağlayıcı) çiftleri."""
     plan = islem.plan if islem.plan is not None else ([islem.paket_id] if islem.paket_id else [])
     if not plan:
         return []
     denenen = set(islem.denemeler.values_list("paket_id", "saglayici_id"))
-    rotalar = {}
-    for rota in (
-        Rota.objects.filter(paket_id__in=plan, aktif=True, saglayici__aktif=True)
-        .select_related("saglayici", "paket", "paket__kategori")
-    ):
-        rotalar.setdefault(rota.paket_id, []).append(rota)
+    rotalar = _plan_rotalari(islem, plan)
     kalan = []
     for paket_id in plan:
         for rota in rotalar.get(paket_id, []):

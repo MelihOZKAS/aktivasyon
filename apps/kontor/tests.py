@@ -1314,6 +1314,67 @@ class VodafoneSorguTestleri(TestCase):
 
 
 
+
+class BayiRotasiTestleri(Temel):
+    """Bayinin kategorisine özel sağlayıcı: genel sıra yerine bu sıra."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.kontor.models import BayiRotasi
+
+        self.BayiRotasi = BayiRotasi
+        self.uc = Saglayici.objects.create(ad="Üç", tur="sahte", adres="uc.test", kullanici_adi="u", sifre="s")
+        _ayar("Üç")
+
+    def giden(self, ad):
+        return [g[2] for g in DURUM[ad]["gonderilen"]]
+
+    def test_ozel_saglayiciya_rotadaki_kodla_gider(self):
+        self.BayiRotasi.objects.create(bayi=self.bayi, kategori=self.kategori, saglayici=self.iki)
+        islem = self.yukle()
+        self.assertEqual(islem.saglayici, self.iki)
+        self.assertEqual(self.giden("İki"), ["V100"])  # paketin İki'deki karşı site kodu
+        self.assertEqual(self.giden("Bir"), [])  # genel sıranın ilki denenmez
+
+    def test_bagli_olmayan_saglayiciya_paketin_kodu_gider(self):
+        self.BayiRotasi.objects.create(bayi=self.bayi, kategori=self.kategori, saglayici=self.uc)
+        islem = self.yukle()
+        self.assertEqual(islem.saglayici, self.uc)
+        self.assertEqual(self.giden("Üç"), ["100"])
+
+    def test_sirayla_denenir_genel_siraya_gecilmez(self):
+        self.BayiRotasi.objects.create(bayi=self.bayi, kategori=self.kategori, saglayici=self.uc, sira=1)
+        self.BayiRotasi.objects.create(bayi=self.bayi, kategori=self.kategori, saglayici=self.iki, sira=2)
+        _ayar("Üç", gonderim="red")
+        _ayar("İki", gonderim="red")
+        islem = self.yukle()
+        self.assertEqual((self.giden("Üç"), self.giden("İki"), self.giden("Bir")), (["100"], ["V100"], []))
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)  # gönderilemedi: yönetim karar verir
+        # Karar ekranı bayinin sağlayıcılarını üstte sunar; Üç pakete bağlı değil, paketin kodu gider.
+        yonetici = User.objects.create_superuser("yonetici", password="x")
+        self.client.force_login(yonetici)
+        yanit = self.client.get(reverse("admin:kontor_islem_karar", args=[islem.pk])).content.decode()
+        self.assertIn("Bayiye özel · Üç", yanit)
+        self.assertLess(yanit.index("Bayiye özel · Üç"), yanit.index("Bayiye özel · İki"))
+
+    def test_baska_bayi_ve_pasif_satir_genel_sirayi_kullanir(self):
+        baska = User.objects.create_user("5329990000", password="x")
+        self.BayiRotasi.objects.create(bayi=baska, kategori=self.kategori, saglayici=self.uc)
+        self.BayiRotasi.objects.create(bayi=self.bayi, kategori=self.kategori, saglayici=self.iki, aktif=False)
+        islem = self.yukle()
+        self.assertEqual(islem.saglayici, self.bir)
+        self.assertEqual(self.giden("Üç"), [])
+
+    def test_ekranlar_acilir(self):
+        self.BayiRotasi.objects.create(bayi=self.bayi, kategori=self.kategori, saglayici=self.iki)
+        yonetici = User.objects.create_superuser("yonetici", password="x")
+        self.client.force_login(yonetici)
+        yanit = self.client.get(reverse("admin:auth_user_change", args=[self.bayi.pk]))
+        self.assertContains(yanit, "bayiye özel sağlayıcı")
+        self.assertEqual(self.client.get(reverse("admin:kontor_bayirotasi_changelist")).status_code, 200)
+
+
+
 @override_settings(CACHES=TEST_ONBELLEK)
 class ProxyTestleri(TestCase):
     """Numara sorgusu Genel Ayarlar'daki anahtarla rastgele proxy'den gider."""

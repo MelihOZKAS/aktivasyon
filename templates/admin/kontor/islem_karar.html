@@ -137,7 +137,7 @@
       <select name="saglayici" class="w-full rounded-default border border-base-200 px-3 py-2 dark:border-base-700 dark:bg-base-900">
         {% for s in saglayicilar %}
         <option value="{{ s.saglayici.pk }}" {% if s.denendi %}style="color:#D42046"{% endif %}>
-          {% if s.rota %}{{ s.rota.sira }}. {% endif %}{{ s.saglayici }}{% if s.denendi %} — bu işlem buraya daha önce gönderildi{% endif %}{% if s.rota %} · kod {{ s.rota.gidecek_kod }}{% if not s.rota.uzak_kod %} (karşı site kodu girilmemiş, bizim kod gider){% endif %}{% else %} · kod {{ islem.paket.kod|default:"—" }}{% endif %}{% if s.rota.alis_fiyati %} · alış {{ s.rota.alis_fiyati }}{% endif %}
+          {% if s.bayiye_ozel %}Bayiye özel · {% elif s.rota %}{{ s.rota.sira }}. {% endif %}{{ s.saglayici }}{% if s.denendi %} — bu işlem buraya daha önce gönderildi{% endif %}{% if s.rota %} · kod {{ s.rota.gidecek_kod }}{% if not s.rota.uzak_kod %} (karşı site kodu girilmemiş, bizim kod gider){% endif %}{% else %} · kod {{ islem.paket.kod|default:"—" }}{% endif %}{% if s.rota.alis_fiyati %} · alış {{ s.rota.alis_fiyati }}{% endif %}
         </option>
         {% endfor %}
       </select>

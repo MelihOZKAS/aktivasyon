@@ -8,7 +8,7 @@ from django.contrib.auth.admin import UserAdmin as TemelKullaniciAdmin
 from django.contrib.auth.models import Group, User
 from django.db.models import Q
 from django.utils.html import format_html, format_html_join
-from unfold.admin import ModelAdmin, StackedInline
+from unfold.admin import ModelAdmin, StackedInline, TabularInline
 from unfold.decorators import action as unfold_islem
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 from unfold.widgets import (
@@ -39,6 +39,7 @@ from apps.bayi.services import HesapAcilamadi, bayi_hesabi_ac
 from apps.bayi.telefon import normalize
 from apps.finans.models import Cuzdan
 from apps.katalog.models import BasvuruKategorisi, Operator
+from apps.kontor.models import BayiRotasi
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,25 @@ class CuzdanInline(StackedInline):
     readonly_fields = ("bakiye", "borc")
 
 
+class KontorBayiRotasiInline(TabularInline):
+    """Bu bayinin kategori kategori kontör sağlayıcısı (`kontor.BayiRotasi`).
+
+    Satır girilen kategoride bayinin işlemleri genel sağlayıcı sırasına değil
+    buradaki sağlayıcılara, sırayla gider. Boş bırakılan kategori genel sırayı
+    kullanır.
+    """
+
+    model = BayiRotasi
+    extra = 0
+    fields = ("kategori", "saglayici", "sira", "aktif")
+    verbose_name = "Kontör: bayiye özel sağlayıcı"
+    verbose_name_plural = (
+        "Kontör: bayiye özel sağlayıcı — satır girilen kategoride bu bayinin işlemleri yalnızca "
+        "buradaki sağlayıcılara, sırayla gider (genel sıra kullanılmaz; o da istenirse satır olarak "
+        "eklenir). Karşı site kodu paketin o sağlayıcıdaki satırından gelir."
+    )
+
+
 class KullaniciAdiKarisimi:
     """Kullanıcı adı telefon numarasıysa tek biçime indirir.
 
@@ -123,7 +143,7 @@ class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
     form = BayiKullaniciDuzenlemeFormu
     add_form = BayiKullaniciEklemeFormu
     change_password_form = AdminPasswordChangeForm
-    inlines = [BayiProfiliInline, CuzdanInline]
+    inlines = [BayiProfiliInline, CuzdanInline, KontorBayiRotasiInline]
     # Parola düğmesi hem listenin her satırında hem kullanıcı sayfasının
     # üstünde durur: bayi telefonla arayıp "giremiyorum" dediğinde yönetici
     # aramadan çıkmadan halletsin.

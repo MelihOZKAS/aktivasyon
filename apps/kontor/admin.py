@@ -36,6 +36,7 @@ from apps.bayi.etiket import kullanici_etiketi_html
 from apps.filtreler import GunAraligiFiltresi
 from apps.katalog.models import Operator
 from apps.kontor.models import (
+    BayiRotasi,
     ApiErisimi,
     Deneme,
     FiyatGrubu,
@@ -377,6 +378,36 @@ class SaglayiciAdmin(ModelAdmin):
                 messages.SUCCESS,
             )
         return redirect("admin:kontor_saglayici_changelist")
+
+
+@admin.register(BayiRotasi)
+class BayiRotasiAdmin(ModelAdmin):
+    """Bütün bayilerin özel sağlayıcı sıraları tek listede.
+
+    Günlük giriş bayinin kullanıcı sayfasındaki tablodandır; burası "hangi
+    bayinin Turkcell'i nereye gidiyor" sorusuna tek ekrandan bakmak için.
+    """
+
+    list_display = ("bayi_gosterimi", "kategori", "saglayici", "sira", "aktif")
+    list_editable = ("sira", "aktif")
+    list_filter = ("kategori", "saglayici", "aktif")
+    search_fields = ("bayi__username", "bayi__first_name", "bayi__last_name", "bayi__bayi_profili__unvan")
+    list_per_page = 50
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("bayi", "bayi__bayi_profili", "kategori", "saglayici")
+
+    @display(description="Bayi", ordering="bayi__username")
+    def bayi_gosterimi(self, obj):
+        return kullanici_etiketi_html(obj.bayi)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        alan = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == "bayi":
+            # Seçimin yanındaki sil düğmesi kullanıcının kendisini siler (CLAUDE.md).
+            for ad in ("can_add_related", "can_change_related", "can_delete_related", "can_view_related"):
+                setattr(alan.widget, ad, False)
+        return alan
 
 
 # Sağlayıcının çekilen fiyat listesi (`SaglayiciPaketi`) yönetimde listelenmez:
@@ -1402,6 +1433,27 @@ class IslemAdmin(ModelAdmin):
             for r in rotalar
             if r.saglayici.aktif and r.aktif
         ]
+        # Bayiye özel sağlayıcılar en üstte: işlem genel sıraya değil onlara gidiyordu.
+        ozel = list(
+            BayiRotasi.objects.filter(
+                bayi_id=islem.bayi_id, kategori_id=islem.kategori_id, aktif=True, saglayici__aktif=True
+            )
+            .select_related("saglayici")
+            .order_by("sira", "pk")
+        )
+        if ozel:
+            rota_bul = {r.saglayici_id: r for r in rotalar}
+            ustte = [
+                {
+                    "saglayici": o.saglayici,
+                    "denendi": o.saglayici_id in denenen,
+                    "rota": rota_bul.get(o.saglayici_id),
+                    "bayiye_ozel": True,
+                }
+                for o in ozel
+            ]
+            ozel_idler = {o.saglayici_id for o in ozel}
+            saglayicilar = ustte + [s for s in saglayicilar if s["saglayici"].pk not in ozel_idler]
         # Paket hiçbir açık sağlayıcıya bağlı değilse işlem buraya bu yüzden
         # düştü: bütün açık sağlayıcılar seçilebilir, paketin kendi kodu gider.
         baglisiz = not saglayicilar

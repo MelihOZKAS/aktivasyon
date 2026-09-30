@@ -404,6 +404,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   listesi kaldırıldı — aynı rakam iki yerden girilmesin. Çekilen fiyat
   listesinin kendi ekranı ("Sağlayıcı Fiyatları") da kaldırıldı: hiçbir
   yere bağlı değildi, alışlar çekimde doğrudan rotaya yazılır.
+  · **Bayiye özel sağlayıcı** (`BayiRotasi`: bayi + kategori + sağlayıcı +
+  sıra; bayinin kullanıcı sayfasındaki tablodan, toplu görünüm Kontör →
+  Bayiye Özel Sağlayıcı). Satırı olan bayinin o kategorideki işlemleri
+  paketlerin genel sırasına değil **yalnızca bu satırlara**, sırayla gider
+  (`services._plan_rotalari`); genel sağlayıcılara da geçilsin isteniyorsa
+  onlar da satır olarak eklenir — iki listeyi birleştirme kuralı yok,
+  bayinin sırası yazılandır. Karşı site kodu ve alış paketin o
+  sağlayıcıdaki `Rota`sından gelir (genel sırada kapalı olsa da); pakete
+  bağlı olmayan sağlayıcıya paketin kendi kodu gider. Ucuz alternatifler
+  ve bayi programı da bu sıraya uyar; karar ekranı bayinin sağlayıcılarını
+  en üstte sunar. Satırı olmayan bayi genel sırayı kullanır.
   · **Ucuz alternatif** (`Paket.alternatifleri`): bayi X'i aldığında numara
   X'in dakikası, GB'si ve günü en az kadar olan ve bize daha ucuza gelen
   bir paketi alabiliyorsa o gönderilir. **Referans yalnızca dakika, GB,

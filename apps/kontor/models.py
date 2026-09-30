@@ -636,6 +636,56 @@ class Rota(models.Model):
         return self.uzak_tip or self.paket.kategori.api_tip
 
 
+class BayiRotasi(models.Model):
+    """Bir bayinin bir kategorideki işlemlerinin gideceği sağlayıcılar.
+
+    Satır varsa o bayinin o kategorideki işlemleri paketlerin genel
+    sağlayıcı sırasına (`Rota`) değil **yalnızca buradaki sağlayıcılara**,
+    `sira` ile gider; biri kesin reddederse sıradaki denenir. Genel
+    sağlayıcılara da geçilsin isteniyorsa onlar da satır olarak eklenir —
+    bayinin sırası tam olarak yazılan olur, iki listenin nasıl birleşeceği
+    sorusu doğmaz. Satırı olmayan bayi genel sırayı kullanır.
+
+    Karşı site kodu ve alış paketin o sağlayıcıdaki `Rota`sından gelir;
+    paket o sağlayıcıya bağlı değilse paketin kendi kodu gider (karar
+    ekranındaki kuralın aynısı). Ucuz alternatifler de bu sıraya gider.
+    """
+
+    bayi = models.ForeignKey(
+        settings.AUTH_USER_MODEL, verbose_name="Bayi", related_name="kontor_rotalari", on_delete=models.CASCADE
+    )
+    kategori = models.ForeignKey(
+        Kategori, verbose_name="Kategori", related_name="bayi_rotalari", on_delete=models.CASCADE
+    )
+    saglayici = models.ForeignKey(
+        Saglayici, verbose_name="Sağlayıcı", related_name="bayi_rotalari", on_delete=models.PROTECT
+    )
+    sira = models.PositiveSmallIntegerField("Sıra", default=1)
+    aktif = models.BooleanField("Aktif", default=True)
+
+    class Meta:
+        verbose_name = "Bayiye Özel Sağlayıcı"
+        verbose_name_plural = "Bayiye Özel Sağlayıcılar"
+        ordering = ["bayi", "kategori", "sira", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["bayi", "kategori", "saglayici"], name="kontor_bayi_rotasi_tekil")
+        ]
+
+    def __str__(self):
+        return f"{self.kategori} → {self.saglayici}"
+
+    def validate_constraints(self, exclude=None):
+        # Ham kısıt adı yöneticiye bir şey anlatmıyor.
+        if (
+            self.bayi_id and self.kategori_id and self.saglayici_id
+            and BayiRotasi.objects.filter(bayi_id=self.bayi_id, kategori_id=self.kategori_id, saglayici_id=self.saglayici_id)
+            .exclude(pk=self.pk)
+            .exists()
+        ):
+            raise ValidationError({"saglayici": "Bu kategoride bu sağlayıcı bu bayi için zaten ekli."})
+        super().validate_constraints(exclude=exclude)
+
+
 class PaketFiyati(models.Model):
     """Bu gruptaki bayinin bu paket için ödeyeceği net fiyat."""
 

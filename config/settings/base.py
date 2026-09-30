@@ -397,6 +397,11 @@ UNFOLD = {
                     },
                     {"title": "Kategoriler", "icon": "category", "link": "/yonetim/kontor/kategori/"},
                     {"title": "Sağlayıcılar", "icon": "hub", "link": "/yonetim/kontor/saglayici/"},
+                    {
+                        "title": "Bayiye Özel Sağlayıcı",
+                        "icon": "alt_route",
+                        "link": "/yonetim/kontor/bayirotasi/",
+                    },
                     {"title": "Bayi API Erişimleri", "icon": "key", "link": "/yonetim/kontor/apierisimi/"},
                 ],
             },
