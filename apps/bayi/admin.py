@@ -13,6 +13,7 @@ from unfold.decorators import action as unfold_islem
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 from unfold.widgets import (
     UnfoldAdminCheckboxSelectMultipleWidget,
+    UnfoldAdminPasswordToggleWidget,
     UnfoldAdminSelectWidget,
     UnfoldAdminTextareaWidget,
     UnfoldAdminTextInputWidget,
@@ -880,7 +881,24 @@ class GenelAyarlarAdmin(ModelAdmin):
                 ),
             },
         ),
+        (
+            "Numara sorgusu",
+            {
+                "fields": ("proxy_api_anahtari",),
+                "description": (
+                    "Operatörün numara sorgusu her istekte farklı bir IP adresinden gitsin diye "
+                    "proxy listesinden rastgele biri seçilir. Liste 12 saatte bir yenilenir; "
+                    "proxy'ler bağlanmazsa daha erken."
+                ),
+            },
+        ),
     )
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        # Anahtar ekranda açık yazmasın; göz düğmesiyle görülür, kayıtta korunur.
+        if db_field.name == "proxy_api_anahtari":
+            kwargs["widget"] = UnfoldAdminPasswordToggleWidget(render_value=True)
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
 
     def has_add_permission(self, request):
         return False

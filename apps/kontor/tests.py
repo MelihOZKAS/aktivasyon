@@ -8,6 +8,7 @@ koştuğu için atomik denetimi de kapalıdır.
 """
 
 from datetime import timedelta
+import json
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -1311,6 +1312,114 @@ class VodafoneSorguTestleri(TestCase):
             with self.assertRaisesMessage(SorguHatasi, "ulaşılamadı"):
                 kaynak_getir("vodafone").fonksiyon("5321234567")
 
+
+
+@override_settings(CACHES=TEST_ONBELLEK)
+class ProxyTestleri(TestCase):
+    """Numara sorgusu Genel Ayarlar'daki anahtarla rastgele proxy'den gider."""
+
+    LISTE = {
+        "next": None,
+        "results": [
+            {"username": "u1", "password": "p1", "proxy_address": "1.1.1.1", "port": 6001, "valid": True},
+            {"username": "u2", "password": "p2", "proxy_address": "2.2.2.2", "port": 6002, "valid": True},
+            {"username": "u3", "password": "p3", "proxy_address": "3.3.3.3", "port": 6003, "valid": False},
+        ],
+    }
+
+    def setUp(self):
+        from django.core.cache import caches
+
+        from apps.bayi.models import GenelAyarlar
+
+        caches["kontor_sorgu"].clear()
+        ayar = GenelAyarlar.getir()
+        ayar.proxy_api_anahtari = "gizli-anahtar"
+        ayar.save()
+
+    def _yanit(self, veri):
+        from unittest import mock
+
+        yanit = mock.MagicMock()
+        yanit.__enter__.return_value.read.return_value = json.dumps(veri).encode()
+        return yanit
+
+    def test_anahtar_yoksa_proxy_yok(self):
+        from apps.bayi.models import GenelAyarlar
+        from apps.kontor.sorgu.proxy import rastgele_proxy
+
+        GenelAyarlar.objects.update(proxy_api_anahtari="")
+        self.assertIsNone(rastgele_proxy())
+
+    def test_liste_bir_kez_cekilir_gecersiz_atlanir(self):
+        from unittest import mock
+
+        from apps.kontor.sorgu.proxy import rastgele_proxy
+
+        with mock.patch("urllib.request.urlopen", return_value=self._yanit(self.LISTE)) as urlopen:
+            secilenler = {rastgele_proxy() for _ in range(30)}
+        self.assertEqual(urlopen.call_count, 1)  # sonrası önbellekten
+        self.assertEqual(urlopen.call_args[0][0].get_header("Authorization"), "Token gizli-anahtar")
+        self.assertEqual(secilenler, {"http://u1:p1@1.1.1.1:6001", "http://u2:p2@2.2.2.2:6002"})
+
+    def test_sorgu_proxyden_gider_baglanmazsa_baskasi_denenir(self):
+        from unittest import mock
+
+        import requests
+
+        from apps.kontor.sorgu import kaynak_getir
+
+        with mock.patch("urllib.request.urlopen", return_value=self._yanit(self.LISTE)), \
+                mock.patch("apps.kontor.sorgu.vodafone_istemci.VodafoneSorgu") as sinif:
+            ilk, ikinci = mock.MagicMock(), mock.MagicMock()
+            sinif.side_effect = [ilk, ikinci]
+            ilk.get_public_token.side_effect = requests.exceptions.ProxyError("kapalı")
+            ikinci.get_public_token.return_value = {"publicToken": "T"}
+            ikinci.get_kolay_packs.return_value = VodafoneSorguTestleri.CEVAP
+            sonuc = kaynak_getir("vodafone").fonksiyon("5321234567")
+        self.assertEqual([p.kod for p in sonuc.paketler], ["17776"])
+        self.assertNotEqual(ilk.session.proxies["https"], ikinci.session.proxies["https"])
+
+    def test_hic_baglanamazsa_notr_mesaj_ve_liste_yenilenir(self):
+        from unittest import mock
+
+        import requests
+
+        from apps.kontor.sorgu import kaynak_getir
+
+        with mock.patch("urllib.request.urlopen", return_value=self._yanit(self.LISTE)) as urlopen, \
+                mock.patch("apps.kontor.sorgu.vodafone_istemci.VodafoneSorgu") as sinif:
+            sinif.return_value.get_public_token.side_effect = requests.exceptions.ProxyError("u1:p1@1.1.1.1")
+            with self.assertRaises(SorguHatasi) as hata:
+                kaynak_getir("vodafone").fonksiyon("5321234567")
+            self.assertEqual(urlopen.call_count, 1)
+            with self.assertRaises(SorguHatasi):
+                kaynak_getir("vodafone").fonksiyon("5321234567")
+            self.assertEqual(urlopen.call_count, 2)  # eskimiş liste silindi, taze çekildi
+        mesaj = str(hata.exception)
+        for gizli in ("webshare", "p1", "1.1.1.1"):
+            self.assertNotIn(gizli, mesaj.lower())
+
+    def test_gecersiz_anahtar_saglayiciyi_anmaz(self):
+        import urllib.error
+        from unittest import mock
+
+        from apps.kontor.sorgu.proxy import ProxyAlinamadi, rastgele_proxy
+
+        hata = urllib.error.HTTPError("https://x", 401, "Unauthorized", {}, None)
+        with mock.patch("urllib.request.urlopen", side_effect=hata):
+            with self.assertRaisesMessage(ProxyAlinamadi, "anahtarı geçersiz"):
+                rastgele_proxy()
+
+    def test_ayar_ekraninda_anahtar_maskeli(self):
+        from apps.bayi.models import GenelAyarlar
+
+        yonetici = User.objects.create_superuser("yonetici", password="x")
+        self.client.force_login(yonetici)
+        yanit = self.client.get(reverse("admin:bayi_genelayarlar_change", args=[GenelAyarlar.TEKIL_PK]))
+        self.assertContains(yanit, 'type="password"')
+        self.assertContains(yanit, "Proxy API anahtarı")
+        self.assertNotContains(yanit, "webshare", status_code=200)
 
 ALT_SORGU = {"kodlar": [], "hata": False, "cagri": 0}
 

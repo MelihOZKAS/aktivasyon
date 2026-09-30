@@ -12,7 +12,7 @@ import json
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.kontor.sorgu.vodafone import ZAMAN_ASIMI
+from apps.kontor.sorgu import SorguHatasi
 
 
 class Command(BaseCommand):
@@ -23,9 +23,14 @@ class Command(BaseCommand):
         parser.add_argument("--hepsi", action="store_true", help="Bütün paketleri yaz.")
 
     def handle(self, numara, hepsi, **_):
-        from apps.kontor.sorgu.vodafone_istemci import VodafoneSorgu
+        from apps.kontor.sorgu.vodafone import istemci_ac
 
-        istemci = VodafoneSorgu(timeout=ZAMAN_ASIMI)
+        # Bayinin sorgusuyla aynı yol: Genel Ayarlar'da anahtar varsa proxy'den.
+        try:
+            istemci, proxy = istemci_ac()
+        except SorguHatasi as hata:
+            raise CommandError(str(hata))
+        self.stderr.write("Proxy üzerinden." if proxy else "Doğrudan (proxy anahtarı yok).")
         token = (istemci.get_public_token(numara) or {}).get("publicToken")
         if not token:
             raise CommandError("publicToken alınamadı; numara Vodafone'da değil ya da servis cevap vermedi.")

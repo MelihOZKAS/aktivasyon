@@ -548,7 +548,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   yenisi görülürse oraya eklenir. Sağlayıcıya iç kod değil karşı site
   kodu gider. Ham cevap için `manage.py
   vodafone_ham <numara>`. İstemci
-  (`vodafone_istemci.py`) yönetimin yazdığı koddur, olduğu gibi durur
+  (`vodafone_istemci.py`) yönetimin yazdığı koddur, olduğu gibi durur.
+  **Sorgu proxy'den gider** (`sorgu/proxy.py`): Genel Ayarlar'da "Proxy API
+  anahtarı" doluysa her sorgu listeden rastgele seçilen bir proxy'yle
+  atılır (istemcinin koduna dokunmadan, `session.proxies` ile;
+  `vodafone.istemci_ac`). Liste 12 saat dosya önbelleğinde durur — her
+  sorguda çekilmez; proxy bağlanmazsa bir kez başkası denenir, ikisi de
+  bağlanmazsa liste unutulur ve sonraki sorgu tazesini çeker. Anahtar
+  girilmiş ama liste alınamıyorsa sorgu hata verir, sunucunun kendi IP'sine
+  sessizce düşmez. **Sağlayıcının adı hiçbir ekranda, mesajda, logda
+  geçmez** (yönetim: "kimse bilmesin nereden proxy aldığımız"); adres
+  yalnızca kodda. Anahtar maskeli kutuda durur, depoya yazılmaz. Proxy
+  adresi kimlik bilgisi taşıdığı için hata mesajına konmaz. İstemci
   (projede `requests` yalnızca onun için vardır; diğer dış istekler
   urllib'le yazıldı, yeni kodda da öyle kalsın);
   zaman aşımı 8 sn — sorgu bayinin isteği içinde çalışır, üç gunicorn

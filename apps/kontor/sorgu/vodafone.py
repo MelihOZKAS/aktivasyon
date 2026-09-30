@@ -75,24 +75,60 @@ def paketleri_coz(cevap):
 # Vodafone yavaşlarsa bayi sebebini görür, site kilitlenmez.
 ZAMAN_ASIMI = 8
 
+# Proxy'ye bağlanılamazsa bu kadar farklı proxy denenir. Yalnızca proxy
+# bağlantı hatasında (hızlı düşer); zaman aşımında yeniden denenmez, bayi
+# 8 sn'yi birkaç kez beklemesin.
+PROXY_DENEMESI = 2
+
+
+def istemci_ac(*, haric=()):
+    """Vodafone istemcisi; Genel Ayarlar'da proxy anahtarı varsa rastgele bir proxy'yle.
+
+    İstemcinin kendi koduna dokunulmaz (yönetimin yazdığı kod): proxy
+    oturumun `proxies` alanına verilir. Dönüş: (istemci, proxy adresi | None).
+    """
+    from apps.kontor.sorgu.proxy import ProxyAlinamadi, rastgele_proxy
+    from apps.kontor.sorgu.vodafone_istemci import VodafoneSorgu
+
+    istemci = VodafoneSorgu(timeout=ZAMAN_ASIMI)
+    try:
+        proxy = rastgele_proxy(haric=haric)
+    except ProxyAlinamadi as hata:
+        raise SorguHatasi(str(hata))
+    if proxy:
+        istemci.session.proxies = {"http": proxy, "https": proxy}
+    return istemci, proxy
+
 
 @kaynak("vodafone", "Vodafone Kolay Paket sorgusu")
 def sorgula(numara, *, sahip=False):
     import requests
 
-    from apps.kontor.sorgu.vodafone_istemci import VodafoneSorgu
+    denenen = []
+    for deneme in range(PROXY_DENEMESI):
+        istemci, proxy = istemci_ac(haric=denenen)
+        try:
+            token = (istemci.get_public_token(numara) or {}).get("publicToken")
+            if not token:
+                raise SorguHatasi("Vodafone bu numara için sorgu anahtarı vermedi; numara Vodafone'da olmayabilir.")
+            paketler = paketleri_coz(istemci.get_kolay_packs(token))
+            return SorguSonucu(paketler, sahip=_sahip(istemci, numara) if sahip else "")
+        except requests.exceptions.ProxyError:
+            # Proxy'nin adresi mesajda görünmesin: kimlik bilgisi taşır.
+            if proxy is None or deneme == PROXY_DENEMESI - 1:
+                if proxy is not None:
+                    # Art arda bağlanılamadı: liste eskimiş olabilir, sonraki sorgu tazesini çeksin.
+                    from apps.kontor.sorgu.proxy import listeyi_unut
 
-    istemci = VodafoneSorgu(timeout=ZAMAN_ASIMI)
-    try:
-        token = (istemci.get_public_token(numara) or {}).get("publicToken")
-        if not token:
-            raise SorguHatasi("Vodafone bu numara için sorgu anahtarı vermedi; numara Vodafone'da olmayabilir.")
-        paketler = paketleri_coz(istemci.get_kolay_packs(token))
-        return SorguSonucu(paketler, sahip=_sahip(istemci, numara) if sahip else "")
-    except requests.RequestException as hata:
-        raise SorguHatasi(f"Vodafone'a ulaşılamadı: {hata}")
-    except ValueError:
-        raise SorguHatasi("Vodafone'un cevabı okunamadı.")
+                    listeyi_unut()
+                raise SorguHatasi("Sorgu bağlantısı kurulamadı; biraz sonra yeniden deneyin.")
+            denenen.append(proxy)
+        except requests.RequestException as hata:
+            if proxy:
+                raise SorguHatasi(f"Vodafone'a ulaşılamadı ({type(hata).__name__}).")
+            raise SorguHatasi(f"Vodafone'a ulaşılamadı: {hata}")
+        except ValueError:
+            raise SorguHatasi("Vodafone'un cevabı okunamadı.")
 
 
 def _sahip(istemci, numara):

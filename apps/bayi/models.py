@@ -300,6 +300,18 @@ class GenelAyarlar(ZamanDamgali):
         ),
     )
     usd_kuru_tarihi = models.DateTimeField("Kur Güncelleme Tarihi", null=True, blank=True)
+    # Numara sorgusu (Vodafone) her istekte listeden rastgele seçilen bir
+    # proxy'den gider (`apps.kontor.sorgu.proxy`). Sağlayıcının adı bilerek
+    # hiçbir ekranda geçmez; anahtar koda ve depoya yazılmaz.
+    proxy_api_anahtari = models.CharField(
+        "Proxy API anahtarı",
+        max_length=200,
+        blank=True,
+        help_text=(
+            "Doluysa operatör numara sorguları her seferinde listeden rastgele seçilen bir "
+            "proxy üzerinden yapılır. Boşsa sorgu doğrudan sunucudan gider."
+        ),
+    )
     # Bayinin müşteriye kârı burada DEĞİL, bayi grubundadır (`BayiGrubu.esim_kar_orani`):
     # bir süre burada ikinci bir oran vardı, yönetici "bayiye göre girmek daha mantıklı"
     # dedi ve iki yerde iki yüzde birbirine karıştı.
