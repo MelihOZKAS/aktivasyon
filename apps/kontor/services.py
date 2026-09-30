@@ -135,11 +135,19 @@ def bayi_fiyati(bayi, paket):
 
 
 def satistaki_paketler(kategori, bayi, *, ara=""):
-    """Kategorinin bayiye fiyatı olan, satıştaki paketleri; `ara` ad/kod/içerikte arar."""
+    """Kategorinin bayiye fiyatı olan, satıştaki paketleri; `ara` ad/kod/içerikte arar.
+
+    **Ucuzdan pahalıya** sıralıdır: kartta büyük yazan rakama göre —
+    tavsiye satış varsa o (müşteriye söylenen), yoksa bayinin fiyatı. Bayi
+    müşteriye fiyatla anlatıyor; sıra (`Paket.sira`) yalnızca eşit fiyatta
+    belirler. Kategori sayfası da numara sorgusunun sonucu da buradan geçer.
+    """
     paketler = Paket.objects.satista().filter(kategori=kategori).select_related("kategori")
     for kelime in (ara or "").split():
         paketler = paketler.filter(Q(ad__icontains=kelime) | Q(kod__icontains=kelime) | Q(aciklama__icontains=kelime))
-    return [p for p in fiyatlandir(paketler, bayi) if p.fiyat > 0]
+    satista = [p for p in fiyatlandir(paketler, bayi) if p.fiyat > 0]
+    # sorted kararlıdır: eşit fiyatta modelin sırası (sira, ad) korunur.
+    return sorted(satista, key=lambda p: p.tavsiye if p.tavsiye is not None else p.fiyat)
 
 
 def kategori_listesi(*, oyun=False, bayi=None):

@@ -1446,6 +1446,19 @@ class TavsiyeTestleri(Temel):
         (paket,) = satistaki_paketler(self.kategori, self.bayi)
         self.assertEqual((paket.fiyat, paket.tavsiye, paket.kazanc), (TL("110.00"), TL("349.90"), TL("239.90")))
 
+    def test_paketler_tavsiye_fiyatina_gore_ucuzdan_pahaliya(self):
+        # self.paket: tavsiye 349,90. Tavsiyesi olmayan pakette bayinin fiyatı sayılır.
+        Paket.objects.create(kategori=self.kategori, kod="A", ad="A Pahalı", satis_fiyati=TL("50"), tavsiye_fiyati=TL("999"))
+        Paket.objects.create(kategori=self.kategori, kod="B", ad="B Ucuz", satis_fiyati=TL("50"), tavsiye_fiyati=TL("129"))
+        Paket.objects.create(kategori=self.kategori, kod="C", ad="C Tavsiyesiz", satis_fiyati=TL("200"))
+        sira = [p.kod for p in satistaki_paketler(self.kategori, self.bayi)]
+        self.assertEqual(sira, ["B", "C", "100", "A"])  # 129, 200, 349,90, 999
+        # Kategori sayfası da aynı sırayla çizer.
+        yanit = self.client.get(self.kategori.get_absolute_url())
+        icerik = yanit.content.decode()
+        self.assertLess(icerik.index("B Ucuz"), icerik.index("C Tavsiyesiz"))
+        self.assertLess(icerik.index("Kolay Paket 15"), icerik.index("A Pahalı"))
+
     def test_ekranda_buyuk_rakam_tavsiye_alis_gozun_arkasinda(self):
         yanit = self.client.get(self.kategori.get_absolute_url())
         self.assertContains(yanit, "349,90")

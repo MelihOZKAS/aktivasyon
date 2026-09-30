@@ -460,7 +460,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   alan yalnızca o durumda formda görünür.
   · **Paket çok olabilir; hiçbir liste hepsini çizmez.** Kontör admin
   listeleri sayfa başı 50 ve operatör süzgecilidir; bayinin kategori
-  sayfası da sunucuda arar (`?q=`) ve 50'şer sayfalar. Tarayıcıda süzen
+  sayfası da sunucuda arar (`?q=`) ve 50'şer sayfalar. Bayinin listesi
+  (kategori sayfası ve numara sorgusu) **ucuzdan pahalıya** sıralıdır:
+  kartta büyük yazan rakam — tavsiye satış, yoksa bayinin fiyatı
+  (`satistaki_paketler`); `Paket.sira` yalnızca eşit fiyatta belirler. Tarayıcıda süzen
   eski arama bin kartı çizip gizliyordu. Kategori ekranı bayiye fiyatı
   olmayan kategoriyi hiç listelemez (`kategori_listesi(bayi=…)`) — içi boş
   açılmasın. Yeni bir paket listesi yazarsan sayfala.
