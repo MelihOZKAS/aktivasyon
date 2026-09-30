@@ -468,6 +468,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Cüzdanlar listesinden satırda verilir). Grubu boş bayi **varsayılan**
   gruba düşer (tek olabilir); o da yoksa paketin `satis_fiyati`nı öder —
   alan yalnızca o durumda formda görünür.
+  · **"Bayiye görünür" kapalı paket bayiden gizlidir ama alternatiftir**
+  (`Paket.bayiye_gorunur`, listede satırdan). Bayi onu listede, numara
+  sorgusunda ("sorguda her zaman göster" açık olsa da) ve bayi programında
+  görmez, satın alamaz; aktif olduğu sürece başka paketin ucuz alternatifi
+  olarak gönderilir. Bayi yolları `PaketSorgusu.bayiye_acik()`'tan geçer
+  (liste, kategori listesi, paket sayfası, `yukleme_baslat`); alternatif
+  hesabı `satista()`'dan — ikisini karıştırma. Hiç kullanılmayacak paketin
+  "Aktif"i kapatılır. "Bayiye görünüyor mu?" kutusu bunu da sayar.
   · **Paket çok olabilir; hiçbir liste hepsini çizmez.** Kontör admin
   listeleri sayfa başı 50 ve operatör süzgecilidir; bayinin kategori
   sayfası da sunucuda arar (`?q=`) ve 50'şer sayfalar. Bayinin listesi

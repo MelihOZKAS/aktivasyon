@@ -144,7 +144,7 @@ def sorgu(request, slug, oyun=False):
 
 def _paket(kategori_kaydi, kod):
     return get_object_or_404(
-        Paket.objects.satista().select_related("kategori"), kategori=kategori_kaydi, kod=kod
+        Paket.objects.bayiye_acik().select_related("kategori"), kategori=kategori_kaydi, kod=kod
     )
 
 

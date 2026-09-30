@@ -345,6 +345,15 @@ class PaketSorgusu(models.QuerySet):
         """
         return self.filter(aktif=True, kategori__aktif=True)
 
+    def bayiye_acik(self):
+        """Bayinin görebileceği ve alabileceği paketler: satışta ve bayiye görünür.
+
+        `satista()`'dan ayrıdır çünkü gizli paket **alternatif olarak**
+        gönderilmeye devam eder (`Paket.alternatifleri` `satista()` kullanır).
+        Bayiye paket gösteren ya da sattıran her yol buradan geçer.
+        """
+        return self.satista().filter(bayiye_gorunur=True)
+
 
 class FiyatGrubu(ZamanDamgali):
     """Bayinin kontör fiyat kademesi: Perakende, Toptan…
@@ -437,6 +446,15 @@ class Paket(ZamanDamgali):
             "Bayinin müşteriye söyleyeceği fiyat — çoğu zaman operatörün liste fiyatı. "
             "Doluysa bayi ekranında büyük rakam budur; bayinin alışı ve kazancı göz "
             "düğmesiyle açılır. Operatör sorgusunda görülen fiyattan doldurulabilir."
+        ),
+    )
+    bayiye_gorunur = models.BooleanField(
+        "Bayiye görünür",
+        default=True,
+        help_text=(
+            "Kapatılırsa bayi bu paketi listede, numara sorgusunda ve bayi programında görmez, "
+            "satın alamaz. Aktif kaldığı sürece başka paketin ucuz alternatifi olarak "
+            "gönderilmeye devam eder. Hiç kullanılmasın isteniyorsa Aktif kapatılır."
         ),
     )
     sorguda_hep_goster = models.BooleanField(

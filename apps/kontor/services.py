@@ -142,7 +142,7 @@ def satistaki_paketler(kategori, bayi, *, ara=""):
     müşteriye fiyatla anlatıyor; sıra (`Paket.sira`) yalnızca eşit fiyatta
     belirler. Kategori sayfası da numara sorgusunun sonucu da buradan geçer.
     """
-    paketler = Paket.objects.satista().filter(kategori=kategori).select_related("kategori")
+    paketler = Paket.objects.bayiye_acik().filter(kategori=kategori).select_related("kategori")
     for kelime in (ara or "").split():
         paketler = paketler.filter(Q(ad__icontains=kelime) | Q(kod__icontains=kelime) | Q(aciklama__icontains=kelime))
     satista = [p for p in fiyatlandir(paketler, bayi) if p.fiyat > 0]
@@ -158,14 +158,14 @@ def kategori_listesi(*, oyun=False, bayi=None):
     """
     kategoriler = (
         Kategori.objects.filter(
-            aktif=True, oyun=oyun, pk__in=Paket.objects.satista().values("kategori")
+            aktif=True, oyun=oyun, pk__in=Paket.objects.bayiye_acik().values("kategori")
         )
         .select_related("operator")
         .order_by("sira", "operator__sira", "ad")
     )
     if bayi is None:
         return kategoriler
-    paketler = Paket.objects.satista().filter(kategori__in=kategoriler)
+    paketler = Paket.objects.bayiye_acik().filter(kategori__in=kategoriler)
     fiyatli = {p.kategori_id for p in fiyatlandir(paketler, bayi) if p.fiyat > 0}
     return [k for k in kategoriler if k.pk in fiyatli]
 
@@ -405,7 +405,9 @@ def yukleme_baslat(bayi, paket, hedef, *, kanal=Kanal.PANEL, bayi_ref="", anahta
     aşımına uğrayıp yeniden sorduğunda ikinci yükleme yapılmasın).
     """
     kategori = paket.kategori
-    if not (paket.aktif and kategori.aktif) or not Paket.objects.satista().filter(pk=paket.pk).exists():
+    # Bayiye gizli paket de satılmaz: panel adresi elle yazılsa da bayi
+    # programı kodu bilse de. Alternatif gönderimi bu yoldan geçmez.
+    if not Paket.objects.bayiye_acik().filter(pk=paket.pk).exists():
         raise YuklemeYapilamaz("Bu paket şu an satışta değil.")
     hedef = hedefi_dogrula(kategori, hedef)
     fiyat = bayi_fiyati(bayi, paket)

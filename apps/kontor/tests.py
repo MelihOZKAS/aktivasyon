@@ -711,6 +711,11 @@ class BayiApiTestleri(Temel):
         self.assertTrue(self.servis().startswith("OK|1|"))
         self.assertEqual(self.kontrol(), "2:islemde:0")
 
+    def test_bayiye_gizli_paket_programa_satilmaz(self):
+        Paket.objects.filter(pk=self.paket.pk).update(bayiye_gorunur=False)
+        self.assertTrue(self.servis().startswith("OK|3|"))
+        self.assertEqual(self.bakiye(), TL("500.00"))
+
     def test_askida_bayiye_islemde_gorunur(self):
         _ayar("Bir", gonderim="zaman")
         self.servis()
@@ -1421,6 +1426,31 @@ class AlternatifTestleri(Temel):
         islem = self.yukle(hedef="5329998877")
         self.assertEqual(islem.durum, IslemDurumu.ISLEMDE)
         self.assertEqual(self.giden_kodlar(), ["100"])
+
+    def test_bayiye_gizli_paket_gorunmez_satilmaz_ama_alternatif_olur(self):
+        from apps.kontor.services import kategori_listesi, numarayi_sorgula
+
+        self.en_ucuz.bayiye_gorunur = False
+        self.en_ucuz.sorguda_hep_goster = True  # gizlilik bu işaretten de üstündür
+        self.en_ucuz.save()
+        ALT_SORGU["kodlar"] = ["100", "500"]
+        self.client.force_login(self.bayi)
+
+        self.assertNotIn("500", [p.kod for p in satistaki_paketler(self.kategori, self.bayi)])
+        self.assertNotIn("500", [p.kod for p in numarayi_sorgula(self.kategori, "5329998877", self.bayi)["eslesen"]])
+        self.assertNotContains(self.client.get(self.kategori.get_absolute_url()), "Paket 500")
+        adres = reverse("kontor:paket", args=[self.kategori.slug, "500"])
+        self.assertEqual(self.client.get(adres).status_code, 404)
+        with self.assertRaises(YuklemeYapilamaz):
+            yukleme_baslat(self.bayi, self.en_ucuz, "5329998877")
+
+        # Bayi 100'ü alır; numara gizli 500'ü alabiliyor ve ucuz: o gider.
+        self.yukle(hedef="5329998877")
+        self.assertEqual(self.giden_kodlar(), ["500"])
+
+        # Yalnızca gizli paketi kalan kategori listede görünmez.
+        Paket.objects.filter(kategori=self.kategori).update(bayiye_gorunur=False)
+        self.assertNotIn(self.kategori, list(kategori_listesi(bayi=self.bayi)))
 
     def test_sorguda_hep_goster_alternatifi_sorgusuz_gondermez(self):
         # İşaretli alternatif sorguda yoksa bayinin paketinin yerine geçmez.

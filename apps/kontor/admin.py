@@ -839,9 +839,12 @@ class PaketAdmin(ModelAdmin):
         "tavsiye_fiyati",
         "rota_gosterimi",
         "aktif",
+        "bayiye_gorunur",
     )
-    list_editable = ("tavsiye_fiyati", "aktif")
-    list_filter = ("aktif", "sorguda_hep_goster", "kategori__operator", "kategori", "rotalar__saglayici")
+    list_editable = ("tavsiye_fiyati", "aktif", "bayiye_gorunur")
+    list_filter = (
+        "aktif", "bayiye_gorunur", "sorguda_hep_goster", "kategori__operator", "kategori", "rotalar__saglayici",
+    )
     search_fields = ("ad", "kod", "kategori__ad")
     list_per_page = 50
     # Grup fiyatı burada satır içi tablo olarak da duruyordu; aynı rakam
@@ -865,7 +868,13 @@ class PaketAdmin(ModelAdmin):
             fiyat.append("satis_fiyati")
         ust = ("satis_durumu",) if obj is not None else ()
         return (
-            (None, {"fields": ust + ("kategori", "kod", "ad", "aciklama", "sira", "aktif", "sorguda_hep_goster")}),
+            (
+                None,
+                {
+                    "fields": ust
+                    + ("kategori", "kod", "ad", "aciklama", "sira", "aktif", "bayiye_gorunur", "sorguda_hep_goster")
+                },
+            ),
             ("İçerik", {"fields": (("dakika", "internet_mb", "sms", "gun"),)}),
             ("Fiyat", {"fields": fiyat, "description": aciklama}),
             (
@@ -993,6 +1002,10 @@ class PaketAdmin(ModelAdmin):
             eksikler.append("Paket pasif.")
         if not obj.kategori.aktif:
             eksikler.append(f"“{obj.kategori}” kategorisi pasif.")
+        if not obj.bayiye_gorunur:
+            eksikler.append(
+                "“Bayiye görünür” kapalı. Aktif olduğu sürece başka paketin alternatifi olarak gönderilebilir."
+            )
         # Sağlayıcı eksikliği bayiden saklamaz: işlem açılır, askıya düşer.
         notlar = []
         rotalar = list(obj.rotalar.all())
