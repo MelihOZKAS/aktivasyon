@@ -382,7 +382,7 @@ class TekGonderimTestleri(Temel):
         _ayar("İki", gonderim="red")
         islem = self.yukle()
         self.assertEqual(islem.durum, IslemDurumu.IPTAL)
-        self.assertEqual(islem.sonuc_mesaji, "Numara hatalı")  # ham cevap değil, sebep
+        self.assertEqual(islem.sonuc_mesaji, "OK|3|Numara hatalı|0.00")  # cevabın tamamı
         self.assertEqual(islem.siparis.durum, SiparisDurumu.IPTAL)
         self.assertEqual(self.bakiye(), TL("500.00"))
 
@@ -418,7 +418,7 @@ class TekGonderimTestleri(Temel):
         islem = isle(islem.pk, zorla=True)
         # İki reddetti; ondan önce Bir sorguda iptal dedi.
         self.assertEqual(islem.durum, IslemDurumu.IPTAL)
-        self.assertEqual(islem.sonuc_mesaji, "Numara hatalı")
+        self.assertEqual(islem.sonuc_mesaji, "OK|3|Numara hatalı|0.00")
 
     def test_tek_saglayici_sorguda_iptal_derse_sebebi_yazilir(self):
         Rota.objects.filter(saglayici=self.iki).delete()
@@ -426,8 +426,8 @@ class TekGonderimTestleri(Temel):
         _ayar("Bir", sorgu="iptal")
         islem = isle(islem.pk, zorla=True)
         self.assertEqual(islem.durum, IslemDurumu.IPTAL)
-        self.assertEqual(islem.sonuc_mesaji, "Numara hatalı")
-        self.assertIn("Numara hatalı", islem.siparis.yonetim_notu)
+        self.assertEqual(islem.sonuc_mesaji, "3:Numara hatalı")
+        self.assertIn("3:Numara hatalı", islem.siparis.yonetim_notu)
 
     def test_saglayicida_bakiye_bitince_iptal_degil_askiya_duser(self):
         _ayar("Bir", gonderim="red", red_mesaj="Yetersiz bakiye")

@@ -694,15 +694,13 @@ def _kalan_rotalar(islem):
 
 
 def _ret_metni(deneme):
-    """Reddin okunur sebebi: iptalde bayiye ve yönetime yazılan metin.
+    """Reddin sebebi: sağlayıcının cevabı **olduğu gibi, kısaltılmadan**.
 
-    `_gonder` sağlayıcının çözülmüş mesajını `sebep`e koyar; ham cevap
-    (`OK|3|Yetersiz bakiye|0.00`) yalnızca o yoksa, veritabanından okunan
-    eski denemede yazılır. Ham cevap denemenin kendi satırında durur.
+    Bir süre çözülmüş mesaj yazılıyordu ("Aktif Kontor VodafoneSes8401");
+    yönetim "sonuç eksik" dedi — kod ve tutar alanları düşüyordu. Sonuç
+    sorgusu cevap verdiyse o, yoksa gönderimin cevabı yazılır.
     """
-    return (
-        getattr(deneme, "sebep", "") or deneme.sonuc_cevabi or deneme.gonderim_cevabi or ""
-    ).strip()[:200]
+    return (deneme.sonuc_cevabi or deneme.gonderim_cevabi or "").strip()
 
 
 def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
@@ -731,7 +729,6 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
         )
     except SaglayiciHatasi as hata:
         deneme.gonderim_cevabi = str(hata)
-        deneme.sebep = str(hata)
         if hata.kesin_gitmedi:
             deneme.durum = DenemeDurumu.REDDEDILDI
             deneme.saglayici_kaynakli = True
@@ -758,7 +755,6 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
         islem.durum = IslemDurumu.ISLEMDE
         islem.save(update_fields=["durum", "guncelleme_tarihi"])
     elif sonuc.durum == Gonderim.RED:
-        deneme.sebep = (sonuc.mesaj or "").strip()
         deneme.durum = DenemeDurumu.REDDEDILDI
         deneme.saglayici_kaynakli = bakiye_yetersiz_mi(sonuc.mesaj) or bakiye_yetersiz_mi(sonuc.ham)
         deneme.save()
@@ -775,7 +771,7 @@ def _askiya_al(islem, sebep=""):
     islem.durum = IslemDurumu.ASKIDA
     alanlar = ["durum", "guncelleme_tarihi"]
     if sebep:
-        islem.sonuc_mesaji = sebep[:500]
+        islem.sonuc_mesaji = sebep
         alanlar.append("sonuc_mesaji")
     islem.save(update_fields=alanlar)
 
@@ -805,7 +801,7 @@ def _sonucu_sor(islem, *, zorla=False):
     deneme.save(update_fields=["durum", "guncelleme_tarihi"])
     islem.durum = IslemDurumu.SIRADA
     islem.save(update_fields=["durum", "guncelleme_tarihi"])
-    _siradakine_gonder(islem, son_ret=(sonuc.mesaj or "").strip() or _ret_metni(deneme))
+    _siradakine_gonder(islem, son_ret=_ret_metni(deneme))
 
 
 def _sor(deneme):

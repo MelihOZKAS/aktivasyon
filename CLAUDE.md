@@ -343,8 +343,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   işlem askıda kalır, gönderim yöneticinin kararıdır.
   **İptalin sebebi her zaman yazılır** (`Islem.sonuc_mesaji`; admin
   listesinde rozetin altında, bayinin ekranında "Sebep"). Sağlayıcının
-  çözülmüş mesajıdır, ham cevap (`OK|3|…`) değil — ham cevap denemenin
-  satırında durur. Kabul edilip sonuç sorgusunda "iptal" denen işlemde
+  cevabının **tamamıdır, kısaltılmaz** (`OK|3|Aktif Kontor
+  VodafoneSes8401|0.00|`): bir süre çözülmüş mesaj yazıldı, yönetim
+  "sonuç eksik" dedi. Kabul edilip sonuç sorgusunda "iptal" denen işlemde
   sebep bir süre kayboluyor, "hiçbir sağlayıcıda yüklenemedi" yazılıyordu;
   `_siradakine_gonder(son_ret=…)` sorgunun mesajını taşır. Sağlayıcı adı
   iptal sebebine eklenmez: bayi de okuyor.
