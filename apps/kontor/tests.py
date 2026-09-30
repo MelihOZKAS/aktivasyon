@@ -809,6 +809,12 @@ class YonetimTestleri(Temel):
         self.assertEqual(self.client.get(reverse("admin:kontor_islem_change", args=[islem.pk])).status_code, 200)
         self.assertEqual(self.client.get(reverse("admin:kontor_paket_change", args=[self.paket.pk])).status_code, 200)
 
+    def test_islem_listesinde_paket_kodu_ve_giden_kod(self):
+        _ayar("Bir", gonderim="red")  # İki'ye rotanın kendi kodu (V100) gider
+        self.yukle()
+        yanit = self.client.get(reverse("admin:kontor_islem_changelist"))
+        self.assertContains(yanit, f"Kod {self.paket.kod} → giden V100")
+
     def test_magaza_yonetiminde_kontor_siparisi_yok(self):
         islem = self.yukle()
         yanit = self.client.get(reverse("admin:magaza_siparis_change", args=[islem.siparis.pk]))

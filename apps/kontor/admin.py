@@ -1150,7 +1150,7 @@ class IslemAdmin(ModelAdmin):
         return (
             super()
             .get_queryset(request)
-            .select_related("siparis", "bayi", "bayi__bayi_profili", "kategori", "saglayici")
+            .select_related("siparis", "bayi", "bayi__bayi_profili", "kategori", "saglayici", "paket")
             .prefetch_related("denemeler__paket")
             .distinct()
         )
@@ -1177,11 +1177,22 @@ class IslemAdmin(ModelAdmin):
                 '<br><span style="color:#0F8A4D;font-size:.75rem">→ {} (alternatif)</span>',
                 obj.gonderilen_paket.ad,
             )
+        # Paket kodu yanında: sağlayıcı "kodu bulamadım" dediğinde hangi
+        # paketin eşleşmesine bakılacağı listeden okunsun. Karşı siteye
+        # başka kod gittiyse o da yazar.
+        kod = obj.paket.kod if obj.paket else ""
+        denemeler = list(obj.denemeler.all())
+        giden = denemeler[-1].uzak_kod if denemeler else ""
+        kod_metni = f"Kod {kod}" if kod else ""
+        if giden and giden != kod:
+            kod_metni = f"{kod_metni} → giden {giden}".strip()
         return format_html(
-            '{}{}<br><span style="color:#6F7B8F;font-size:.75rem">{}</span>',
+            '{}{}<br><span style="color:#6F7B8F;font-size:.75rem">{}{}{}</span>',
             obj.paket_adi,
             alt,
             obj.kategori.ad if obj.kategori else "",
+            " · " if kod_metni else "",
+            kod_metni,
         )
 
     @display(description="Gönderilen paket")
