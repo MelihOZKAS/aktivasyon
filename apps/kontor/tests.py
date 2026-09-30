@@ -1220,6 +1220,36 @@ class VodafoneSorguTestleri(TestCase):
         self.assertEqual(paket.fiyat, TL("349.9"))
         self.assertEqual(paketleri_coz({}), [])
 
+    def test_paylasilan_kod_paket_adiyla_ayrilir(self):
+        """5G Tam Senlik'in dördü de 13239: tek pakete çökmesin."""
+        from apps.kontor.sorgu.vodafone import paketleri_coz
+
+        def paket(kod, ad, fiyat, id_):
+            return {"id": id_, "reasonCode": kod, "description": ad, "usageFee": {"value": fiyat}}
+
+        cevap = {"kolayPackCategory": [
+            {"description": "Senin için seçtiğimiz paket", "kolayPacks": [
+                paket("13239", "5G Tam Senlik 20 GB", "930.0", "/Prepaid/KolayPack/KP_INTEGRATED_OFFER_2"),
+                paket("17960", "5G Haftalik Sınırsız TikTok", "129.0", "BKPM041"),
+            ]},
+            {"description": "Kullanımına Özel Paketler", "kolayPacks": [
+                paket("13239", "5G Tam Senlik 40 GB", "1300.0", "/Prepaid/KolayPack/KP_INTEGRATED_OFFER_1"),
+                paket("13239", "5G Tam Senlik 15 GB", "830.0", "/Prepaid/KolayPack/KP_INTEGRATED_OFFER_3"),
+            ]},
+        ]}
+        self.assertEqual(
+            [(p.kod, p.fiyat) for p in paketleri_coz(cevap)],
+            [
+                ("13239-5g-tam-senlik-20-gb", TL("930.0")),
+                ("17960", TL("129.0")),  # tekil kod olduğu gibi kalır
+                ("13239-5g-tam-senlik-40-gb", TL("1300.0")),
+                ("13239-5g-tam-senlik-15-gb", TL("830.0")),
+            ],
+        )
+        # Numarada tek başına çıksa da kod aynı kalır (bilinen paylaşılan kod).
+        tek = {"kolayPackCategory": [{"kolayPacks": [paket("13239", "5G Tam Senlik 20 GB", "930", "X")]}]}
+        self.assertEqual(paketleri_coz(tek)[0].kod, "13239-5g-tam-senlik-20-gb")
+
     def test_token_ve_paket_adimlari(self):
         from unittest import mock
 

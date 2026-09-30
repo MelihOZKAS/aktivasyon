@@ -507,7 +507,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   verirse satış sürer. Vodafone kaynağı `sorgu/vodafone.py`; paket kodu
   cevaptaki **`reasonCode`**'dur (17776) — `id` Vodafone'un iç adıdır
   (`/Prepaid/KolayPack/KP_INTEGRATED_OFFER_7`, `BKPM046`), bir süre o
-  okundu ve katalog yanlış kodla doldu. Ham cevap için `manage.py
+  okundu ve katalog yanlış kodla doldu. **`reasonCode` her zaman tekil
+  değildir:** "Sana özel" 5G Tam Senlik 15/20/30/40 GB'nin dördü de
+  `13239`; kodla tekilleştirilen sorgu dördünü tek pakete çökertiyor,
+  bayi ve yönetim yalnızca birini görüyordu. Paylaşılan kodda iç kod
+  `13239-5g-tam-senlik-20-gb` olur (kod + paket adı; `id` müşteriye göre
+  değişen yuvadır, kullanılmaz). Tek başına göründüğü numarada da aynı
+  kalsın diye bilinen paylaşılan kodlar `vodafone.PAYLASILAN_KODLAR`'dadır;
+  yenisi görülürse oraya eklenir. Sağlayıcıya iç kod değil karşı site
+  kodu gider. Ham cevap için `manage.py
   vodafone_ham <numara>`. İstemci
   (`vodafone_istemci.py`) yönetimin yazdığı koddur, olduğu gibi durur
   (projede `requests` yalnızca onun için vardır; diğer dış istekler

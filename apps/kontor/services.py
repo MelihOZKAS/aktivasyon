@@ -204,8 +204,9 @@ def _onbellek():
 
 # Sonuç biçimi ya da kaynak eşleşmesi değişince artar: önbellekteki eski
 # kayıtlar (ör. Vodafone'un `id`siyle yazılmış yanlış kodlar) 12 saat daha
-# ekranda kalmasın. v2: Vodafone kodu `reasonCode`.
-SORGU_SURUMU = 2
+# ekranda kalmasın. v2: Vodafone kodu `reasonCode`. v3: paylaşılan
+# `reasonCode`da kod + paket adı (5G Tam Senlik'in dördü tek pakete çöküyordu).
+SORGU_SURUMU = 3
 
 
 def _sorgu_anahtari(kaynak_kodu, numara, sahip):
