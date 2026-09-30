@@ -58,6 +58,7 @@ from apps.kontor.models import (
     SaglayiciPaketi,
 )
 from apps.kontor.saglayicilar import Gonderim, SaglayiciHatasi, Sorgu
+from apps.kontor.saglayicilar.http import son_istek, son_istek_sifirla
 from apps.magaza.models import Siparis, SiparisDurumu
 
 logger = logging.getLogger(__name__)
@@ -724,11 +725,13 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
     islem.saglayici = saglayici
     islem.save(update_fields=["saglayici", "guncelleme_tarihi"])
 
+    son_istek_sifirla()
     try:
         sonuc = saglayici.adaptor().gonder(
             ref=deneme.ref, hedef=islem.hedef, uzak_kod=kod, uzak_operator=operator, uzak_tip=tip
         )
     except SaglayiciHatasi as hata:
+        deneme.gonderim_istegi = son_istek()
         deneme.gonderim_cevabi = str(hata)
         if hata.kesin_gitmedi:
             deneme.durum = DenemeDurumu.REDDEDILDI
@@ -741,12 +744,14 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
         return deneme
     except Exception as hata:  # adaptör hatası: istek gitmiş olabilir
         logger.exception("Kontör gönderiminde beklenmeyen hata (%s)", deneme.ref)
+        deneme.gonderim_istegi = son_istek()
         deneme.gonderim_cevabi = f"Beklenmeyen hata: {hata}"
         deneme.durum = DenemeDurumu.BELIRSIZ
         deneme.save()
         _askiya_al(islem)
         return deneme
 
+    deneme.gonderim_istegi = son_istek()
     deneme.gonderim_cevabi = sonuc.ham[:2000] or sonuc.mesaj
     if sonuc.durum == Gonderim.KABUL:
         deneme.durum = DenemeDurumu.ISLEMDE
@@ -807,15 +812,18 @@ def _sonucu_sor(islem, *, zorla=False):
 
 def _sor(deneme):
     """Sağlayıcıya sorar, cevabı denemeye yazar. Ağ hatasında `None`."""
+    son_istek_sifirla()
     try:
         sonuc = deneme.saglayici.adaptor().sorgula(ref=deneme.ref, uzak_ref=deneme.uzak_ref)
     except SaglayiciHatasi as hata:
         logger.warning("Kontör sonucu sorulamadı (%s): %s", deneme.ref, hata)
+        deneme.sonuc_istegi = son_istek()
         deneme.sonuc_cevabi = f"Sorgu hatası: {hata}"
-        deneme.save(update_fields=["sonuc_cevabi", "guncelleme_tarihi"])
+        deneme.save(update_fields=["sonuc_istegi", "sonuc_cevabi", "guncelleme_tarihi"])
         return None
+    deneme.sonuc_istegi = son_istek()
     deneme.sonuc_cevabi = sonuc.ham[:2000] or sonuc.mesaj
-    deneme.save(update_fields=["sonuc_cevabi", "guncelleme_tarihi"])
+    deneme.save(update_fields=["sonuc_istegi", "sonuc_cevabi", "guncelleme_tarihi"])
     return sonuc
 
 

@@ -1070,7 +1070,7 @@ class DenemeInline(TabularInline):
     can_delete = False
     fields = (
         "olusturma_tarihi", "saglayici", "paket", "ref", "uzak_ref", "uzak_kod", "durum", "elle",
-        "alis", "gonderim_cevabi", "sonuc_cevabi",
+        "alis", "gonderim_istegi", "gonderim_cevabi", "sonuc_istegi", "sonuc_cevabi",
     )
     readonly_fields = fields
     verbose_name_plural = "Gönderimler — her satır sağlayıcıya giden tek bir istektir"

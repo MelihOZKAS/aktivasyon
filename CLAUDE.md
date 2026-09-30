@@ -363,6 +363,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   alamayacağını söylediğinde olur. Önce her ret iptaldi: Kontorbizde'de
   yanlış eşleştirilmiş tek paket her satışta bayiye "yüklenemedi" diyordu —
   yönetici: "bir paketi yanlış eşleştirirsek sürekli iptal olması mantıksız".
+  · **Giden istek de kayıttadır** (`Deneme.gonderim_istegi` /
+  `sonuc_istegi`): adres ve parametreler, şifre `***`. `http.metin_istek`
+  son isteği bir `ContextVar`'a yazar, servis gönderimden sonra okur. Karar
+  ekranı her gönderimde giden isteği ve gelen cevabı kısaltmadan gösterir;
+  "Sağlayıcıya gönder" kutusu hangi kodun gideceğini, karşı site kodu boşsa
+  bizim kodun gittiğini yazar. Sağlayıcıyla "ne gönderdiniz" konuşması
+  buradan yapılır.
   · **`ATOMIC_REQUESTS` açık; sağlayıcıyla konuşan her görünüm
   `non_atomic_requests`'tir** (bayi yükleme/durum, bayi API'si, admin karar
   ekranı). İstek transaction'ında gönderim kaydı commit edilmez, süreç

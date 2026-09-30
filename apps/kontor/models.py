@@ -852,7 +852,11 @@ class Deneme(models.Model):
         default=False,
         help_text="Yönetici askıdaki işlemi bilerek bu sağlayıcıya gönderdi.",
     )
+    gonderim_istegi = models.TextField(
+        "Gönderim İsteği", blank=True, help_text="Sağlayıcıya giden adres ve parametreler; şifre gizlenir."
+    )
     gonderim_cevabi = models.TextField("Gönderim Cevabı", blank=True)
+    sonuc_istegi = models.TextField("Son Sorgu İsteği", blank=True)
     sonuc_cevabi = models.TextField("Son Sorgu Cevabı", blank=True)
     saglayici_kaynakli = models.BooleanField(
         "Sağlayıcı Tarafında",

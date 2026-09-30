@@ -7,6 +7,7 @@ gönderim sıradaki sağlayıcıya aktarılabilir; zaman aşımında istek varm�
 olabilir, servis onu askıya alır.
 """
 
+import contextvars
 import socket
 import urllib.error
 import urllib.parse
@@ -17,9 +18,36 @@ from apps.kontor.saglayicilar import SaglayiciHatasi
 # Bayi tezgâhta bekliyor; sağlayıcı bundan uzun susuyorsa sorun var.
 ZAMAN_ASIMI = 20
 
+# Son atılan isteğin okunur hâli. Servis gönderimden sonra okuyup denemeye
+# yazar: yönetim karar ekranında "ne gönderdik" sorusunun cevabını görsün.
+_son_istek = contextvars.ContextVar("kontor_son_istek", default="")
+GIZLI_ANAHTARLAR = ("sifre", "şifre", "parola", "password", "pass", "key", "token", "secret")
+
+
+def son_istek_sifirla():
+    _son_istek.set("")
+
+
+def son_istek():
+    return _son_istek.get()
+
+
+def _gizle(parametreler):
+    """Şifre gibi alanlar `***` olur; gerisi olduğu gibi, okunur yazılır."""
+    return "&".join(
+        f"{anahtar}={'***' if any(g in str(anahtar).lower() for g in GIZLI_ANAHTARLAR) else deger}"
+        for anahtar, deger in parametreler.items()
+    )
+
 
 def metin_istek(adres, *, parametreler=None, form=None, saglayici_adi=""):
     """GET (parametreler) ya da form POST'u atar, gövdeyi metin döndürür."""
+    okunur = f"{'POST' if form is not None else 'GET'} {adres}"
+    if parametreler:
+        okunur += f"?{_gizle(parametreler)}"
+    if form is not None:
+        okunur += f"\nform: {_gizle(form)}"
+    _son_istek.set(okunur)
     if parametreler:
         adres = f"{adres}?{urllib.parse.urlencode(parametreler)}"
     veri = urllib.parse.urlencode(form).encode() if form is not None else None

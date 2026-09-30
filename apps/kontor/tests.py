@@ -800,6 +800,43 @@ class YonetimTestleri(Temel):
         self.assertEqual(islem.durum, IslemDurumu.IPTAL)
         self.assertEqual(self.bakiye(), TL("500.00"))
 
+    def test_karar_ekraninda_giden_istek_ve_gelen_cevap(self):
+        from unittest import mock
+
+        class Yanit:
+            headers = mock.Mock(get_content_charset=lambda: "utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b"OK|3|Aktif Kontor VodafoneSes8401|0.00|"
+
+        Saglayici.objects.filter(pk=self.bir.pk).update(tur="znet", sifre="gizli-sifre")
+        _ayar("İki", gonderim="red")
+        with mock.patch("urllib.request.urlopen", return_value=Yanit()) as urlopen:
+            islem = self.yukle()
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        self.assertIn("gizli-sifre", urlopen.call_args[0][0].full_url)  # gerçek istekte şifre var
+
+        deneme = islem.denemeler.get(saglayici=self.bir)
+        self.assertEqual(
+            deneme.gonderim_istegi,
+            f"GET http://bir.test/servis/tl_servis.php?bayi_kodu=u&sifre=***&operator={self.kategori.api_operator}"
+            f"&tip={self.kategori.api_tip}&kontor={self.paket.kod}&gsmno={islem.hedef}&tekilnumara={deneme.ref}",
+        )
+        yanit = self.client.get(reverse("admin:kontor_islem_karar", args=[islem.pk]))
+        from django.utils.html import escape
+
+        self.assertContains(yanit, escape(deneme.gonderim_istegi))
+        self.assertContains(yanit, "OK|3|Aktif Kontor VodafoneSes8401|0.00|")
+        self.assertContains(yanit, "gönderilemedi")
+        self.assertContains(yanit, "karşı site kodu girilmemiş")
+        self.assertNotContains(yanit, "gizli-sifre")
+
     def test_listeler_acilir(self):
         self.yukle()
         for ad in ("islem", "paket", "kategori", "saglayici", "saglayicipaketi", "apierisimi", "fiyatgrubu"):

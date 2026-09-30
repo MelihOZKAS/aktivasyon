@@ -33,7 +33,7 @@
       <table class="w-full text-sm">
         <thead><tr class="text-left text-base-500">
           <th class="py-1 pr-3">Zaman</th><th class="py-1 pr-3">Sağlayıcı</th><th class="py-1 pr-3">Ref</th>
-          <th class="py-1 pr-3">Durum</th><th class="py-1">Cevap</th>
+          <th class="py-1 pr-3">Giden kod</th><th class="py-1">Durum</th>
         </tr></thead>
         <tbody>
         {% for d in denemeler %}
@@ -41,9 +41,23 @@
           <td class="py-1.5 pr-3 whitespace-nowrap">{{ d.olusturma_tarihi|date:"H:i:s" }}</td>
           <td class="py-1.5 pr-3">{{ d.saglayici }}{% if d.elle %} <i>(elle)</i>{% endif %}</td>
           <td class="py-1.5 pr-3 font-mono">{{ d.ref }}{% if d.uzak_ref %}<br><span class="text-base-500">{{ d.uzak_ref }}</span>{% endif %}</td>
-          <td class="py-1.5 pr-3 whitespace-nowrap"><b>{{ d.get_durum_display }}</b></td>
-          <td class="py-1.5 font-mono text-xs" style="word-break:break-all">
-            {{ d.gonderim_cevabi|truncatechars:200 }}{% if d.sonuc_cevabi %}<br><span class="text-base-500">Sorgu: {{ d.sonuc_cevabi|truncatechars:200 }}</span>{% endif %}
+          <td class="py-1.5 pr-3 font-mono">{{ d.uzak_kod|default:"—" }}{% if d.uzak_operator or d.uzak_tip %}<br><span class="text-base-500">{{ d.uzak_operator }} / {{ d.uzak_tip }}</span>{% endif %}</td>
+          <td class="py-1.5 whitespace-nowrap"><b>{{ d.get_durum_display }}</b></td>
+        </tr>
+        {% comment %}
+          İstek ve cevap kısaltılmadan: "ne gönderdik, ne döndü" sorusu
+          sağlayıcıyla konuşurken birebir gerekiyor. Şifre istekte gizlidir.
+        {% endcomment %}
+        <tr>
+          <td colspan="5" class="pb-3">
+            <dl class="space-y-1 font-mono text-xs" style="word-break:break-all;white-space:pre-wrap">
+              <div><dt class="inline text-base-500">Giden istek: </dt><dd class="inline">{{ d.gonderim_istegi|default:"— (bu gönderimde istek kaydı yok)" }}</dd></div>
+              <div><dt class="inline text-base-500">Gelen cevap: </dt><dd class="inline">{{ d.gonderim_cevabi|default:"—" }}</dd></div>
+              {% if d.sonuc_istegi or d.sonuc_cevabi %}
+              <div><dt class="inline text-base-500">Sorgu isteği: </dt><dd class="inline">{{ d.sonuc_istegi|default:"—" }}</dd></div>
+              <div><dt class="inline text-base-500">Sorgu cevabı: </dt><dd class="inline">{{ d.sonuc_cevabi }}</dd></div>
+              {% endif %}
+            </dl>
           </td>
         </tr>
         {% endfor %}
@@ -59,10 +73,23 @@
 
   {% if islem.durum == "askida" %}
   <div class="rounded-default p-4 text-sm leading-relaxed" style="border:1px solid #D42046;background:#FCEAEE">
+    {% if belirsiz_var %}
     <b>Bu işlem askıda.</b> Son gönderimin cevabı anlaşılamadı: numaraya
     <b>yüklenmiş de olabilir, yüklenmemiş de.</b> Sistem kendiliğinden hiçbir
     şey yapmaz; para bayiden düşülü duruyor. Önce <b>Sonucu sorgula</b>'yı
     deneyin ya da sağlayıcının panelinden bu numaraya bakın.
+    {% elif denemeler %}
+    <b>Bu işlem askıda: gönderilemedi.</b> Sağlayıcı gönderimi reddetti ya da
+    ulaşılamadı; işlem orada açılmadı, numaraya <b>yüklenmedi</b>. Para
+    bayiden düşülü duruyor. Yukarıdaki giden isteğe ve cevaba bakın — çoğu
+    zaman karşı site kodu (sağlayıcının sayfasındaki Paketler tablosu) ya da
+    sağlayıcıdaki bakiye düzeltilir — sonra aşağıdan yeniden gönderin.
+    Olmuyorsa iptal edip iade edin.
+    {% else %}
+    <b>Bu işlem askıda.</b> Paket hiçbir açık sağlayıcıya bağlı değil; hiçbir
+    yere gönderilmedi. Aşağıdan bir sağlayıcı seçip gönderin ya da elle
+    yüklediyseniz “Yüklendi say” deyin.
+    {% endif %}
   </div>
   {% endif %}
 
@@ -110,7 +137,7 @@
       <select name="saglayici" class="w-full rounded-default border border-base-200 px-3 py-2 dark:border-base-700 dark:bg-base-900">
         {% for s in saglayicilar %}
         <option value="{{ s.saglayici.pk }}" {% if s.denendi %}style="color:#D42046"{% endif %}>
-          {% if s.rota %}{{ s.rota.sira }}. {% endif %}{{ s.saglayici }}{% if s.denendi %} — bu işlem buraya daha önce gönderildi{% endif %}{% if s.rota.alis_fiyati %} · alış {{ s.rota.alis_fiyati }}{% endif %}
+          {% if s.rota %}{{ s.rota.sira }}. {% endif %}{{ s.saglayici }}{% if s.denendi %} — bu işlem buraya daha önce gönderildi{% endif %}{% if s.rota %} · kod {{ s.rota.gidecek_kod }}{% if not s.rota.uzak_kod %} (karşı site kodu girilmemiş, bizim kod gider){% endif %}{% else %} · kod {{ islem.paket.kod|default:"—" }}{% endif %}{% if s.rota.alis_fiyati %} · alış {{ s.rota.alis_fiyati }}{% endif %}
         </option>
         {% endfor %}
       </select>
