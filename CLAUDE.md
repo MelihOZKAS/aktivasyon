@@ -502,7 +502,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kategori `sorgu_kaynagi` ile birini seçer. Ekran dönen kodları `Paket.kod`
   ile eşleştirir ve **yalnızca bizde satışta olanları** gösterir — kaynağın
   döndürüp bizim satmadığımız paketler bayiye listelenmez (alamayacağı
-  paket işine yaramıyordu), yönetim onları Operatörde Görülen'de görür; sorgu salt okumadır, 12 saat önbelleğe alınır (bayi
+  paket işine yaramıyordu), yönetim onları Operatörde Görülen'de görür.
+  **"Sorguda her zaman göster"** (`Paket.sorguda_hep_goster`, varsayılan
+  kapalı) işaretli paket sorgu döndürmese de listeye girer ve gönderim
+  planında numarada var sayılır — gösterilip alınınca "numara alamıyor"
+  diye iptal edilmesin. Alternatif olarak ise yalnızca sorguda gerçekten
+  görülürse denenir: işaret bayinin paketinin yerine başka paket
+  göndertmez; sorgu salt okumadır, 12 saat önbelleğe alınır (bayi
   **Yenile** ile atlar, en sık dakikada bir; numaraya yükleme başarılı
   olunca o numaranın kaydı silinir — önbellek bu yüzden bellekte değil
   dosyadadır, `CACHES["kontor_sorgu"]`, `tmp/`: gunicorn işçileri ve kontör

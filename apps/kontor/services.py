@@ -272,7 +272,8 @@ def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
     """Kategorinin sorgu kaynağına sorar, sonucu kataloğumuzla eşleştirir.
 
     Dönüş: `{"numara", "sahip", "zaman", "eslesen": [Paket]}`. Bizde satışta
-    olmayan paketler bayiye dönmez; `GorulenPaket`'e işlenir.
+    olmayan paketler bayiye dönmez; `GorulenPaket`'e işlenir. "Sorguda her
+    zaman göster" işaretli paket sorgu döndürmese de listeye girer.
     Eşleşme kupür koduyladır (`Paket.kod`); eşleşen pakete bayinin fiyatı
     yazılır. Hat sahibinin maskeli adı yalnızca kategoride açıksa istenir,
     ekranda gösterilir, veritabanına yazılmaz. Sonuç `ONBELLEK_SURESI`
@@ -291,7 +292,7 @@ def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
 
     sonuc = kayit["sonuc"]
     kodlar = {str(p.kod).strip() for p in sonuc.paketler}
-    eslesen = [p for p in satistaki_paketler(kategori, bayi) if p.kod in kodlar]
+    eslesen = [p for p in satistaki_paketler(kategori, bayi) if p.kod in kodlar or p.sorguda_hep_goster]
     return {
         "numara": numara,
         "sahip": sonuc.sahip if sahip_iste else "",
@@ -604,8 +605,12 @@ def _plani_cikar(islem):
         logger.warning("Gönderim öncesi sorgu yapılamadı (%s): %s", islem.pk, hata)
         return [paket.pk]
     kodlar = {str(p.kod).strip() for p in kayit["sonuc"].paketler}
+    # Alternatif yalnızca sorguda gerçekten görülürse: "her zaman göster"
+    # işareti bayinin istediğinin yerine başka paket gönderilmesine yol açmasın.
     plan = [p.pk for p in paket.alternatifleri() if p.kod in kodlar]
-    if paket.kod in kodlar:
+    if paket.kod in kodlar or paket.sorguda_hep_goster:
+        # İşaretli paket sorguda yoksa da alınabilir sayılır: bayiye sorguda
+        # gösterilip alınınca "numara alamıyor" diye iptal edilmesin.
         plan.append(paket.pk)
     return plan
 

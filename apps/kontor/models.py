@@ -418,6 +418,15 @@ class Paket(ZamanDamgali):
             "düğmesiyle açılır. Operatör sorgusunda görülen fiyattan doldurulabilir."
         ),
     )
+    sorguda_hep_goster = models.BooleanField(
+        "Sorguda her zaman göster",
+        default=False,
+        help_text=(
+            "İşaretliyse numara sorgusu bu paketi döndürmese de bayinin sorgu listesinde "
+            "çıkar ve numara bu paketi alabilir sayılır (sorguda yok diye iptal edilmez). "
+            "Operatörün sorgusunda hiç görünmeyen ama her numaraya yüklenen paketler için."
+        ),
+    )
     alternatif_yapilmasin = models.BooleanField(
         "Alternatif yapılmasın",
         default=False,

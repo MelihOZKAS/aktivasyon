@@ -1392,6 +1392,27 @@ class AlternatifTestleri(Temel):
         self.assertIn("alamıyor", islem.sonuc_mesaji)
         self.assertEqual(self.bakiye(), TL("500.00"))
 
+    def test_sorguda_hep_goster_sorguda_yoksa_da_listelenir_ve_gonderilir(self):
+        self.paket.sorguda_hep_goster = True
+        self.paket.save()
+        ALT_SORGU["kodlar"] = ["300"]  # ana paket de alternatifler de sorguda yok
+        from apps.kontor.services import numarayi_sorgula
+
+        eslesen = [p.kod for p in numarayi_sorgula(self.kategori, "5329998877", self.bayi)["eslesen"]]
+        self.assertCountEqual(eslesen, ["300", "100"])
+        # Alınınca "numara alamıyor" diye iptal edilmez, ana paket gider.
+        islem = self.yukle(hedef="5329998877")
+        self.assertEqual(islem.durum, IslemDurumu.ISLEMDE)
+        self.assertEqual(self.giden_kodlar(), ["100"])
+
+    def test_sorguda_hep_goster_alternatifi_sorgusuz_gondermez(self):
+        # İşaretli alternatif sorguda yoksa bayinin paketinin yerine geçmez.
+        self.en_ucuz.sorguda_hep_goster = True
+        self.en_ucuz.save()
+        ALT_SORGU["kodlar"] = ["100"]
+        self.yukle()
+        self.assertEqual(self.giden_kodlar(), ["100"])
+
     def test_ana_paket_numarada_yok_ama_alternatif_var(self):
         ALT_SORGU["kodlar"] = ["200"]
         _ayar("Bir", red_kodlar={"200"})
