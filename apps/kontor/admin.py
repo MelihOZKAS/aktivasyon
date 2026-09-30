@@ -57,6 +57,7 @@ from apps.kontor.services import (
     fiyat_listesini_cek,
     grup_fiyati,
     gorulen_paketi_kataloga_ekle,
+    operator_fiyatlari,
     tavsiyeyi_operatorden_al,
     iptal_et,
     sonucu_sorgula,
@@ -670,6 +671,7 @@ class FiyatGrubuAdmin(ModelAdmin):
         sayfa = Paginator(paketler, PAKET_FIYAT_SAYFASI).get_page(request.GET.get("sayfa"))
         sayfadakiler = list(sayfa.object_list)
         kayitlar = {k.paket_id: k for k in grup.paket_fiyatlari.filter(paket__in=sayfadakiler)}
+        operator_fiyati = operator_fiyatlari(sayfadakiler)
 
         GrupFormu = forms.modelform_factory(
             FiyatGrubu,
@@ -725,6 +727,7 @@ class FiyatGrubuAdmin(ModelAdmin):
                 {
                     "paket": paket,
                     "alis": alis,
+                    "operator_fiyati": operator_fiyati.get(paket.pk),
                     "kar": kayit.fiyat - alis if kayit and alis is not None else None,
                     "deger": deger,
                     "hata": hatalar.get(paket.pk, ""),

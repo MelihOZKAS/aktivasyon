@@ -958,6 +958,24 @@ class YonetimTestleri(Temel):
         self.client.post(adres, {alan: ""})
         self.assertFalse(PaketFiyati.objects.filter(grup=grup).exists())
 
+    def test_grup_sayfasinda_operator_fiyati(self):
+        from datetime import timedelta
+
+        from apps.kontor.models import GorulenPaket
+
+        simdi = timezone.now()
+        GorulenPaket.objects.create(
+            kaynak="x", kod=self.paket.kod, kategori=self.kategori, fiyat=TL("350.00"), son_gorulme=simdi - timedelta(days=2)
+        )
+        GorulenPaket.objects.create(
+            kaynak="y", kod=self.paket.kod, kategori=self.kategori, fiyat=TL("359.90"), son_gorulme=simdi
+        )
+        grup = FiyatGrubu.objects.create(ad="Toptan")
+        yanit = self.client.get(reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk]))
+        self.assertContains(yanit, 'data-operator="359.90"')  # en son görülen
+        self.assertContains(yanit, "Operatör fiyatı + %")
+        self.assertContains(yanit, "Operatör fiyatı (aynen)")
+
     def test_grup_ayarlari_ayni_sayfadan_kaydedilir(self):
         grup = FiyatGrubu.objects.create(ad="Perakende")
         adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[grup.pk])

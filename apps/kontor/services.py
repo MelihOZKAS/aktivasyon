@@ -1039,22 +1039,43 @@ def fiyat_listesini_cek(saglayici):
     return len(fiyatlar), guncellenen
 
 
-def tavsiyeyi_operatorden_al(paketler):
-    """Seçili paketlerin tavsiye fiyatını operatör sorgusunda görülen fiyattan yazar.
+def operator_fiyatlari(paketler):
+    """{paket_id: operatör sorgusunda son görülen fiyat}; hiç görülmeyen paket yok.
 
-    Eşleşme kategori + kupür kodudur. Operatörde hiç görülmemiş paket
-    atlanır. Dönüş: (güncellenen, atlanan).
+    Eşleşme kategori + kupür kodudur. Tek sorgu: fiyat grubu sayfası elli
+    paketi birden çizer.
     """
     from apps.kontor.models import GorulenPaket
 
+    paketler = list(paketler)
+    if not paketler:
+        return {}
+    gorulen = {}
+    for kategori_id, kod, fiyat in (
+        GorulenPaket.objects.filter(
+            kategori_id__in={p.kategori_id for p in paketler},
+            kod__in={p.kod for p in paketler},
+            fiyat__isnull=False,
+        )
+        .order_by("son_gorulme")
+        .values_list("kategori_id", "kod", "fiyat")
+    ):
+        gorulen[(kategori_id, kod)] = fiyat  # en yenisi sona kalır
+    return {
+        p.pk: gorulen[(p.kategori_id, p.kod)] for p in paketler if (p.kategori_id, p.kod) in gorulen
+    }
+
+
+def tavsiyeyi_operatorden_al(paketler):
+    """Seçili paketlerin tavsiye fiyatını operatör sorgusunda görülen fiyattan yazar.
+
+    Operatörde hiç görülmemiş paket atlanır. Dönüş: (güncellenen, atlanan).
+    """
+    paketler = list(paketler)
+    fiyatlar = operator_fiyatlari(paketler)
     guncellenen = atlanan = 0
     for paket in paketler:
-        fiyat = (
-            GorulenPaket.objects.filter(kategori_id=paket.kategori_id, kod=paket.kod, fiyat__isnull=False)
-            .order_by("-son_gorulme")
-            .values_list("fiyat", flat=True)
-            .first()
-        )
+        fiyat = fiyatlar.get(paket.pk)
         if fiyat is None:
             atlanan += 1
             continue

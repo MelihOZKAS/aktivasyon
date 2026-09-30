@@ -421,9 +421,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   · **Bayinin fiyatı kontör fiyat grubundan gelir** (`FiyatGrubu`:
   Perakende, Toptan…) ve **her pakette tek bir net rakamdır**
   (`PaketFiyati.fiyat`, ekranda "Bayi Satış Tutarı"). Fiyatı yazılmayan
-  paket o gruptaki bayiye satılmaz. Alış + % ve alış + ₺ yalnızca grubun
-  sayfasındaki **hesap aracıdır**: soldan işaretlenen paketlerin tutarını
-  alıştan hesaplayıp kutulara yazar, yönetici bakar ve kaydeder.
+  paket o gruptaki bayiye satılmaz. Alış + % / + ₺ ve **Operatör fiyatı**
+  (aynen / + % / + ₺) yalnızca grubun sayfasındaki **hesap aracıdır**:
+  soldan işaretlenen paketlerin tutarını alıştan ya da operatörün sorguda
+  görülen fiyatından (`services.operator_fiyatlari`: kategori + kod, en son
+  görülen — tavsiye fiyatını dolduran eşleşmenin aynısı) hesaplayıp
+  kutulara yazar, yönetici bakar ve kaydeder. Operatör fiyatı tabloda ayrı
+  sütundur; hiç görülmemiş pakette boştur ve araç o satırı atlar.
   **Bu alan üç kez yanlış kuruldu.** Önce fiyat alıştan grubun oranıyla
   hesaplanıyordu; sonra her satıra yöntem kutusu (net / alış + % / alış +
   ₺) ve grubun genel oranı kondu — oran 0'ken fiyatsız paket alış
