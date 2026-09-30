@@ -95,8 +95,9 @@ Beklenen anahtarlar:
 ```
 DEBUG                 False olmalı
 SECRET_KEY            uzun ve rastgele
-ALLOWED_HOSTS         aktivasyoncu.com,www.aktivasyoncu.com
-CSRF_TRUSTED_ORIGINS  https://aktivasyoncu.com,https://www.aktivasyoncu.com
+ALLOWED_HOSTS         aktivasyoncu.site,www.aktivasyoncu.site,aktivasyoncu.com.tr,www.aktivasyoncu.com.tr
+CSRF_TRUSTED_ORIGINS  https://aktivasyoncu.site,https://www.aktivasyoncu.site,https://aktivasyoncu.com.tr,https://www.aktivasyoncu.com.tr
+                      (her alan adı çıplak ve www ile ayrı yazılır: https://*.alan deseni çıplak adı kapsamaz)
 DATABASE_URL          postgres://...@postgresfadil:5434/fadil_db
 POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
 TELEGRAM_BOT_TOKEN    (opsiyonel)
