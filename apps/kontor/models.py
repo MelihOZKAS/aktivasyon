@@ -858,8 +858,8 @@ class Deneme(models.Model):
         "Sağlayıcı Tarafında",
         default=False,
         help_text=(
-            "Ret numaradan değil bizim hesaptan: sağlayıcıda bakiyemiz yetmedi ya da "
-            "bağlantı kurulamadı. Hiçbir sağlayıcı almazsa işlem iptal değil askıya düşer."
+            "Gönderim sağlayıcıda hiç açılmadı (kod bulunamadı, bakiye yetmedi, bağlantı "
+            "kurulamadı). Hiçbir sağlayıcı almazsa işlem iptal değil askıya düşer."
         ),
     )
     alis = models.DecimalField("Alış", max_digits=12, decimal_places=2, null=True, blank=True)

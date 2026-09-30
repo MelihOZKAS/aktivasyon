@@ -57,7 +57,7 @@ from apps.kontor.models import (
     SIFIR,
     SaglayiciPaketi,
 )
-from apps.kontor.saglayicilar import Gonderim, SaglayiciHatasi, Sorgu, bakiye_yetersiz_mi
+from apps.kontor.saglayicilar import Gonderim, SaglayiciHatasi, Sorgu
 from apps.magaza.models import Siparis, SiparisDurumu
 
 logger = logging.getLogger(__name__)
@@ -648,9 +648,10 @@ def _siradakine_gonder(islem, son_ret=""):
         .order_by("pk")
     )
     if kaynakli:
-        # Sorun numarada değil bizim hesapta (sağlayıcıda bakiye bitti, site
-        # kapalı): iptal edip bayiye "yüklenemedi" demek yanlış olurdu.
-        # Yönetim bakiyeyi yükleyip aynı yere ya da başka sağlayıcıya gönderir.
+        # Gönderim sağlayıcıda hiç açılmadı (kod eşleşmedi, bakiyemiz bitti,
+        # site kapalı): sorun numarada değil bizim tarafta. İptal edilseydi
+        # yanlış eşleştirilmiş bir paket her satışta bayiye "yüklenemedi"
+        # derdi. Yönetim düzeltip Karar ekranından yeniden gönderir.
         _askiya_al(islem, sebep=_saglayici_sorunu_metni(kaynakli))
         return
     if not son_ret:
@@ -660,13 +661,13 @@ def _siradakine_gonder(islem, son_ret=""):
 
 
 def _saglayici_sorunu_metni(denemeler):
-    """Askının sebebi, sağlayıcı sağlayıcı: "Kontorbizde: Yetersiz bakiye"."""
+    """Askının sebebi, sağlayıcı sağlayıcı ve cevabın tamamıyla."""
     parcalar = []
     for deneme in denemeler:
         parca = f"{deneme.saglayici.ad}: {_ret_metni(deneme)}"
         if parca not in parcalar:
             parcalar.append(parca)
-    return "Sağlayıcı tarafında sorun — " + " · ".join(parcalar)
+    return "Gönderilemedi — " + " · ".join(parcalar)
 
 
 def _kalan_rotalar(islem):
@@ -756,7 +757,7 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
         islem.save(update_fields=["durum", "guncelleme_tarihi"])
     elif sonuc.durum == Gonderim.RED:
         deneme.durum = DenemeDurumu.REDDEDILDI
-        deneme.saglayici_kaynakli = bakiye_yetersiz_mi(sonuc.mesaj) or bakiye_yetersiz_mi(sonuc.ham)
+        deneme.saglayici_kaynakli = True
         deneme.save()
     else:
         deneme.durum = DenemeDurumu.BELIRSIZ

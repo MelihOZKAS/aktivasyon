@@ -222,7 +222,7 @@ class AcmaTestleri(Temel):
     def test_iptal_edilen_islemden_sonra_hemen_yeniden_denenebilir(self):
         _ayar("Bir", gonderim="red")
         _ayar("İki", gonderim="red")
-        self.yukle()
+        iptal_et(self.yukle())  # gönderilemedi → askı → yönetim iptal etti
         _ayar("Bir", gonderim="kabul")
         self.yukle()
         self.assertEqual(self.bakiye(), TL("390.00"))
@@ -377,14 +377,19 @@ class TekGonderimTestleri(Temel):
         islem = self.yukle()
         self.assertEqual(islem.saglayici, self.iki)
 
-    def test_hepsi_reddederse_iptal_ve_iade(self):
-        _ayar("Bir", gonderim="red")
+    def test_hepsi_gonderimi_reddederse_iptal_degil_askiya_duser(self):
+        # Kod yanlış eşleşmiş olabilir: her satış bayiye "yüklenemedi" demesin.
+        _ayar("Bir", gonderim="red", red_mesaj="Aktif Kontor VodafoneSes8401")
         _ayar("İki", gonderim="red")
         islem = self.yukle()
-        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
-        self.assertEqual(islem.sonuc_mesaji, "OK|3|Numara hatalı|0.00")  # cevabın tamamı
-        self.assertEqual(islem.siparis.durum, SiparisDurumu.IPTAL)
-        self.assertEqual(self.bakiye(), TL("500.00"))
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        self.assertEqual(
+            islem.sonuc_mesaji,
+            f"Gönderilemedi — {self.bir.ad}: OK|3|Aktif Kontor VodafoneSes8401|0.00 · "
+            f"{self.iki.ad}: OK|3|Numara hatalı|0.00",
+        )
+        self.assertEqual(islem.siparis.durum, SiparisDurumu.VERILDI)
+        self.assertEqual(self.bakiye(), TL("390.00"))
 
     def test_zaman_asiminda_askiya_alinir_baska_yere_gitmez(self):
         _ayar("Bir", gonderim="zaman")
@@ -411,14 +416,14 @@ class TekGonderimTestleri(Temel):
         self.assertEqual(islem.saglayici, self.iki)
         self.assertEqual(len(DURUM["Bir"]["gonderilen"]), 1)
 
-    def test_son_saglayici_sorguda_iptal_derse_sebebi_yazilir(self):
+    def test_sorguda_iptal_sonra_gonderim_reddi_askiya_duser(self):
         _ayar("İki", gonderim="red")
         islem = self.yukle()
         _ayar("Bir", sorgu="iptal")
         islem = isle(islem.pk, zorla=True)
-        # İki reddetti; ondan önce Bir sorguda iptal dedi.
-        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
-        self.assertEqual(islem.sonuc_mesaji, "OK|3|Numara hatalı|0.00")
+        # Bir'de operatör iptal etti, İki gönderimi hiç açmadı: yönetim baksın.
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        self.assertIn("OK|3|Numara hatalı|0.00", islem.sonuc_mesaji)
 
     def test_tek_saglayici_sorguda_iptal_derse_sebebi_yazilir(self):
         Rota.objects.filter(saglayici=self.iki).delete()
@@ -436,7 +441,7 @@ class TekGonderimTestleri(Temel):
         # Bir'in bakiyesi yetmedi, sıradaki yine denendi; o da aldırmadı.
         self.assertEqual(len(DURUM["İki"]["gonderilen"]), 1)
         self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
-        self.assertIn("Yetersiz bakiye", islem.sonuc_mesaji)
+        self.assertIn("OK|3|Yetersiz bakiye|0.00", islem.sonuc_mesaji)
         self.assertIn(self.bir.ad, islem.sonuc_mesaji)
         self.assertEqual(self.bakiye(), TL("390.00"))  # para bayiden düşülü kalır
 
@@ -445,13 +450,6 @@ class TekGonderimTestleri(Temel):
         deneme = elle_gonder(islem, self.bir)
         islem.refresh_from_db()
         self.assertEqual((deneme.durum, islem.durum), (DenemeDurumu.ISLEMDE, IslemDurumu.ISLEMDE))
-
-    def test_buyuk_harfli_bakiye_mesaji_da_taninir(self):
-        from apps.kontor.saglayicilar import bakiye_yetersiz_mi
-
-        self.assertTrue(bakiye_yetersiz_mi("YETERSİZ BAKİYE"))
-        self.assertTrue(bakiye_yetersiz_mi("OK%7C3%7CBakiyeniz+yetersiz%7C0"))
-        self.assertFalse(bakiye_yetersiz_mi("Numara hatalı"))
 
     def test_hicbir_saglayiciya_baglanilamazsa_askiya_duser(self):
         _ayar("Bir", gonderim="kopuk")
@@ -700,13 +698,18 @@ class BayiApiTestleri(Temel):
         self.assertTrue(cevap.startswith("OK|3|Bakiyen"), cevap)
 
     def test_iptal_sonucu(self):
-        _ayar("Bir", gonderim="red")
-        _ayar("İki", gonderim="red")
-        # Gönderim yanıttan sonra arka planda olur: program kabulü alır,
-        # iptali sonuç sorgusunda öğrenir.
+        Rota.objects.filter(saglayici=self.iki).delete()
+        _ayar("Bir", sorgu="iptal")
+        # Program kabulü alır, operatörün iptalini sonuç sorgusunda öğrenir.
         self.assertTrue(self.servis().startswith("OK|1|"))
         self.assertTrue(self.kontrol().startswith("3:"))
         self.assertEqual(self.bakiye(), TL("500.00"))
+
+    def test_gonderilemeyen_programa_islemde_gorunur(self):
+        _ayar("Bir", gonderim="red")
+        _ayar("İki", gonderim="red")
+        self.assertTrue(self.servis().startswith("OK|1|"))
+        self.assertEqual(self.kontrol(), "2:islemde:0")
 
     def test_askida_bayiye_islemde_gorunur(self):
         _ayar("Bir", gonderim="zaman")
@@ -1302,10 +1305,11 @@ class AlternatifTestleri(Temel):
         ALT_SORGU["kodlar"] = ["200"]
         _ayar("Bir", red_kodlar={"200"})
         islem = self.yukle()
-        # Alternatif reddedildi, ana paket numarada yok: denenmez, iade.
+        # Alternatif gönderilemedi, ana paket numarada yok: denenmez; gönderim
+        # reddi eşleştirme hatası olabilir, iptal değil askı.
         self.assertEqual(self.giden_kodlar(), ["200"])
-        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
-        self.assertEqual(self.bakiye(), TL("500.00"))
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        self.assertEqual(self.bakiye(), TL("390.00"))
 
     def test_sorgu_hata_verirse_ana_paket_gider(self):
         ALT_SORGU["hata"] = True

@@ -349,17 +349,20 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   sebep bir süre kayboluyor, "hiçbir sağlayıcıda yüklenemedi" yazılıyordu;
   `_siradakine_gonder(son_ret=…)` sorgunun mesajını taşır. Sağlayıcı adı
   iptal sebebine eklenmez: bayi de okuyor.
-  · **Sağlayıcı tarafındaki sorun iptal değil askıdır.** Sağlayıcı "yetersiz
-  bakiye" derse (bizim oradaki bakiyemiz bitti; metinden okunur,
-  `saglayicilar.bakiye_yetersiz_mi`) ya da bağlantı hiç kurulamazsa deneme
-  `saglayici_kaynakli` işaretlenir. Sıradaki sağlayıcı yine denenir; hiçbiri
-  almazsa işlem **askıya** düşer, para bayiden düşülü kalır ve sebebi
-  sağlayıcı adıyla yazılır ("Sağlayıcı tarafında sorun — Kontorbizde:
-  Yetersiz bakiye"; admin listesinde rozetin altında, bayi askıda "kontrol
-  ediliyor" görür). Yönetim bakiyeyi yükleyip Karar ekranından aynı
-  sağlayıcıya ya da başkasına gönderir. Numara/paket kaynaklı ret eskisi
-  gibi iptal + iadedir. Önce her ret iptaldi: karşı sitede bakiye bitince
-  bütün satışlar sebepsiz iptal görünüyordu.
+  · **Gönderilemeyen işlem iptal değil askıdır.** Sağlayıcı gönderimi
+  reddederse (`OK|3`: kod bulunamadı, bakiyemiz bitti) ya da bağlantı hiç
+  kurulamazsa deneme `saglayici_kaynakli` işaretlenir: işlem orada hiç
+  açılmadı, sorun bizim tarafta. Sıradaki sağlayıcı yine denenir; hiçbiri
+  almazsa işlem **askıya** düşer, para bayiden düşülü kalır ve sebep
+  sağlayıcı adıyla, cevabın tamamıyla yazılır ("Gönderilemedi —
+  Kontorbizde: OK|3|Aktif Kontor VodafoneSes8401|0.00|"). Bayi "kontrol
+  ediliyor" görür. Yönetim eşleştirmeyi/bakiyeyi düzeltip Karar ekranından
+  aynı ya da başka sağlayıcıya gönderir, olmuyorsa iptal eder. **İptal +
+  iade kendiliğinden yalnızca** sağlayıcı kabul edip sonuç sorgusunda
+  "iptal" dediğinde (operatör reddetti) ve numara sorgusu paketi
+  alamayacağını söylediğinde olur. Önce her ret iptaldi: Kontorbizde'de
+  yanlış eşleştirilmiş tek paket her satışta bayiye "yüklenemedi" diyordu —
+  yönetici: "bir paketi yanlış eşleştirirsek sürekli iptal olması mantıksız".
   · **`ATOMIC_REQUESTS` açık; sağlayıcıyla konuşan her görünüm
   `non_atomic_requests`'tir** (bayi yükleme/durum, bayi API'si, admin karar
   ekranı). İstek transaction'ında gönderim kaydı commit edilmez, süreç
