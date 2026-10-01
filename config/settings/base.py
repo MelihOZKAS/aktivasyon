@@ -391,8 +391,8 @@ UNFOLD = {
                     {
                         "title": "Operatörde Görülen",
                         "icon": "new_releases",
-                        "link": "/yonetim/kontor/gorulenpaket/?katalog=yeni",
-                        # Sorguda görülüp katalogda olmayan paket: eklenecek ya da yok sayılacak.
+                        # Hepsi açılır, durum sütunu Eklendi / Yeni der; rozet yalnızca yenileri sayar.
+                        "link": "/yonetim/kontor/gorulenpaket/",
                         "badge": "apps.rozetler.yeni_kontor_paketleri",
                     },
                     {"title": "Kategoriler", "icon": "category", "link": "/yonetim/kontor/kategori/"},

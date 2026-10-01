@@ -423,7 +423,7 @@ class KatalogFiltresi(admin.SimpleListFilter):
     parameter_name = "katalog"
 
     def lookups(self, request, model_admin):
-        return (("yeni", "Yeni (katalogda yok)"), ("var", "Katalogda var"), ("yok_say", "Yok sayılan"))
+        return (("yeni", "Yeni (eklenmedi)"), ("var", "Eklendi"), ("yok_say", "Yok sayılan"))
 
     def queryset(self, request, queryset):
         katalogda = Paket.objects.filter(kategori_id=OuterRef("kategori_id"), kod=OuterRef("kod"))
@@ -443,6 +443,11 @@ class GorulenPaketAdmin(ModelAdmin):
     Günlük iş rozetteki "yeni" paketlere bakmaktır: satılacaksa **Kataloğa
     ekle** (fiyatsız ve sağlayıcısız açılır; fiyatı grubun sayfasında
     yazılana kadar bayiye görünmez), satılmayacaksa **Yok say**.
+
+    Menü **bütün** görülen paketleri açar, durum sütunu "Eklendi / Yeni /
+    Yok sayıldı" der: bir süre yalnızca yeniler süzülüyordu, yönetici hangi
+    paketi eklediğini göremiyordu. Liste kaynak + kod başına tekildir; aynı
+    paket her sorguda yeniden yazılmaz, yalnızca güncellenir.
     """
 
     list_display = (
@@ -490,22 +495,22 @@ class GorulenPaketAdmin(ModelAdmin):
             )
         return obj.fiyat
 
-    @display(description="Katalog")
+    @display(description="Durum")
     def katalog_durumu(self, obj):
         if obj._katalog_pk:
             return format_html(
-                '<a href="{}" style="color:#0F8A4D;font-weight:600">katalogda</a>',
+                '<a href="{}" style="color:#0F8A4D;font-weight:600">✓ Eklendi</a>',
                 reverse("admin:kontor_paket_change", args=[obj._katalog_pk]),
             )
         if obj.yok_say:
-            return format_html('<span style="color:#94A3B8">yok sayıldı</span>')
+            return format_html('<span style="color:#94A3B8">Yok sayıldı</span>')
         if obj.kategori_id is None:
-            return format_html('<b style="color:#D42046">yeni</b>')
+            return format_html('<b style="color:#D42046">Yeni</b>')
         return format_html_join(
             " ",
             "{}",
             (
-                (format_html('<b style="color:#D42046">yeni</b>'),),
+                (format_html('<b style="color:#D42046">Yeni</b>'),),
                 (_post_dugmesi(reverse("admin:kontor_gorulenpaket_ekle", args=[obj.pk]), "Kataloğa ekle", "#0E5E5B"),),
             ),
         )

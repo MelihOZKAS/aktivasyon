@@ -1315,6 +1315,65 @@ class VodafoneSorguTestleri(TestCase):
 
 
 
+class PaylasilanKodTemizligiTestleri(Temel):
+    """0020: düz 13239 koduyla açılmış eski kayıtlar yeni koda taşınır."""
+
+    def temizle(self):
+        import importlib
+
+        from django.apps import apps
+
+        importlib.import_module("apps.kontor.migrations.0020_paylasilan_kod_temizligi").temizle(apps, None)
+
+    def test_esi_olan_eski_paket_birlesir_esi_olmayan_kod_degistirir(self):
+        from apps.kontor.models import GorulenPaket
+
+        grup = FiyatGrubu.objects.create(ad="Parakende")
+        eski = Paket.objects.create(kategori=self.kategori, kod="13239", ad="5G Tam Senlik 1 GB", tavsiye_fiyati=TL("420"))
+        Rota.objects.create(paket=eski, saglayici=self.iki, alis_fiyati=TL("400"))
+        PaketFiyati.objects.create(paket=eski, grup=grup, fiyat=TL("415"))
+        yeni = Paket.objects.create(kategori=self.kategori, kod="13239-5g-tam-senlik-1-gb", ad="5G Tam Senlik 1 GB")
+        Rota.objects.create(paket=yeni, saglayici=self.bir, alis_fiyati=TL("411.60"))
+        # Başka kategoride eşi olmayan eski paket.
+        diger = Kategori.objects.create(ad="Vodafone İnternet", operator=self.operator, api_operator="vodafone", api_tip="int")
+        yalniz = Paket.objects.create(kategori=diger, kod="13239", ad="5G Tam Senlik 3 GB", satis_fiyati=TL("5"))
+        GorulenPaket.objects.create(kaynak="vodafone", kod="13239", kategori=self.kategori, son_gorulme=timezone.now())
+
+        self.temizle()
+
+        self.assertFalse(Paket.objects.filter(pk=eski.pk).exists())  # işlemi yoktu: silindi
+        self.assertEqual(
+            sorted(yeni.rotalar.values_list("saglayici__ad", flat=True)), ["Bir", "İki"]
+        )  # yenisinde olmayan sağlayıcı taşındı
+        self.assertEqual(PaketFiyati.objects.get(paket=yeni, grup=grup).fiyat, TL("415"))
+        yeni.refresh_from_db()
+        self.assertEqual(yeni.tavsiye_fiyati, TL("420"))
+        yalniz.refresh_from_db()
+        self.assertEqual(yalniz.kod, "13239-5g-tam-senlik-3-gb")
+        self.assertFalse(GorulenPaket.objects.filter(kod="13239").exists())
+
+    def test_islemi_olan_eski_paket_silinmez_gizlenir(self):
+        eski = Paket.objects.create(kategori=self.kategori, kod="13239", ad="5G Tam Senlik 1 GB", satis_fiyati=TL("50"))
+        Rota.objects.create(paket=eski, saglayici=self.bir)
+        Paket.objects.create(kategori=self.kategori, kod="13239-5g-tam-senlik-1-gb", ad="5G Tam Senlik 1 GB")
+        self.paket = eski
+        self.yukle()
+        self.temizle()
+        eski.refresh_from_db()
+        self.assertEqual((eski.aktif, eski.bayiye_gorunur), (False, False))
+
+    def test_gorulenlerde_eklenen_ve_yeni_birlikte_gorunur(self):
+        from apps.kontor.models import GorulenPaket
+
+        GorulenPaket.objects.create(kaynak="x", kod=self.paket.kod, kategori=self.kategori, son_gorulme=timezone.now())
+        GorulenPaket.objects.create(kaynak="x", kod="999", kategori=self.kategori, ad="Yeni paket", son_gorulme=timezone.now())
+        yonetici = User.objects.create_superuser("yonetici", password="x")
+        self.client.force_login(yonetici)
+        yanit = self.client.get(reverse("admin:kontor_gorulenpaket_changelist"))
+        self.assertContains(yanit, "✓ Eklendi")
+        self.assertContains(yanit, "Kataloğa ekle")
+        self.assertContains(yanit, "Yeni paket")
+
 class BayiRotasiTestleri(Temel):
     """Bayinin kategorisine özel sağlayıcı: genel sıra yerine bu sıra."""
 

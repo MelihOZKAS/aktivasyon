@@ -585,7 +585,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   karşılığı olmayan "yeni"dir, rozetle
   sayılır; **Kataloğa ekle** paketi fiyatsız ve sağlayıcısız açar — fiyatı
   (grubun sayfasında Bayi Satış Tutarı) yazılana kadar bayiye görünmez;
-  **Yok say** rozetten düşürür. Fiyat değişimi `onceki_fiyat`'ta durur.
+  **Yok say** rozetten düşürür. Fiyat değişimi `onceki_fiyat`'ta durur. Menü
+  **bütün** görülen paketleri açar, durum sütunu "✓ Eklendi / Yeni / Yok
+  sayıldı" der (bir süre yalnızca yeniler süzülüyordu, yönetici neyi
+  eklediğini göremiyordu); rozet yine yalnızca yenileri sayar. Liste kaynak
+  + kod başına tekildir. `0020` düz `13239` koduyla açılmış eski kayıtları
+  temizledi (eşi varsa birleştirdi, yoksa kodu yeni biçime çevirdi).
   Ucuz alternatif (eski `Sorgu.php` akışı) yukarıda: gönderim planı.
 - **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme
   bildiriminin `durum` alanı formda düzenlenebilir; yönetici "Onaylandı"
