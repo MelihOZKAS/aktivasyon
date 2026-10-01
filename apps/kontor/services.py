@@ -215,7 +215,8 @@ def _onbellek():
 # kayıtlar (ör. Vodafone'un `id`siyle yazılmış yanlış kodlar) 12 saat daha
 # ekranda kalmasın. v2: Vodafone kodu `reasonCode`. v3: paylaşılan
 # `reasonCode`da kod + paket adı (5G Tam Senlik'in dördü tek pakete çöküyordu).
-SORGU_SURUMU = 3
+# v4: + tutar (kişiye özel fiyat: aynı paket farklı numarada farklı fiyat).
+SORGU_SURUMU = 4
 
 
 def _sorgu_anahtari(kaynak_kodu, numara, sahip):

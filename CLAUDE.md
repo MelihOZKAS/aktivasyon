@@ -551,10 +551,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   (`/Prepaid/KolayPack/KP_INTEGRATED_OFFER_7`, `BKPM046`), bir süre o
   okundu ve katalog yanlış kodla doldu. **`reasonCode` her zaman tekil
   değildir:** "Sana özel" 5G Tam Senlik 15/20/30/40 GB'nin dördü de
-  `13239`; kodla tekilleştirilen sorgu dördünü tek pakete çökertiyor,
+  `13239` (1…40 GB, sekizi birden — ham cevapla doğrulandı, kodda hata
+  değil); kodla tekilleştirilen sorgu hepsini tek pakete çökertiyor,
   bayi ve yönetim yalnızca birini görüyordu. Paylaşılan kodda iç kod
-  `13239-5g-tam-senlik-20-gb` olur (kod + paket adı; `id` müşteriye göre
-  değişen yuvadır, kullanılmaz). Tek başına göründüğü numarada da aynı
+  `13239-5g-tam-senlik-30-gb-1060` olur: kod + paket adı + **tutar**. `id`
+  müşteriye göre değişen yuvadır (`KP_INTEGRATED_OFFER_8` →
+  `KP_INTEGRATED_CHURN_8`), kullanılmaz. Tutar koda girer çünkü bu
+  teklifler kişiye özel fiyatlıdır (aynı 30 GB bir numarada 1.150, diğerinde
+  1.060 ₺); her fiyat ayrı pakettir, yeni fiyat Operatörde Görülen'e "Yeni"
+  düşer. Düz `13239` yapılamaz: katalogda kategori + kod tekildir ve sorgu
+  hangi paketin teklif edildiğini ayıramaz. `0021` tutarsız eski kodları
+  görülen fiyatla taşıdı. Tek başına göründüğü numarada da aynı
   kalsın diye bilinen paylaşılan kodlar `vodafone.PAYLASILAN_KODLAR`'dadır;
   yenisi görülürse oraya eklenir. Sağlayıcıya iç kod değil karşı site
   kodu gider. Ham cevap için `manage.py

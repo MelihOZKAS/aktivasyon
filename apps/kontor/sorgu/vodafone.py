@@ -16,10 +16,14 @@ kodlarla dolmuştu. `reasonCode`u olmayan paket atlanır — `id`ye geri
 düşülmez, yanlış kod sessizce kataloğa girmesin.
 
 **`reasonCode` her zaman tekil değildir.** "Sana özel" (entegre teklif)
-paketlerin bir kısmı aynı kodu taşır: 5G Tam Senlik 15/20/30/40 GB'nin
-dördü de `13239`. Kodla tekilleştiren sorgu dördünü tek pakete çökertiyor,
-yalnızca biri görünüyordu. Paylaşılan kodda iç kod `kod-paket-adı` olur
-(`13239-5g-tam-senlik-20-gb`); paket adı müşteriden müşteriye aynı kalır.
+paketlerin bir kısmı aynı kodu taşır: 5G Tam Senlik 1…40 GB'nin sekizi de
+`13239`. Kodla tekilleştiren sorgu hepsini tek pakete çökertiyor, yalnızca
+biri görünüyordu. Paylaşılan kodda iç kod `kod-paket-adı-tutar` olur
+(`13239-5g-tam-senlik-30-gb-1060`). **Tutar koda girer** çünkü bu teklifler
+kişiye özel fiyatlıdır: aynı 30 GB bir numarada 1.150, diğerinde 1.060 ₺
+geliyordu ve tek koda düşünce fiyatı sürekli değişiyordu. Her fiyat ayrı
+pakettir — kendi bayi fiyatı, karşı site kodu ve alışıyla; yeni bir fiyat
+Operatörde Görülen'e "Yeni" olarak düşer.
 `id` (`KP_INTEGRATED_OFFER_2`) kullanılmaz: müşteriye göre değişen bir yuva
 numarasıdır. Bir numarada bu paketlerden yalnızca biri çıkabilir; kod o
 zaman da aynı kalsın diye bilinen paylaşılan kodlar `PAYLASILAN_KODLAR`'da
@@ -38,6 +42,12 @@ from apps.kontor.sorgu import SorguHatasi, SorguPaketi, SorguSonucu, kaynak
 PAYLASILAN_KODLAR = {"13239"}
 
 
+def tutar_metni(fiyat):
+    """Koda girecek tutar: 1060.0 → "1060", 999.90 → "999.9"."""
+    metin = f"{Decimal(fiyat).quantize(Decimal('0.01')):f}"
+    return metin.rstrip("0").rstrip(".") if "." in metin else metin
+
+
 def _paketler(cevap):
     for kategori in (cevap or {}).get("kolayPackCategory") or []:
         yield from kategori.get("kolayPacks") or []
@@ -52,13 +62,14 @@ def paketleri_coz(cevap):
         if not kod:
             continue
         ad = str(paket.get("description") or "").strip()
-        if (sayilar[kod] > 1 or kod in PAYLASILAN_KODLAR) and ad:
-            kod = f"{kod}-{turkce_slug(ad)}"[:60]
         ucret = paket.get("usageFee") or {}
         try:
             fiyat = Decimal(str(ucret.get("value"))) if ucret.get("value") is not None else None
         except InvalidOperation:
             fiyat = None
+        if (sayilar[kod] > 1 or kod in PAYLASILAN_KODLAR) and ad:
+            kod = f"{kod}-{turkce_slug(ad)}" + (f"-{tutar_metni(fiyat)}" if fiyat is not None else "")
+            kod = kod[:60]
         paketler.append(
             SorguPaketi(
                 kod=kod,

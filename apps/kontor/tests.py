@@ -1246,15 +1246,20 @@ class VodafoneSorguTestleri(TestCase):
         self.assertEqual(
             [(p.kod, p.fiyat) for p in paketleri_coz(cevap)],
             [
-                ("13239-5g-tam-senlik-20-gb", TL("930.0")),
+                ("13239-5g-tam-senlik-20-gb-930", TL("930.0")),
                 ("17960", TL("129.0")),  # tekil kod olduğu gibi kalır
-                ("13239-5g-tam-senlik-40-gb", TL("1300.0")),
-                ("13239-5g-tam-senlik-15-gb", TL("830.0")),
+                ("13239-5g-tam-senlik-40-gb-1300", TL("1300.0")),
+                ("13239-5g-tam-senlik-15-gb-830", TL("830.0")),
             ],
         )
         # Numarada tek başına çıksa da kod aynı kalır (bilinen paylaşılan kod).
         tek = {"kolayPackCategory": [{"kolayPacks": [paket("13239", "5G Tam Senlik 20 GB", "930", "X")]}]}
-        self.assertEqual(paketleri_coz(tek)[0].kod, "13239-5g-tam-senlik-20-gb")
+        self.assertEqual(paketleri_coz(tek)[0].kod, "13239-5g-tam-senlik-20-gb-930")
+        # Kişiye özel fiyat: aynı paket başka numarada başka tutarla ayrı pakettir.
+        baska = {"kolayPackCategory": [{"kolayPacks": [paket("13239", "5G Tam Senlik 30 GB", "1150.0", "Y")]}]}
+        self.assertEqual(paketleri_coz(baska)[0].kod, "13239-5g-tam-senlik-30-gb-1150")
+        kusurlu = {"kolayPackCategory": [{"kolayPacks": [paket("13239", "5G Tam Senlik 1 GB", "419.90", "Z")]}]}
+        self.assertEqual(paketleri_coz(kusurlu)[0].kod, "13239-5g-tam-senlik-1-gb-419.9")
 
     def test_token_ve_paket_adimlari(self):
         from unittest import mock
@@ -1351,6 +1356,33 @@ class PaylasilanKodTemizligiTestleri(Temel):
         yalniz.refresh_from_db()
         self.assertEqual(yalniz.kod, "13239-5g-tam-senlik-3-gb")
         self.assertFalse(GorulenPaket.objects.filter(kod="13239").exists())
+
+    def test_0021_tutarsiz_kod_gorulen_fiyatla_tasinir(self):
+        import importlib
+
+        from django.apps import apps
+
+        from apps.kontor.models import GorulenPaket
+
+        paket = Paket.objects.create(kategori=self.kategori, kod="13239-5g-tam-senlik-30-gb", ad="5G Tam Senlik 30 GB")
+        Rota.objects.create(paket=paket, saglayici=self.bir, uzak_kod="KB30", alis_fiyati=TL("922.20"))
+        GorulenPaket.objects.create(
+            kaynak="vodafone", kod="13239-5g-tam-senlik-30-gb", kategori=self.kategori,
+            fiyat=TL("1060.0"), onceki_fiyat=TL("1150"), son_gorulme=timezone.now(),
+        )
+        # Fiyatı hiç görülmemiş paket ve tekil kodlu paket olduğu gibi kalır.
+        bilinmeyen = Paket.objects.create(kategori=self.kategori, kod="13239-5g-tam-senlik-3-gb", ad="3 GB")
+
+        importlib.import_module("apps.kontor.migrations.0021_paylasilan_koda_tutar").tasi(apps, None)
+
+        paket.refresh_from_db()
+        self.assertEqual(paket.kod, "13239-5g-tam-senlik-30-gb-1060")
+        self.assertEqual(paket.rotalar.get().uzak_kod, "KB30")  # karşı site kodu korunur
+        gorulen = GorulenPaket.objects.get()
+        self.assertEqual((gorulen.kod, gorulen.onceki_fiyat), ("13239-5g-tam-senlik-30-gb-1060", None))
+        bilinmeyen.refresh_from_db()
+        self.assertEqual(bilinmeyen.kod, "13239-5g-tam-senlik-3-gb")
+        self.assertEqual(self.paket.kod, "100")
 
     def test_islemi_olan_eski_paket_silinmez_gizlenir(self):
         eski = Paket.objects.create(kategori=self.kategori, kod="13239", ad="5G Tam Senlik 1 GB", satis_fiyati=TL("50"))
