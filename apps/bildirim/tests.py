@@ -113,3 +113,28 @@ class TelegramTestleri(TestCase):
         metin = sahte.call_args[0][0]
         self.assertIn("&lt;b&gt;Ali", metin)
         self.assertNotIn("<b>Ali", metin)
+
+
+class CinSesiTestleri(TestCase):
+    """Panel en son numaraları sorar; biri artınca çın çalar."""
+
+    def setUp(self):
+        from django.urls import reverse
+
+        self.adres = reverse("yeni-kayitlar")
+
+    def test_personel_dort_kaynagin_son_numarasini_alir(self):
+        from apps.bayi.models import BayiBasvurusu
+
+        yonetici = User.objects.create_user("yonetici", password="parola12345", is_staff=True)
+        self.client.force_login(yonetici)
+        veri = self.client.get(self.adres).json()
+        self.assertEqual(veri, {"basvuru": 0, "bayi_basvurusu": 0, "odeme": 0, "kontor": 0})
+        basvuru = BayiBasvurusu.objects.create(isim="Ali", soyisim="Veli", irtibat="5320000000")
+        self.assertEqual(self.client.get(self.adres).json()["bayi_basvurusu"], basvuru.pk)
+
+    def test_personel_olmayan_ve_girissiz_403_alir(self):
+        # Yönlendirme değil 403: oturumu düşen sekme sormayı bıraksın.
+        self.assertEqual(self.client.get(self.adres).status_code, 403)
+        self.client.force_login(User.objects.create_user("5321112233", password="parola12345"))
+        self.assertEqual(self.client.get(self.adres).status_code, 403)

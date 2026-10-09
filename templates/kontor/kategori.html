@@ -22,7 +22,7 @@
     </div>
   </div>
 
-  {% if kategori.sorgu_kaynagi %}
+  {% if kategori.sorgulanir %}
   {% comment %}
     Numara sorgusu: sonuç bu formun altına HTMX ile gelir. Salt okumadır;
     cevap gelmese de aşağıdaki liste seçilebilir kalır.
@@ -41,44 +41,24 @@
     bin paket olabilir, hepsini çizip tarayıcıda süzmek telefonu yoruyordu.
   {% endcomment %}
   {% if paketler or ara %}
-  <div class="mb-4 flex items-center gap-2">
-    {% if paketler|length > 8 or ara or sayfa.has_other_pages %}
-    <form method="get" class="flex min-w-0 flex-1 gap-2" role="search">
-      <input type="search" name="q" value="{{ ara }}" class="girdi min-w-0 flex-1"
-             placeholder="Paket ara… (15 GB, 1000 DK, 100)" autocomplete="off" inputmode="search">
-      <button type="submit" class="dugme dugme-sessiz shrink-0">Ara</button>
-    </form>
-    {% else %}
-    <p class="flex-1 text-sm text-soluk">{% if tavsiye_var %}Fiyatlar müşteriye satış fiyatıdır.{% endif %}</p>
-    {% endif %}
-    {% if tavsiye_var %}{% include "kontor/parca_goz.html" %}{% endif %}
-  </div>
+  {% if paketler|length > 8 or ara or sayfa.has_other_pages %}
+  <form method="get" class="mb-4 flex gap-2" role="search">
+    <input type="search" name="q" value="{{ ara }}" class="girdi min-w-0 flex-1"
+           placeholder="Paket ara… (15 GB, 1000 DK, 100)" autocomplete="off" inputmode="search">
+    <button type="submit" class="dugme dugme-sessiz shrink-0">Ara</button>
+  </form>
+  {% elif tavsiye_var %}
+  <p class="mb-4 text-sm text-soluk">Fiyatlar müşteriye satış fiyatıdır; alışın her kartın gözünde.</p>
+  {% endif %}
   {% endif %}
 
   {% if paketler %}
   {% comment %}
-    Paket kartı: ad, içerik (DK · GB · gün), bayinin ödeyeceği fiyat.
-    Bakiyesi yetmeyen paket gizlenmez; fiyatı uyarı renginde yazılır,
-    sebebi paket sayfasında.
+    Kart `parca_paket.html`'dedir; numara sorgusunun sonucu da aynısını çizer.
   {% endcomment %}
   <div id="paket-listesi" class="grid gap-2 sm:grid-cols-2">
     {% for paket in paketler %}
-    <a href="{{ paket.get_absolute_url }}"
-       class="kart-secim sim yuzey flex min-h-16 items-center gap-3 border border-cizgi px-4 py-3 transition">
-      <span class="min-w-0 flex-1">
-        <span class="block font-medium">{{ paket.ad }}</span>
-        {% comment %}
-          Yalnızca yönetimin girdiği içerik (DK · GB · SMS · gün). Açıklama
-          çoğu zaman operatörün sorgusundan gelen metindir ve aynı bilgiyi
-          ikinci kez yazıyordu; yalnızca içeriği olmayan pakette (oyun, pin)
-          gösterilir, kart boş kalmasın.
-        {% endcomment %}
-        {% if paket.icerik or paket.aciklama %}
-        <span class="mt-0.5 block text-xs text-soluk">{{ paket.icerik|default:paket.aciklama }}</span>
-        {% endif %}
-      </span>
-      {% include "kontor/parca_fiyat.html" %}
-    </a>
+    {% include "kontor/parca_paket.html" %}
     {% endfor %}
   </div>
 
@@ -104,4 +84,5 @@
   </div>
   {% endif %}
 </div>
+{% include "kontor/parca_goz_betik.html" %}
 {% endblock %}

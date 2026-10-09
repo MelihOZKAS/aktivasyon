@@ -3,6 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from apps.bayi import views as bayi_views
+from apps.bildirim.ses import yeni_kayitlar
 from apps.medya import acik_gorsel_yollari
 from apps.ozet import stok_ve_alacak
 from apps.rapor import karlilik
@@ -14,6 +15,8 @@ urlpatterns = [
     # Admin'in kendi adreslerinden ÖNCE: yakalayıcı desenlerine takılmasın.
     path("yonetim/ozet/", stok_ve_alacak, name="stok-ve-alacak"),
     path("yonetim/rapor/", karlilik, name="karlilik-raporu"),
+    # Paneldeki "çın" sesi bunu sorar (static/yonetim-ses.js).
+    path("yonetim/yeni-kayitlar/", yeni_kayitlar, name="yeni-kayitlar"),
     path("yonetim/", admin.site.urls),
     path("", include("apps.bayi.urls", namespace="bayi")),
     path("basvuru/", include("apps.basvurular.urls", namespace="basvurular")),

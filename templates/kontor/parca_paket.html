@@ -1,0 +1,23 @@
+{% comment %}
+  Paket kartı: ad, içerik (DK · GB · gün), fiyat. Kategori listesi ve numara
+  sorgusunun sonucu aynı kartı çizer; sorgudan gelen kart numarayı
+  (`hedef`) paket sayfasına taşır.
+  Kart bağlantı değil kutudur: göz düğmesi bağlantının içinde olamaz.
+  Bağlantı `after:inset-0` ile kartın tamamını kaplar, dokunulan her yer
+  paket sayfasına gider; göz onun üstünde durur.
+  Yalnızca yönetimin girdiği içerik yazılır (DK · GB · SMS · gün). Açıklama
+  çoğu zaman operatörün sorgusundan gelen metindir ve aynı bilgiyi ikinci
+  kez yazıyordu; yalnızca içeriği olmayan pakette (oyun, pin) gösterilir,
+  kart boş kalmasın. Bakiyesi yetmeyen paket gizlenmez; fiyatı uyarı
+  renginde yazılır, sebebi paket sayfasında.
+{% endcomment %}
+<div class="kart-secim sim yuzey @container flex min-h-16 flex-wrap items-center gap-x-3 gap-y-1 border border-cizgi px-4 py-3">
+  <a href="{{ paket.get_absolute_url }}{% if hedef %}?hedef={{ hedef }}{% endif %}"
+     class="min-w-0 flex-1 after:absolute after:inset-0 focus-visible:outline-none">
+    <span class="block font-medium">{{ paket.ad }}</span>
+    {% if paket.icerik or paket.aciklama %}
+    <span class="mt-0.5 block text-xs text-soluk">{{ paket.icerik|default:paket.aciklama }}</span>
+    {% endif %}
+  </a>
+  {% include "kontor/parca_fiyat.html" %}
+</div>

@@ -175,6 +175,21 @@ class AcmaTestleri(Temel):
         self.assertEqual((hedef, kod, op, tip), ("5329998877", "100", "vodafone", "ses"))
         self.assertEqual(DURUM["İki"]["gonderilen"], [])
 
+    def test_tam_kontorde_saglayiciya_tip_tam_gider(self):
+        # Eski sistemde tam kontör ayrı tablodan eşleşip tip=tam ile gidiyordu.
+        self.kategori.tam_kontor = True
+        self.kategori.save()
+        self.yukle()
+        (_, _, kod, op, tip), = DURUM["Bir"]["gonderilen"]
+        self.assertEqual((kod, op, tip), ("100", "vodafone", "tam"))
+        # Rotada o sağlayıcı için ayrı tip yazılmışsa o gider.
+        rota = Rota.objects.select_related("paket__kategori").get(saglayici=self.bir)
+        rota.uzak_tip = "full"
+        self.assertEqual(rota.gidecek_tip, "full")
+        # Kapalıyken tip kodu gider.
+        self.kategori.tam_kontor = False
+        self.assertEqual(self.kategori.gonderim_tipi, "ses")
+
     def test_bakiye_yetmezse_hicbir_sey_yazilmaz(self):
         self.cuzdan.bakiye = TL("50.00")
         self.cuzdan.save()
@@ -666,6 +681,13 @@ class BayiApiTestleri(Temel):
         Islem.objects.update(son_sorgu=None)
         self.assertEqual(self.kontrol(), "1:Yüklendi:110.00")
 
+    def test_tam_kontor_bayi_programinin_kodunu_degistirmez(self):
+        # Bayi programı kategoriyi yine tip koduyla (ses) bulur; sağlayıcıya tam gider.
+        self.kategori.tam_kontor = True
+        self.kategori.save()
+        self.assertTrue(self.servis().startswith("OK|1|"))
+        self.assertEqual(DURUM["Bir"]["gonderilen"][0][4], "tam")
+
     def test_ayni_referans_ikinci_yukleme_yapmaz(self):
         self.servis()
         self.assertEqual(self.servis(), "OK|1|Talebiniz işleme alındı.|110.00")
@@ -793,6 +815,25 @@ class YonetimTestleri(Temel):
         super().setUp()
         self.yonetici = User.objects.create_superuser("yonetici", password="x")
         self.client.force_login(self.yonetici)
+
+    def test_zarardaki_paket_kirmizi_ve_suzgecte(self):
+        diger = Paket.objects.create(kategori=self.kategori, kod="200", ad="Karli Paket", satis_fiyati=TL("150"))
+        Rota.objects.create(paket=diger, saglayici=self.bir, sira=1, alis_fiyati=TL("100"))
+        adres = reverse("admin:kontor_paket_changelist")
+        self.assertNotContains(self.client.get(adres), "data-zarar")
+        Rota.objects.filter(paket=self.paket, saglayici=self.bir).update(alis_fiyati=TL("120"))  # satış 110
+        self.assertContains(self.client.get(adres), "data-zarar hidden", count=1)
+        yanit = self.client.get(adres, {"zarar": "evet"})
+        self.assertContains(yanit, "Kolay Paket 15")
+        self.assertNotContains(yanit, "Karli Paket")
+        # Gruplu: grubun net fiyatı alışın altındaysa zarardadır; süzgeç ve satır aynı kural.
+        grup = FiyatGrubu.objects.create(ad="Perakende", varsayilan=True)
+        PaketFiyati.objects.create(paket=diger, grup=grup, fiyat=TL("90"))
+        PaketFiyati.objects.create(paket=self.paket, grup=grup, fiyat=TL("130"))
+        yanit = self.client.get(adres, {"zarar": "evet"})
+        self.assertContains(yanit, "Karli Paket")
+        self.assertNotContains(yanit, "Kolay Paket 15")
+        self.assertContains(yanit, "data-zarar hidden", count=1)
 
     def test_karar_ekrani_ve_iptal(self):
         _ayar("Bir", gonderim="zaman")
@@ -1049,7 +1090,7 @@ def _test_sorgusu(numara, *, sahip=False):
     if SORGU["hata"]:
         raise SorguHatasi("Kaynak cevap vermedi.")
     paketler = [
-        SorguPaketi(kod="100", ad="Kolay 15"),
+        SorguPaketi(kod="100", ad="Kolay 15", fiyat=SORGU.get("fiyat_100")),
         SorguPaketi(kod="999", ad="Bizde yok", gun=7, fiyat=SORGU.get("fiyat", TL("50"))),
     ]
     return NumaraSonucu(paketler, sahip="Ah*** Yı***" if sahip else "")
@@ -1061,7 +1102,7 @@ class SorguTestleri(Temel):
         from django.core.cache import caches
 
         caches["kontor_sorgu"].clear()
-        SORGU.update(cagri=0, hata=False)
+        SORGU.update(cagri=0, hata=False, fiyat_100=None)
         self.kategori.sorgu_kaynagi = "test-sorgu"
         self.kategori.save()
         self.client.force_login(self.bayi)
@@ -1075,6 +1116,59 @@ class SorguTestleri(Temel):
         # Bizde satışta olmayan paket bayiye gösterilmez.
         self.assertNotContains(yanit, "Bizde yok")
         self.assertNotContains(yanit, "satışta olmayan")
+
+    def _fiyat_degisimi_mesajlari(self, *numaralar):
+        from unittest.mock import patch
+
+        with override_settings(TELEGRAM_BOT_TOKEN="x:y", TELEGRAM_SOHBET_ID="@g", TELEGRAM_ARKA_PLAN=False), patch(
+            "apps.bildirim.telegram._gonder", return_value=(True, "")
+        ) as gonder:
+            for numara in numaralar:
+                with self.captureOnCommitCallbacks(execute=True):
+                    self.client.get(self.adres, {"hedef": numara})
+        return [c.args[0] for c in gonder.call_args_list]
+
+    def test_bizdeki_paketin_operator_fiyati_degisince_telegrama_gider(self):
+        self.addCleanup(SORGU.pop, "fiyat", None)
+        SORGU.update(fiyat_100=TL("300"), fiyat=TL("50"))
+        self.assertEqual(self._fiyat_degisimi_mesajlari("5329998877"), [])  # ilk görülme
+        # 999 bizde yok: onun fiyatı da değişti ama bildirilmez.
+        SORGU.update(fiyat_100=TL("320"), fiyat=TL("60"))
+        # Başka numara aynı değişimi görürse ikinci mesaj gitmez (günde bir kez).
+        (metin,) = self._fiyat_degisimi_mesajlari("5329998866", "5329998855")
+        self.assertIn("Operatör fiyatı değişti", metin)
+        self.assertIn("Kolay Paket 15", metin)
+        self.assertIn("300.00 → 320.00 ₺ (+20.00)", metin)
+        self.assertIn("Alışımız:</b> 100.00 ₺", metin)
+        self.assertNotIn("Bizde yok", metin)
+        self.assertNotIn("Zararda", metin)
+
+    def test_fiyat_degisimi_zarardaki_grubu_soyler(self):
+        SORGU["fiyat_100"] = TL("300")
+        self._fiyat_degisimi_mesajlari("5329998877")
+        Rota.objects.filter(paket=self.paket, saglayici=self.bir).update(alis_fiyati=TL("120"))  # satış 110
+        SORGU["fiyat_100"] = TL("330")
+        (metin,) = self._fiyat_degisimi_mesajlari("5329998866")
+        self.assertIn("Zararda:</b> Satış 110.00 ₺ &lt; alış 120.00 ₺", metin)
+
+    def test_pasif_paketin_fiyat_degisimi_bildirilmez(self):
+        SORGU["fiyat_100"] = TL("300")
+        self._fiyat_degisimi_mesajlari("5329998877")
+        Paket.objects.filter(pk=self.paket.pk).update(aktif=False)
+        SORGU["fiyat_100"] = TL("320")
+        self.assertEqual(self._fiyat_degisimi_mesajlari("5329998866"), [])
+
+    def test_tam_kontorde_sorgu_yapilmaz(self):
+        # Tam kontörün alternatifi yok; sorgu operatöre boşuna gitmek olurdu.
+        self.kategori.tam_kontor = True
+        self.kategori.gonderim_oncesi_sorgu = True
+        self.kategori.save()
+        self.assertNotContains(self.client.get(self.kategori.get_absolute_url()), self.adres)
+        self.assertContains(self.client.get(self.adres, {"hedef": "5329998877"}), "Tam kontörde numara sorgusu yapılmaz")
+        islem = self.yukle("5329998877")
+        self.assertEqual(SORGU["cagri"], 0)
+        self.assertEqual(islem.plan, [self.paket.pk])
+        self.assertEqual(DURUM["Bir"]["gonderilen"][0][4], "tam")
 
     def test_ayni_numara_onbellekten(self):
         self.client.get(self.adres, {"hedef": "5329998877"})
@@ -1808,10 +1902,34 @@ class TavsiyeTestleri(Temel):
         yanit = self.client.get(reverse("kontor:paket", args=[self.kategori.slug, "100"]))
         self.assertContains(yanit, "kazancın 239,90")
 
+    def test_sorgu_sonucunda_her_kartin_gozu_ve_alisi_var(self):
+        # Göz bir süre yalnızca paket listesinin üstündeydi; numara sorgusunun
+        # sonucunda hiç yoktu ve bayi sorguda kaça aldığını göremiyordu.
+        from django.core.cache import caches
+
+        caches["kontor_sorgu"].clear()
+        SORGU.update(cagri=0, hata=False)
+        self.kategori.sorgu_kaynagi = "test-sorgu"
+        self.kategori.save()
+        yanit = self.client.get(reverse("kontor:sorgu", args=[self.kategori.slug]), {"hedef": "5329998877"})
+        self.assertContains(yanit, "data-goz", count=1)
+        self.assertContains(yanit, "data-alis hidden")
+        self.assertContains(yanit, "Alışın")
+        self.assertContains(yanit, "110,00")
+        self.assertContains(yanit, "239,90")
+        self.assertContains(yanit, "?hedef=5329998877")
+        # Göz düğmesi bağlantının içinde değil: kart kutu, bağlantı onun içinde.
+        icerik = yanit.content.decode()
+        self.assertLess(icerik.index("</a>"), icerik.index("data-goz"))
+        # Sorgu sonucu betik taşımaz; sayfadaki tek betik HTMX'le gelen kartları da bağlar.
+        self.assertNotContains(yanit, "<script")
+        self.assertContains(self.client.get(self.kategori.get_absolute_url()), "kontor-alis-acik", count=1)
+
     def test_tavsiye_yoksa_goz_yok(self):
         self.paket.tavsiye_fiyati = None
         self.paket.save()
-        self.assertNotContains(self.client.get(self.kategori.get_absolute_url()), "data-goz")
+        # Betik sayfada durur (sorgu sonucu ona bağlanır); düğme çizilmez.
+        self.assertNotContains(self.client.get(self.kategori.get_absolute_url()), "<button type=\"button\" data-goz")
 
     def test_islem_tavsiyeyi_saklar(self):
         islem = self.yukle()

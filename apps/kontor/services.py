@@ -31,7 +31,7 @@ from functools import partial
 
 from django.conf import settings
 from django.db import connection, transaction
-from django.db.models import Q
+from django.db.models import Exists, F, OuterRef, Q, Subquery
 from django.utils import timezone
 
 from apps.bayi.telefon import TELEFON_DESENI, normalize
@@ -108,6 +108,41 @@ def grup_fiyati(paket, grup, fiyatlar=None):
     if grup is None:
         return paket.satis_fiyati
     return (fiyatlar or {}).get(paket.pk)
+
+
+def zarardaki_gruplar(paket, gruplar=None):
+    """Bayiye satışı alışın altında kalan gruplar: [(grup adı, fiyat)].
+
+    Alış, sıradaki ilk açık sağlayıcınınkidir (`Paket.ilk_alis`) — paket
+    listesindeki "Bayiye satış · kâr" sütunuyla aynı hesap. Alış yoksa
+    zarar da hesaplanamaz, boş döner. Grup yoksa paketin kendi satış fiyatı
+    bakılır. Veritabanı karşılığı `zarardaki_paketler`; ikisi aynı kuralı
+    yazar, biri değişirse öbürü de değişir.
+    """
+    alis = paket.ilk_alis()
+    if alis is None:
+        return []
+    gruplar = list(FiyatGrubu.objects.all()) if gruplar is None else gruplar
+    if not gruplar:
+        fiyat = paket.satis_fiyati
+        return [("Satış", fiyat)] if fiyat and fiyat < alis else []
+    ozel = {f.grup_id: f.fiyat for f in paket.grup_fiyatlari.all()}
+    return [(g.ad, ozel[g.pk]) for g in gruplar if g.pk in ozel and ozel[g.pk] < alis]
+
+
+def zarardaki_paketler(paketler):
+    """`zarardaki_gruplar`ın sorgu hâli: paket listesindeki "Zararda" süzgeci."""
+    ilk_alis = (
+        Rota.objects.filter(paket=OuterRef("pk"), aktif=True, saglayici__aktif=True)
+        .order_by("sira", "pk")
+        .values("alis_fiyati")[:1]
+    )
+    paketler = paketler.annotate(_zarar_alis=Subquery(ilk_alis))
+    if FiyatGrubu.objects.exists():
+        return paketler.filter(
+            Exists(PaketFiyati.objects.filter(paket=OuterRef("pk"), fiyat__lt=OuterRef("_zarar_alis")))
+        )
+    return paketler.filter(satis_fiyati__gt=0, satis_fiyati__lt=F("_zarar_alis"))
 
 
 def fiyatlandir(paketler, bayi):
@@ -245,6 +280,8 @@ def _kaynaga_sor(kategori, numara, *, yenile=False):
     """
     from apps.kontor.sorgu import SorguHatasi, SorguSonucu, kaynak_getir
 
+    if kategori.tam_kontor:
+        raise SorguHatasi("Tam kontörde numara sorgusu yapılmaz.")
     kaynak = kaynak_getir(kategori.sorgu_kaynagi) if kategori.sorgu_kaynagi else None
     if kaynak is None:
         raise SorguHatasi("Bu kategoride numara sorgusu tanımlı değil.")
@@ -323,7 +360,7 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
         return
     try:
         mevcut = {g.kod: g for g in GorulenPaket.objects.filter(kaynak=kaynak_kodu, kod__in=tekil)}
-        yeniler, guncellenecek = [], []
+        yeniler, guncellenecek, degisenler = [], [], []
         for kod, veri in tekil.items():
             gorulen = mevcut.get(kod)
             if gorulen is None:
@@ -344,6 +381,7 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
                 if gorulen.fiyat is not None:
                     gorulen.onceki_fiyat = gorulen.fiyat
                     gorulen.fiyat_degisme = simdi
+                    degisenler.append(gorulen)
                 gorulen.fiyat = veri.fiyat
                 degisti = True
             for alan, deger in (("ad", (veri.ad or "")[:200]), ("aciklama", veri.aciklama or "")):
@@ -369,6 +407,59 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
                 )
     except Exception:
         logger.exception("Görülen paketler yazılamadı (%s)", kaynak_kodu)
+        return
+    try:
+        _fiyat_degisimini_bildir(kaynak_kodu, degisenler)
+    except Exception:
+        logger.exception("Operatör fiyatı değişimi bildirilemedi (%s)", kaynak_kodu)
+
+
+# Farklı numaralar aynı paketi farklı fiyatla görebilir; grup her gidip
+# gelişte mesajla dolmasın. Aynı paket + aynı yeni fiyat günde bir kez.
+FIYAT_BILDIRIM_SURESI = 24 * 60 * 60
+
+
+def _fiyat_degisimini_bildir(kaynak_kodu, degisenler):
+    """Bizde satılan paketin operatör fiyatı değişince yönetime Telegram'dan haber verir.
+
+    Operatör fiyatı değişince sağlayıcının alışı da değişir; bayiye satış
+    eski alışa göre yazılmışsa her satış zarar olabilir. Mesaj, paket
+    listesinde zarardaki satır kırmızıyla birlikte, yöneticinin fiyat
+    listesini çekip grubun fiyatını düzeltmesi içindir. Yalnızca katalogda
+    **aktif** olan paket bildirilir — satmadığımız paketin fiyatı Operatörde
+    Görülen'de durur. Kaynak bağımsızdır: Turkcell, Türk Telekom sorgusu
+    eklendiğinde de buradan geçer.
+    """
+    if not degisenler:
+        return
+    from apps.bildirim.telegram import operator_fiyati_bildir
+
+    paketler = {
+        (p.kategori_id, p.kod): p
+        for p in Paket.objects.filter(aktif=True, kod__in={g.kod for g in degisenler})
+        .select_related("kategori")
+        .prefetch_related("rotalar__saglayici", "grup_fiyatlari")
+    }
+    gruplar = list(FiyatGrubu.objects.all())
+    for gorulen in degisenler:
+        paket = paketler.get((gorulen.kategori_id, gorulen.kod))
+        if paket is None:
+            continue
+        anahtar = f"kontor-fiyat-bildirimi:{kaynak_kodu}:{gorulen.kod}:{gorulen.fiyat}"
+        if not _onbellek().add(anahtar, 1, timeout=FIYAT_BILDIRIM_SURESI):
+            continue
+        ozel = {f.grup_id: f.fiyat for f in paket.grup_fiyatlari.all()}
+        satislar = [(g.ad, ozel[g.pk]) for g in gruplar if g.pk in ozel]
+        if not gruplar and paket.satis_fiyati:
+            satislar = [("Satış", paket.satis_fiyati)]
+        operator_fiyati_bildir(
+            paket,
+            eski=gorulen.onceki_fiyat,
+            yeni=gorulen.fiyat,
+            alis=paket.ilk_alis(),
+            satislar=satislar,
+            zarardakiler=zarardaki_gruplar(paket, gruplar),
+        )
 
 
 def gorulen_paketi_kataloga_ekle(gorulen):
@@ -590,7 +681,8 @@ def _plani_cikar(islem):
     """Sırayla denenecek paketler: numaranın alabildiği ucuz alternatifler, sonra ana paket.
 
     Kategoride "göndermeden önce paket sorgusu" kapalıysa, sorgu kaynağı
-    yoksa, paket "alternatif yapılmasın"sa ya da sorgu hata verirse plan
+    yoksa, kategori tam kontörse (alternatifi olmaz, `Kategori.sorgulanir`),
+    paket "alternatif yapılmasın"sa ya da sorgu hata verirse plan
     yalnızca ana pakettir — sorgu satışı durdurmaz. Sorgu
     başarılı ama ana paket de hiçbir alternatif de listede yoksa plan boştur:
     işlem sağlayıcıya hiç gitmeden iptal edilir (eski sistemde de öyleydi;
@@ -604,7 +696,7 @@ def _plani_cikar(islem):
     kategori = paket.kategori
     if (
         not kategori.gonderim_oncesi_sorgu
-        or not kategori.sorgu_kaynagi
+        or not kategori.sorgulanir
         or not islem.hedef
         or paket.alternatif_yapilmasin
     ):
@@ -1048,7 +1140,7 @@ def elle_gonder(islem, saglayici, *, olusturan=None):
         rota = Rota.objects.filter(paket=paket, saglayici=saglayici).first() if paket else None
         kod = rota.gidecek_kod if rota else (paket.kod if paket else "")
         operator = rota.gidecek_operator if rota else (islem.kategori.api_operator if islem.kategori else "")
-        tip = rota.gidecek_tip if rota else (islem.kategori.api_tip if islem.kategori else "")
+        tip = rota.gidecek_tip if rota else (islem.kategori.gonderim_tipi if islem.kategori else "")
         if not kod:
             raise KararVerilemez("Paket silinmiş; gönderilecek kod bilinmiyor.")
 

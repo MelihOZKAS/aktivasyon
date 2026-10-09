@@ -185,6 +185,8 @@ UNFOLD = {
     "SCRIPTS": [
         lambda request: static("yonetim.js"),
         lambda request: static("yonetim-barkod.js"),
+        # Yeni başvuru / bayi başvurusu / ödeme / kontör gelince çın sesi.
+        lambda request: static("yonetim-ses.js"),
     ],
     # Ön yüzle aynı petrol tonu. Mor kullanılmıyor.
     "COLORS": {

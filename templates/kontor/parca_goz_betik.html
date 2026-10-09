@@ -1,0 +1,31 @@
+{% comment %}
+  Gözün davranışı: sayfadaki bütün `data-alis`'ları açar/kapar, tercih
+  oturum boyunca kalır. Sayfaya bir kez konur; HTMX ile gelen sorgu
+  sonucunun kartları da `htmx:afterSwap` ile aynı hâle getirilir — sorgu
+  sonucu kendi betiğini taşımaz.
+{% endcomment %}
+<script>
+  (function () {
+    if (window.kontorGozBagli) return;
+    window.kontorGozBagli = true;
+    var anahtar = "kontor-alis-acik";
+    var acik = false;
+    try { acik = sessionStorage.getItem(anahtar) === "1"; } catch (e) {}
+    function uygula() {
+      document.querySelectorAll("[data-alis]").forEach(function (e) { e.hidden = !acik; });
+      document.querySelectorAll("[data-goz]").forEach(function (d) {
+        d.classList.toggle("text-vurgu", acik);
+        d.title = acik ? "Alışını gizle" : "Alışını göster";
+      });
+    }
+    document.addEventListener("DOMContentLoaded", uygula);
+    document.addEventListener("htmx:afterSwap", uygula);
+    document.addEventListener("click", function (olay) {
+      if (!olay.target.closest("[data-goz]")) return;
+      acik = !acik;
+      try { sessionStorage.setItem(anahtar, acik ? "1" : "0"); } catch (e) {}
+      uygula();
+    });
+    uygula();
+  })();
+</script>

@@ -162,8 +162,11 @@
     transition: border-color 0.12s, background-color 0.12s;
   }
 
+  /* Kart kutu, bağlantı içindeyse (göz düğmesi taşıyan kontör kartı)
+     klavye odağı içteki bağlantıdadır; kart yine vurgulansın. */
   .kart-secim:hover,
-  .kart-secim:focus-visible {
+  .kart-secim:focus-visible,
+  .kart-secim:has(> a:focus-visible) {
     --sim-kenar: var(--color-vurgu);
     border-color: var(--color-vurgu);
     background: var(--color-vurgu-acik);

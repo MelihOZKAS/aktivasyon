@@ -185,3 +185,38 @@ def bayi_basvurusu_bildir(basvuru):
             if s is not None
         )
     )
+
+
+def operator_fiyati_bildir(paket, *, eski, yeni, alis, satislar, zarardakiler):
+    """Bizde satılan kontör paketinin operatör fiyatı değişti.
+
+    Numara sorgusunda görülür (`kontor.services._fiyat_degisimini_bildir`).
+    Mesaj yöneticinin karar vermesi için gerekeni taşır: eski ve yeni fiyat,
+    bizim alışımız, gruplara satışımız; satış alışın altındaysa hangi grupta
+    olduğu. Paket listesinde aynı satır kırmızıdır ("Zararda" süzgeci).
+    """
+    fark = yeni - eski
+
+    def tl(tutar):
+        # Sorgudan gelen tutar ham olabilir ("320"); mesajda hep iki hane.
+        return f"{tutar:.2f}"
+
+    satirlar = [
+        f"{'📈' if fark > 0 else '📉'} <b>Operatör fiyatı değişti</b> · {escape(paket.kategori.ad)}",
+        "",
+        _satir("Paket", f"{paket.ad} ({paket.kod})"),
+        _satir("Operatör fiyatı", f"{tl(eski)} → {tl(yeni)} ₺ ({'+' if fark > 0 else ''}{tl(fark)})"),
+        _satir("Alışımız", f"{tl(alis)} ₺" if alis is not None else "girilmemiş"),
+        _satir("Bayiye satış", " · ".join(f"{ad} {tl(fiyat)} ₺" for ad, fiyat in satislar)),
+    ]
+    if zarardakiler:
+        satirlar += [
+            "",
+            "⚠️ <b>Zararda:</b> "
+            + escape(" · ".join(f"{ad} {tl(fiyat)} ₺ < alış {tl(alis)} ₺" for ad, fiyat in zarardakiler)),
+        ]
+    satirlar += [
+        "",
+        "Sağlayıcının fiyat listesini çek; satış alışın altında kalırsa grubun fiyatını düzelt.",
+    ]
+    mesaj_gonder("\n".join(s for s in satirlar if s is not None))

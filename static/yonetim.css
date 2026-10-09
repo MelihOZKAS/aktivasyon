@@ -14,3 +14,11 @@ input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
+/* Zarardaki kontör paketi: bayiye satış alışın altında (Kontör → Paketler,
+   `PaketAdmin.grup_fiyatlari` işaretler). Satırın tamamı kırmızı; yalnızca
+   kâr rakamı kırmızıyken elli satırın içinde kayboluyordu. */
+tr:has([data-zarar]) > td,
+tr:has([data-zarar]) > th {
+  background-color: #fde8ec !important;
+}

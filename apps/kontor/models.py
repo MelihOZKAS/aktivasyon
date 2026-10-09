@@ -220,6 +220,17 @@ class Kategori(ZamanDamgali):
         blank=True,
         help_text="Protokoldeki tip (ses, tam, tl…). Operatör koduyla birlikte kategoriyi belirler.",
     )
+    tam_kontor = models.BooleanField(
+        "Tam kontör",
+        default=False,
+        help_text=(
+            "Açıksa sağlayıcıya tip olarak “tam” gider: operator=turkcell&amp;tip=ses yerine "
+            "operator=turkcell&amp;tip=tam. Operatör kodu değişmez; bir paketin sırasında o "
+            "sağlayıcı için ayrı tip yazılmışsa o gider. Bayi programlarının bu kategoriyi "
+            "bulduğu kod yine yukarıdaki tip kodudur. Tam kontörde numara sorgusu yapılmaz: "
+            "bayi ekranında sorgu kutusu çıkmaz, göndermeden önce sorguya gidilmez (alternatifi olmaz)."
+        ),
+    )
     sorgu_kaynagi = models.CharField(
         "Numara Sorgusu",
         max_length=40,
@@ -307,6 +318,28 @@ class Kategori(ZamanDamgali):
                     }
                 )
         super().validate_constraints(exclude=(exclude or set()) | {"api_operator", "api_tip"})
+
+    TAM_TIP = "tam"
+
+    @property
+    def gonderim_tipi(self):
+        """Sağlayıcıya giden tip: tam kontörde "tam", değilse tip kodu.
+
+        Eski sistemde tam ve paket ayrı tablolardan eşleşiyor, tam kontör
+        sağlayıcıya tip=tam ile gidiyordu. Burada kategori başına bir
+        anahtardır; rotadaki ayrı tip (`Rota.uzak_tip`) yine önce gelir.
+        """
+        return self.TAM_TIP if self.tam_kontor else self.api_tip
+
+    @property
+    def sorgulanir(self):
+        """Numara sorgusu yapılır mı: kaynak seçili ve tam kontör değil.
+
+        Tam kontörün alternatifi yoktur (TL yüklemesi her numaraya gider);
+        sorgu yalnızca beklemek ve operatöre boşuna gitmek olurdu. Bayi
+        ekranı, gönderim planı ve sorgunun kendisi buradan bakar.
+        """
+        return bool(self.sorgu_kaynagi) and not self.tam_kontor
 
     # Oyun ve kontör aynı görünümleri kullanır, adresleri ayrıdır
     # (/oyun/pubg-mobile/, /kontor/vodafone-paket/). Şablonlar adresi
@@ -633,7 +666,7 @@ class Rota(models.Model):
 
     @property
     def gidecek_tip(self):
-        return self.uzak_tip or self.paket.kategori.api_tip
+        return self.uzak_tip or self.paket.kategori.gonderim_tipi
 
 
 class BayiRotasi(models.Model):

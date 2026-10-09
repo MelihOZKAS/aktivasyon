@@ -64,6 +64,8 @@ from apps.kontor.services import (
     TABAN_OPERATOR,
     operator_fiyatlari,
     tavsiyeyi_hesapla,
+    zarardaki_gruplar,
+    zarardaki_paketler,
     iptal_et,
     sonucu_sorgula,
     yuklendi_say,
@@ -418,6 +420,26 @@ class BayiRotasiAdmin(ModelAdmin):
 # -- Görülen paketler -------------------------------------------------------
 
 
+class ZararFiltresi(admin.SimpleListFilter):
+    """Bayiye satışı alışın altında kalan paketler (`services.zarardaki_paketler`).
+
+    Satır kırmızıdır ama liste sayfa başı 50; yüzlerce paketin arasında
+    kırmızı satırı sayfa sayfa aramak gerekmesin. Operatör fiyatı değişti
+    mesajı da yöneticiyi buraya getirir.
+    """
+
+    title = "Zarar"
+    parameter_name = "zarar"
+
+    def lookups(self, request, model_admin):
+        return (("evet", "Zararda (bayiye satış alışın altında)"),)
+
+    def queryset(self, request, queryset):
+        if self.value() == "evet":
+            return zarardaki_paketler(queryset)
+        return queryset
+
+
 class KatalogFiltresi(admin.SimpleListFilter):
     title = "Katalogda"
     parameter_name = "katalog"
@@ -563,11 +585,13 @@ class GorulenPaketAdmin(ModelAdmin):
 @admin.register(Kategori)
 class KategoriAdmin(ModelAdmin):
     list_display = (
-        "ad", "oyun", "operator", "hedef", "api_kodu", "paket_sayisi", "gonderim_oncesi_sorgu", "sira", "aktif",
+        "ad", "oyun", "operator", "hedef", "api_kodu", "tam_kontor", "paket_sayisi", "gonderim_oncesi_sorgu",
+        "sira", "aktif",
     )
-    # Göndermeden önce sorgu satırdan açılıp kapanır; her kategoride formu açmak gerekmesin.
-    list_editable = ("gonderim_oncesi_sorgu", "sira", "aktif")
-    list_filter = ("oyun", "aktif", "gonderim_oncesi_sorgu", "operator", "hedef")
+    # Göndermeden önce sorgu ve tam kontör satırdan açılıp kapanır; her
+    # kategoride formu açmak gerekmesin.
+    list_editable = ("tam_kontor", "gonderim_oncesi_sorgu", "sira", "aktif")
+    list_filter = ("oyun", "aktif", "tam_kontor", "gonderim_oncesi_sorgu", "operator", "hedef")
     search_fields = ("ad", "api_operator", "api_tip")
     fieldsets = (
         (None, {"fields": ("ad", "slug", "oyun", "operator", "gorsel", "aciklama", "sira", "aktif")}),
@@ -581,10 +605,11 @@ class KategoriAdmin(ModelAdmin):
         (
             "Protokol kodları",
             {
-                "fields": ("api_operator", "api_tip"),
+                "fields": ("api_operator", "api_tip", "tam_kontor"),
                 "description": (
                     "Bayi programları kategoriyi bu iki kodla ister (operator=vodafone&amp;tip=ses). "
-                    "Sağlayıcıya da, paketin sırasında ayrı kod yazılmadıysa bunlar gider."
+                    "Sağlayıcıya da, paketin sırasında ayrı kod yazılmadıysa bunlar gider; "
+                    "<b>Tam kontör</b> açıksa tip yerine “tam” gider."
                 ),
             },
         ),
@@ -601,6 +626,10 @@ class KategoriAdmin(ModelAdmin):
     def api_kodu(self, obj):
         if not obj.api_operator:
             return format_html('<span style="color:#94A3B8">—</span>')
+        # Tam kontörde sağlayıcıya giden tip farklıdır; ikisi birden yazılır ki
+        # yönetici "neden tam gitti" diye formu açmasın.
+        if obj.tam_kontor and obj.api_tip != obj.gonderim_tipi:
+            return f"{obj.api_operator} / {obj.api_tip or '—'} → {obj.gonderim_tipi}"
         return f"{obj.api_operator} / {obj.api_tip or '—'}"
 
 
@@ -879,6 +908,7 @@ class PaketAdmin(ModelAdmin):
     )
     list_editable = ("tavsiye_fiyati", "aktif", "bayiye_gorunur")
     list_filter = (
+        ZararFiltresi,
         "aktif", "bayiye_gorunur", "sorguda_hep_goster", "kategori__operator", "kategori", "rotalar__saglayici",
     )
     search_fields = ("ad", "kod", "kategori__ad")
@@ -978,9 +1008,14 @@ class PaketAdmin(ModelAdmin):
         if obj is None or obj.pk is None:
             return "—"
         gruplar = _gruplar()
+        # Zararda: satırın tamamı kırmızı (static/yonetim.css, `tr:has([data-zarar])`).
+        # Yalnızca kâr rakamı kırmızıyken elli satırın içinde kayboluyordu.
+        zarar = format_html("<span data-zarar hidden></span>") if zarardaki_gruplar(obj, gruplar) else ""
         if not gruplar:
             fiyat = obj.satis_fiyati
-            return fiyat if fiyat else format_html('<span style="color:#6F7B8F">fiyat yok</span>')
+            if not fiyat:
+                return format_html('<span style="color:#6F7B8F">fiyat yok</span>')
+            return format_html("{}{}", fiyat, zarar)
         alis = obj.ilk_alis()
         ozel = {f.grup_id: f.fiyat for f in obj.grup_fiyatlari.all()}
         satirlar = []
@@ -993,11 +1028,15 @@ class PaketAdmin(ModelAdmin):
             renk = "#0F8A4D" if kar is None or kar > 0 else "#D42046"
             kar_metni = f"{'+' if kar > 0 else ''}{kar}" if kar is not None else ""
             satirlar.append((grup.ad, fiyat, kar_metni, renk, ""))
-        return format_html_join(
-            format_html("<br>"),
-            '<span style="white-space:nowrap">{}: <b>{}</b> <span style="color:{}">{}</span>'
-            '<span style="color:#6F7B8F;font-size:.7rem">{}</span></span>',
-            ((ad, fiyat, renk, kar, not_) for ad, fiyat, kar, renk, not_ in satirlar),
+        return format_html(
+            "{}{}",
+            format_html_join(
+                format_html("<br>"),
+                '<span style="white-space:nowrap">{}: <b>{}</b> <span style="color:{}">{}</span>'
+                '<span style="color:#6F7B8F;font-size:.7rem">{}</span></span>',
+                ((ad, fiyat, renk, kar, not_) for ad, fiyat, kar, renk, not_ in satirlar),
+            ),
+            zarar,
         )
 
     @display(description="Alternatifleri")
@@ -1007,6 +1046,8 @@ class PaketAdmin(ModelAdmin):
             return "—"
         if obj.alternatif_yapilmasin:
             return "Kapalı."
+        if obj.kategori.tam_kontor:
+            return "Tam kontör: numara sorgusu yapılmaz, alternatif denenmez."
         if not obj.kategori.sorgu_kaynagi:
             return "Kategoride numara sorgusu yok; alternatif denenmez."
         alis = obj.ilk_alis()

@@ -389,6 +389,21 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   · **Sağlayıcı referansı sayaçtır** (`Saglayici.ref_sayaci`): sağlayıcı
   aynı `tekilnumara`'yı ikinci kez kabul etmez, eski sistemde kullanılan
   hesapta sayaç eski değerin üstünden başlatılır.
+  · **Tam kontör kategori başına bir anahtardır** (`Kategori.tam_kontor`,
+  varsayılan kapalı, Kategoriler listesinde satırdan). Açıksa sağlayıcıya
+  tip olarak `tam` gider (`turkcell`+`ses` yerine `turkcell`+`tam`);
+  operatör kodu değişmez. Eski sistemde tam ve paket ayrı tablolardan
+  eşleşiyordu (`Turkcelltam`, `Vodafonetam`, `TTtam`). Tek hesap
+  `Kategori.gonderim_tipi`; `Rota.gidecek_tip` ve karar ekranındaki elle
+  gönderim oradan geçer. Rotada o sağlayıcı için ayrı tip (`uzak_tip`)
+  yazılmışsa yine o gider. **Bayi programlarının kategoriyi bulduğu kod
+  değişmez** — `api_operator`+`api_tip` gelen isteği eşler, anahtar yalnızca
+  giden isteği değiştirir. Listedeki Protokol sütunu ikisini birden yazar
+  (`turkcell / ses → tam`). **Tam kontörde numara sorgusu yapılmaz**
+  (`Kategori.sorgulanir`): alternatifi olmaz, TL her numaraya yüklenir;
+  bayi ekranında sorgu kutusu çıkmaz, gönderim planı sorguya gitmez,
+  "Göndermeden önce paket sorgusu" açık kalsa da. Bayi ekranı, plan ve
+  sorgunun kendisi bu özellikten bakar; `sorgu_kaynagi`'na tek başına bakma.
   · **Katalog veridir:** `Kategori` (operatör, hedef türü — telefon / oyuncu
   ID / pin —, protokol kodları `api_operator`+`api_tip`), `Paket` (kupür
   kodu, içerik, satış), `Rota` (eski api1/api2/api3: hangi sağlayıcıya,
@@ -522,6 +537,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   sütunu tabanı gösterir). Doluysa bayi ekranında büyük rakam budur;
   bayinin alışı ve kazancı göz düğmesiyle açılır (`parca_fiyat.html`,
   `parca_goz.html`, tercih `sessionStorage`'da) — eSIM'deki kuralın aynısı.
+  **Göz her kartın kendisindedir**, fiyatın hemen solunda; açılınca
+  "Alışın · kazancın" yanında yazar, kart dar kalınca (telefon, iki
+  sütunlu liste; `@md` kap sorgusu) kartın altına iner. Bir süre tek göz
+  paket listesinin üstündeydi: numara sorgusunun sonucunda hiç yoktu ve
+  bayi "kaça aldığımı görmüyorum" dedi. Kategori listesi ve sorgu sonucu
+  aynı kartı çizer (`parca_paket.html`; kart bağlantı değil kutudur —
+  düğme bağlantının içinde olamaz — bağlantı `after:inset-0` ile kartı
+  kaplar). Betik sayfaya bir kez konur (`parca_goz_betik.html`), HTMX'le
+  gelen sorgu kartlarını `htmx:afterSwap` ile bağlar.
   Paketin alt satırında bayi yalnızca yönetimin girdiği **içeriği** görür
   (DK · GB · SMS · gün); açıklama çoğu zaman operatör sorgusundan gelen
   aynı bilginin tekrarıydı ve yalnızca içeriği olmayan pakette (oyun, pin)
@@ -1306,8 +1330,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **`apps.bildirim` INSTALLED_APPS'te olmalı.** Bir süre değildi: bildirimler
   doğrudan import edildikleri için çalışıyordu ama `telegram_dene` komutu
   bulunamıyordu. Yeni bir uygulama eklerken INSTALLED_APPS'e de ekle.
-- **Telegram yalnızca üç şeyi taşır:** yeni başvuru, ödeme bildirimi, yeni
-  bayi başvurusu. Grup her durum değişikliğinde, her mağaza/eSIM
+- **Telegram yalnızca dört şeyi taşır:** yeni başvuru, ödeme bildirimi, yeni
+  bayi başvurusu ve bizde satılan kontör paketinin operatör fiyatının
+  değişmesi (aşağıda). Grup her durum değişikliğinde, her mağaza/eSIM
   siparişinde ve her destek talebinde mesajla doluyordu; yönetici kendi
   yaptığı işlemin haberini de alıyordu ve önemli olan kayboluyordu.
   Durum bildirimleri veri olarak kalır (`BasvuruDurumu.bildirim_gonder`) ama
@@ -1315,6 +1340,23 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   isterse durumun sayfasından açar. Sipariş ve destek bildirimleri kodla
   kaldırıldı — bekleyenler zaten yan menüde rozetle sayılıyor. Yeni bir
   bildirim eklemeden önce bu listeyi büyütmek gerektiğini sorgula.
+- **Operatör fiyatı değişince Telegram'a haber gider**
+  (`operator_fiyati_bildir`, `kontor.services._fiyat_degisimini_bildir`).
+  Numara sorgusunda görülen fiyat değişti ve paket katalogda **aktifse**:
+  eski → yeni, alışımız, gruplara satışımız; satış alışın altındaysa
+  "Zararda" satırı. Operatör fiyatı değişince sağlayıcının alışı da değişir,
+  bayiye eski alışa göre yazılmış fiyat her satışta zarar olabilir.
+  Kaynaktan bağımsızdır (`gorulenleri_yaz`'dan geçer): Turkcell, Türk
+  Telekom sorgusu gelince de çalışır. Farklı numaralar aynı paketi farklı
+  fiyatla görebildiği için aynı paket + aynı yeni fiyat **günde bir kez**
+  gider (`kontor_sorgu` önbelleği, dosyada — işçiler ortak görür).
+  **Zarar paket listesinde kırmızıdır:** bayiye satış (grubun net fiyatı;
+  grup yoksa paketin satış fiyatı) ilk açık sağlayıcının alışının altındaysa
+  satırın tamamı kırmızı (`static/yonetim.css`, `tr:has([data-zarar])`) ve
+  **Zarar** süzgeci onları toplar. Kural tek yerde, iki biçimde:
+  `services.zarardaki_gruplar` (satır, mesaj) ve `zarardaki_paketler`
+  (süzgeç) — biri değişirse öbürü de. Kâr sıfırken rakam kırmızı yazılır
+  ama satır kırmızı değildir: zarar değil.
 - **Bildirim asla işin önüne geçmez.** Telegram mesajı transaction
   tamamlandıktan sonra, ayrı bir iş parçacığında gider ve her tür hatası
   yutulur. Yeni bir bildirim eklerken `apps/bildirim/telegram.py` içindeki
@@ -1330,6 +1372,21 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   zaten rozetle sayılıyor, onayı veren de yönetimin kendisi.
 - Hangi durumların bildireceğini admin seçer (`BasvuruDurumu.bildirim_gonder`);
   varsayılan hiçbiri.
+- **Yönetim panelinde dört şey "çın" diye çalar:** yeni başvuru, bayi
+  başvurusu, ödeme bildirimi, kontör siparişi (`static/yonetim-ses.js`,
+  `UNFOLD["SCRIPTS"]`). Rozetler ancak sayfa yenilenince değişiyordu;
+  panel açık duran yönetici başka sekmedeyken de duysun. Panel 15 sn'de bir
+  `/yonetim/yeni-kayitlar/`'ı sorar (`apps/bildirim/ses.py`): her türün
+  **en son `pk`**'sı döner — bekleyen sayısı aynı anda hem artıp hem
+  azalabilir, son numara yalnızca yeni kayıtla artar. Sayfa açılışındaki ilk
+  cevap başlangıçtır, ses çalmaz; birden çok sekmede aynı kayıt için tek
+  sekme çalar (son çalınan numaralar `localStorage`'da ortak). Ses dosya
+  değil, Web Audio ile üretilen 1 sn'den kısa bir zildir: indirilen bir
+  dosyaya ve lisansına bağlı değil. Tarayıcı sesi sayfayla etkileşimden
+  sonra açar; hiç dokunulmamış sekmede çalmayabilir. Personel olmayana ve
+  oturumu düşene 403 döner (yönlendirme değil), betik sormayı bırakır.
+  Listeyi büyütmeden önce Telegram'daki dersi hatırla: her şeyde çalan ses
+  hiçbir şeyde çalmamakla aynıdır. Yeni tür `ses.KAYNAKLAR`'a yazılır.
 
 ## Yönetim paneli
 

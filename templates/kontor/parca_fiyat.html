@@ -1,17 +1,23 @@
 {% load panel %}
 {% comment %}
   Paket kartındaki fiyat. Ekran müşteriye dönüktür: tavsiye fiyatı varsa
-  büyük rakam müşterinin ödeyeceğidir, bayinin alışı ve kazancı göz
-  düğmesiyle açılır (data-alis). Tavsiye yoksa saklanacak şey yok, bayinin
-  fiyatı düz yazılır. Bakiye yetmiyorsa rakam uyarı renginde.
+  büyük rakam müşterinin ödeyeceğidir; bayinin alışı ve kazancı **her
+  kartın kendi gözüyle** açılır ve fiyatın hemen solunda yazar (eSIM'deki
+  düzenin aynısı). Göz bir süre yalnızca paket listesinin üstündeydi:
+  numara sorgusunun sonucunda hiç yoktu, bayi sorguda alışını göremiyordu.
+  Kart dar kaldığında (telefon, iki sütunlu liste) alış satırı kartın
+  altına iner; yanına sığdırmak paket adını üç satıra bölüyordu.
+  Tavsiye yoksa saklanacak şey yok, bayinin fiyatı düz yazılır. Bakiye
+  yetmiyorsa rakam uyarı renginde.
 {% endcomment %}
 {% if paket.tavsiye %}
-<span class="shrink-0 text-right">
-  <span class="rakam block font-semibold {% if paket.fiyat > bakiye %}text-uyari{% endif %}">{{ paket.tavsiye|para }} ₺</span>
-  <span data-alis hidden class="rakam block text-xs text-soluk">
-    alış {{ paket.fiyat|para }} · <span class="text-olumlu">+{{ paket.kazanc|para }}</span>
-  </span>
-</span>
+{% include "kontor/parca_goz.html" %}
+<p data-alis hidden class="order-last basis-full text-xs leading-tight text-soluk @md:order-none @md:basis-auto @md:text-right">
+  <span class="@md:block">Alışın <b class="rakam text-murekkep">{{ paket.fiyat|para }} ₺</b></span>
+  <span class="@md:hidden">·</span>
+  <span class="@md:block">kazancın <b class="rakam text-olumlu">{{ paket.kazanc|para }} ₺</b></span>
+</p>
+<span class="rakam shrink-0 text-right font-semibold {% if paket.fiyat > bakiye %}text-uyari{% endif %}">{{ paket.tavsiye|para }} ₺</span>
 {% else %}
 <span class="rakam shrink-0 font-semibold {% if paket.fiyat > bakiye %}text-uyari{% endif %}">{{ paket.fiyat|para }} ₺</span>
 {% endif %}

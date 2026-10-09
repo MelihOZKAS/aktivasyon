@@ -2,34 +2,11 @@
   Göz: bayinin alışını ve kazancını aç/kapa. Bayi tezgâhta telefonu
   müşteriye çeviriyor; kendi alışı görünmesin. Bir düğme sayfadaki bütün
   kartları açar, tercih oturum boyunca kalır (eSIM'deki kuralın aynısı).
-  HTMX ile gelen sorgu sonucu da aynı hâle getirilir.
+  Davranışı `parca_goz_betik.html`'dedir; sayfaya bir kez konur, her kartta
+  tekrarlanmaz. `relative z-10`: kartın tamamını kaplayan bağlantının
+  üstünde dursun, dokunuş paket sayfasına gitmesin.
 {% endcomment %}
 <button type="button" data-goz aria-label="Alışını göster/gizle" title="Alışını göster"
-        class="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-soluk hover:bg-zemin-koyu">
+        class="relative z-10 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-soluk hover:bg-zemin-koyu">
   <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
 </button>
-<script>
-  (function () {
-    if (window.kontorGozBagli) return;
-    window.kontorGozBagli = true;
-    var anahtar = "kontor-alis-acik";
-    var acik = false;
-    try { acik = sessionStorage.getItem(anahtar) === "1"; } catch (e) {}
-    function uygula() {
-      document.querySelectorAll("[data-alis]").forEach(function (e) { e.hidden = !acik; });
-      document.querySelectorAll("[data-goz]").forEach(function (d) {
-        d.classList.toggle("text-vurgu", acik);
-        d.title = acik ? "Alışını gizle" : "Alışını göster";
-      });
-    }
-    document.addEventListener("DOMContentLoaded", uygula);
-    document.addEventListener("htmx:afterSwap", uygula);
-    document.addEventListener("click", function (olay) {
-      if (!olay.target.closest("[data-goz]")) return;
-      acik = !acik;
-      try { sessionStorage.setItem(anahtar, acik ? "1" : "0"); } catch (e) {}
-      uygula();
-    });
-    uygula();
-  })();
-</script>
