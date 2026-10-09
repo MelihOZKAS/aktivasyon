@@ -401,10 +401,20 @@ class TekGonderimTestleri(Temel):
         self.assertEqual(DURUM["İki"]["gonderilen"], [])
 
     def test_sorgu_araligi_sik_sormayi_engeller(self):
+        from apps.kontor.services import SORGU_ARALIGI
+
         islem = self.yukle()
         isle(islem.pk)
         isle(islem.pk)
         self.assertEqual(len(DURUM["Bir"]["sorulan"]), 1)
+        # İşlemdeki işlem 25 sn'de bir sorulur: 20 sn sonra gitmez, 25 sn sonra gider.
+        self.assertEqual(SORGU_ARALIGI, timedelta(seconds=25))
+        Islem.objects.filter(pk=islem.pk).update(son_sorgu=timezone.now() - timedelta(seconds=20))
+        isle(islem.pk)
+        self.assertEqual(len(DURUM["Bir"]["sorulan"]), 1)
+        Islem.objects.filter(pk=islem.pk).update(son_sorgu=timezone.now() - timedelta(seconds=25))
+        isle(islem.pk)
+        self.assertEqual(len(DURUM["Bir"]["sorulan"]), 2)
 
     def test_kesin_ret_siradakine_gecer(self):
         _ayar("Bir", gonderim="red")
@@ -465,6 +475,21 @@ class TekGonderimTestleri(Temel):
         # Bir'de operatör iptal etti, İki gönderimi hiç açmadı: yönetim baksın.
         self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
         self.assertIn("OK|3|Numara hatalı|0.00", islem.sonuc_mesaji)
+
+    def test_eski_gonderim_retleri_operatorun_iptalini_askiya_cevirmez(self):
+        # Canlıda: operator= boş gittiği için iki gönderim reddedildi (askı),
+        # düzeltilip elle gönderildi, sağlayıcı kabul etti, sorgu "3::" dedi.
+        # İşlem eski retler yüzünden yine askıya düşüyordu; iptal + iade olmalı.
+        _ayar("Bir", gonderim="red")
+        _ayar("İki", gonderim="red")
+        islem = self.yukle()
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        _ayar("Bir", gonderim="kabul", sorgu="iptal")
+        elle_gonder(islem, self.bir)
+        islem = isle(islem.pk, zorla=True)
+        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
+        self.assertEqual(islem.sonuc_mesaji, "3:Numara hatalı")
+        self.assertEqual(self.bakiye(), TL("500.00"))
 
     def test_tek_saglayici_sorguda_iptal_derse_sebebi_yazilir(self):
         Rota.objects.filter(saglayici=self.iki).delete()

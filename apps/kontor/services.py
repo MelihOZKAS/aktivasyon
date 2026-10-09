@@ -69,7 +69,10 @@ logger = logging.getLogger(__name__)
 KILIT_SURESI = timedelta(seconds=90)
 # Aynı işlem için sağlayıcıya bu aralıktan sık "yüklendi mi?" sorulmaz;
 # bayinin sayfası, bayi programı ve işçi aynı anda soruyor olabilir.
-SORGU_ARALIGI = timedelta(seconds=5)
+# 5 sn'ydi; yönetim "25 sn'de bir yeter" dedi — işlemdeki her işlem
+# sağlayıcıya dakikada on iki kez gidiyordu. İlk sorgu gönderimden hemen
+# sonra gider (anında yüklenen işlem beklemesin), sonrakiler bu aralıkla.
+SORGU_ARALIGI = timedelta(seconds=25)
 # Panelden aynı numaraya aynı paket, önceki işlem sürerken ya da açıldıktan
 # sonraki bu süre içinde ikinci kez açılmaz: yavaş bağlantıda yeniden
 # basılan düğme, yenilenen sayfa ya da ikinci sekme iki kez yüklemesin.
@@ -759,11 +762,17 @@ def _siradakine_gonder(islem, son_ret=""):
             return  # kabul edildi ya da askıya alındı
         son_ret = _ret_metni(deneme)
 
-    kaynakli = (
-        islem.denemeler.filter(durum=DenemeDurumu.REDDEDILDI, saglayici_kaynakli=True)
-        .select_related("saglayici")
-        .order_by("pk")
-    )
+    reddedilenler = islem.denemeler.filter(durum=DenemeDurumu.REDDEDILDI)
+    kaynakli = reddedilenler.filter(saglayici_kaynakli=True).select_related("saglayici").order_by("pk")
+    # Operatörün kararı (sağlayıcı kabul etti, sonuç sorgusu "iptal" dedi)
+    # ondan önceki "bizim taraf" retlerini geçersiz kılar: sorun düzeltilip
+    # yeniden gönderilmiş ve numara gerçekten denenmiştir. Canlıda operatör
+    # kodu boş giden iki gönderim reddedildi, düzeltilip elle gönderilen
+    # işlemi operatör iptal etti — işlem eski retler yüzünden yine askıya
+    # düşüyor, sebebine de eski "tam300" hatası yazılıyordu.
+    son_karar = reddedilenler.filter(saglayici_kaynakli=False).order_by("pk").last()
+    if son_karar is not None:
+        kaynakli = kaynakli.filter(pk__gt=son_karar.pk)
     if kaynakli:
         # Gönderim sağlayıcıda hiç açılmadı (kod eşleşmedi, bakiyemiz bitti,
         # site kapalı): sorun numarada değil bizim tarafta. İptal edilseydi

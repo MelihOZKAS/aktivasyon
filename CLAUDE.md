@@ -363,6 +363,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   alamayacağını söylediğinde olur. Önce her ret iptaldi: Kontorbizde'de
   yanlış eşleştirilmiş tek paket her satışta bayiye "yüklenemedi" diyordu —
   yönetici: "bir paketi yanlış eşleştirirsek sürekli iptal olması mantıksız".
+  **Operatörün kararı ondan önceki bizim taraf retlerini geçersiz kılar**
+  (`_siradakine_gonder`, `son_karar`): yalnızca son operatör iptalinden
+  *sonraki* sağlayıcı kaynaklı retler askıya çevirir. Canlıda operatör kodu
+  boş giden iki gönderim reddedildi, düzeltilip elle gönderilen işlemi
+  operatör `3::300.00:…` ile iptal etti; işlem eski retler yüzünden yine
+  askıya düşüyor, sebebine eski "tam300" hatası yazılıyordu.
   · **Giden istek de kayıttadır** (`Deneme.gonderim_istegi` /
   `sonuc_istegi`): adres ve parametreler, şifre `***`. `http.metin_istek`
   son isteği bir `ContextVar`'a yazar, servis gönderimden sonra okur. Karar
@@ -381,7 +387,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   İşi yürütenler: açılışta arka plan iş parçacığı, bayinin durum sayfası
   (HTMX 3 sn), bayi programının `tl_kontrol` sorgusu ve işçi
   (`manage.py kontor_isle --dongu`, docker-compose'da `kontor_isci_fadil`).
-  Sonuç sorgusu `SORGU_ARALIGI`'ndan sık gitmez. İşçi migration'lar
+  Sonuç sorgusu `SORGU_ARALIGI`'ndan (25 sn) sık gitmez; ilk sorgu
+  gönderimden hemen sonra, sonrakiler 25 sn arayla. 5 sn'ydi, yönetim
+  "25 sn'de bir yeter" dedi. İşlemde kalmanın süre sınırı yoktur:
+  sağlayıcı yüklendi ya da iptal diyene kadar sorulur. İşçi migration'lar
   bitmeden başlamaz: `depends_on` yalnızca app container'ının açılmasını
   bekliyor, işçi tablolar oluşmadan sorgu atıp `relation "kontor_islem"
   does not exist` basıyordu. Hata üst üste gelirse bekleme ikiye katlanır
