@@ -624,13 +624,20 @@ class KategoriAdmin(ModelAdmin):
 
     @display(description="Protokol")
     def api_kodu(self, obj):
-        if not obj.api_operator:
+        """Bayi programının istediği kod; sağlayıcıya başka giderse oku ile o da.
+
+        Operatör kodu boşken kategorinin operatörü gider, tam kontörde tip
+        "tam" gider (`gonderim_operatoru`, `gonderim_tipi`). İkisi birden
+        yazılır ki yönetici "sağlayıcıya ne gitti" diye formu açmasın.
+        """
+        gelen = (obj.api_operator, obj.api_tip)
+        giden = (obj.gonderim_operatoru, obj.gonderim_tipi)
+        if not any(gelen + giden):
             return format_html('<span style="color:#94A3B8">—</span>')
-        # Tam kontörde sağlayıcıya giden tip farklıdır; ikisi birden yazılır ki
-        # yönetici "neden tam gitti" diye formu açmasın.
-        if obj.tam_kontor and obj.api_tip != obj.gonderim_tipi:
-            return f"{obj.api_operator} / {obj.api_tip or '—'} → {obj.gonderim_tipi}"
-        return f"{obj.api_operator} / {obj.api_tip or '—'}"
+        metin = f"{obj.api_operator or '—'} / {obj.api_tip or '—'}"
+        if giden != gelen:
+            metin += f" → {giden[0] or '—'} / {giden[1] or '—'}"
+        return metin
 
 
 # -- Fiyat grupları ------------------------------------------------------

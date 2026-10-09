@@ -190,6 +190,31 @@ class AcmaTestleri(Temel):
         self.kategori.tam_kontor = False
         self.assertEqual(self.kategori.gonderim_tipi, "ses")
 
+    def test_operator_kodu_bossa_kategorinin_operatoru_gider(self):
+        # Kod boşken operator= boş gidiyordu; sağlayıcı "tam300" arayıp reddetti
+        # (operatör + tip + kupür: "TurkcellTam300" olmalıydı).
+        turkcell = Operator.objects.create(ad="Turkcell", renk="#ffc900")
+        self.kategori.operator = turkcell
+        self.kategori.api_operator = ""
+        self.kategori.tam_kontor = True
+        self.kategori.save()
+        self.yukle()
+        (_, _, kod, op, tip), = DURUM["Bir"]["gonderilen"]
+        self.assertEqual((kod, op, tip), ("100", "turkcell", "tam"))
+        # Türk Telekom protokolde "avea"dır; yazılmış kod her zaman önce gelir.
+        self.kategori.operator = Operator.objects.create(ad="Türk Telekom", renk="#0057b8")
+        self.assertEqual(self.kategori.gonderim_operatoru, "avea")
+        self.kategori.api_operator = "tt"
+        self.assertEqual(self.kategori.gonderim_operatoru, "tt")
+
+    def test_operatoru_bilinmeyen_kategoride_tam_kontor_acilmaz(self):
+        kategori = Kategori(ad="Tam TL", tam_kontor=True)
+        with self.assertRaises(ValidationError) as hata:
+            kategori.full_clean()
+        self.assertIn("tam_kontor", hata.exception.message_dict)
+        kategori.api_operator = "turkcell"
+        kategori.full_clean()
+
     def test_bakiye_yetmezse_hicbir_sey_yazilmaz(self):
         self.cuzdan.bakiye = TL("50.00")
         self.cuzdan.save()

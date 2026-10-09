@@ -291,6 +291,13 @@ class Kategori(ZamanDamgali):
 
     def clean(self):
         super().clean()
+        if self.tam_kontor and not self.gonderim_operatoru:
+            raise ValidationError(
+                {
+                    "tam_kontor": "Tam kontörde sağlayıcıya operatör adı gider (turkcell, vodafone, avea). "
+                    "Kategoriye operatör seçin ya da Operatör Kodu'nu yazın."
+                }
+            )
         if self.gonderim_oncesi_sorgu and not self.sorgu_kaynagi:
             raise ValidationError(
                 {
@@ -320,6 +327,27 @@ class Kategori(ZamanDamgali):
         super().validate_constraints(exclude=(exclude or set()) | {"api_operator", "api_tip"})
 
     TAM_TIP = "tam"
+
+    # Protokoldeki operatör adları (Znet/Gencan, kntryeni); eski sistemin
+    # `AnaOperator` kayıtları. Türk Telekom protokolde hâlâ "avea"dır.
+    # Anahtar katalogdaki operatörün slug'ıdır.
+    PROTOKOL_OPERATORLERI = {"turk-telekom": "avea", "turktelekom": "avea", "tt": "avea"}
+
+    @property
+    def gonderim_operatoru(self):
+        """Sağlayıcıya giden operatör: Operatör Kodu, boşsa kategorinin operatörü.
+
+        Kod boşken sağlayıcıya `operator=` boş gidiyordu; sağlayıcı ürünü
+        operatör + tip + kupürle arıyor ("VodafoneSes8401") ve tam kontör
+        "tam300" diye aranıp reddedildi. Kategori zaten operatöre bağlı;
+        Turkcell → turkcell, Vodafone → vodafone, Türk Telekom → avea.
+        """
+        if self.api_operator:
+            return self.api_operator
+        if self.operator_id is None:
+            return ""
+        slug = self.operator.slug or ""
+        return self.PROTOKOL_OPERATORLERI.get(slug, slug.replace("-", ""))
 
     @property
     def gonderim_tipi(self):
@@ -662,7 +690,7 @@ class Rota(models.Model):
 
     @property
     def gidecek_operator(self):
-        return self.uzak_operator or self.paket.kategori.api_operator
+        return self.uzak_operator or self.paket.kategori.gonderim_operatoru
 
     @property
     def gidecek_tip(self):

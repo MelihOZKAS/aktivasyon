@@ -1139,7 +1139,7 @@ def elle_gonder(islem, saglayici, *, olusturan=None):
         paket = (son.paket if son is not None and son.paket_id else None) or islem.paket
         rota = Rota.objects.filter(paket=paket, saglayici=saglayici).first() if paket else None
         kod = rota.gidecek_kod if rota else (paket.kod if paket else "")
-        operator = rota.gidecek_operator if rota else (islem.kategori.api_operator if islem.kategori else "")
+        operator = rota.gidecek_operator if rota else (islem.kategori.gonderim_operatoru if islem.kategori else "")
         tip = rota.gidecek_tip if rota else (islem.kategori.gonderim_tipi if islem.kategori else "")
         if not kod:
             raise KararVerilemez("Paket silinmiş; gönderilecek kod bilinmiyor.")

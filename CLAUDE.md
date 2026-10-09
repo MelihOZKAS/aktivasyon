@@ -399,7 +399,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   yazılmışsa yine o gider. **Bayi programlarının kategoriyi bulduğu kod
   değişmez** — `api_operator`+`api_tip` gelen isteği eşler, anahtar yalnızca
   giden isteği değiştirir. Listedeki Protokol sütunu ikisini birden yazar
-  (`turkcell / ses → tam`). **Tam kontörde numara sorgusu yapılmaz**
+  (`turkcell / ses → tam`).
+  **Giden operatör hiç boş gitmez** (`Kategori.gonderim_operatoru`):
+  Operatör Kodu boşsa kategorinin operatöründen çıkar (slug; Türk Telekom
+  protokolde `avea`, `PROTOKOL_OPERATORLERI`). İlk tam kontör gönderimi
+  `operator=&tip=tam&kontor=300` gitti, sağlayıcı "Aktif Kontor tam300"
+  diye reddetti: ürünü operatör + tip + kupürle arıyor ("VodafoneSes8401",
+  "TurkcellTam300") ve tam kategorinin kodu boştu. Eski sistemde operatör
+  adı her eşleştirme satırında yazılıydı (`turkcell`/`vodafone`/`avea`).
+  Operatörü bilinmeyen kategoride tam kontör kaydedilmez (`Kategori.clean`). **Tam kontörde numara sorgusu yapılmaz**
   (`Kategori.sorgulanir`): alternatifi olmaz, TL her numaraya yüklenir;
   bayi ekranında sorgu kutusu çıkmaz, gönderim planı sorguya gitmez,
   "Göndermeden önce paket sorgusu" açık kalsa da. Bayi ekranı, plan ve
