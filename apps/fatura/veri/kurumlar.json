@@ -1,0 +1,434 @@
+{
+  "kategoriler": [
+    {
+      "ad": "GSM",
+      "sira": 1
+    },
+    {
+      "ad": "İnternet",
+      "sira": 2
+    },
+    {
+      "ad": "TV",
+      "sira": 3
+    },
+    {
+      "ad": "Elektrik",
+      "sira": 4
+    },
+    {
+      "ad": "Su",
+      "sira": 5
+    },
+    {
+      "ad": "Doğalgaz",
+      "sira": 6
+    },
+    {
+      "ad": "HGS",
+      "sira": 7
+    },
+    {
+      "ad": "Diğer",
+      "sira": 8
+    }
+  ],
+  "kurumlar": [
+    {
+      "id": "avea",
+      "kurum_adi": "Avea",
+      "kategori": "GSM",
+      "operator": "Türk Telekom",
+      "alan_etiketi": "Telefon Numarası",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Sorgulamak İstediğiniz telefon numarasının alan kodunun başında 0 olmadan yazıp  sorgula butonunu tıklayınız.Örn: 5051234567"
+    },
+    {
+      "id": "online-avea-cep",
+      "kurum_adi": "ONLİNE AVEA CEP",
+      "kategori": "GSM",
+      "operator": "Türk Telekom",
+      "alan_etiketi": "Telefon Numarası",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Sorgulamak İstediğiniz telefon numarasını alalan kodu ile başında 0 olmadan yazınız ve sorgula butonunu tıklayınız. Örn: 5321234567"
+    },
+    {
+      "id": "pttcell",
+      "kurum_adi": "PTTCELL",
+      "kategori": "GSM",
+      "operator": "",
+      "alan_etiketi": "Telefon Numarası",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Sorgulamak İstediğiniz telefon numarasını alalan kodu ile başında 0 olmadan yazınız ve sorgula butonunu tıklayınız. Örn: 5321234567"
+    },
+    {
+      "id": "ttnet-mobil",
+      "kurum_adi": "TTNET Mobil",
+      "kategori": "GSM",
+      "operator": "Türk Telekom",
+      "alan_etiketi": "Telefon Numarası",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Hizmet numarası sözleşme veya fatura üzerinde yazıldığı gibi girilir. (Örneğin: ***XXXXXXX şeklindedir)."
+    },
+    {
+      "id": "turkcell",
+      "kurum_adi": "Turkcell",
+      "kategori": "GSM",
+      "operator": "Turkcell",
+      "alan_etiketi": "Telefon Numarası",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Sorgulamak İstediğiniz telefon numarasını alalan kodu ile başında 0 olmadan yazınız ve sorgula butonunu tıklayınız.\r\nÖrn: 5321234567"
+    },
+    {
+      "id": "turk-telekom",
+      "kurum_adi": "Türk Telekom",
+      "kategori": "GSM",
+      "operator": "Türk Telekom",
+      "alan_etiketi": "Telefon Numarası",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Hizmet numarası sözleşme veya fatura üzerinde yazıldığı gibi girilir. Örneğin: 224XXXXXXX şeklindedir."
+    },
+    {
+      "id": "vodafone",
+      "kurum_adi": "Vodafone",
+      "kategori": "GSM",
+      "operator": "Vodafone",
+      "alan_etiketi": "Telefon Numarası",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Sorgulamak İstediğiniz telefon numarasını alalan kodu ile başında 0 olmadan yazınız ve sorgula butonunu tıklayınız. Örn: 5321234567"
+    },
+    {
+      "id": "d-smart-internet",
+      "kurum_adi": "D-SMART İNTERNET",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 11,
+      "max_hane": 11,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen 12 haneli abone numarasını girerek sorgulayınız."
+    },
+    {
+      "id": "doping-millenicom",
+      "kurum_adi": "Doping Millenicom",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Müşteri Kodu",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": false,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen 10 haneli müşteri kodunu giriniz. Faturada müşteri kodu eksik ise başına sıfır yazılarak 10 haneye tamamlanmalıdır."
+    },
+    {
+      "id": "goknet",
+      "kurum_adi": "GÖKNET",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Hesap No",
+      "min_hane": 2,
+      "max_hane": 18,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen hesap numarasını girerek sorgulayınız."
+    },
+    {
+      "id": "hurnet-telekom",
+      "kurum_adi": "HÜRNET TELEKOM",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen Abone numarasini girerek sorgulayiniz."
+    },
+    {
+      "id": "hiperonline",
+      "kurum_adi": "HİPERONLİNE",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen abone numarasını girerek sorgulayınız."
+    },
+    {
+      "id": "net-gsm",
+      "kurum_adi": "NET GSM",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen Abone numarasini girerek sorgulayiniz."
+    },
+    {
+      "id": "oris-telekom",
+      "kurum_adi": "ORİS TELEKOM",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen 10 haneli abone numarasını girerek sorgulayınız."
+    },
+    {
+      "id": "superonline",
+      "kurum_adi": "Superonline",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Fatura üzerindeki müşteri numarası 10 hane olarak görüldüğü gibi yazılmalıdır. Telefon numarası kesinlikle yazılmamalıdır."
+    },
+    {
+      "id": "ttnet-adsl",
+      "kurum_adi": "TTNET Adsl",
+      "kategori": "İnternet",
+      "operator": "Türk Telekom",
+      "alan_etiketi": "Hesap No",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Hesap numarası sözleşme veya fatura üzerinde yazıldığı gibi girilir. Örneğin: ADSL için  181XXXXXXX şeklindedir. Telefon numarası ile sorgulama yapılabilmektedir."
+    },
+    {
+      "id": "turuncu-net",
+      "kurum_adi": "TURUNCU NET",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen abone numarasını giriniz."
+    },
+    {
+      "id": "ttnet-tc-tel-no",
+      "kurum_adi": "Ttnet Tc-Tel No",
+      "kategori": "İnternet",
+      "operator": "Türk Telekom",
+      "alan_etiketi": "TC-Telefon No",
+      "min_hane": 10,
+      "max_hane": 11,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Ttnet aboneliğinize ait Tc - Hizmet No yada bağlı olduğu Telefon Nosunu girerek sorgulama yapabilirsiniz."
+    },
+    {
+      "id": "turknet",
+      "kurum_adi": "Turknet",
+      "kategori": "İnternet",
+      "operator": "",
+      "alan_etiketi": "Müşteri No",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Müşteri Numaranızı giriniz. Müşteri Numaranız 10 haneden küçük ise başına sıfır ekleyerek 10 haneye tamamlayınız."
+    },
+    {
+      "id": "vodafone-net",
+      "kurum_adi": "VODAFONE Net",
+      "kategori": "İnternet",
+      "operator": "Vodafone",
+      "alan_etiketi": "Abone Numarası",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen 10 haneli kullanıcı kodunu giriniz. Faturada kullanıcı kodu eksik ise başına sıfır yazılarak 10 haneye tamamlanmalıdır."
+    },
+    {
+      "id": "d-smart-faturasi",
+      "kurum_adi": "D-Smart Faturası",
+      "kategori": "TV",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 12,
+      "max_hane": 12,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen 12 haneli abone numarasını girerek sorgulayınız."
+    },
+    {
+      "id": "digiturk-faturasi",
+      "kurum_adi": "Digiturk Faturası",
+      "kategori": "TV",
+      "operator": "",
+      "alan_etiketi": "Abone Numarası",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "10 Haneli Digitürk Abone Numarasını Giriniz."
+    },
+    {
+      "id": "turksat-faturasi",
+      "kurum_adi": "Turksat Faturası",
+      "kategori": "TV",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 10,
+      "max_hane": 10,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Hizmet numarası sözleşme veya fatura üzerinde yazıldığı gibi girilir. Örneğin: 1061******* şeklindedir."
+    },
+    {
+      "id": "toroslar-elektrik",
+      "kurum_adi": "TOROSLAR ELEKTRİK",
+      "kategori": "Elektrik",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 2,
+      "max_hane": 18,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "12 Haneli Abone Numarasını Girerek Sorgulayınız."
+    },
+    {
+      "id": "hatay-su",
+      "kurum_adi": "HATAY SU",
+      "kategori": "Su",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 2,
+      "max_hane": 18,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen abone numarasını girerek sorgulayınız."
+    },
+    {
+      "id": "aksa-gaz-adana-mersin-osmaniye-hatay",
+      "kurum_adi": "AKSA GAZ-adana-mersin-osmaniye-hatay",
+      "kategori": "Doğalgaz",
+      "operator": "",
+      "alan_etiketi": "Abone No",
+      "min_hane": 12,
+      "max_hane": 12,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen 12 haneli abone numarasını girerek sorgulayınız."
+    },
+    {
+      "id": "100-tl-tc-ile-yukle",
+      "kurum_adi": "100 TL TC İle Yükle",
+      "kategori": "HGS",
+      "operator": "",
+      "alan_etiketi": "Tc No",
+      "min_hane": 11,
+      "max_hane": 11,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": true,
+      "aciklama": "Lütfen TC Kimlik Numarasını ve İrtibat Numarasını Girerek Sorgulayınız."
+    },
+    {
+      "id": "100-tl-yukle-plaka",
+      "kurum_adi": "100 TL Yükle Plaka",
+      "kategori": "HGS",
+      "operator": "",
+      "alan_etiketi": "Plaka",
+      "min_hane": 7,
+      "max_hane": 11,
+      "sadece_rakam": false,
+      "tahmini_sorgusuz": true,
+      "aciklama": "Lütfen Plakayı ve İrtibat Numarası Girerek Sorgulayınız. Giriş Formatı 06-UB-629 Gibi."
+    },
+    {
+      "id": "250-tl-tc-ile-yukle",
+      "kurum_adi": "250 TL TC İle Yükle",
+      "kategori": "HGS",
+      "operator": "",
+      "alan_etiketi": "Plaka",
+      "min_hane": 7,
+      "max_hane": 11,
+      "sadece_rakam": false,
+      "tahmini_sorgusuz": true,
+      "aciklama": "Lütfen Plakayı ve İrtibat Numarası Girerek Sorgulayınız. Giriş Formatı 06-UB-629 Gibi."
+    },
+    {
+      "id": "250-tl-yukle-plaka",
+      "kurum_adi": "250 TL Yükle Plaka",
+      "kategori": "HGS",
+      "operator": "",
+      "alan_etiketi": "Plaka",
+      "min_hane": 7,
+      "max_hane": 11,
+      "sadece_rakam": false,
+      "tahmini_sorgusuz": true,
+      "aciklama": "Lütfen Plakayı ve İrtibat Numarası Girerek Sorgulayınız. Giriş Formatı 06-UB-629 Gibi."
+    },
+    {
+      "id": "500-tl-tc-ile-yukle",
+      "kurum_adi": "500 TL TC İle Yükle",
+      "kategori": "HGS",
+      "operator": "",
+      "alan_etiketi": "Tc No",
+      "min_hane": 11,
+      "max_hane": 11,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": true,
+      "aciklama": "Lütfen TC Kimlik Numarasını ve İrtibat Numarasını Girerek Sorgulayınız."
+    },
+    {
+      "id": "500-tl-yukle-plaka",
+      "kurum_adi": "500 TL Yükle Plaka",
+      "kategori": "HGS",
+      "operator": "",
+      "alan_etiketi": "Plaka",
+      "min_hane": 7,
+      "max_hane": 11,
+      "sadece_rakam": false,
+      "tahmini_sorgusuz": true,
+      "aciklama": "Lütfen Plakayı ve İrtibat Numarası Girerek Sorgulayınız. Giriş Formatı 06-UB-629 Gibi."
+    },
+    {
+      "id": "avon",
+      "kurum_adi": "AVON",
+      "kategori": "Diğer",
+      "operator": "",
+      "alan_etiketi": "Abone Numarası",
+      "min_hane": 2,
+      "max_hane": 18,
+      "sadece_rakam": true,
+      "tahmini_sorgusuz": false,
+      "aciklama": "Lütfen abone numarasını girerek sorgulayınız."
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}{{ kurum.ad }} · {{ sorgu.numara }}{% endblock %}
+{% block sayfa_basligi %}Fatura{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-xl">
+  <a href="{{ kurum.get_absolute_url }}?numara={{ sorgu.numara|urlencode }}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← {{ kurum.ad }}</a>
+
+  <div class="mb-4">
+    <p class="text-sm font-medium"
+       {% if kurum.operator %}style="color: {{ kurum.operator.renk|okunur_renk }}"{% endif %}>{{ kurum.ad }}</p>
+    <h2 class="baslik rakam mt-1 text-2xl font-bold">{{ sorgu.numara }}</h2>
+  </div>
+
+  {% include "fatura/parca_sorgu.html" %}
+</div>
+
+{% comment %}
+  Seçilen faturaların toplamı. Kutu HTMX ile yenilendiği için olay belgeye
+  bağlanır ve her yenilemeden sonra yeniden hesaplanır. Rakamlar yalnızca
+  gösterim içindir: sunucu tutarı sorgunun kaydından okur.
+{% endcomment %}
+<script>
+  (function () {
+    function tl(n) { return n.toLocaleString("tr-TR", {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+    function hesapla() {
+      var form = document.getElementById("odeme-formu");
+      if (!form) return;
+      var secili = form.querySelectorAll("[data-fatura-sec]:checked");
+      var bayi = 0, musteri = 0;
+      secili.forEach(function (k) { bayi += parseFloat(k.dataset.bayi); musteri += parseFloat(k.dataset.musteri); });
+      var bakiye = parseFloat(form.dataset.bakiye);
+      form.querySelector("[data-adet]").textContent = secili.length;
+      form.querySelector("[data-bayi-toplam]").textContent = tl(bayi);
+      var m = form.querySelector("[data-musteri-toplam]");
+      if (m) m.textContent = tl(musteri);
+      var yetmiyor = bayi > bakiye + 0.001;
+      form.querySelector("[data-yetmiyor]").hidden = !yetmiyor;
+      form.querySelector("[data-gonder]").disabled = secili.length === 0 || yetmiyor || form.dataset.gonderildi === "1";
+      var hepsi = form.querySelector("[data-hepsi]");
+      if (hepsi) {
+        var tumu = form.querySelectorAll("[data-fatura-sec]:not(:disabled)");
+        hepsi.checked = tumu.length > 0 && secili.length === tumu.length;
+      }
+    }
+    document.addEventListener("change", function (olay) {
+      if (olay.target.matches("[data-hepsi]")) {
+        document.querySelectorAll("#odeme-formu [data-fatura-sec]:not(:disabled)").forEach(function (k) {
+          k.checked = olay.target.checked;
+        });
+      }
+      if (olay.target.closest("#odeme-formu")) hesapla();
+    });
+    document.addEventListener("submit", function (olay) {
+      var form = olay.target;
+      if (form.id !== "odeme-formu") return;
+      if (form.dataset.gonderildi) { olay.preventDefault(); return; }
+      form.dataset.gonderildi = "1";
+      var dugme = form.querySelector("[data-gonder]");
+      requestAnimationFrame(function () { dugme.disabled = true; dugme.textContent = "Ödeniyor…"; });
+    });
+    document.addEventListener("htmx:afterSwap", hesapla);
+    document.addEventListener("DOMContentLoaded", hesapla);
+    hesapla();
+  })();
+</script>
+{% include "kontor/parca_goz_betik.html" %}
+{% endblock %}

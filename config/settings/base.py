@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "apps.magaza",
     "apps.esim",
     "apps.kontor",
+    "apps.fatura",
 ]
 
 MIDDLEWARE = [
@@ -408,6 +409,23 @@ UNFOLD = {
                 ],
             },
             {
+                "title": "Fatura",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Ödemeler",
+                        "icon": "receipt",
+                        "link": "/yonetim/fatura/odeme/",
+                        # Bayi ödedi, yönetim sağlayıcıda henüz ödemedi: elle yapılacak iş.
+                        "badge": "apps.rozetler.bekleyen_fatura_odemeleri",
+                    },
+                    {"title": "Sorgular", "icon": "manage_search", "link": "/yonetim/fatura/sorgu/"},
+                    {"title": "Kurumlar", "icon": "account_balance", "link": "/yonetim/fatura/kurum/"},
+                    {"title": "Bölümler", "icon": "category", "link": "/yonetim/fatura/kategori/"},
+                    {"title": "Sorgu Robotları", "icon": "smart_toy", "link": "/yonetim/fatura/robot/"},
+                ],
+            },
+            {
                 "title": "Ayarlar",
                 "separator": True,
                 "items": [
@@ -421,3 +439,11 @@ UNFOLD = {
         ],
     },
 }
+
+# Fatura sorgu robotunun (laptop, znetfaturasorgu/) bağlanacağı adres; panelin
+# "Yeni anahtar" ekranındaki ayar.json bloğuna yazılır. **www'li** olmalı:
+# www'siz alan nginx'te 301 ile yönleniyor ve robotun HTTP kütüphanesi
+# yönlendirmede POST'u GET'e çevirip gövdeyi düşürüyor — sonuç, nabız ve
+# katalog Django'ya hiç ulaşmazdı.
+FATURA_ROBOT_ADRESI = env("FATURA_ROBOT_ADRESI", default="https://www.aktivasyoncu.com.tr")
+

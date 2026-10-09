@@ -1,0 +1,52 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Sorgu robotunun anahtarı. Sistem yalnızca özetini saklar: anahtar bu
+  yanıtta bir kez görünür. GET onay, POST üretim — düz bir bağlantı robotu
+  sessizce kilitlemesin. Gösterilen blok laptoptaki ayar.json'ın kendisidir.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="rounded-default border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    {% if anahtar %}
+    <p class="mb-4 text-sm text-base-500">
+      <b>{{ robot.ad }}</b> için yeni anahtar üretildi; eskisi artık geçersiz. Bu anahtar
+      bir daha gösterilmeyecek. Aşağıdakini laptopta <b>znetfaturasorgu/ayar.json</b>
+      dosyasına olduğu gibi yapıştır, sonra <b>isci.bat</b>'ı yeniden başlat.
+    </p>
+    <pre id="mesaj" class="mb-4 overflow-x-auto rounded-md border border-base-200 p-4 font-mono text-sm dark:border-base-700"
+>{
+  "django_url": "{{ adres }}",
+  "api_key": "{{ anahtar }}",
+  "robot_adi": "{{ robot.ad }}",
+  "aralik_sn": 5,
+  "calisma_saatleri": "08:00-23:00"
+}</pre>
+    <div class="flex flex-wrap gap-3">
+      <button type="button" id="kopyala" class="rounded-md bg-primary-600 px-4 py-2 font-medium text-white">Kopyala</button>
+      <a href="{% url 'admin:fatura_robot_changelist' %}" class="rounded-md border border-base-200 px-4 py-2 font-medium dark:border-base-700">Listeye dön</a>
+    </div>
+    <script>
+      document.getElementById("kopyala").addEventListener("click", function () {
+        var dugme = this;
+        navigator.clipboard.writeText(document.getElementById("mesaj").textContent).then(function () {
+          dugme.textContent = "Kopyalandı";
+        });
+      });
+    </script>
+    {% else %}
+    <p class="mb-4 text-sm leading-relaxed text-base-500">
+      <b>{{ robot.ad }}</b> için yeni bir anahtar üretilecek ve bir kez gösterilecek.
+      {% if robot.anahtar_ozeti %}Eski anahtar anında geçersiz olur: robot yeni anahtar
+      ayar.json'a yazılana kadar sorgu alamaz.{% endif %}
+    </p>
+    <form method="post" class="flex flex-wrap gap-3">
+      {% csrf_token %}
+      <button type="submit" class="rounded-md bg-primary-600 px-4 py-2 font-medium text-white">Anahtar üret</button>
+      <a href="{% url 'admin:fatura_robot_changelist' %}" class="rounded-md border border-base-200 px-4 py-2 font-medium dark:border-base-700">Vazgeç</a>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

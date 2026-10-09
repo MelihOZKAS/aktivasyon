@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}Ödemelerim{% endblock %}
+{% block sayfa_basligi %}Fatura{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-4xl">
+  <a href="{% url 'fatura:index' %}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← Fatura</a>
+  <h2 class="baslik mb-4 text-2xl font-bold">Fatura ödemelerim</h2>
+
+  <form method="get" class="mb-4 flex gap-2" role="search">
+    <input type="search" name="q" value="{{ q }}" class="girdi min-w-0 flex-1"
+           placeholder="Numara, abone adı ya da referans" autocomplete="off">
+    <button type="submit" class="dugme dugme-sessiz shrink-0">Ara</button>
+  </form>
+
+  {% if odemeler %}
+  <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+    {% for odeme in odemeler %}
+    {% include "fatura/parca_odeme_satir.html" %}
+    {% endfor %}
+  </div>
+  {% if sayfa.has_other_pages %}
+  <nav class="mt-4 flex items-center justify-between gap-2 text-sm" aria-label="Sayfalar">
+    {% if sayfa.has_previous %}
+    <a href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}sayfa={{ sayfa.previous_page_number }}" class="dugme dugme-sessiz">← Önceki</a>
+    {% else %}<span></span>{% endif %}
+    <span class="text-soluk">{{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
+    {% if sayfa.has_next %}
+    <a href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}sayfa={{ sayfa.next_page_number }}" class="dugme dugme-sessiz">Sonraki →</a>
+    {% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">{% if q %}“{{ q }}” aramasına uyan ödeme yok.{% else %}Henüz fatura ödemedin.{% endif %}</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

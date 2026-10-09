@@ -106,6 +106,12 @@ class Command(BaseCommand):
                 "    manage.py shell"
             ) from hata
 
+        adim += 1
+        self._baslik(adim, "Fatura bölümleri ve kurumları")
+        # Robotun sağlayıcıdan çektiği kurum listesi (apps/fatura/veri).
+        # Var olana dokunmaz: panelde yapılan düzenleme geri alınmaz.
+        call_command("fatura_kurumlari", stdout=self.stdout, stderr=self.stderr)
+
         if secenekler["ornek"]:
             zorla = secenekler["zorla"] or not settings.DEBUG
 

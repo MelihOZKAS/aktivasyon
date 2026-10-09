@@ -134,4 +134,17 @@ def bekleyen_siparisler(request):
     """
     from apps.magaza.models import Siparis, SiparisDurumu
 
-    return _sayi(Siparis.objects.filter(durum=SiparisDurumu.VERILDI, kontor__isnull=True))
+    return _sayi(
+        Siparis.objects.filter(durum=SiparisDurumu.VERILDI, kontor__isnull=True, fatura__isnull=True)
+    )
+
+
+def bekleyen_fatura_odemeleri(request):
+    """Bayinin ödediği, yönetimin sağlayıcıda henüz ödemediği faturalar.
+
+    Para bayiden düşmüş, fatura hâlâ ödenmemiş: müşteri bekliyor. Yönetim
+    Kontorbizde'de ödeyip "Ödendi" deyince sayıdan düşer.
+    """
+    from apps.fatura.models import Odeme, OdemeDurumu
+
+    return _sayi(Odeme.objects.filter(durum=OdemeDurumu.BEKLIYOR))

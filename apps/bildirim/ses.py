@@ -21,6 +21,7 @@ KAYNAKLAR = {
     "bayi_basvurusu": "bayi.BayiBasvurusu",
     "odeme": "finans.OdemeBildirimi",
     "kontor": "kontor.Islem",
+    "fatura": "fatura.Odeme",
 }
 
 

@@ -41,9 +41,10 @@ def magaza(request):
         {
             "urunler": Urun.objects.filter(aktif=True),
             "bakiye": bakiye,
-            # eSIM ve kontör siparişleri kendi bölümlerinde listelenir.
+            # eSIM, kontör ve fatura siparişleri kendi bölümlerinde listelenir.
             "son_siparisler": Siparis.objects.filter(
-                bayi=request.user, esim__isnull=True, esim_yukleme__isnull=True, kontor__isnull=True
+                bayi=request.user, esim__isnull=True, esim_yukleme__isnull=True, kontor__isnull=True,
+                fatura__isnull=True
             )[:SON_SIPARIS_ADEDI],
         },
     )
@@ -114,7 +115,8 @@ def siparislerim(request):
     """Bayinin bütün siparişleri."""
     sayfalayici = Paginator(
         Siparis.objects.filter(
-            bayi=request.user, esim__isnull=True, esim_yukleme__isnull=True, kontor__isnull=True
+            bayi=request.user, esim__isnull=True, esim_yukleme__isnull=True, kontor__isnull=True,
+                fatura__isnull=True
         ),
         20,
     )

@@ -1,0 +1,10 @@
+# Robotun yerel çıktıları — depoya girmez.
+.venv/
+oturum/
+kayitlar/
+__pycache__/
+*.spec
+build/
+dist/
+# Robotun anahtarını taşır; her laptopta panelden üretilir, depoya girmez.
+ayar.json

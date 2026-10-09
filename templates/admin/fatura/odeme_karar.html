@@ -1,0 +1,80 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+  Fatura ödemesinin kararı. Yönetici faturayı sağlayıcıda (Kontorbizde)
+  elle öder, sonra "Ödendi" der. Ödeyemezse "İptal + iade": tutar ters
+  kayıtla bayiye döner, sebep bayiye gösterilir. İkisi de POST.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-3xl">
+  <div class="mb-4 rounded-default border border-base-200 bg-white p-6 dark:border-base-800 dark:bg-base-900">
+    <dl class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      <div><dt class="text-base-500">Bayi</dt><dd class="font-medium">{{ odeme.bayi }}</dd></div>
+      <div><dt class="text-base-500">Referans</dt><dd class="font-mono font-medium">{{ odeme.referans_no }}</dd></div>
+      <div><dt class="text-base-500">Kurum</dt><dd class="font-medium">{{ odeme.kurum_adi }}</dd></div>
+      <div><dt class="text-base-500">Numara</dt><dd class="font-mono font-medium">{{ odeme.numara }}</dd></div>
+      {% if odeme.abone_adi %}<div><dt class="text-base-500">Abone</dt><dd class="font-medium">{{ odeme.abone_adi }}</dd></div>{% endif %}
+      <div><dt class="text-base-500">Bayiden düşen</dt><dd class="font-bold">{{ odeme.siparis.tutar }} ₺</dd></div>
+      {% if odeme.saglayici_tutari is not None %}
+      <div><dt class="text-base-500">Sağlayıcıya ödenecek</dt><dd class="font-bold">{{ odeme.saglayici_tutari }} ₺</dd></div>
+      {% endif %}
+      <div><dt class="text-base-500">Durum</dt><dd class="font-medium">{{ odeme.get_durum_display }}</dd></div>
+    </dl>
+
+    {% if odeme.faturalar %}
+    <div class="mt-5 overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-base-500">
+          <th class="py-1.5 pr-3">Fatura No</th><th class="py-1.5 pr-3">Son ödeme</th>
+          <th class="py-1.5 pr-3 text-right">Fatura</th><th class="py-1.5 pr-3 text-right">Sağlayıcı toplamı</th>
+          <th class="py-1.5 text-right">Bayiden</th>
+        </tr></thead>
+        <tbody>
+        {% for f in odeme.faturalar %}
+          <tr class="border-t border-base-200 dark:border-base-800">
+            <td class="py-1.5 pr-3 font-mono">{{ f.fatura_no }}</td>
+            <td class="py-1.5 pr-3">{{ f.son_odeme_tarihi }}</td>
+            <td class="py-1.5 pr-3 text-right">{{ f.fatura_bedeli }}</td>
+            <td class="py-1.5 pr-3 text-right font-medium">{{ f.toplam_tutar }}</td>
+            <td class="py-1.5 text-right">{{ f.bayi_tutari }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-3 text-xs text-base-500">
+      Kontorbizde'de bu kurumda numarayı sorgulayıp yukarıdaki fatura numaralarını seç ve öde.
+    </p>
+    {% else %}
+    <p class="mt-4 text-xs text-base-500">Sabit tutarlı kalem: Kontorbizde'de bu kurumda numaraya yükle.</p>
+    {% endif %}
+  </div>
+
+  {% if odeme.bekliyor %}
+  <div class="grid gap-4 sm:grid-cols-2">
+    <form method="post" class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+      {% csrf_token %}
+      <input type="hidden" name="karar" value="odendi">
+      <p class="mb-2 font-semibold">Ödendi</p>
+      <p class="mb-3 text-xs text-base-500">Sağlayıcıda ödedin. Para bayide düşülü kalır, ödeme kapanır.</p>
+      <input type="text" name="not" maxlength="200" placeholder="Not (dekont no, isteğe bağlı)"
+             class="mb-3 w-full rounded-md border border-base-200 px-3 py-2 text-sm dark:border-base-700 dark:bg-base-900">
+      <button type="submit" class="rounded-md bg-primary-600 px-4 py-2 font-medium text-white">Ödendi olarak kapat</button>
+    </form>
+    <form method="post" class="rounded-default border border-base-200 bg-white p-5 dark:border-base-800 dark:bg-base-900">
+      {% csrf_token %}
+      <input type="hidden" name="karar" value="iptal">
+      <p class="mb-2 font-semibold" style="color:#D42046">İptal + iade</p>
+      <p class="mb-3 text-xs text-base-500"><b>{{ odeme.siparis.tutar }} ₺</b> bayinin bakiyesine geri yazılır. Sebebi bayi görür.</p>
+      <input type="text" name="sebep" maxlength="200" required placeholder="Sebep (bayi görecek)"
+             class="mb-3 w-full rounded-md border border-base-200 px-3 py-2 text-sm dark:border-base-700 dark:bg-base-900">
+      <button type="submit" class="rounded-md px-4 py-2 font-medium text-white" style="background:#D42046">İptal et ve iade et</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="text-sm text-base-500">Bu ödeme sonuçlanmış{% if odeme.sonuc_notu %}: {{ odeme.sonuc_notu }}{% endif %}.</p>
+  {% endif %}
+  <p class="mt-4"><a href="{% url 'admin:fatura_odeme_changelist' %}" class="text-sm font-medium">← Ödemeler</a></p>
+</div>
+{% endblock %}

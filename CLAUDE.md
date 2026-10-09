@@ -33,6 +33,7 @@ Bu ilkeyi bozan bir çözüm önerme.
 | Mağaza | `apps/magaza` | Bayinin hakedişiyle aldığı ürünler |
 | eSIM | `apps/esim` | Sağlayıcı API'lerinden çekilen yurt dışı internet paketleri, kur ve kâr oranıyla satış, QR teslimi |
 | Kontör | `apps/kontor` | TL, paket ve oyun pini yükleme; sağlayıcı sırası, askı ve iade; bayi programları için Znet uyumlu API |
+| Fatura | `apps/fatura` | Fatura sorgu ve ödeme; sorguyu laptoptaki robot yapar (`znetfaturasorgu/`), ödemeyi yönetim elle yapar |
 
 ## Kurulum sırası
 
@@ -58,7 +59,7 @@ değiştirmek**; para, SIM stoğu, belge silme ve bildirimler kendiliğinden
 işler. Tedarikçi ataması da bilinçli olarak elle yapılır.
 
 **Kurulum tek komuttur: `manage.py kurulum`.** Migration'ları uygular ve
-1-4. adımları açar; `--ornek` 5-8'i de örnek verilerle doldurur,
+1-4. adımları ve fatura kurumlarını (`fatura_kurumlari`) açar; `--ornek` 5-8'i de örnek verilerle doldurur,
 `--yonetici AD --parola X` yönetici hesabı açar, `--sifirla` önce her şeyi siler. Yeni bir kurulum adımı
 eklerken bu komuta da ekle — kurulumu belgeye değil komuta yazıyoruz.
 
@@ -641,6 +642,75 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   + kod başına tekildir. `0020` düz `13239` koduyla açılmış eski kayıtları
   temizledi (eşi varsa birleştirdi, yoksa kodu yeni biçime çevirdi).
   Ucuz alternatif (eski `Sorgu.php` akışı) yukarıda: gönderim planı.
+- **Fatura ödeme ayrı bir bölümdür** (`apps/fatura`, `/fatura/…`, menüde
+  Oyun & Pin'in altında). Akış: kurum seç → numara → sorgu → fatura seç →
+  öde. Sağlayıcının (Kontorbizde) fatura API'si **yok**; sorguyu laptopta
+  çalışan robot yapar (`znetfaturasorgu/`, Django'dan ayrı klasör, kendi
+  `BENIOKU.txt`'si): gerçek Chromium'da, yöneticinin bir kez elle girdiği
+  oturumla gerçek sorgu sayfasını sürer. Sayfanın jetonları (`znet_token`,
+  Turnstile) taklit edilmez, sayfa kendisi üretir; giriş ekranındaki resim
+  de otomatikleştirilmez — oturum düşünce yönetici `giris.bat` ile elle
+  girer. Sözleşme `znetfaturasorgu/DJANGO_API.md`.
+  · **Robot bize sorar (pull)**, boşken 5 sn'de bir (`ayar.json` →
+  `aralik_sn`); iş varsa beklemeden sıradakine geçer. Her doğrulanmış istek
+  nabız sayılır, ayrı nabız yalnızca durum değişince ya da dakikada bir
+  gider; boşta robot başına dakikada ~13 istek. Kontorbizde'ye yalnızca
+  bayi sorgu yapınca gidilir. Kurum listesi (`kurumlar.json`, id → token)
+  sürekli taranmaz, **yalnızca elle** yenilenir (`katalog.bat`); işçi
+  dosyanın değiştiğini görüp yeniden okur. Sorgu hata verirse işçi sonucu
+  hemen `basarisiz` yazar, bayi zaman aşımını beklemez. **Robot yalnızca
+  çalışma saatlerinde çalışır** (`ayar.json` → `calisma_saatleri`,
+  varsayılan 08:00-23:00; sağlayıcı da 23:00-06:00 tahsilatı kapatıyor):
+  dışında Django'ya hiç istek atmaz. Saatler nabızla gelir
+  (`Robot.mesai_baslangic/bitis`); robot susunca bayi "sistem bağlı değil"
+  değil "08:00–23:00 arasında yapılır" görür (`services.kapali_mesaji`) —
+  yoksa her gece yöneticiyi arardı. Laptop dışarı
+  port açmaz: `/fatura/robot/is/`
+  (iş al), `/sonuc/`, `/kalp/` (nabız), `/katalog/` (isteğe bağlı kurum
+  güncellemesi). Her robotun kendi anahtarı vardır (`Robot`; Sorgu
+  Robotları → Yeni anahtar, `ayar.json` bloğu hazır gösterilir, yalnızca
+  SHA-256 özeti saklanır). Bloktaki adres `FATURA_ROBOT_ADRESI`'dir
+  (`https://www.aktivasyoncu.com.tr`), panelin açıldığı alan adı değil.
+  **www'li olmalı:** www'siz alan nginx'te 301 ile yönleniyor, urllib
+  yönlendirmede POST'u GET'e çevirip gövdeyi düşürüyor — sonuç ve nabız
+  Django'ya hiç ulaşmazdı. İşçi yönlendirmeyi izlemez, adresi düzelt diye
+  açıkça hata verir. **Aynı sorgu iki robota gitmez**: `is_ver`
+  satırı `select_for_update(skip_locked=True)` ile alır; beş robot aynı
+  anda sorsa da her biri başka satırı kapar. Robot çevrimdışıysa (60 sn
+  nabız yok) bayi sorgu **açamaz**, ekran sebebini söyler; robotun almadığı
+  sorgu 45 sn, aldığı ama yazmadığı 75 sn sonra kapanır.
+  · **Kurumun kimliği `Kurum.kod`'dur** (`vodafone`, `100-tl-yukle-plaka`),
+  sağlayıcının `api_adi`'si değil — o tekil değil (171 dört "TL Yükle"de
+  tekrar ediyor). Kod kurum adından türetilir (`robot.kurum_id`); Django
+  token tutmaz, robot sorgu anında kodu güncel token'a çevirir. Kurumlar
+  `apps/fatura/veri/kurumlar.json`'dan kurulumla açılır (33 kurum, 8 bölüm;
+  sağlayıcının kategorileri karışık — Vodafone "Hatay Faturaları"
+  sekmesinde — bölümler bizimdir). Kurulum var olana dokunmaz; robotun
+  katalogu numara kuralını günceller, yönetimin kararını (ad, bölüm, fiyat,
+  aktif) korur, yeni kurumu **kapalı** açar.
+  · **Numara kuralı veridir**: `min_hane`/`max_hane`/`sadece_rakam`
+  sağlayıcının alan tanımından gelir; kurala uymayan numara robota hiç
+  gitmez (`Kurum.numarayi_dogrula`, telefonda baştaki 0 ve +90 atılır).
+  · **Para kontördeki gibi `magaza.Siparis` üzerinden** (`urun_adi="Fatura ·
+  …"`): ödeme açılınca bakiyeden düşer, borca yazılmaz, iptalde ters kayıt.
+  Fatura siparişi mağazanın listelerine, rozetine ve admin'ine girmez
+  (`fatura__isnull=True`) — iptal orada yapılsaydı fatura kaydı atlanırdı.
+  **Tutar bayinin formundan değil sorgunun kaydından okunur**; sorgu 30
+  dk'dan eskiyse ödenmez (tutar değişmiş olabilir). **Aynı fatura iki kez
+  ödenmez**: iptal edilmemiş bir ödemede aynı fatura no varsa reddedilir
+  (aynı kurum + numara; JSON `contains` SQLite'ta yok, Python'da bakılır).
+  · **Fiyat:** sorgulu kurumda bayi fatura başına `sağlayıcı toplamı +
+  hizmet_bedeli` öder, müşteriye `+ tavsiye_ek` önerilir (ikisi 0 ise
+  sağlayıcının tutarı aynen; tohum öyle açar). Sorgusuz kalem (HGS 100 TL)
+  sabit `bayi_fiyati`/`tavsiye_fiyati`; fiyatı yazılmayan sorgusuz kalem
+  bayiye görünmez. Müşteri fiyatı büyük, alış göz düğmesinin arkasında
+  (kontörün `parca_goz` parçaları).
+  · **Ödemeyi yönetim sağlayıcıda elle yapar**, robot ödeme yapmaz (ödeme
+  token'ı yine de saklanır). Karar Ödemeler'deki **Karar** ekranından
+  (GET onay, POST): "Ödendi" (sipariş teslim, para yerinde) ya da "İptal +
+  iade" (sebep zorunlu, bayi görür). Tek kapı `services.odendi_isaretle` /
+  `iptal_et`; sonuçlanmış ödemeye ikinci karar verilmez. Bekleyenler yan
+  menüde rozetle sayılır ve çın sesiyle haber verilir.
 - **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme
   bildiriminin `durum` alanı formda düzenlenebilir; yönetici "Onaylandı"
   seçip kaydedince bildirim onaylanmış **görünüyor** ama para hiç hareket
@@ -955,10 +1025,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   talep zaten rozetle sayılıyor.
 - **Bayi menüsünün sırası bilinçlidir:** Panel, Tarifeler, Yeni başvuru,
   Başvurularım, Hakedişler, Destek, Cüzdan, Mağaza, eSIM, Kontör, Oyun &
-  Pin. Bayi müşteriyle önce tarifeye bakıyor, sonra başvuruyu giriyor; menü
+  Pin, Fatura. Bayi müşteriyle önce tarifeye bakıyor, sonra başvuruyu giriyor; menü
   bu sırayı izler. Mağaza cüzdanın hemen ardındadır (önce parayı görür,
-  sonra harcar); sonradan gelen satış bölümleri (eSIM, Kontör, Oyun & Pin)
-  alta eklendi, üstteki sıra bozulmasın diye.
+  sonra harcar); sonradan gelen satış bölümleri (eSIM, Kontör, Oyun & Pin,
+  Fatura) alta eklendi, üstteki sıra bozulmasın diye.
 - **Rol ekranları karışmaz.** Bayi görünümleri `@bayi_gerekli`, tedarikçi
   görünümleri `@tedarikci_gerekli` ile korunur (`apps/bayi/yetki.py`).
   Yeni bir ekran eklerken hangi role ait olduğunu belirt; profili olmayan
@@ -1389,8 +1459,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   zaten rozetle sayılıyor, onayı veren de yönetimin kendisi.
 - Hangi durumların bildireceğini admin seçer (`BasvuruDurumu.bildirim_gonder`);
   varsayılan hiçbiri.
-- **Yönetim panelinde dört şey "çın" diye çalar:** yeni başvuru, bayi
-  başvurusu, ödeme bildirimi, kontör siparişi (`static/yonetim-ses.js`,
+- **Yönetim panelinde beş şey "çın" diye çalar:** yeni başvuru, bayi
+  başvurusu, ödeme bildirimi, kontör siparişi, fatura ödemesi (yönetimin
+  elle ödeyeceği iş) (`static/yonetim-ses.js`,
   `UNFOLD["SCRIPTS"]`). Rozetler ancak sayfa yenilenince değişiyordu;
   panel açık duran yönetici başka sekmedeyken de duysun. Panel 15 sn'de bir
   `/yonetim/yeni-kayitlar/`'ı sorar (`apps/bildirim/ses.py`): her türün

@@ -1,0 +1,32 @@
+{% load panel %}
+{% comment %}
+  Ödemenin durumu. Ödeme yönetim tarafından elle yapılır; sürerken kutu
+  on beş saniyede bir kendini yeniler, sonuçlanınca yoklama durur.
+{% endcomment %}
+<div id="fatura-odeme"
+     {% if odeme.bekliyor %}hx-get="{% url 'fatura:odeme-durum' odeme.referans_no %}" hx-trigger="every 15s" hx-swap="outerHTML"{% endif %}>
+  {% if odeme.durum == "odendi" %}
+  <div class="sim rounded-kart border border-olumlu/40 bg-olumlu/5 p-5">
+    <p class="baslik text-lg font-bold text-olumlu">Ödendi</p>
+    {% if odeme.sonuc_notu %}<p class="mt-1 text-sm text-murekkep-yumusak">{{ odeme.sonuc_notu }}</p>{% endif %}
+  </div>
+  {% elif odeme.durum == "iptal" %}
+  <div class="sim rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-5">
+    <p class="baslik text-lg font-bold text-olumsuz">Ödenemedi</p>
+    <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
+      <b class="rakam">{{ odeme.siparis.tutar|para }} ₺</b> bakiyene geri yazıldı.
+      {% if odeme.sonuc_notu %}<br>Sebep: {{ odeme.sonuc_notu }}{% endif %}
+    </p>
+  </div>
+  {% else %}
+  <div class="sim rounded-kart border border-uyari/40 bg-uyari/5 p-5">
+    <p class="baslik flex items-center gap-2 font-semibold text-uyari">
+      <span class="gonderim-sinyali" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      Ödeniyor
+    </p>
+    <p class="mt-1 text-sm text-murekkep-yumusak">
+      Fatura kuruma ödeniyor. Ödenince burada “Ödendi” yazar; ödenemezse tutar bakiyene geri döner.
+    </p>
+  </div>
+  {% endif %}
+</div>

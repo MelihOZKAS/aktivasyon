@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}Fatura{% endblock %}
+{% block sayfa_basligi %}Fatura{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-4xl">
+
+  <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <h2 class="baslik text-2xl font-bold">Fatura ödeme</h2>
+      <p class="mt-1 text-sm text-soluk">
+        Kurumu seç, numarayı yaz, faturayı sorgula ve öde. Tutar bakiyenden düşer;
+        ödenemezse kendiliğinden geri gelir.
+      </p>
+    </div>
+    <div class="sim shrink-0 rounded-kart border border-cizgi bg-yuzey px-4 py-3">
+      <p class="text-xs font-semibold text-soluk">Bakiyen</p>
+      <p class="rakam mt-0.5 text-xl font-bold">{{ bakiye|para }} ₺</p>
+    </div>
+  </div>
+
+  {% if bolumler %}
+  {% comment %}
+    Bölümler tek kolonda alt alta: GSM, İnternet, Elektrik… Kurum kartı
+    operatörün marka rengini sol şeritte taşır (renk = hangi operatör);
+    operatörsüz kurumda şerit gri.
+  {% endcomment %}
+  <div class="space-y-6">
+    {% for ad, kurumlar in bolumler %}
+    <section>
+      <h3 class="baslik mb-2 text-sm font-semibold uppercase tracking-wide text-soluk">{{ ad }}</h3>
+      <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {% for kurum in kurumlar %}
+        <a href="{{ kurum.get_absolute_url }}"
+           class="kart-secim sim yuzey flex min-h-14 items-center gap-3 border border-cizgi px-4 py-3 transition">
+          <span class="h-8 w-1.5 shrink-0 rounded-full"
+                style="background: {% if kurum.operator %}{{ kurum.operator.renk|okunur_renk }}{% else %}var(--color-silik){% endif %}"></span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate font-medium">{{ kurum.ad }}</span>
+            <span class="block truncate text-xs text-soluk">
+              {% if kurum.sorgulu %}{{ kurum.alan_etiketi }} ile sorgula{% else %}{{ kurum.tavsiye_fiyati|default:kurum.bayi_fiyati|para }} ₺ · sorgusuz{% endif %}
+            </span>
+          </span>
+          <span class="text-soluk" aria-hidden="true">→</span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
+    <p class="text-sm text-soluk">Şu an ödenebilecek fatura kurumu yok.</p>
+  </div>
+  {% endif %}
+
+  <section class="mt-10">
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="baslik font-semibold">Son ödemelerin</h2>
+      <a href="{% url 'fatura:odemeler' %}" class="inline-flex min-h-11 items-center text-sm font-medium text-vurgu">Hepsi</a>
+    </div>
+    {% if son_odemeler %}
+    <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+      {% for odeme in son_odemeler %}
+      {% include "fatura/parca_odeme_satir.html" %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-soluk">Henüz fatura ödemedin.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

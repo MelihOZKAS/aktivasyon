@@ -1,0 +1,48 @@
+ZNET FATURA SORGU ROBOTU
+========================
+
+Ne yapar: laptopta gerçek bir tarayıcıda senin oturumunla kontorbizde fatura
+sayfasını sürer, bir kurumun numarasını sorgular, fatura listesini döndürür.
+Jeton taklit edilmez; sayfanın kendi "Sorgula"sına basılır. Para/ödeme YOK,
+yalnızca sorgu.
+
+GEREKLİ: Windows laptop + Python 3.11+ (python.org, "Add to PATH" işaretli).
+
+KURULUM (bir kere)
+------------------
+1) kur.bat        → çift tıkla. Playwright + Chromium kurar.
+2) giris.bat      → tarayıcı açılır. Siteye gir, ekrandaki resmi çöz, panel
+                    açılınca terminale dönüp Enter'a bas. Oturum "oturum/"
+                    klasöründe saklanır; günlerce tekrar istemez.
+
+TEST (Django olmadan)
+---------------------
+  sorgu.bat vodafone 5332590138
+  sorgu.bat turkcell 5332590138
+Sonuç JSON olarak yazılır (abone adı, fatura no, son ödeme, fatura bedeli…).
+Kurum listesi kurumlar.json'dadır (katalog.bat ile yenilenir).
+
+DJANGO'YA BAĞLANINCA
+--------------------
+1) Yönetim panelinde Fatura → Sorgu Robotları → robot ekle → "Yeni anahtar".
+   Çıkan bloğu olduğu gibi bu klasörde ayar.json dosyasına yapıştır.
+2) isci.bat      → işçi başlar; Django kuyruğundan iş çekip sorgular.
+3) katalog.bat   → YALNIZCA İSTEDİĞİNDE: kurum listesini siteden yeniden
+                   çeker (kurumlar.json) ve Django'ya yollar. Sağlayıcı yeni
+                   kurum ekleyince ya da robot "katalog.bat ile yenile"
+                   deyince çalıştır. İşçi açıkken de çalışır.
+   Birden çok robot için aynı klasörü kopyalayıp panelde her biri için ayrı
+   robot + anahtar aç; aynı numara iki robota gitmez (kuyruk atomik kilitler).
+
+Django tarafı kurulu (apps/fatura); uçların ayrıntısı: DJANGO_API.md.
+
+NOTLAR
+------
+- Robot yalnızca ayar.json'daki "calisma_saatleri" içinde çalışır
+  (varsayılan 08:00-23:00). Dışında Django'ya hiç istek atmaz; bayi o
+  saatlerde "08:00–23:00 arasında yapılır" görür. Değiştirmek için
+  ayar.json'u düzenle, isci.bat'ı yeniden başlat.
+- Oturum düşerse işçi "oturum düştü" der; giris.bat ile yeniden gir.
+- "oturum" klasörünü kimseyle paylaşma; giriş bilgini taşır.
+- Bazı kurumlar gece 23:00-06:00 tahsilata kapalı; robot bunu "hata" +
+  mesaj olarak döndürür, bayiye o mesaj gösterilir.

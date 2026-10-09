@@ -24,6 +24,7 @@ urlpatterns = [
     path("", include("apps.esim.urls", namespace="esim")),
     path("", include("apps.magaza.urls", namespace="magaza")),
     path("", include("apps.kontor.urls", namespace="kontor")),
+    path("", include("apps.fatura.urls", namespace="fatura")),
 ]
 
 # Tarife, kampanya ve operatör görselleri DEBUG'dan bağımsız sunulur:

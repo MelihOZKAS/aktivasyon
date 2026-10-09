@@ -122,7 +122,9 @@ class SiparisAdmin(ModelAdmin):
             # Kontör işlemleri kendi ekranında yönetilir: iptal ya da teslim
             # burada yapılsaydı sağlayıcı atlanırdı. Günde yüzlercesi bu
             # listeyi de boğardı. (get_object da bu sorguyu kullanır.)
-            .filter(kontor__isnull=True)
+            # Fatura ödemesi de kendi ekranında: iptali sağlayıcıyı ve
+            # fatura kaydını atlamasın (apps/fatura, karar ekranı).
+            .filter(kontor__isnull=True, fatura__isnull=True)
             .select_related("bayi", "bayi__bayi_profili", "urun", "esim", "esim_yukleme")
         )
 

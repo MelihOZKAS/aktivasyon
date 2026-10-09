@@ -1,0 +1,113 @@
+{% load panel %}
+{% comment %}
+  Sorgunun sonucu. Robot çalışırken kutu iki saniyede bir kendini yeniler
+  (HTMX); sonuç gelince hx- öznitelikleri düşer, yoklama durur.
+
+  Fatura kartı: büyük rakam müşteri fiyatıdır (müşteriden ek tanımlıysa),
+  bayinin ödeyeceği göz düğmesiyle açılır — kontördeki kuralın aynısı.
+  Ek yoksa ikisi aynıdır, büyük rakam bayinin ödeyeceğidir. Daha önce
+  ödenmiş/ödenmekte olan fatura seçilemez: aynı fatura iki kez ödenmesin.
+{% endcomment %}
+<div id="fatura-sorgu"
+     {% if sorgu.acik %}hx-get="{% url 'fatura:sorgu-durum' sorgu.referans_no %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+
+  {% if sorgu.acik %}
+  <div class="sim yuzey rounded-kart border border-cizgi p-5">
+    <p class="baslik flex items-center gap-2 font-semibold">
+      <span class="gonderim-sinyali" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      Fatura sorgulanıyor…
+    </p>
+    <p class="mt-1 text-sm text-soluk">Birkaç saniye sürer; bu sayfada bekle.</p>
+  </div>
+
+  {% elif sorgu.durum == "hata" %}
+  <div class="sim rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-5">
+    <p class="baslik text-lg font-bold text-olumsuz">Sorgulanamadı</p>
+    <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">{{ sorgu.mesaj|default:"Sorgu yapılamadı." }}</p>
+    <a href="{{ kurum.get_absolute_url }}?numara={{ sorgu.numara|urlencode }}" class="dugme dugme-sessiz mt-3 inline-flex text-sm">Yeniden sorgula</a>
+  </div>
+
+  {% elif not satirlar %}
+  <div class="sim yuzey rounded-kart border border-cizgi p-5">
+    <p class="baslik text-lg font-bold">Ödenecek fatura yok</p>
+    <p class="mt-1 text-sm text-soluk">{{ sorgu.mesaj|default:"Bu numaraya ait ödenmemiş fatura bulunamadı." }}</p>
+    {% if sorgu.abone_adi %}<p class="mt-2 text-sm">Abone: <b>{{ sorgu.abone_adi }}</b></p>{% endif %}
+  </div>
+
+  {% else %}
+  <div class="yuzey mb-3 rounded-kart border border-cizgi p-4 text-sm">
+    <div class="flex justify-between gap-4">
+      <span class="text-soluk">Abone</span>
+      <b class="text-right">{{ sorgu.abone_adi|default:"—" }}</b>
+    </div>
+    <p class="mt-1 text-xs text-soluk">Müşteriye adını teyit ettir; farklıysa numarayı kontrol et.</p>
+  </div>
+
+  {% if eski %}
+  <div class="sim mb-3 rounded-kart border border-uyari/40 bg-uyari/5 p-4">
+    <p class="text-sm font-semibold text-uyari">Bu sorgu yarım saatten eski</p>
+    <p class="mt-1 text-sm text-murekkep-yumusak">Tutar değişmiş olabilir. Ödemeden önce yeniden sorgula.</p>
+    <a href="{{ kurum.get_absolute_url }}?numara={{ sorgu.numara|urlencode }}" class="dugme dugme-sessiz mt-3 inline-flex text-sm">Yeniden sorgula</a>
+  </div>
+  {% else %}
+  <form method="post" action="{% url 'fatura:sorgu-ode' sorgu.referans_no %}" id="odeme-formu" data-bakiye="{{ bakiye|stringformat:'f' }}">
+    {% csrf_token %}
+    <input type="hidden" name="islem_anahtari" value="{{ islem_anahtari }}">
+
+    {% if odenebilir|length > 1 %}
+    <label class="mb-2 flex min-h-11 cursor-pointer items-center gap-3 px-1 text-sm font-medium">
+      <input type="checkbox" data-hepsi class="h-5 w-5 shrink-0 accent-[var(--color-murekkep)]">
+      Hepsini seç ({{ odenebilir|length }})
+    </label>
+    {% endif %}
+
+    <div class="space-y-2">
+      {% for s in satirlar %}
+      <label class="sim yuzey flex min-h-16 items-center gap-3 border border-cizgi px-4 py-3 {% if s.odendi %}opacity-60{% else %}cursor-pointer kart-secim{% endif %}">
+        <input type="checkbox" name="fatura" value="{{ s.fatura_no }}" data-fatura-sec
+               data-bayi="{{ s.bayi_tutari|stringformat:'f' }}" data-musteri="{{ s.musteri_tutari|stringformat:'f' }}"
+               {% if s.odendi %}disabled{% elif odenebilir|length == 1 %}checked{% endif %}
+               class="h-5 w-5 shrink-0 accent-[var(--color-murekkep)]">
+        <span class="min-w-0 flex-1">
+          <span class="rakam block truncate font-medium">{{ s.fatura_no }}</span>
+          <span class="mt-0.5 block text-xs text-soluk">
+            <span class="whitespace-nowrap">Son ödeme {{ s.son_odeme_tarihi|default:"—" }}</span>{% if s.fatura_bedeli %} · <span class="whitespace-nowrap">fatura {{ s.fatura_bedeli|para }} ₺</span>{% endif %}
+            {% if s.odendi %}<span class="font-semibold text-olumlu"> · ödendi / ödeniyor</span>{% endif %}
+          </span>
+        </span>
+        <span class="shrink-0 text-right">
+          {% if tavsiye_var %}
+          <span class="rakam block font-semibold">{{ s.musteri_tutari|para }} ₺</span>
+          <span data-alis hidden class="rakam block text-xs text-soluk">alışın {{ s.bayi_tutari|para }}</span>
+          {% else %}
+          <span class="rakam block font-semibold">{{ s.bayi_tutari|para }} ₺</span>
+          {% endif %}
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+
+    {% if tavsiye_var %}
+    <div class="mt-2 flex items-center justify-end gap-1 text-xs text-soluk">
+      Alışını göster {% include "kontor/parca_goz.html" %}
+    </div>
+    {% endif %}
+
+    <div class="sim my-4 rounded-kart border border-cizgi bg-zemin p-4">
+      <div class="flex items-center justify-between gap-3">
+        <span class="text-sm text-soluk"><span data-adet>0</span> fatura · bakiyenden düşecek</span>
+        <span class="rakam text-xl font-bold"><span data-bayi-toplam>0,00</span> ₺</span>
+      </div>
+      {% if tavsiye_var %}
+      <p data-alis hidden class="mt-1 text-xs text-soluk">Müşteriden: <b class="rakam"><span data-musteri-toplam>0,00</span> ₺</b></p>
+      {% endif %}
+      <p data-yetmiyor hidden class="mt-2 text-sm font-semibold text-uyari">
+        Bakiyen ({{ bakiye|para }} ₺) seçilenlere yetmiyor. Ödeme bakiyeden yapılır, borca yazılmaz.
+      </p>
+      <p class="mt-1 text-xs text-soluk">Ödenemezse tutar kendiliğinden bakiyene döner.</p>
+    </div>
+    <button type="submit" class="dugme dugme-birincil w-full" data-gonder disabled>Seçilenleri öde</button>
+  </form>
+  {% endif %}
+  {% endif %}
+</div>

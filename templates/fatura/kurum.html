@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}{{ kurum.ad }}{% endblock %}
+{% block sayfa_basligi %}Fatura{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-xl">
+  <a href="{% url 'fatura:index' %}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← Fatura</a>
+
+  <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
+    <div class="p-5 sm:p-6">
+      <p class="text-sm font-medium"
+         {% if kurum.operator %}style="color: {{ kurum.operator.renk|okunur_renk }}"{% endif %}>{{ kurum.kategori.ad|default:"Fatura" }}</p>
+      <h2 class="baslik mt-1 text-2xl font-bold">{{ kurum.ad }}</h2>
+
+      {% if not kurum.sorgulu %}
+      {% comment %}
+        Sorgusuz kalem (HGS 100 TL gibi): sabit fiyat. Müşteri fiyatı varsa
+        büyük rakam odur, bayinin alışı göz düğmesiyle açılır (kontördeki
+        kuralın aynısı). Yoksa bayinin fiyatı düz yazılır.
+      {% endcomment %}
+      {% if kurum.tavsiye_fiyati %}
+      <div class="mt-3 flex items-center gap-2">
+        <p class="rakam text-2xl font-bold">{{ kurum.tavsiye_fiyati|para }} ₺</p>
+        {% include "kontor/parca_goz.html" %}
+      </div>
+      <p data-alis hidden class="mt-1 text-sm text-murekkep-yumusak">
+        Alışın <b class="rakam">{{ kurum.bayi_fiyati|para }} ₺</b>
+      </p>
+      {% else %}
+      <p class="rakam mt-3 text-2xl font-bold">{{ kurum.bayi_fiyati|para }} ₺</p>
+      {% endif %}
+      {% endif %}
+
+      {% if kurum.sorgulu and not robot_acik %}
+      <div class="sim mt-5 rounded-kart border border-uyari/40 bg-uyari/5 p-4">
+        <p class="text-sm font-semibold text-uyari">Fatura sorgusu şu an kapalı</p>
+        <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">{{ kapali_mesaji }}</p>
+      </div>
+      {% elif not yeterli %}
+      <div class="sim mt-5 rounded-kart border border-uyari/40 bg-uyari/5 p-4">
+        <p class="text-sm font-semibold text-uyari">Bakiyen bu kaleme yetmiyor</p>
+        <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
+          Bakiyen <b>{{ bakiye|para }} ₺</b>, kalem <b>{{ kurum.bayi_fiyati|para }} ₺</b>.
+          Ödeme bakiyeden yapılır, borca yazılmaz.
+        </p>
+        <a href="{% url 'bayi:cuzdan' %}" class="dugme dugme-sessiz mt-3 inline-flex text-sm">Cüzdana git</a>
+      </div>
+      {% else %}
+      {% comment %}
+        Gönder düğmesi basılınca kilitlenir: yavaş bağlantıda ikinci basış
+        ikinci sorgu ya da ikinci ödeme olmasın. Sunucu da aynı anahtarı ve
+        aynı numarayı kısa süre içinde ikinci kez kabul etmez.
+      {% endcomment %}
+      <form method="post" class="mt-5" id="fatura-formu"
+            action="{% if kurum.sorgulu %}{% url 'fatura:sorgula' kurum.kod %}{% else %}{% url 'fatura:ode' kurum.kod %}{% endif %}">
+        {% csrf_token %}
+        <input type="hidden" name="islem_anahtari" value="{{ islem_anahtari }}">
+        <label for="numara" class="mb-1.5 block text-sm font-semibold">{{ kurum.alan_etiketi }}</label>
+        <input id="numara" name="numara" value="{{ numara }}" required autofocus autocomplete="off" spellcheck="false"
+               maxlength="{{ kurum.max_hane|add:4 }}"
+               {% if kurum.sadece_rakam %}type="tel" inputmode="numeric" data-sadece-rakam{% else %}type="text" autocapitalize="characters"{% endif %}
+               class="girdi rakam w-full text-lg tracking-wide">
+        <p class="mt-1.5 text-xs text-soluk">
+          {% if kurum.min_hane == kurum.max_hane %}{{ kurum.max_hane }} hane{% else %}{{ kurum.min_hane }}–{{ kurum.max_hane }} hane{% endif %}{% if kurum.sadece_rakam %}, yalnızca rakam{% endif %}.
+          {% if kurum.aciklama %}{{ kurum.aciklama }}{% endif %}
+        </p>
+
+        {% if not kurum.sorgulu %}
+        <div class="sim my-4 rounded-kart border border-cizgi bg-zemin p-4">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-sm text-soluk">Bakiyenden düşecek</span>
+            <span class="rakam text-xl font-bold">{{ kurum.bayi_fiyati|para }} ₺</span>
+          </div>
+          <p class="mt-1 text-xs text-soluk">Yüklenemezse tutar kendiliğinden bakiyene döner.</p>
+        </div>
+        {% endif %}
+
+        <button type="submit" class="dugme dugme-birincil {% if kurum.sorgulu %}mt-4{% endif %} w-full" data-gonder>
+          {% if kurum.sorgulu %}Faturayı sorgula{% else %}Öde{% endif %}
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    // Yalnızca rakam isteyen kutuya harf yazılmasın (sunucu da denetler).
+    var kutu = document.querySelector("[data-sadece-rakam]");
+    if (kutu) {
+      kutu.addEventListener("input", function () {
+        var temiz = kutu.value.replace(/[^0-9 ]/g, "");
+        if (temiz !== kutu.value) kutu.value = temiz;
+      });
+    }
+    // İlk gönderimde işaretlenir; ikinci dokunuş istek atmaz.
+    var form = document.getElementById("fatura-formu");
+    if (!form) return;
+    var dugme = form.querySelector("[data-gonder]");
+    var etiket = dugme.textContent;
+    form.addEventListener("submit", function (olay) {
+      if (form.dataset.gonderildi) { olay.preventDefault(); return; }
+      form.dataset.gonderildi = "1";
+      requestAnimationFrame(function () { dugme.disabled = true; dugme.textContent = "Gönderiliyor…"; });
+    });
+    window.addEventListener("pageshow", function (olay) {
+      if (!olay.persisted) return;
+      delete form.dataset.gonderildi;
+      dugme.disabled = false;
+      dugme.textContent = etiket;
+    });
+  })();
+</script>
+{% include "kontor/parca_goz_betik.html" %}
+{% endblock %}
