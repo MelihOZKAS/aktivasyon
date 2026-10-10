@@ -68,6 +68,10 @@ class SorguPaketi:
     dakika: int = 0
     internet_mb: int = 0
     sms: int = 0
+    # Kaynak paketi bir sağlayıcının hesabında görüyorsa (robot): oradaki
+    # kodu ve bize alışı. Kataloğa ekle paketi o sağlayıcıya bunlarla bağlar.
+    saglayici_kodu: str = ""
+    alis: Decimal = None
 
 
 @dataclass
@@ -76,6 +80,8 @@ class SorguSonucu:
     # Hat sahibinin maskeli adı (Ah*** Yı***). Yalnızca ekranda gösterilir,
     # hiçbir yere yazılmaz; bayi yanlış numarayı yüklemeden önce teyit eder.
     sahip: str = ""
+    # Paketlerin görüldüğü sağlayıcı hesabı (`kontor.Saglayici` pk); yoksa None.
+    saglayici: int = None
 
 
 @dataclass

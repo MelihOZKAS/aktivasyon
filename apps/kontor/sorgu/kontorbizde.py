@@ -26,8 +26,12 @@ Kod paketin sağlayıcıdaki numarasıdır (`yukle_onay(...)`'ın dördüncü
 değeri, "8249866.00" → "8249866"); kataloğumuzdaki `Paket.kod` budur.
 Dönen bütün paketler Operatörde Görülen'e işlenir: katalogda olan geçilir,
 olmayan "Yeni" düşer, Kataloğa ekle içeriğiyle (DK, GB, SMS, gün) açar.
-Paketin müşteriye fiyatı `fiyat`, sağlayıcının bize satışı `alis` olarak
-sorgunun kaydında durur.
+Paketin müşteriye fiyatı `fiyat`, sağlayıcının bize satışı `alis`'tir.
+
+**Kod ve alış robotun girdiği hesabındır.** Robotun kaydında "Hesabı"
+seçilir (`fatura.Robot.saglayici`, ör. Kontorbizde); Kataloğa ekle yeni
+paketi o sağlayıcıya karşı site kodu ve alışıyla bağlı açar, yükleme o
+sağlayıcının API'sine gider. Var olan paketin sırasına ve alışına dokunulmaz.
 
 **Boş liste hata sayılır.** Robotun ayrıştıramadığı bir cevap "paket yok"
 diye okunsaydı gönderim planı ana paketi de numarada yok sayar, her satışı
@@ -193,6 +197,8 @@ def paketleri_coz(sonuc):
                 dakika=paket.get("dakika") or 0,
                 internet_mb=paket.get("internet_mb") or 0,
                 sms=paket.get("sms") or 0,
+                saglayici_kodu=paket["kod"],
+                alis=_ondalik(paket.get("alis")),
             )
         )
     return cikti
@@ -239,13 +245,20 @@ def sonuc_al(numara, operator):
     from apps.kontor.models import RobotSorgusu, RobotSorgusuDurumu
 
     suresi_dolanlari_kapat()
-    son = RobotSorgusu.objects.filter(numara=numara, operator=operator).order_by("-olusturma_tarihi", "-pk").first()
+    son = (
+        RobotSorgusu.objects.filter(numara=numara, operator=operator)
+        .select_related("robot")
+        .order_by("-olusturma_tarihi", "-pk")
+        .first()
+    )
     if son is not None:
         if son.acik:
             raise SorguBekleniyor(BEKLEME_MESAJI)
         if son.sonuc_tarihi and timezone.now() - son.sonuc_tarihi < TAZELIK:
             if son.durum == RobotSorgusuDurumu.TAMAM:
-                return SorguSonucu(paketleri_coz(son.sonuc))
+                # Kod ve alış robotun girdiği hesabındır (Sorgu Robotları → Hesabı).
+                saglayici = son.robot.saglayici_id if son.robot_id else None
+                return SorguSonucu(paketleri_coz(son.sonuc), saglayici=saglayici)
             raise SorguHatasi(son.mesaj or HATA_MESAJI)
     if not robot_hazir_mi():
         raise SorguHatasi(kapali_mesaji("Paket sorgusu", robotlar=_paket_robotlari()))

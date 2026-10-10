@@ -806,6 +806,18 @@ class GorulenPaket(models.Model):
     internet_mb = models.PositiveIntegerField("İnternet (MB)", default=0)
     sms = models.PositiveIntegerField("SMS", default=0)
     gun = models.PositiveIntegerField("Gün", default=0)
+    # Paket bir sağlayıcının hesabında görüldüyse (robotun sorgusu): o hesap,
+    # oradaki kodu ve bize alışı. Kataloğa ekle paketi bunlarla o sağlayıcıya bağlar.
+    saglayici = models.ForeignKey(
+        Saglayici,
+        verbose_name="Görüldüğü Hesap",
+        related_name="gorulen_paketler",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    saglayici_kodu = models.CharField("Sağlayıcıdaki Kodu", max_length=60, blank=True)
+    alis = models.DecimalField("Hesaptaki Alış", max_digits=12, decimal_places=2, null=True, blank=True)
     ilk_gorulme = models.DateTimeField("İlk Görülme", auto_now_add=True)
     son_gorulme = models.DateTimeField("Son Görülme")
     yok_say = models.BooleanField(

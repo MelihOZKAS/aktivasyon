@@ -81,6 +81,18 @@ def kaydet(grup, yazilacak):
     return degisen
 
 
+def hepsine_yaz(grup, liste, tutar):
+    """Listedeki bütün **sorgulu** kurumlara aynı fatura başı bedeli yazar.
+
+    Grubun sayfasının üstündeki tek kutu: "10 ₺ yaz, bu gruptakilerin hepsi
+    10 ₺ olsun." Sorgusuz kaleme (HGS 100 TL) dokunulmaz — onun rakamı bedel
+    değil net satış fiyatıdır; 10 yazılsaydı 100 TL'lik yükleme 10 ₺'ye
+    satılırdı. Dönüş: (yazılan kurum sayısı, değişen sayısı).
+    """
+    sorgulular = [k for k in liste if k.sorgulu]
+    return len(sorgulular), kaydet(grup, [(k, tutar) for k in sorgulular])
+
+
 def satirlar(grup, liste, post=None, hatalar=None):
     """Tablonun satırları; POST hatalıysa yazılan değer kutuda kalır."""
     mevcut = {g.kurum_id: g.tutar for g in GrupFiyati.objects.filter(grup=grup, kurum__in=liste)}

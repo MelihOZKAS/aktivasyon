@@ -654,6 +654,24 @@ class GrupFiyatTestleri(Temel):
         sil = reverse("admin:fatura_faturafiyatgrubu_delete", args=[self.perakende.pk])
         self.assertEqual(self.client.get(sil).status_code, 403)
 
+    def test_hepsine_ayni_bedel_yalnizca_sorgulu_kurumlara(self):
+        from apps.fatura.models import GrupFiyati
+
+        turkcell = Kurum.objects.create(
+            kod="turkcell", ad="Turkcell", kategori=self.gsm, sorgulu=True, min_hane=10, max_hane=10,
+        )
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        adres = reverse("admin:fatura_faturafiyatgrubu_fiyatlar", args=[self.toptan.pk])
+        self.assertContains(self.client.get(adres), "2 kuruma yaz")
+        self.client.post(adres, {"_hepsine": "1", "hepsine_tutar": "7,5"})
+        tutarlar = dict(GrupFiyati.objects.filter(grup=self.toptan).values_list("kurum__kod", "tutar"))
+        self.assertEqual(tutarlar, {"vodafone": TL("7.50"), "turkcell": TL("7.50"), "100-tl-yukle-plaka": TL("101.00")})
+        # Başka grubun rakamına dokunulmaz.
+        self.assertFalse(GrupFiyati.objects.filter(grup=self.perakende).exists())
+        # Anlaşılmayan rakam hiçbir şey yazmaz.
+        self.client.post(adres, {"_hepsine": "1", "hepsine_tutar": "on lira"})
+        self.assertEqual(GrupFiyati.objects.get(kurum=turkcell, grup=self.toptan).tutar, TL("7.50"))
+
     def test_kontor_grup_sayfasinda_fatura_yok(self):
         """"Fatura'ya bastım kontör fiyatları geliyor": iki sayfa ayrı, düzen aynı."""
         from apps.fatura.models import GrupFiyati

@@ -1,3 +1,5 @@
+from decimal import InvalidOperation
+
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
@@ -244,6 +246,24 @@ class FaturaFiyatGrubuAdmin(ModelAdmin):
                 return redirect(request.get_full_path())
             self.message_user(request, "Grup ayarları kaydedilmedi; hatayı düzeltin.", messages.ERROR)
 
+        if "_hepsine" in request.POST:
+            try:
+                tutar = fatura_fiyat._ondalik(request.POST.get("hepsine_tutar"))
+            except (InvalidOperation, ValueError):
+                tutar = None
+            if tutar is None:
+                self.message_user(request, "Hepsine yazılacak bedel anlaşılamadı; örn. 10 ya da 7,5.", messages.ERROR)
+            else:
+                with transaction.atomic():
+                    adet, degisen = fatura_fiyat.hepsine_yaz(grup, liste, tutar)
+                self.message_user(
+                    request,
+                    f"{grup}: {adet} sorgulu kurumun fatura başı bedeli {tutar} ₺ ({degisen} değişti). "
+                    "Sorgusuz kalemlere dokunulmadı.",
+                    messages.SUCCESS,
+                )
+            return redirect(request.get_full_path())
+
         fiyat_postu = request.method == "POST" and "_grup" not in request.POST
         hatalar = {}
         if fiyat_postu:
@@ -266,6 +286,7 @@ class FaturaFiyatGrubuAdmin(ModelAdmin):
                 "grup_formu": grup_formu,
                 "grup_duzenlenir": grup_duzenlenir,
                 "satirlar": fatura_fiyat.satirlar(grup, liste, request.POST if fiyat_postu else None, hatalar),
+                "sorgulu_sayisi": sum(1 for k in liste if k.sorgulu),
                 "pasif": pasif,
             },
         )
@@ -281,7 +302,8 @@ class RobotAdmin(ModelAdmin):
         "anahtar_durumu", "anahtar_dugmesi",
     )
     list_editable = ("aktif",)
-    fields = ("ad", "aktif", "son_nabiz")
+    list_select_related = ("saglayici",)
+    fields = ("ad", "aktif", "saglayici", "son_nabiz")
     readonly_fields = ("son_nabiz",)
 
     @display(description="Durum")
@@ -299,9 +321,12 @@ class RobotAdmin(ModelAdmin):
     @display(description="İşler")
     def isler_gosterimi(self, obj):
         # Robot iş isterken söyler; eski sürüm yalnızca fatura yapar.
-        if obj.paket_sorgusu:
-            return "Fatura · Paket"
-        return format_html('Fatura <span style="color:{}">· paket için robotu güncelle</span>', GRI)
+        if not obj.paket_sorgusu:
+            return format_html('Fatura <span style="color:{}">· paket için robotu güncelle</span>', GRI)
+        if obj.saglayici_id is None:
+            # Hesap seçilmeden de sorgular; Kataloğa ekle paketi sağlayıcısız açar.
+            return format_html('Fatura · Paket<br><span style="color:#B45309">hesabı seçilmedi</span>')
+        return format_html('Fatura · Paket<br><span style="color:{}">hesap: {}</span>', GRI, obj.saglayici)
 
     @display(description="Çalışma saatleri")
     def mesai_gosterimi(self, obj):

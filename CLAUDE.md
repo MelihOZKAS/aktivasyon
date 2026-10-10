@@ -660,8 +660,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dördüncü değeridir ("8249866.00" → "8249866"). Dönen bütün paketler
   Operatörde Görülen'e işlenir; içerik (DK, GB, SMS, gün; kutunun `data-*`'ı,
   yoksa açıklama) de yazılır ve **Kataloğa ekle paketi içeriğiyle açar** —
-  ucuz alternatif hesabı bu alanlara bakıyor. **Cevap istek içinde
-  beklenmez:** kaynak işi kuyruğa koyup `SorguBekleniyor` yükseltir (bir
+  ucuz alternatif hesabı bu alanlara bakıyor. **Kod ve alış robotun
+  girdiği hesabındır:** Sorgu Robotları'nda robota "Hesabı" (sağlayıcı,
+  `Robot.saglayici`) seçilir; Kataloğa ekle yeni paketi o sağlayıcıya
+  karşı site kodu ve robotun gördüğü alışla bağlı açar, yükleme onun
+  API'sine gider (`GorulenPaket.saglayici/saglayici_kodu/alis`). Var olan
+  paketin sırasına ve alışına dokunulmaz; hesap seçilmemişse paket
+  sağlayıcısız açılır (panel robot satırında "hesabı seçilmedi" der).
+  **Cevap istek içinde beklenmez:** kaynak işi kuyruğa koyup `SorguBekleniyor` yükseltir (bir
   `SorguHatasi`; onu tanımayan yer sorguyu yapılamamış sayar, satış sürer).
   Bayi kutusu "sorgulanıyor" der ve 2 sn'de bir aynı adresi ister; gönderim
   planı işlemi **sırada** bırakır (hiçbir şey gönderilmez), işçinin ya da
@@ -777,7 +783,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   türüne göre: sorgulu kurumda fatura başına hizmet bedeli (bayi
   `sağlayıcı toplamı + bunu` öder; tutarı aynen geçirmek için **0** — en
   hızlısı "hepsini işaretle → Alış + ₺ → 0"), sorgusuz kalemde (HGS 100 TL)
-  net bayi fiyatı (0 yazılamaz). Grup yoksa (varsayılan da yoksa) kurumun
+  net bayi fiyatı (0 yazılamaz). **Hepsine aynı bedel** faturaya özgüdür:
+  grubun sayfasının üstündeki tek kutu bütün sorgulu kurumlara aynı fatura
+  başı bedeli yazar ve hemen kaydeder (`fiyat.hepsine_yaz`) — yönetici
+  "10 ₺ yazayım, hepsi 10 olsun" dedi, hesap aracı bunu üç adımda
+  yapıyordu. Sorgusuz kaleme dokunmaz: onun rakamı net satış fiyatıdır, 10
+  yazılsaydı 100 TL'lik yükleme 10 ₺'ye satılırdı. Grup yoksa (varsayılan da yoksa) kurumun
   kendi `hizmet_bedeli` / `bayi_fiyati`'sı geçerli, paketin `satis_fiyati`
   gibi — alanlar yalnızca o durumda kurum formunda görünür. **Müşteri
   fiyatı** kurumun tek `tavsiye` rakamıdır, gruba göre değişmez (kontördeki

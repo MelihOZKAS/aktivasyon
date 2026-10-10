@@ -311,6 +311,19 @@ class Robot(ZamanDamgali):
     # söyler (`isler=fatura,paket`); eski sürüm söylemez, ona paket işi
     # verilmez ve paket sorgusu için çevrimiçi sayılmaz.
     paket_sorgusu = models.BooleanField("Paket Sorgusu", default=False, editable=False)
+    saglayici = models.ForeignKey(
+        "kontor.Saglayici",
+        verbose_name="Hesabı",
+        related_name="robotlar",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        help_text=(
+            "Robotun giriş yaptığı bayi paneli hangi sağlayıcının (Kontorbizde)? Paket sorgusunda "
+            "görülen kodlar ve alışlar o hesabındır: Kataloğa ekle yeni paketi bu sağlayıcıya "
+            "kodu ve alışıyla bağlar, yükleme onun API'sine gider."
+        ),
+    )
     # Robotun çalışma saatleri (laptoptaki ayar.json'dan, nabızla gelir).
     # Robot bu saatlerin dışında hiç istek atmaz; bayiye "sistem bağlı değil"
     # yerine "08:00–23:00 arasında" denebilsin diye burada tutulur.
