@@ -112,12 +112,12 @@ class Cuzdan(ZamanDamgali):
     # bayinin fiyatı paketin alışından bu grubun oranıyla hesaplanır.
     kontor_grubu = models.ForeignKey(
         "kontor.FiyatGrubu",
-        verbose_name="Kontör Fiyat Grubu",
+        verbose_name="Fiyat Grubu (kontör, fatura)",
         related_name="cuzdanlar",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
-        help_text="Boşsa varsayılan kontör grubu geçerlidir.",
+        help_text="Kontör ve fatura fiyatları bu gruptan. Boşsa varsayılan grup geçerlidir.",
     )
     bakiye = models.DecimalField("Bakiye", max_digits=12, decimal_places=2, default=SIFIR)
     borc = models.DecimalField("Borç", max_digits=12, decimal_places=2, default=SIFIR)

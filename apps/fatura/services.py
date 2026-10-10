@@ -62,11 +62,13 @@ def satistaki_kurum(kod, grup=None):
     return Kurum.objects.bayiye_acik(grup).select_related("kategori", "operator").filter(kod=kod).first()
 
 
-# -- Fiyat (kontör fiyat gruplarıyla) -------------------------------------
+# -- Fiyat (kontör fiyat gruplarıyla, kontörün kuralı) ---------------------
 #
-# Tek hesap yeri: bayi ekranı, ödeme ve yönetimin fiyat sayfası buradan
-# okur. Gruplar kontörle ortaktır; bayi kontörde hangi gruptaysa faturada
-# da o grubun rakamını öder. Grubunda rakam yoksa kurumun genel rakamı.
+# Tek hesap yeri: bayi ekranı ve ödeme buradan okur. Gruplar kontörle
+# ortaktır; bayi kontörde hangi gruptaysa faturada da o grubun rakamını
+# öder. Grupta rakam yazılmamışsa kurum o gruba **satılmaz** (`None`).
+# Grup yoksa (varsayılan grup da yoksa) kurumun kendi rakamı geçerli —
+# kontördeki `grup_fiyati` ile aynı.
 
 
 def fiyat_grubu(bayi):
@@ -84,15 +86,20 @@ def grup_tutarlari(grup, kurumlar):
 
 
 def hizmet_bedeli(kurum, grup, tutarlar=None):
-    """Sorgulu kurumda bu gruptaki bayinin fatura başına hizmet bedeli."""
+    """Sorgulu kurumda bu gruptaki bayinin fatura başına hizmet bedeli; yoksa `None`."""
+    if grup is None:
+        return kurum.hizmet_bedeli
     tutarlar = grup_tutarlari(grup, [kurum]) if tutarlar is None else tutarlar
-    return tutarlar.get(kurum.pk, kurum.hizmet_bedeli)
+    return tutarlar.get(kurum.pk)
 
 
 def sabit_fiyat(kurum, grup, tutarlar=None):
     """Sorgusuz kalemde bu gruptaki bayinin ödeyeceği; yoksa `None` (satılmaz)."""
-    tutarlar = grup_tutarlari(grup, [kurum]) if tutarlar is None else tutarlar
-    fiyat = tutarlar.get(kurum.pk, kurum.bayi_fiyati)
+    if grup is None:
+        fiyat = kurum.bayi_fiyati
+    else:
+        tutarlar = grup_tutarlari(grup, [kurum]) if tutarlar is None else tutarlar
+        fiyat = tutarlar.get(kurum.pk)
     return fiyat if fiyat and fiyat > 0 else None
 
 
@@ -134,7 +141,7 @@ def sorgu_baslat(bayi, kurum, numara):
     """
     if not kurum.sorgulu:
         raise FaturaHatasi("Bu kurumda sorgu yok; tutarı seçip doğrudan ödenir.")
-    if not Kurum.objects.satista().filter(pk=kurum.pk).exists():
+    if not Kurum.objects.bayiye_acik(fiyat_grubu(bayi)).filter(pk=kurum.pk).exists():
         raise FaturaHatasi("Bu kurum şu an kapalı.")
     numara = _numara(kurum, numara)
     if not robot_cevrimici_mi():
@@ -411,10 +418,11 @@ def odeme_baslat(bayi, sorgu, secilen, *, anahtar=None):
         if not sorgu.sonuc_tarihi or timezone.now() - sorgu.sonuc_tarihi > ODEME_SURESI:
             raise FaturaHatasi("Sorgu eskidi; tutar değişmiş olabilir. Yeniden sorgula.")
         kurum = sorgu.kurum
-        if not Kurum.objects.satista().filter(pk=kurum.pk).exists():
+        grup = fiyat_grubu(bayi)
+        hizmet = hizmet_bedeli(kurum, grup)
+        if hizmet is None or not Kurum.objects.bayiye_acik(grup).filter(pk=kurum.pk).exists():
             raise FaturaHatasi("Bu kurum şu an kapalı.")
 
-        hizmet = hizmet_bedeli(kurum, fiyat_grubu(bayi))
         faturalar = {f["fatura_no"]: f for f in sorgu.faturalar}
         if any(no not in faturalar for no in secilen):
             raise FaturaHatasi("Seçilen fatura bu sorguda yok.")
@@ -501,7 +509,7 @@ def sabit_odeme_baslat(bayi, kurum, numara, *, anahtar=None):
             numara=numara,
             saglayici_tutari=kurum.alis_fiyati,
             hizmet_bedeli=(fiyat - kurum.alis_fiyati) if kurum.alis_fiyati is not None else Decimal("0"),
-            tavsiye_fiyati=kurum.tavsiye_fiyati,
+            tavsiye_fiyati=kurum.tavsiye,
         )
         siparis_odemesini_isle(siparis, olusturan=bayi)
     return odeme

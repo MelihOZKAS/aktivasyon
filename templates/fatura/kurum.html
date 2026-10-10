@@ -20,9 +20,9 @@
         büyük rakam odur, bayinin alışı göz düğmesiyle açılır (kontördeki
         kuralın aynısı). Yoksa bayinin fiyatı düz yazılır.
       {% endcomment %}
-      {% if kurum.tavsiye_fiyati %}
+      {% if kurum.tavsiye %}
       <div class="mt-3 flex items-center gap-2">
-        <p class="rakam text-2xl font-bold">{{ kurum.tavsiye_fiyati|para }} ₺</p>
+        <p class="rakam text-2xl font-bold">{{ kurum.tavsiye|para }} ₺</p>
         {% include "kontor/parca_goz.html" %}
       </div>
       <p data-alis hidden class="mt-1 text-sm text-murekkep-yumusak">

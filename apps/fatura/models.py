@@ -64,33 +64,25 @@ class Kategori(ZamanDamgali):
 
 class KurumSorgusu(models.QuerySet):
     def bayiye_acik(self, grup):
-        """Bu fiyat grubundaki bayiye gösterilebilen kurumlar.
+        """Bu fiyat grubundaki bayiye satılan kurumlar — kontördeki kuralın aynısı.
 
-        Sorgusuz kalem ancak bayinin ödeyeceği bir fiyat varsa görünür:
-        grubuna yazılmış fiyat ya da kurumun genel fiyatı.
+        Grup varsa yalnızca o grupta rakamı yazılı kurum satılır (sorgulu
+        kurumda 0 da geçerli rakamdır: fatura tutarı aynen; sorgusuz kalemde
+        net fiyat 0'dan büyük olmalı). Grup yoksa (varsayılan grup da yoksa)
+        kurumun kendi rakamı geçerlidir, paketin `satis_fiyati` gibi.
         """
-        fiyatli = models.Q(bayi_fiyati__gt=0)
-        if grup is not None:
-            fiyatli |= models.Q(grup_fiyatlari__grup=grup, grup_fiyatlari__tutar__gt=0)
+        if grup is None:
+            fiyatli = models.Q(sorgulu=True) | models.Q(sorgulu=False, bayi_fiyati__gt=0)
+        else:
+            fiyatli = models.Q(grup_fiyatlari__grup=grup) & (
+                models.Q(sorgulu=True) | models.Q(grup_fiyatlari__tutar__gt=0)
+            )
         return (
             self.filter(aktif=True)
-            .filter(models.Q(sorgulu=True) | (models.Q(sorgulu=False) & fiyatli))
-            .filter(models.Q(kategori__isnull=True) | models.Q(kategori__aktif=True))
-            .distinct()
-        )
-
-    def satista(self):
-        """Bayiye gösterilebilen kurumlar.
-
-        Sorgulu kurumda fiyat faturadan gelir, açık olması yeter. Sorgusuz
-        kurumun (HGS 100 TL gibi) bayi fiyatı yazılmadan satılmaz — fiyatı
-        olmayan kalem bayiye hiç çıkmaz (kontördeki fiyatsız paketin aynısı).
-        """
-        return (
-            self.filter(aktif=True)
-            .filter(models.Q(sorgulu=True) | models.Q(sorgulu=False, bayi_fiyati__gt=0))
+            .filter(fiyatli)
             # Kapatılan kategori bölümüyle birlikte gizlenir; kategorisizler "Diğer".
             .filter(models.Q(kategori__isnull=True) | models.Q(kategori__aktif=True))
+            .distinct()
         )
 
 
@@ -155,39 +147,32 @@ class Kurum(ZamanDamgali):
         "Bayiye Açıklama", max_length=255, blank=True,
         help_text="Formun altında yazar: “Başında 0 olmadan yazın” gibi.",
     )
-    # Fiyatlar Fatura → Fiyatlar ekranından girilir (tek sayfa). Bayinin
-    # ödediği kontör fiyat grubuna göre değişir (`GrupFiyati`); buradaki
-    # "genel" değer, grubunda rakam yazılmamış bayiye uygulanır. Müşteri
-    # fiyatı gruba göre değişmez (kontördeki tavsiyenin aynısı).
-    #
-    # Sorgulu kurum: fatura tutarı sağlayıcıdan gelir, biz üstüne ekleriz.
+    # Bayinin ödeyeceği kontördeki gibi **fiyat grubunun sayfasından** girilir
+    # (Kontör → Fiyat Grupları → grup → Fatura tablosu, `GrupFiyati`).
+    # Aşağıdaki iki alan yalnızca hiç varsayılan fiyat grubu yokken geçerlidir
+    # (paketin `satis_fiyati` gibi); o zaman formda görünürler.
     hizmet_bedeli = models.DecimalField(
-        "Genel Hizmet Bedeli (fatura başına)",
+        "Hizmet Bedeli (fatura başına)",
         max_digits=10, decimal_places=2, default=SIFIR,
         help_text=(
-            "Sorgulu kurumda bayi her fatura için sağlayıcının toplamı + bunu öder; "
-            "grubuna ayrı rakam yazılmamışsa. 0 ise sağlayıcının tutarını aynen öder."
+            "Yalnızca fiyat grubu yokken: sorgulu kurumda bayi sağlayıcının toplamı + "
+            "bunu öder. Gruplar varsa grubun sayfasından girilir."
         ),
     )
-    tavsiye_ek = models.DecimalField(
-        "Müşteriden Ek (fatura başına)",
-        max_digits=10, decimal_places=2, default=SIFIR,
-        help_text=(
-            "Sorgulu kurumda müşteri fiyatı = sağlayıcının toplamı + bu. Bayinin "
-            "kazancı müşteri fiyatıyla kendi ödediği arasındaki farktır."
-        ),
-    )
-    # Sorgusuz kurum: sabit tutarlı kalem (HGS 100 TL gibi).
     bayi_fiyati = models.DecimalField(
-        "Genel Bayi Fiyatı", max_digits=10, decimal_places=2, null=True, blank=True,
+        "Bayi Fiyatı", max_digits=10, decimal_places=2, null=True, blank=True,
         help_text=(
-            "Sorgusuz kurumda grubuna ayrı fiyat yazılmamış bayinin ödeyeceği. "
-            "İkisi de boşsa kalem o bayiye görünmez."
+            "Yalnızca fiyat grubu yokken: sorgusuz kalemde bayinin ödeyeceği. "
+            "Gruplar varsa grubun sayfasından girilir."
         ),
     )
-    tavsiye_fiyati = models.DecimalField(
-        "Müşteri Fiyatı", max_digits=10, decimal_places=2, null=True, blank=True,
-        help_text="Sorgusuz kurumda bayinin müşteriye söyleyeceği fiyat (tavsiye).",
+    tavsiye = models.DecimalField(
+        "Müşteriye", max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text=(
+            "Bayinin müşteriye söyleyeceği (kontördeki tavsiye satış gibi; gruba göre "
+            "değişmez). Sorgulu kurumda fatura tutarının üstüne eklenen tutar, "
+            "sorgusuz kalemde müşteri fiyatı."
+        ),
     )
     alis_fiyati = models.DecimalField(
         "Alışımız", max_digits=10, decimal_places=2, null=True, blank=True,
@@ -246,24 +231,24 @@ class Kurum(ZamanDamgali):
         """Bayinin bir fatura için ödeyeceği: sağlayıcının toplamı + hizmet bedeli.
 
         `hizmet` bayinin grubundaki rakamdır (`services.hizmet_bedeli`);
-        verilmezse kurumun genel hizmet bedeli.
+        verilmezse kurumun kendi hizmet bedeli (fiyat grubu yokken).
         """
         hizmet = self.hizmet_bedeli if hizmet is None else hizmet
         return (Decimal(str(saglayici_toplami)) + hizmet).quantize(Decimal("0.01"))
 
     def musteri_tutari(self, saglayici_toplami):
-        """Müşteriye söylenecek: sağlayıcının toplamı + müşteriden ek. Gruba göre değişmez."""
-        return (Decimal(str(saglayici_toplami)) + self.tavsiye_ek).quantize(Decimal("0.01"))
+        """Müşteriye söylenecek: sağlayıcının toplamı + müşteriye ek. Gruba göre değişmez."""
+        return (Decimal(str(saglayici_toplami)) + (self.tavsiye or SIFIR)).quantize(Decimal("0.01"))
 
 
 class GrupFiyati(models.Model):
     """Kurumun bir kontör fiyat grubundaki rakamı (Perakende, Toptan…).
 
-    Gruplar kontörle ortaktır: bayi kontörde hangi gruptaysa faturada da o
-    grubun rakamını öder (`Cuzdan.kontor_grubu`, boşsa varsayılan grup).
-    Tek rakam, anlamı kurumun türüne göre: sorgulu kurumda fatura başına
-    hizmet bedeli, sorgusuz kalemde bayinin ödeyeceği net fiyat. Satır
-    yoksa kurumun genel rakamı geçerlidir.
+    Kontördeki `PaketFiyati`nin aynısı ve aynı sayfadan girilir (grubun
+    sayfası). Bayi kontörde hangi gruptaysa faturada da o grubun rakamını
+    öder (`Cuzdan.kontor_grubu`, boşsa varsayılan grup). Tek rakam, anlamı
+    kurumun türüne göre: sorgulu kurumda fatura başına hizmet bedeli,
+    sorgusuz kalemde net bayi fiyatı. **Satır yoksa kurum o gruba satılmaz.**
     """
 
     kurum = models.ForeignKey(Kurum, verbose_name="Kurum", related_name="grup_fiyatlari", on_delete=models.CASCADE)

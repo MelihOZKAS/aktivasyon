@@ -439,8 +439,8 @@ class FiyatGrubu(ZamanDamgali):
     aciklama = models.CharField("Açıklama", max_length=255, blank=True)
 
     class Meta:
-        verbose_name = "Kontör Fiyat Grubu"
-        verbose_name_plural = "Kontör Fiyat Grupları"
+        verbose_name = "Fiyat Grubu"
+        verbose_name_plural = "Fiyat Grupları"
         ordering = ["ad"]
         constraints = [
             models.UniqueConstraint(

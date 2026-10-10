@@ -65,7 +65,7 @@ def index(request):
     tutarlar = grup_tutarlari(grup, kurumlar)
     for k in kurumlar:
         if not k.sorgulu:
-            k.gosterim_fiyati = k.tavsiye_fiyati or sabit_fiyat(k, grup, tutarlar)
+            k.gosterim_fiyati = k.tavsiye or sabit_fiyat(k, grup, tutarlar)
     bolumler = []
     for kategori in Kategori.objects.filter(aktif=True):
         icindekiler = [k for k in kurumlar if k.kategori_id == kategori.pk]
@@ -101,7 +101,7 @@ def kurum(request, kod):
             "robot_acik": robot_cevrimici_mi() if kurum_kaydi.sorgulu else True,
             "kapali_mesaji": kapali_mesaji() if kurum_kaydi.sorgulu else "",
             "fiyat": fiyat,
-            "kazanc": (kurum_kaydi.tavsiye_fiyati - fiyat) if fiyat and kurum_kaydi.tavsiye_fiyati else None,
+            "kazanc": (kurum_kaydi.tavsiye - fiyat) if fiyat and kurum_kaydi.tavsiye else None,
             "yeterli": kurum_kaydi.sorgulu or bakiye >= (fiyat or 0),
             "islem_anahtari": uuid4().hex,
         },
@@ -167,7 +167,9 @@ def _sorgu_baglami(request, sorgu):
     hizmet = hizmet_bedeli(kurum_kaydi, fiyat_grubu(request.user))
     odenmis = odenmis_faturalar(kurum_kaydi, sorgu.numara) if sorgu.faturalar else set()
     satirlar = []
-    for f in sorgu.faturalar:
+    # Sorgudan sonra bayinin grubundaki rakam silindiyse ödenemez tutar
+    # gösterilmez; ekran "satışta değil" der (ödeme zaten reddeder).
+    for f in sorgu.faturalar if hizmet is not None else []:
         toplam = Decimal(f["toplam_tutar"])
         satirlar.append({
             **f,
@@ -181,7 +183,8 @@ def _sorgu_baglami(request, sorgu):
         "kurum": kurum_kaydi,
         "satirlar": satirlar,
         "odenebilir": [s for s in satirlar if not s["odendi"]],
-        "tavsiye_var": kurum_kaydi.tavsiye_ek > 0,
+        "tavsiye_var": bool(kurum_kaydi.tavsiye),
+        "satista": hizmet is not None,
         "eski": eski,
         "bakiye": _bakiye(request),
         "islem_anahtari": uuid4().hex,

@@ -703,25 +703,32 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dk'dan eskiyse ödenmez (tutar değişmiş olabilir). **Aynı fatura iki kez
   ödenmez**: iptal edilmemiş bir ödemede aynı fatura no varsa reddedilir
   (aynı kurum + numara; JSON `contains` SQLite'ta yok, Python'da bakılır).
-  · **Fiyat kontör fiyat gruplarına göredir** (Perakende, Toptan…; gruplar
-  kontörle **ortak**, ayrı fatura grubu yok): bayi kontörde hangi gruptaysa
-  (`Cuzdan.kontor_grubu`, boşsa varsayılan grup) faturada o grubun rakamını
-  öder (`GrupFiyati`). Grupta tek rakam, anlamı kurumun türüne göre:
-  sorgulu kurumda **fatura başına hizmet bedeli** (bayi `sağlayıcı toplamı
-  + hizmet` öder), sorgusuz kalemde (HGS 100 TL) **net bayi fiyatı**. Grup
-  kutusu boşsa kurumun **Genel** rakamı geçerli (33 kurumu her grup için
-  doldurmak gerekmesin; sorgulu genel 0 = sağlayıcının tutarı aynen).
-  Sorgusuz kalem ne grubunda ne genelde fiyatı yoksa o bayiye görünmez
-  (`Kurum.objects.bayiye_acik(grup)`). **Müşteri fiyatı gruba göre
-  değişmez** (kontördeki tavsiyenin aynısı): sorgulu `sağlayıcı toplamı +
-  tavsiye_ek`, sorgusuz `tavsiye_fiyati`; bayinin kazancı aradaki fark.
-  Tek hesap `services.fiyat_grubu` / `hizmet_bedeli` / `sabit_fiyat`.
-  **Bütün fatura fiyatları tek sayfada** (Fatura → Fiyatlar,
-  `KurumAdmin.fiyatlar`): satır kurum, sütun Müşteriye / Genel / her grup;
-  kurum formunda fiyat alanı yok — aynı rakam iki yerden girilmesin.
-  Sorgusuz kalemde 0 yazılamaz (satılmayacaksa boş). Grup rakamı müşteri
-  rakamının üstündeyse kutu kırmızı (bayi zarar eder). Müşteri fiyatı
-  büyük, alış göz düğmesinin arkasında (kontörün `parca_goz` parçaları).
+  · **Fiyat kontördeki fiyat listesinin birebir aynısıdır** — gruplar,
+  giriş yeri ve kural ortak; fatura için ayrı bir fiyat yapısı kurulmaz.
+  Bayi kontörde hangi gruptaysa (`Cuzdan.kontor_grubu`, adı "Fiyat Grubu
+  (kontör, fatura)"; kullanıcı sayfasından ve Cüzdanlar listesinden seçilir,
+  boşsa varsayılan grup) faturada da o grubun rakamını öder (`GrupFiyati`,
+  kontördeki `PaketFiyati`nin aynısı). Rakam **grubun sayfasından** girilir:
+  Kontör → Fiyat Grupları → grup, paketlerin altındaki **Fatura** tablosu,
+  aynı formda ve aynı hesap aracıyla (`apps/fatura/fiyat.py`, kontörün
+  `paket_fiyatlari` görünümü onu çağırır). Satırda tek rakam; **boş = o
+  gruba satılmaz** (kontördeki gibi). Anlamı kurumun türüne göre: sorgulu
+  kurumda fatura başına hizmet bedeli (bayi `sağlayıcı toplamı + bunu`
+  öder; tutarı aynen geçirmek için **0** yazılır), sorgusuz kalemde (HGS
+  100 TL) net bayi fiyatı (0 yazılamaz). Hesap aracı fatura satırını alışla
+  (sorgulu kurumda 0, sorgusuzda alışımız) ve müşteri fiyatıyla besler.
+  Grup yoksa (varsayılan da yoksa) kurumun kendi `hizmet_bedeli` /
+  `bayi_fiyati`'sı geçerli, paketin `satis_fiyati` gibi — alanlar yalnızca o
+  durumda kurum formunda görünür. **Müşteri fiyatı** kurumun tek `tavsiye`
+  rakamıdır, gruba göre değişmez (kontördeki tavsiye satış gibi, Kurumlar
+  listesinde satırdan): sorgulu `sağlayıcı toplamı + tavsiye`, sorgusuz
+  `tavsiye`. Kurum sayfası grup rakamlarını yalnızca okunur gösterir.
+  Tek hesap `services.fiyat_grubu` / `hizmet_bedeli` / `sabit_fiyat`,
+  görünürlük `Kurum.objects.bayiye_acik(grup)`. **Bu bir kez yanlış
+  kuruldu:** önce ayrı bir "Fatura → Fiyatlar" matris sayfası ve grup boşsa
+  geçerli bir "Genel" sütun uyduruldu; yönetici "niye kontördeki fiyat
+  listesinden farklı yaptın, her yerde aynı yapı" dedi. Ders: kontörde
+  çözülmüş bir şeyi faturada yeniden icat etme, aynısını kullan.
   · **Ödemeyi yönetim sağlayıcıda elle yapar**, robot ödeme yapmaz (ödeme
   token'ı yine de saklanır). Karar Ödemeler'deki **Karar** ekranından
   (GET onay, POST): "Ödendi" (sipariş teslim, para yerinde) ya da "İptal +

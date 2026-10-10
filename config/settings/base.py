@@ -421,8 +421,8 @@ UNFOLD = {
                     },
                     {"title": "Sorgular", "icon": "manage_search", "link": "/yonetim/fatura/sorgu/"},
                     {"title": "Kurumlar", "icon": "account_balance", "link": "/yonetim/fatura/kurum/"},
-                    # Bütün fatura fiyatları tek sayfada, kontör fiyat gruplarına göre.
-                    {"title": "Fiyatlar", "icon": "sell", "link": "/yonetim/fatura/kurum/fiyatlar/"},
+                    # Fatura fiyatı kontördeki gibi grubun sayfasından girilir (aynı sayfa).
+                    {"title": "Fiyat Grupları", "icon": "groups", "link": "/yonetim/kontor/fiyatgrubu/"},
                     {"title": "Bölümler", "icon": "category", "link": "/yonetim/fatura/kategori/"},
                     {"title": "Sorgu Robotları", "icon": "smart_toy", "link": "/yonetim/fatura/robot/"},
                 ],

@@ -27,6 +27,12 @@
     <a href="{{ kurum.get_absolute_url }}?numara={{ sorgu.numara|urlencode }}" class="dugme dugme-sessiz mt-3 inline-flex text-sm">Yeniden sorgula</a>
   </div>
 
+  {% elif not satista %}
+  <div class="sim yuzey rounded-kart border border-cizgi p-5">
+    <p class="baslik text-lg font-bold">Bu kurum şu an satışta değil</p>
+    <p class="mt-1 text-sm text-soluk">Faturayı buradan ödeyemezsin; yöneticine sor.</p>
+  </div>
+
   {% elif not satirlar %}
   <div class="sim yuzey rounded-kart border border-cizgi p-5">
     <p class="baslik text-lg font-bold">Ödenecek fatura yok</p>
