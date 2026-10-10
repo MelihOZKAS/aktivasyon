@@ -178,6 +178,23 @@
     border: 1px solid var(--color-cizgi);
   }
 
+  /* Fatura kartı son ödeme gününe göre: geçmiş kırmızı, bugün son gün
+     uyarı rengi (templates/fatura/parca_sorgu.html). Kart bu sınıfı .yuzey ve
+     border-cizgi yerine taşır: utility katmanı bileşeni ezerdi. Pahlı köşenin çizgisi
+     de aynı renge döner. Dokunmada .kart-secim'in vurgusu öne geçer; renk
+     kartın yazısında ("günü geçti", "Bugün son gün") yine kalır. */
+  .fatura-gecikmis {
+    --sim-kenar: color-mix(in srgb, var(--color-olumsuz) 45%, var(--color-cizgi));
+    border-color: var(--sim-kenar);
+    background: var(--color-olumsuz-acik);
+  }
+
+  .fatura-son-gun {
+    --sim-kenar: color-mix(in srgb, var(--color-uyari) 45%, var(--color-cizgi));
+    border-color: var(--sim-kenar);
+    background: var(--color-uyari-acik);
+  }
+
   /* Sonuçlanmış başvuru satırı zeminden okunur: yeşil biten iş, kırmızı iptal.
      Devam eden başvurular beyaz kalır — renk yalnızca sonucu anlatır, süreci
      sinyal çubuğu anlatır. Hangi durumun hangisi olduğu veridir

@@ -206,6 +206,29 @@ def _tutar(deger):
         return None
 
 
+def vade_durumu(son_odeme_tarihi, bugun=None):
+    """Son ödeme gününe göre "gecikmis" / "bugun" / "" (anlaşılamadıysa da "").
+
+    Sağlayıcı tarihi metin olarak yazıyor ("14.10.2026"); başka biçimde
+    gelirse renk çizilmez, ekran tarihi yine olduğu gibi gösterir.
+    """
+    parcalar = str(son_odeme_tarihi or "").split()
+    if not parcalar:
+        return ""
+    for bicim in ("%d.%m.%Y", "%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"):
+        try:
+            gun = datetime.strptime(parcalar[0], bicim).date()
+            break
+        except ValueError:
+            continue
+    else:
+        return ""
+    bugun = bugun or timezone.localdate()
+    if gun < bugun:
+        return "gecikmis"
+    return "bugun" if gun == bugun else ""
+
+
 def _veriyi_temizle(veri):
     """Robotun gönderdiğini yalnızca bilinen alanlara indirger.
 

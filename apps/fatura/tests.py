@@ -24,6 +24,7 @@ from apps.fatura.services import (
     odendi_isaretle,
     sabit_odeme_baslat,
     sonuc_yaz,
+    vade_durumu,
     sorgu_baslat,
     suresi_dolanlari_kapat,
 )
@@ -81,6 +82,17 @@ class Temel(TestCase):
 
 
 class KuralTestleri(Temel):
+    def test_vade_durumu(self):
+        from datetime import date
+        bugun = date(2026, 10, 14)
+        self.assertEqual(vade_durumu("13.10.2026", bugun), "gecikmis")
+        self.assertEqual(vade_durumu("14.10.2026", bugun), "bugun")
+        self.assertEqual(vade_durumu("14/10/2026 00:00", bugun), "bugun")
+        self.assertEqual(vade_durumu("2026-10-15", bugun), "")
+        self.assertEqual(vade_durumu("15.10.2026", bugun), "")
+        self.assertEqual(vade_durumu("", bugun), "")
+        self.assertEqual(vade_durumu("belirsiz", bugun), "")
+
     def test_telefon_temizlenir_bastaki_sifir_atilir(self):
         self.assertEqual(self.vodafone.numarayi_dogrula("0533 259 01 38"), "5332590138")
         self.assertEqual(self.vodafone.numarayi_dogrula("+90 533 259 01 38"), "5332590138")
@@ -341,6 +353,36 @@ class EkranTestleri(Temel):
         self.assertContains(self.client.get(odeme.get_absolute_url()), "Ödeniyor")
         # Ödenen fatura yeniden seçilemez.
         self.assertContains(self.client.get(sorgu.get_absolute_url()), "ödendi / ödeniyor")
+
+    def test_fatura_kendiliginden_secilmez_vadesi_renklenir(self):
+        bugun = timezone.localdate()
+        faturalar = []
+        for no, gun in (("GECMIS1", -3), ("BUGUN1", 0), ("ILERI1", 5)):
+            faturalar.append({**ROBOT_VERISI["faturalar"][0], "fatura_no": no,
+                              "son_odeme_tarihi": (bugun + timedelta(days=gun)).strftime("%d.%m.%Y")})
+        sorgu = Sorgu.objects.create(bayi=self.bayi, kurum=self.vodafone, numara="5332590138",
+                                     durum=SorguDurumu.SORGULANIYOR)
+        sonuc_yaz(self.robot, sorgu.pk, veri={**ROBOT_VERISI, "faturalar": faturalar})
+        yanit = self.client.get(sorgu.get_absolute_url())
+        html = yanit.content.decode()
+        self.assertNotRegex(html, r"<input[^>]*\bchecked\b")
+        self.assertContains(yanit, "fatura-gecikmis", count=1)
+        self.assertContains(yanit, "günü geçti", count=1)
+        self.assertContains(yanit, "fatura-son-gun", count=1)
+        self.assertContains(yanit, "Bugün son gün", count=1)
+        # Sıra korunur: geçmiş, bugün, ileri — renk doğru kartta.
+        self.assertLess(html.index("fatura-gecikmis"), html.index("GECMIS1"))
+        self.assertLess(html.index("GECMIS1"), html.index("fatura-son-gun"))
+        self.assertLess(html.index("fatura-son-gun"), html.index("BUGUN1"))
+
+    def test_tek_fatura_da_secilmez(self):
+        tek = {**ROBOT_VERISI, "faturalar": ROBOT_VERISI["faturalar"][:1]}
+        sorgu = Sorgu.objects.create(bayi=self.bayi, kurum=self.vodafone, numara="5332590138",
+                                     durum=SorguDurumu.SORGULANIYOR)
+        sonuc_yaz(self.robot, sorgu.pk, veri=tek)
+        html = self.client.get(sorgu.get_absolute_url()).content.decode()
+        self.assertIn("FD60950NCB9D53", html)
+        self.assertNotRegex(html, r"<input[^>]*\bchecked\b")
 
     def test_hatali_numara_formda_kalir(self):
         yanit = self.client.post(reverse("fatura:sorgula", args=["vodafone"]), {"numara": "12"})

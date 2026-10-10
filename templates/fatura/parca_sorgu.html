@@ -7,6 +7,12 @@
   bayinin ödeyeceği göz düğmesiyle açılır — kontördeki kuralın aynısı.
   Ek yoksa ikisi aynıdır, büyük rakam bayinin ödeyeceğidir. Daha önce
   ödenmiş/ödenmekte olan fatura seçilemez: aynı fatura iki kez ödenmesin.
+
+  Hiçbir fatura kendiliğinden seçilmez, tek fatura olsa da: hangisinin
+  ödeneceğine müşteri karar verir, bayi işaretler. Son ödeme günü geçmiş
+  fatura kırmızı (.fatura-gecikmis), bugün son günü olan uyarı renginde
+  (.fatura-son-gun) çizilir; ikisi de yazıyla söylenir, renk tek başına
+  bırakılmaz. Hesap `services.vade_durumu`.
 {% endcomment %}
 <div id="fatura-sorgu"
      {% if sorgu.acik %}hx-get="{% url 'fatura:sorgu-durum' sorgu.referans_no %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
@@ -69,15 +75,17 @@
 
     <div class="space-y-2">
       {% for s in satirlar %}
-      <label class="sim yuzey flex min-h-16 items-center gap-3 border border-cizgi px-4 py-3 {% if s.odendi %}opacity-60{% else %}cursor-pointer kart-secim{% endif %}">
+      <label class="sim flex min-h-16 items-center gap-3 border px-4 py-3 {% if s.vade == 'gecikmis' %}fatura-gecikmis{% elif s.vade == 'bugun' %}fatura-son-gun{% else %}yuzey border-cizgi{% endif %} {% if s.odendi %}opacity-60{% else %}cursor-pointer kart-secim{% endif %}">
         <input type="checkbox" name="fatura" value="{{ s.fatura_no }}" data-fatura-sec
                data-bayi="{{ s.bayi_tutari|stringformat:'f' }}" data-musteri="{{ s.musteri_tutari|stringformat:'f' }}"
-               {% if s.odendi %}disabled{% elif odenebilir|length == 1 %}checked{% endif %}
+               {% if s.odendi %}disabled{% endif %}
                class="h-5 w-5 shrink-0 accent-[var(--color-murekkep)]">
         <span class="min-w-0 flex-1">
           <span class="rakam block truncate font-medium">{{ s.fatura_no }}</span>
           <span class="mt-0.5 block text-xs text-soluk">
-            <span class="whitespace-nowrap">Son ödeme {{ s.son_odeme_tarihi|default:"—" }}</span>{% if s.fatura_bedeli %} · <span class="whitespace-nowrap">fatura {{ s.fatura_bedeli|para }} ₺</span>{% endif %}
+            {% if s.vade == "gecikmis" %}<span class="whitespace-nowrap font-semibold text-olumsuz">Son ödeme {{ s.son_odeme_tarihi }} · günü geçti</span>
+            {% elif s.vade == "bugun" %}<span class="whitespace-nowrap font-semibold text-uyari">Bugün son gün</span>
+            {% else %}<span class="whitespace-nowrap">Son ödeme {{ s.son_odeme_tarihi|default:"—" }}</span>{% endif %}{% if s.fatura_bedeli %} · <span class="whitespace-nowrap">fatura {{ s.fatura_bedeli|para }} ₺</span>{% endif %}
             {% if s.odendi %}<span class="font-semibold text-olumlu"> · ödendi / ödeniyor</span>{% endif %}
           </span>
         </span>

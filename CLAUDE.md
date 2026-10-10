@@ -713,6 +713,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dk'dan eskiyse ödenmez (tutar değişmiş olabilir). **Aynı fatura iki kez
   ödenmez**: iptal edilmemiş bir ödemede aynı fatura no varsa reddedilir
   (aynı kurum + numara; JSON `contains` SQLite'ta yok, Python'da bakılır).
+  **Fatura kendiliğinden seçilmez**, tek fatura olsa da: hangisinin
+  ödeneceğine müşteri karar verir, bayi işaretler. Bir süre tek fatura
+  işaretli geliyordu ("biz seçmeyelim, kullanıcı kendisi seçsin"). Son
+  ödeme günü geçmiş kart kırmızı ("günü geçti"), bugün son günü olan uyarı
+  renginde ("Bugün son gün") çizilir (`services.vade_durumu`,
+  `.fatura-gecikmis` / `.fatura-son-gun`); tarih anlaşılamazsa renk yok.
+  Renkli kart `yuzey`/`border-cizgi` taşımaz: utility katmanı bileşenin
+  rengini ezerdi.
   · **Fiyat kontördeki fiyat listesinin birebir aynı düzenidir** — gruplar
   ortak, kural ve ekran düzeni aynı; fatura için ayrı bir fiyat yapısı
   kurulmaz. Bayi kontörde hangi gruptaysa (`Cuzdan.kontor_grubu`, adı "Fiyat

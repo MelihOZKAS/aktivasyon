@@ -35,6 +35,7 @@ from apps.fatura.services import (
     satistaki_kurum,
     sorgu_baslat,
     suresi_dolanlari_kapat,
+    vade_durumu,
 )
 from apps.finans.services import SiparisVerilemez
 from apps.magaza.models import Siparis
@@ -167,6 +168,7 @@ def _sorgu_baglami(request, sorgu):
     hizmet = hizmet_bedeli(kurum_kaydi, fiyat_grubu(request.user))
     odenmis = odenmis_faturalar(kurum_kaydi, sorgu.numara) if sorgu.faturalar else set()
     satirlar = []
+    bugun = timezone.localdate()
     # Sorgudan sonra bayinin grubundaki rakam silindiyse ödenemez tutar
     # gösterilmez; ekran "satışta değil" der (ödeme zaten reddeder).
     for f in sorgu.faturalar if hizmet is not None else []:
@@ -176,6 +178,7 @@ def _sorgu_baglami(request, sorgu):
             "bayi_tutari": kurum_kaydi.bayi_tutari(toplam, hizmet),
             "musteri_tutari": kurum_kaydi.musteri_tutari(toplam),
             "odendi": f["fatura_no"] in odenmis,
+            "vade": vade_durumu(f.get("son_odeme_tarihi"), bugun),
         })
     eski = bool(sorgu.sonuc_tarihi and timezone.now() - sorgu.sonuc_tarihi > ODEME_SURESI)
     return {
