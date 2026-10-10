@@ -224,9 +224,9 @@ class OdemeTestleri(Temel):
     def test_tutar_sorgunun_kaydindan_hizmet_bedeli_eklenir(self):
         sorgu = self.tamam_sorgu()
         odeme = odeme_baslat(self.bayi, sorgu, ["FD60950NCB9D53"])
-        # 410 sağlayıcı + 5 hizmet = 415; müşteriye +10 = 425.
+        # 410 sağlayıcı + 5 hizmet = 415; müşteriye 410 + 10 = 420 (gruptan bağımsız).
         self.assertEqual(odeme.siparis.tutar, TL("415.00"))
-        self.assertEqual((odeme.saglayici_tutari, odeme.hizmet_bedeli, odeme.tavsiye_fiyati), (TL("410.00"), TL("5.00"), TL("425.00")))
+        self.assertEqual((odeme.saglayici_tutari, odeme.hizmet_bedeli, odeme.tavsiye_fiyati), (TL("410.00"), TL("5.00"), TL("420.00")))
         self.assertEqual(self.bakiye(), TL("585.00"))
         self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
         self.assertEqual(odeme.faturalar[0]["odeme_token"], "tok1")
@@ -490,3 +490,90 @@ class MesaiTestleri(Temel):
         self.assertTrue(self.robot.mesai_icinde(time(23)))
         self.assertTrue(self.robot.mesai_icinde(time(5, 59)))
         self.assertFalse(self.robot.mesai_icinde(time(12)))
+
+
+class GrupFiyatTestleri(Temel):
+    """Fatura fiyatı kontör fiyat gruplarına göre; müşteri fiyatı gruptan bağımsız."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.fatura.models import GrupFiyati
+        from apps.kontor.models import FiyatGrubu
+
+        self.perakende = FiyatGrubu.objects.create(ad="Perakende", varsayilan=True)
+        self.toptan = FiyatGrubu.objects.create(ad="Toptan")
+        self.cuzdan.kontor_grubu = self.toptan
+        self.cuzdan.save()
+        GrupFiyati.objects.create(kurum=self.vodafone, grup=self.toptan, tutar=TL("2.00"))
+        self.hgs.bayi_fiyati = None          # genel fiyat yok: yalnızca Toptan'a satılır
+        self.hgs.save()
+        GrupFiyati.objects.create(kurum=self.hgs, grup=self.toptan, tutar=TL("101.00"))
+
+    def baska_bayi(self, numara, grup=None):
+        bayi = User.objects.create_user(numara, password="parola12345")
+        Cuzdan.objects.create(bayi=bayi, bakiye=TL("1000.00"), kontor_grubu=grup)
+        return bayi
+
+    def test_sorgulu_hizmet_bedeli_grubundan_yoksa_genel(self):
+        toptan = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD60950NCB9D53"])
+        self.assertEqual(toptan.siparis.tutar, TL("412.00"))          # 410 + Toptan 2
+        self.assertEqual(toptan.tavsiye_fiyati, TL("420.00"))         # müşteri gruptan bağımsız
+        # Perakende'de satır yok → genel 5; grubu boş bayi varsayılan gruba (Perakende) düşer.
+        # (Aynı numaranın aynı faturası iki bayiden de ödenmez; her bayiye ayrı numara.)
+        for i, bayi in enumerate((self.baska_bayi("5320000001", self.perakende), self.baska_bayi("5320000002"))):
+            odeme = odeme_baslat(bayi, self.tamam_sorgu(numara=f"533259010{i}", bayi=bayi), ["FD00000000002"])
+            self.assertEqual(odeme.siparis.tutar, TL("205.00"))
+
+    def test_sorgusuz_yalnizca_fiyati_olan_gruba_satilir(self):
+        odeme = sabit_odeme_baslat(self.bayi, self.hgs, "34ABC123")
+        self.assertEqual(odeme.siparis.tutar, TL("101.00"))
+        perakendeci = self.baska_bayi("5320000001", self.perakende)
+        with self.assertRaisesMessage(FaturaHatasi, "satışta değil"):
+            sabit_odeme_baslat(perakendeci, self.hgs, "34ABC124")
+        self.client.force_login(perakendeci)
+        self.assertNotContains(self.client.get(reverse("fatura:index")), "100 TL Yükle Plaka")
+        self.assertEqual(self.client.get(reverse("fatura:kurum", args=[self.hgs.kod])).status_code, 404)
+        self.client.force_login(self.bayi)
+        self.assertContains(self.client.get(reverse("fatura:kurum", args=[self.hgs.kod])), "101,00")
+
+    def test_sorgu_ekrani_bayinin_grup_fiyatini_gosterir(self):
+        self.client.force_login(self.bayi)
+        sorgu = self.tamam_sorgu()
+        yanit = self.client.get(sorgu.get_absolute_url())
+        self.assertContains(yanit, 'data-bayi="412.000000"')     # Toptan: 410 + 2
+        self.assertContains(yanit, 'data-musteri="420.000000"')  # müşteri: 410 + 10, gruptan bağımsız
+
+    def test_fiyat_sayfasi_tek_yerden_yazar(self):
+        from apps.fatura.models import GrupFiyati
+
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        adres = reverse("admin:fatura_kurum_fiyatlar")
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "Toptan")
+        self.assertContains(yanit, "Perakende")
+        v, h, top, per = self.vodafone.pk, self.hgs.pk, self.toptan.pk, self.perakende.pk
+        veri = {
+            f"m_{v}": "12,00", f"g_{v}_genel": "4", f"g_{v}_{top}": "", f"g_{v}_{per}": "3,50",
+            f"m_{h}": "105", f"g_{h}_genel": "", f"g_{h}_{top}": "100", f"g_{h}_{per}": "",
+        }
+        self.client.post(adres, veri)
+        self.vodafone.refresh_from_db()
+        self.assertEqual((self.vodafone.tavsiye_ek, self.vodafone.hizmet_bedeli), (TL("12.00"), TL("4.00")))
+        self.assertFalse(GrupFiyati.objects.filter(kurum=self.vodafone, grup=self.toptan).exists())   # boş = sil
+        self.assertEqual(GrupFiyati.objects.get(kurum=self.vodafone, grup=self.perakende).tutar, TL("3.50"))
+        self.assertEqual(GrupFiyati.objects.get(kurum=self.hgs, grup=self.toptan).tutar, TL("100.00"))
+        # Sorgusuz kalemde 0 yazılamaz; satır kaydedilmez, hata gösterilir.
+        veri[f"g_{h}_{top}"] = "0"
+        self.assertContains(self.client.post(adres, veri), "0 olamaz")
+        self.assertEqual(GrupFiyati.objects.get(kurum=self.hgs, grup=self.toptan).tutar, TL("100.00"))
+        # Grup hizmeti müşteriden ekin üstündeyse kutu kırmızı (bayi zarar eder).
+        GrupFiyati.objects.update_or_create(kurum=self.vodafone, grup=self.toptan, defaults={"tutar": TL("20")})
+        self.assertContains(self.client.get(adres), "ff-girdi ff-zarar")
+        # Kurum formunda fiyat alanı yok, fiyat sayfasına bağlantı var.
+        form = self.client.get(reverse("admin:fatura_kurum_change", args=[self.vodafone.pk]))
+        self.assertContains(form, "Fiyatlar sayfası")
+        self.assertNotContains(form, 'name="hizmet_bedeli"')
+
+    def test_izinsiz_personel_fiyat_sayfasini_acamaz(self):
+        self.client.force_login(User.objects.create_user("personel", password="x", is_staff=True))
+        self.assertEqual(self.client.get(reverse("admin:fatura_kurum_fiyatlar")).status_code, 403)

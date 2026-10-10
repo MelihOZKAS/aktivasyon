@@ -674,7 +674,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   **www'li olmalı:** www'siz alan nginx'te 301 ile yönleniyor, urllib
   yönlendirmede POST'u GET'e çevirip gövdeyi düşürüyor — sonuç ve nabız
   Django'ya hiç ulaşmazdı. İşçi yönlendirmeyi izlemez, adresi düzelt diye
-  açıkça hata verir. **Aynı sorgu iki robota gitmez**: `is_ver`
+  açıkça hata verir. Robot adı adrese **kodlanarak** konur
+  (`urllib.parse.urlencode`): Türkçe harfli ad ("İş-laptopu") ham
+  yazılınca istek satırı ASCII'ye çevrilemiyor, robot her turda "'ascii'
+  codec can't encode" verip hiç iş alamıyordu. İşçi konsola da UTF-8 yazar
+  (`sys.stdout.reconfigure`), bat'sız açılışta Türkçe yazı çökertmesin. **Aynı sorgu iki robota gitmez**: `is_ver`
   satırı `select_for_update(skip_locked=True)` ile alır; beş robot aynı
   anda sorsa da her biri başka satırı kapar. Robot çevrimdışıysa (60 sn
   nabız yok) bayi sorgu **açamaz**, ekran sebebini söyler; robotun almadığı
@@ -699,12 +703,25 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dk'dan eskiyse ödenmez (tutar değişmiş olabilir). **Aynı fatura iki kez
   ödenmez**: iptal edilmemiş bir ödemede aynı fatura no varsa reddedilir
   (aynı kurum + numara; JSON `contains` SQLite'ta yok, Python'da bakılır).
-  · **Fiyat:** sorgulu kurumda bayi fatura başına `sağlayıcı toplamı +
-  hizmet_bedeli` öder, müşteriye `+ tavsiye_ek` önerilir (ikisi 0 ise
-  sağlayıcının tutarı aynen; tohum öyle açar). Sorgusuz kalem (HGS 100 TL)
-  sabit `bayi_fiyati`/`tavsiye_fiyati`; fiyatı yazılmayan sorgusuz kalem
-  bayiye görünmez. Müşteri fiyatı büyük, alış göz düğmesinin arkasında
-  (kontörün `parca_goz` parçaları).
+  · **Fiyat kontör fiyat gruplarına göredir** (Perakende, Toptan…; gruplar
+  kontörle **ortak**, ayrı fatura grubu yok): bayi kontörde hangi gruptaysa
+  (`Cuzdan.kontor_grubu`, boşsa varsayılan grup) faturada o grubun rakamını
+  öder (`GrupFiyati`). Grupta tek rakam, anlamı kurumun türüne göre:
+  sorgulu kurumda **fatura başına hizmet bedeli** (bayi `sağlayıcı toplamı
+  + hizmet` öder), sorgusuz kalemde (HGS 100 TL) **net bayi fiyatı**. Grup
+  kutusu boşsa kurumun **Genel** rakamı geçerli (33 kurumu her grup için
+  doldurmak gerekmesin; sorgulu genel 0 = sağlayıcının tutarı aynen).
+  Sorgusuz kalem ne grubunda ne genelde fiyatı yoksa o bayiye görünmez
+  (`Kurum.objects.bayiye_acik(grup)`). **Müşteri fiyatı gruba göre
+  değişmez** (kontördeki tavsiyenin aynısı): sorgulu `sağlayıcı toplamı +
+  tavsiye_ek`, sorgusuz `tavsiye_fiyati`; bayinin kazancı aradaki fark.
+  Tek hesap `services.fiyat_grubu` / `hizmet_bedeli` / `sabit_fiyat`.
+  **Bütün fatura fiyatları tek sayfada** (Fatura → Fiyatlar,
+  `KurumAdmin.fiyatlar`): satır kurum, sütun Müşteriye / Genel / her grup;
+  kurum formunda fiyat alanı yok — aynı rakam iki yerden girilmesin.
+  Sorgusuz kalemde 0 yazılamaz (satılmayacaksa boş). Grup rakamı müşteri
+  rakamının üstündeyse kutu kırmızı (bayi zarar eder). Müşteri fiyatı
+  büyük, alış göz düğmesinin arkasında (kontörün `parca_goz` parçaları).
   · **Ödemeyi yönetim sağlayıcıda elle yapar**, robot ödeme yapmaz (ödeme
   token'ı yine de saklanır). Karar Ödemeler'deki **Karar** ekranından
   (GET onay, POST): "Ödendi" (sipariş teslim, para yerinde) ya da "İptal +

@@ -23,7 +23,11 @@ from apps.bayi.yetki import bayi_gerekli
 from apps.fatura.models import Kategori, Kurum, Odeme, Sorgu
 from apps.fatura.services import (
     ODEME_SURESI,
+    fiyat_grubu,
+    grup_tutarlari,
+    hizmet_bedeli,
     kapali_mesaji,
+    sabit_fiyat,
     odeme_baslat,
     odenmis_faturalar,
     robot_cevrimici_mi,
@@ -43,8 +47,9 @@ def _bakiye(request):
     return cuzdan.bakiye if cuzdan else Decimal("0")
 
 
-def _kurum(kod):
-    kurum = satistaki_kurum(kod)
+def _kurum(request, kod):
+    """Bayinin fiyat grubunda açık kurum; sorgusuz kalem fiyatı yoksa görünmez."""
+    kurum = satistaki_kurum(kod, fiyat_grubu(request.user))
     if kurum is None:
         raise Http404("Kurum bulunamadı.")
     return kurum
@@ -54,7 +59,13 @@ def _kurum(kod):
 @bayi_gerekli
 def index(request):
     """Bölümler (GSM, İnternet, Elektrik…) ve içlerinde kurumlar, tek kolonda."""
-    kurumlar = list(Kurum.objects.satista().select_related("kategori", "operator"))
+    grup = fiyat_grubu(request.user)
+    kurumlar = list(Kurum.objects.bayiye_acik(grup).select_related("kategori", "operator"))
+    # Kartta sorgusuz kalemin fiyatı: müşteri fiyatı, yoksa bayinin grubundaki fiyat.
+    tutarlar = grup_tutarlari(grup, kurumlar)
+    for k in kurumlar:
+        if not k.sorgulu:
+            k.gosterim_fiyati = k.tavsiye_fiyati or sabit_fiyat(k, grup, tutarlar)
     bolumler = []
     for kategori in Kategori.objects.filter(aktif=True):
         icindekiler = [k for k in kurumlar if k.kategori_id == kategori.pk]
@@ -77,8 +88,9 @@ def index(request):
 @login_required
 @bayi_gerekli
 def kurum(request, kod):
-    kurum_kaydi = _kurum(kod)
+    kurum_kaydi = _kurum(request, kod)
     bakiye = _bakiye(request)
+    fiyat = None if kurum_kaydi.sorgulu else sabit_fiyat(kurum_kaydi, fiyat_grubu(request.user))
     return render(
         request,
         "fatura/kurum.html",
@@ -88,7 +100,9 @@ def kurum(request, kod):
             "numara": request.GET.get("numara", "")[:40],
             "robot_acik": robot_cevrimici_mi() if kurum_kaydi.sorgulu else True,
             "kapali_mesaji": kapali_mesaji() if kurum_kaydi.sorgulu else "",
-            "yeterli": kurum_kaydi.sorgulu or bakiye >= (kurum_kaydi.bayi_fiyati or 0),
+            "fiyat": fiyat,
+            "kazanc": (kurum_kaydi.tavsiye_fiyati - fiyat) if fiyat and kurum_kaydi.tavsiye_fiyati else None,
+            "yeterli": kurum_kaydi.sorgulu or bakiye >= (fiyat or 0),
             "islem_anahtari": uuid4().hex,
         },
     )
@@ -102,7 +116,7 @@ def _geri_forma(kurum_kaydi, numara):
 @login_required
 @bayi_gerekli
 def sorgula(request, kod):
-    kurum_kaydi = _kurum(kod)
+    kurum_kaydi = _kurum(request, kod)
     numara = request.POST.get("numara", "")
     try:
         sorgu = sorgu_baslat(request.user, kurum_kaydi, numara)
@@ -117,7 +131,7 @@ def sorgula(request, kod):
 @bayi_gerekli
 def ode(request, kod):
     """Sorgusuz kalem (HGS 100 TL gibi): sabit fiyatı bakiyeden öder."""
-    kurum_kaydi = _kurum(kod)
+    kurum_kaydi = _kurum(request, kod)
     numara = request.POST.get("numara", "")
     anahtar = (request.POST.get("islem_anahtari") or "").strip()[:64]
     try:
@@ -150,13 +164,14 @@ def _sorgu(request, referans):
 def _sorgu_baglami(request, sorgu):
     """Sonuç ekranı: her faturaya bayinin ödeyeceği ve müşteri fiyatı eklenir."""
     kurum_kaydi = sorgu.kurum
+    hizmet = hizmet_bedeli(kurum_kaydi, fiyat_grubu(request.user))
     odenmis = odenmis_faturalar(kurum_kaydi, sorgu.numara) if sorgu.faturalar else set()
     satirlar = []
     for f in sorgu.faturalar:
         toplam = Decimal(f["toplam_tutar"])
         satirlar.append({
             **f,
-            "bayi_tutari": kurum_kaydi.bayi_tutari(toplam),
+            "bayi_tutari": kurum_kaydi.bayi_tutari(toplam, hizmet),
             "musteri_tutari": kurum_kaydi.musteri_tutari(toplam),
             "odendi": f["fatura_no"] in odenmis,
         })

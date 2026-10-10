@@ -19,6 +19,7 @@ import json
 import pathlib
 import sys
 import time
+import urllib.parse
 import urllib.request
 
 from playwright.sync_api import sync_playwright
@@ -170,7 +171,10 @@ def main():
 
             try:
                 nabiz("bos", "canli")
-                is_ = _istek(f"{taban}/fatura/robot/is/?robot={ad}", anahtar)
+                # Ad adrese kodlanarak konur: Türkçe harfli ad ("İş-laptopu")
+                # ham yazılınca istek satırı ASCII'ye çevrilemiyor, robot her
+                # turda "'ascii' codec can't encode" verip hiç iş alamıyordu.
+                is_ = _istek(f"{taban}/fatura/robot/is/?{urllib.parse.urlencode({'robot': ad})}", anahtar)
             except Exception as e:  # noqa: BLE001
                 print("  Django'ya ulaşılamadı:", e)
                 time.sleep(aralik)
@@ -210,6 +214,10 @@ def main():
 
 
 if __name__ == "__main__":
+    # Konsol UTF-8 değilse (bat'sız açılış, dosyaya yönlendirme) Türkçe yazı
+    # basarken çökmesin; basılamayan harf "?" olur.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     if len(sys.argv) > 1 and sys.argv[1] == "katalog":
         katalog_komutu()
     else:

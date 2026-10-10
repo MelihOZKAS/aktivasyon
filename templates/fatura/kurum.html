@@ -26,10 +26,10 @@
         {% include "kontor/parca_goz.html" %}
       </div>
       <p data-alis hidden class="mt-1 text-sm text-murekkep-yumusak">
-        Alışın <b class="rakam">{{ kurum.bayi_fiyati|para }} ₺</b>
+        Alışın <b class="rakam">{{ fiyat|para }} ₺</b>{% if kazanc %} · kazancın <b class="rakam text-olumlu">{{ kazanc|para }} ₺</b>{% endif %}
       </p>
       {% else %}
-      <p class="rakam mt-3 text-2xl font-bold">{{ kurum.bayi_fiyati|para }} ₺</p>
+      <p class="rakam mt-3 text-2xl font-bold">{{ fiyat|para }} ₺</p>
       {% endif %}
       {% endif %}
 
@@ -42,7 +42,7 @@
       <div class="sim mt-5 rounded-kart border border-uyari/40 bg-uyari/5 p-4">
         <p class="text-sm font-semibold text-uyari">Bakiyen bu kaleme yetmiyor</p>
         <p class="mt-1 text-sm leading-relaxed text-murekkep-yumusak">
-          Bakiyen <b>{{ bakiye|para }} ₺</b>, kalem <b>{{ kurum.bayi_fiyati|para }} ₺</b>.
+          Bakiyen <b>{{ bakiye|para }} ₺</b>, kalem <b>{{ fiyat|para }} ₺</b>.
           Ödeme bakiyeden yapılır, borca yazılmaz.
         </p>
         <a href="{% url 'bayi:cuzdan' %}" class="dugme dugme-sessiz mt-3 inline-flex text-sm">Cüzdana git</a>
@@ -71,7 +71,7 @@
         <div class="sim my-4 rounded-kart border border-cizgi bg-zemin p-4">
           <div class="flex items-center justify-between gap-3">
             <span class="text-sm text-soluk">Bakiyenden düşecek</span>
-            <span class="rakam text-xl font-bold">{{ kurum.bayi_fiyati|para }} ₺</span>
+            <span class="rakam text-xl font-bold">{{ fiyat|para }} ₺</span>
           </div>
           <p class="mt-1 text-xs text-soluk">Yüklenemezse tutar kendiliğinden bakiyene döner.</p>
         </div>

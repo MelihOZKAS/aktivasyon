@@ -1,6 +1,9 @@
 from django.conf import settings
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
+from decimal import Decimal, InvalidOperation
+
+from django.db import transaction
 from django.db.models import Count
 from django.http import Http404
 from django.shortcuts import redirect, render
@@ -10,7 +13,7 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import display
 
 from apps.bayi.etiket import kullanici_etiketi_html
-from apps.fatura.models import Kategori, Kurum, Odeme, OdemeDurumu, Robot, Sorgu, SorguDurumu
+from apps.fatura.models import GrupFiyati, Kategori, Kurum, Odeme, OdemeDurumu, Robot, Sorgu, SorguDurumu
 from apps.fatura.services import KararVerilemez, iptal_et, odendi_isaretle
 from apps.filtreler import GunAraligiFiltresi
 
@@ -32,6 +35,19 @@ def _rozet(metin, renk):
 
 def _dugme(adres, metin, renk="#0D1320"):
     return format_html('<a href="{}" style="{}">{}</a>', adres, format_html(DUGME_STILI, renk), metin)
+
+
+def _ondalik(metin):
+    """Kutudan gelen "5,50" / "1.250,00" / "5.50" → Decimal; boşsa None, bozuksa hata."""
+    metin = (metin or "").strip().replace(" ", "")
+    if not metin:
+        return None
+    if "," in metin:
+        metin = metin.replace(".", "").replace(",", ".")
+    deger = Decimal(metin)  # bozuksa InvalidOperation
+    if deger < 0:
+        raise InvalidOperation
+    return deger.quantize(Decimal("0.01"))
 
 
 def _soluk(metin):
@@ -77,47 +93,158 @@ class KurumAdmin(ModelAdmin):
             },
         ),
         (
-            "Sorgulu kurumun fiyatı",
+            "Fiyat",
             {
-                "fields": ("hizmet_bedeli", "tavsiye_ek"),
+                "fields": ("fiyat_baglantisi", "alis_fiyati"),
                 "description": (
-                    "Fatura tutarı sağlayıcıdan gelir. Bayi her fatura için <b>sağlayıcının "
-                    "toplamı + hizmet bedeli</b> öder; müşteriye <b>+ müşteriden ek</b> "
-                    "söylemesi önerilir. İkisi de 0 ise bayi sağlayıcının tutarını aynen öder."
+                    "Bayi ve müşteri fiyatları <b>Fatura → Fiyatlar</b> sayfasından girilir; "
+                    "kontör fiyat gruplarına göre (Perakende, Toptan…) tek sayfada. "
+                    "Burada yalnızca sorgusuz kalemin alışımız durur (kâr hesabı için)."
                 ),
-            },
-        ),
-        (
-            "Sorgusuz kurumun fiyatı (HGS 100 TL gibi)",
-            {
-                "fields": ("bayi_fiyati", "tavsiye_fiyati", "alis_fiyati"),
-                "description": "Bayi fiyatı yazılmayan sorgusuz kalem bayiye görünmez.",
             },
         ),
     )
 
     def get_readonly_fields(self, request, obj=None):
         # Kod robotun kimliğidir: değişirse robot bu kurumu bulamaz.
-        return ("kod",) if obj is not None else ()
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related("kategori")
+        return ("kod", "fiyat_baglantisi") if obj is not None else ("fiyat_baglantisi",)
 
     @display(description="Numara")
     def kural(self, obj):
         hane = f"{obj.max_hane} hane" if obj.min_hane == obj.max_hane else f"{obj.min_hane}–{obj.max_hane} hane"
         return f"{obj.alan_etiketi} · {hane}" + (" · rakam" if obj.sadece_rakam else "")
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("kategori").annotate(_grup=Count("grup_fiyatlari"))
+
     @display(description="Fiyat")
     def fiyat_ozeti(self, obj):
+        grup = f" · {obj._grup} grupta ayrı" if obj._grup else ""
         if obj.sorgulu:
-            if not obj.hizmet_bedeli and not obj.tavsiye_ek:
+            if not obj.hizmet_bedeli and not obj.tavsiye_ek and not obj._grup:
                 return _soluk("fatura tutarı aynen")
-            return f"+{obj.hizmet_bedeli} hizmet · müşteriden +{obj.tavsiye_ek}"
-        if not obj.bayi_fiyati:
+            return f"genel +{obj.hizmet_bedeli} hizmet · müşteriden +{obj.tavsiye_ek}{grup}"
+        if not obj.bayi_fiyati and not obj._grup:
             return format_html('<b style="color:#D42046">fiyat yok — görünmez</b>')
         tavsiye = f" · müşteri {obj.tavsiye_fiyati}" if obj.tavsiye_fiyati else ""
-        return f"bayi {obj.bayi_fiyati}{tavsiye}"
+        return f"genel {obj.bayi_fiyati or '—'}{tavsiye}{grup}"
+
+    @display(description="Fiyatlar")
+    def fiyat_baglantisi(self, obj):
+        return _dugme(reverse("admin:fatura_kurum_fiyatlar"), "Fiyatlar sayfası")
+
+    def get_urls(self):
+        return [
+            path("fiyatlar/", self.admin_site.admin_view(self.fiyatlar), name="fatura_kurum_fiyatlar"),
+            *super().get_urls(),
+        ]
+
+    def fiyatlar(self, request):
+        """Bütün fatura fiyatları tek sayfada: satırda kurum, sütunda grup.
+
+        Kontördeki grup fiyatının aynısı: bayi kontörde hangi gruptaysa
+        (`Cuzdan.kontor_grubu`, boşsa varsayılan) o sütunun rakamını öder.
+        Tek rakam, anlamı kurumun türüne göre: sorgulu kurumda fatura başına
+        hizmet bedeli, sorgusuz kalemde net bayi fiyatı. Grup kutusu boşsa
+        "Genel" sütunu geçerli. Müşteri fiyatı gruba göre değişmez.
+        Aynı rakam başka yerden girilmez (kurum formunda fiyat yok).
+        """
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+        from apps.kontor.models import FiyatGrubu
+
+        gruplar = list(FiyatGrubu.objects.order_by("-varsayilan", "ad"))
+        pasif = request.GET.get("pasif") == "1"
+        kurumlar = Kurum.objects.select_related("kategori").order_by("kategori__sira", "kategori__ad", "sira", "ad")
+        if not pasif:
+            kurumlar = kurumlar.filter(aktif=True)
+        kurumlar = list(kurumlar)
+        mevcut = {(g.kurum_id, g.grup_id): g for g in GrupFiyati.objects.filter(kurum__in=kurumlar)}
+
+        hatalar = {}
+        if request.method == "POST":
+            yazilacak = []
+            for k in kurumlar:
+                try:
+                    musteri = _ondalik(request.POST.get(f"m_{k.pk}"))
+                    genel = _ondalik(request.POST.get(f"g_{k.pk}_genel"))
+                    grupta = {g.pk: _ondalik(request.POST.get(f"g_{k.pk}_{g.pk}")) for g in gruplar}
+                except (InvalidOperation, ValueError):
+                    hatalar[k.pk] = "Rakam anlaşılamadı."
+                    continue
+                if not k.sorgulu and any(v == 0 for v in (genel, *grupta.values())):
+                    hatalar[k.pk] = "Sorgusuz kalemde fiyat 0 olamaz; satılmayacaksa kutuyu boş bırak."
+                    continue
+                yazilacak.append((k, musteri, genel, grupta))
+            if not hatalar:
+                degisen = 0
+                with transaction.atomic():
+                    for k, musteri, genel, grupta in yazilacak:
+                        if k.sorgulu:
+                            yeni = {"tavsiye_ek": musteri or Decimal("0"), "hizmet_bedeli": genel or Decimal("0")}
+                        else:
+                            yeni = {"tavsiye_fiyati": musteri, "bayi_fiyati": genel}
+                        alanlar = [a for a, v in yeni.items() if getattr(k, a) != v]
+                        if alanlar:
+                            for a in alanlar:
+                                setattr(k, a, yeni[a])
+                            k.save(update_fields=[*alanlar, "guncelleme_tarihi"])
+                            degisen += 1
+                        for grup_id, tutar in grupta.items():
+                            kayit = mevcut.get((k.pk, grup_id))
+                            if tutar is None:
+                                if kayit:
+                                    kayit.delete()
+                                    degisen += 1
+                            elif kayit is None:
+                                GrupFiyati.objects.create(kurum=k, grup_id=grup_id, tutar=tutar)
+                                degisen += 1
+                            elif kayit.tutar != tutar:
+                                kayit.tutar = tutar
+                                kayit.save(update_fields=["tutar"])
+                                degisen += 1
+                self.message_user(request, f"{degisen} fiyat kaydedildi.", messages.SUCCESS)
+                return redirect(request.get_full_path())
+            self.message_user(request, "Bazı satırlar kaydedilmedi; kırmızı yazan satırları düzeltin.", messages.ERROR)
+
+        def yaz(deger):
+            return "" if deger is None else str(deger).replace(".", ",")
+
+        satirlar = []
+        for k in kurumlar:
+            musteri = k.tavsiye_ek if k.sorgulu else k.tavsiye_fiyati
+            genel = k.hizmet_bedeli if k.sorgulu else k.bayi_fiyati
+            hucreler = []
+            for g in gruplar:
+                kayit = mevcut.get((k.pk, g.pk))
+                gecerli = kayit.tutar if kayit else genel
+                # Bayi müşteriye söylenen rakamın üstünde ödüyorsa zarar eder
+                # (sorgulu: hizmet > müşteriden ek; sorgusuz: fiyat > müşteri fiyatı).
+                zarar = bool(musteri) and gecerli is not None and gecerli > musteri
+                deger = request.POST.get(f"g_{k.pk}_{g.pk}", "") if request.method == "POST" else yaz(kayit.tutar if kayit else None)
+                hucreler.append({"ad": f"g_{k.pk}_{g.pk}", "deger": deger, "zarar": zarar})
+            satirlar.append({
+                "kurum": k,
+                "musteri_ad": f"m_{k.pk}",
+                "musteri": request.POST.get(f"m_{k.pk}", "") if request.method == "POST" else yaz(musteri if (musteri or not k.sorgulu) else None),
+                "genel_ad": f"g_{k.pk}_genel",
+                "genel": request.POST.get(f"g_{k.pk}_genel", "") if request.method == "POST" else yaz(genel if (genel or not k.sorgulu) else None),
+                "genel_yer": "0" if k.sorgulu else "satılmaz",
+                "hucreler": hucreler,
+                "hata": hatalar.get(k.pk, ""),
+            })
+        return render(
+            request,
+            "admin/fatura/fiyatlar.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": "Fatura fiyatları",
+                "opts": self.model._meta,
+                "gruplar": gruplar,
+                "satirlar": satirlar,
+                "pasif": pasif,
+            },
+        )
 
 
 # -- Robot ---------------------------------------------------------------

@@ -63,6 +63,22 @@ class Kategori(ZamanDamgali):
 
 
 class KurumSorgusu(models.QuerySet):
+    def bayiye_acik(self, grup):
+        """Bu fiyat grubundaki bayiye gösterilebilen kurumlar.
+
+        Sorgusuz kalem ancak bayinin ödeyeceği bir fiyat varsa görünür:
+        grubuna yazılmış fiyat ya da kurumun genel fiyatı.
+        """
+        fiyatli = models.Q(bayi_fiyati__gt=0)
+        if grup is not None:
+            fiyatli |= models.Q(grup_fiyatlari__grup=grup, grup_fiyatlari__tutar__gt=0)
+        return (
+            self.filter(aktif=True)
+            .filter(models.Q(sorgulu=True) | (models.Q(sorgulu=False) & fiyatli))
+            .filter(models.Q(kategori__isnull=True) | models.Q(kategori__aktif=True))
+            .distinct()
+        )
+
     def satista(self):
         """Bayiye gösterilebilen kurumlar.
 
@@ -139,27 +155,35 @@ class Kurum(ZamanDamgali):
         "Bayiye Açıklama", max_length=255, blank=True,
         help_text="Formun altında yazar: “Başında 0 olmadan yazın” gibi.",
     )
+    # Fiyatlar Fatura → Fiyatlar ekranından girilir (tek sayfa). Bayinin
+    # ödediği kontör fiyat grubuna göre değişir (`GrupFiyati`); buradaki
+    # "genel" değer, grubunda rakam yazılmamış bayiye uygulanır. Müşteri
+    # fiyatı gruba göre değişmez (kontördeki tavsiyenin aynısı).
+    #
     # Sorgulu kurum: fatura tutarı sağlayıcıdan gelir, biz üstüne ekleriz.
     hizmet_bedeli = models.DecimalField(
-        "Hizmet Bedeli (fatura başına)",
+        "Genel Hizmet Bedeli (fatura başına)",
         max_digits=10, decimal_places=2, default=SIFIR,
         help_text=(
-            "Sorgulu kurumda bayiden her fatura için sağlayıcı tutarına eklenir; "
-            "bizim kârımızdır. 0 ise bayi sağlayıcının tutarını aynen öder."
+            "Sorgulu kurumda bayi her fatura için sağlayıcının toplamı + bunu öder; "
+            "grubuna ayrı rakam yazılmamışsa. 0 ise sağlayıcının tutarını aynen öder."
         ),
     )
     tavsiye_ek = models.DecimalField(
         "Müşteriden Ek (fatura başına)",
         max_digits=10, decimal_places=2, default=SIFIR,
         help_text=(
-            "Sorgulu kurumda bayinin müşteriden ayrıca alması önerilen tutar; "
-            "bayinin kârıdır. Ekranda müşteri fiyatı = bayinin ödediği + bu."
+            "Sorgulu kurumda müşteri fiyatı = sağlayıcının toplamı + bu. Bayinin "
+            "kazancı müşteri fiyatıyla kendi ödediği arasındaki farktır."
         ),
     )
     # Sorgusuz kurum: sabit tutarlı kalem (HGS 100 TL gibi).
     bayi_fiyati = models.DecimalField(
-        "Bayi Fiyatı", max_digits=10, decimal_places=2, null=True, blank=True,
-        help_text="Sorgusuz kurumda bayinin ödeyeceği tutar. Boşsa bayiye görünmez.",
+        "Genel Bayi Fiyatı", max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text=(
+            "Sorgusuz kurumda grubuna ayrı fiyat yazılmamış bayinin ödeyeceği. "
+            "İkisi de boşsa kalem o bayiye görünmez."
+        ),
     )
     tavsiye_fiyati = models.DecimalField(
         "Müşteri Fiyatı", max_digits=10, decimal_places=2, null=True, blank=True,
@@ -218,13 +242,43 @@ class Kurum(ZamanDamgali):
         return temiz
 
     # -- Sorgulu kurumda fatura başına tutarlar -----------------------------
-    def bayi_tutari(self, saglayici_toplami):
-        """Bayinin bir fatura için ödeyeceği: sağlayıcının toplamı + hizmet bedeli."""
-        return (Decimal(str(saglayici_toplami)) + self.hizmet_bedeli).quantize(Decimal("0.01"))
+    def bayi_tutari(self, saglayici_toplami, hizmet=None):
+        """Bayinin bir fatura için ödeyeceği: sağlayıcının toplamı + hizmet bedeli.
+
+        `hizmet` bayinin grubundaki rakamdır (`services.hizmet_bedeli`);
+        verilmezse kurumun genel hizmet bedeli.
+        """
+        hizmet = self.hizmet_bedeli if hizmet is None else hizmet
+        return (Decimal(str(saglayici_toplami)) + hizmet).quantize(Decimal("0.01"))
 
     def musteri_tutari(self, saglayici_toplami):
-        """Bayinin müşteriye söyleyeceği: bayinin ödediği + müşteriden ek."""
-        return (self.bayi_tutari(saglayici_toplami) + self.tavsiye_ek).quantize(Decimal("0.01"))
+        """Müşteriye söylenecek: sağlayıcının toplamı + müşteriden ek. Gruba göre değişmez."""
+        return (Decimal(str(saglayici_toplami)) + self.tavsiye_ek).quantize(Decimal("0.01"))
+
+
+class GrupFiyati(models.Model):
+    """Kurumun bir kontör fiyat grubundaki rakamı (Perakende, Toptan…).
+
+    Gruplar kontörle ortaktır: bayi kontörde hangi gruptaysa faturada da o
+    grubun rakamını öder (`Cuzdan.kontor_grubu`, boşsa varsayılan grup).
+    Tek rakam, anlamı kurumun türüne göre: sorgulu kurumda fatura başına
+    hizmet bedeli, sorgusuz kalemde bayinin ödeyeceği net fiyat. Satır
+    yoksa kurumun genel rakamı geçerlidir.
+    """
+
+    kurum = models.ForeignKey(Kurum, verbose_name="Kurum", related_name="grup_fiyatlari", on_delete=models.CASCADE)
+    grup = models.ForeignKey(
+        "kontor.FiyatGrubu", verbose_name="Fiyat Grubu", related_name="fatura_fiyatlari", on_delete=models.CASCADE
+    )
+    tutar = models.DecimalField("Tutar", max_digits=10, decimal_places=2)
+
+    class Meta:
+        verbose_name = "Fatura Grup Fiyatı"
+        verbose_name_plural = "Fatura Grup Fiyatları"
+        constraints = [models.UniqueConstraint(fields=["kurum", "grup"], name="fatura_grup_fiyati_tekil")]
+
+    def __str__(self):
+        return f"{self.kurum} · {self.grup}: {self.tutar}"
 
 
 # -- Robot ----------------------------------------------------------------

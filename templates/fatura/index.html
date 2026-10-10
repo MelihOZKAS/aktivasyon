@@ -40,7 +40,7 @@
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium">{{ kurum.ad }}</span>
             <span class="block truncate text-xs text-soluk">
-              {% if kurum.sorgulu %}{{ kurum.alan_etiketi }} ile sorgula{% else %}{{ kurum.tavsiye_fiyati|default:kurum.bayi_fiyati|para }} ₺ · sorgusuz{% endif %}
+              {% if kurum.sorgulu %}{{ kurum.alan_etiketi }} ile sorgula{% else %}{{ kurum.gosterim_fiyati|para }} ₺ · sorgusuz{% endif %}
             </span>
           </span>
           <span class="text-soluk" aria-hidden="true">→</span>
