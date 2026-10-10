@@ -643,12 +643,19 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   temizledi (eşi varsa birleştirdi, yoksa kodu yeni biçime çevirdi).
   Ucuz alternatif (eski `Sorgu.php` akışı) yukarıda: gönderim planı.
   · **Turkcell ve Türk Telekom sorgusunu fatura robotu yapar**
-  (`sorgu/kontorbizde.py`, `RobotSorgusu`; menüde Kontör → Robot
+  (`sorgu/kontorbizde.py`, `RobotSorgusu`; menüde Sorgu Robotu → Paket
   Sorguları). İkisinin bizim kullanabileceğimiz açık sorgusu yok;
   sağlayıcının kontör sayfası numarayı yazınca operatörü bulur, "ABONEYE
   ÖZEL PAKETLERİ SORGULA" paketleri listeler. **Tek robot iki işi de
-  yapar**, aynı kapıdan (`/fatura/robot/is/`, `tur`): her istekte tek iş,
-  iki kuyrukta da iş varsa önce açılan (`fatura.services.siradaki_is`).
+  yapar** ve menüde kendi bölümündedir (Sorgu Robotu: Robotlar, Fatura
+  Sorguları, Paket Sorguları) — bir süre robotlar Fatura'nın, paket
+  sorguları Kontör'ün altındaydı, ayrı iki şey gibi görünüyordu. Kayıtlar
+  yerinde kaldı (`fatura.Robot`): tabloyu taşımak canlı veritabanında
+  migration demekti, robotların adresi de `/fatura/robot/…` olarak
+  `ayar.json`'larda yazılı. Kategoride "… (robot)" kaynağını seçmek bir
+  API değil bu ortak robot havuzunu seçmektir. İşler aynı kapıdan verilir
+  (`/fatura/robot/is/`, `tur`): her istekte tek iş, iki kuyrukta da iş
+  varsa önce açılan (`fatura.services.siradaki_is`).
   Paket işi yalnızca yapabildiğini söyleyen robota gider (`isler=fatura,paket`
   → `Robot.paket_sorgusu`; eski sürüm yalnızca fatura alır, panelde "İşler"
   sütunu söyler). **Kaynak operatör başınadır** (`kontorbizde-turkcell`,
@@ -661,7 +668,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Operatörde Görülen'e işlenir; içerik (DK, GB, SMS, gün; kutunun `data-*`'ı,
   yoksa açıklama) de yazılır ve **Kataloğa ekle paketi içeriğiyle açar** —
   ucuz alternatif hesabı bu alanlara bakıyor. **Kod ve alış robotun
-  girdiği hesabındır:** Sorgu Robotları'nda robota "Hesabı" (sağlayıcı,
+  girdiği hesabındır:** Sorgu Robotu → Robotlar'da robota "Hesabı" (sağlayıcı,
   `Robot.saglayici`) seçilir; Kataloğa ekle yeni paketi o sağlayıcıya
   karşı site kodu ve robotun gördüğü alışla bağlı açar, yükleme onun
   API'sine gider (`GorulenPaket.saglayici/saglayici_kodu/alis`). Var olan
@@ -707,7 +714,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   port açmaz: `/fatura/robot/is/`
   (iş al), `/sonuc/`, `/kalp/` (nabız), `/katalog/` (isteğe bağlı kurum
   güncellemesi). Her robotun kendi anahtarı vardır (`Robot`; Sorgu
-  Robotları → Yeni anahtar, `ayar.json` bloğu hazır gösterilir, yalnızca
+  Robotu → Robotlar → Yeni anahtar, `ayar.json` bloğu hazır gösterilir, yalnızca
   SHA-256 özeti saklanır). Bloktaki adres `FATURA_ROBOT_ADRESI`'dir
   (`https://www.aktivasyoncu.com.tr`), panelin açıldığı alan adı değil.
   **www'li olmalı:** www'siz alan nginx'te 301 ile yönleniyor, urllib

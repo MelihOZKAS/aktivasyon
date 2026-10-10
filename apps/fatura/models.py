@@ -324,7 +324,7 @@ class Robot(ZamanDamgali):
             "kodu ve alışıyla bağlar, yükleme onun API'sine gider."
         ),
     )
-    # Robotun çalışma saatleri (laptoptaki ayar.json'dan, nabızla gelir).
+    # Robotun çalışma saatleri (makinesindeki ayar.json'dan, nabızla gelir).
     # Robot bu saatlerin dışında hiç istek atmaz; bayiye "sistem bağlı değil"
     # yerine "08:00–23:00 arasında" denebilsin diye burada tutulur.
     mesai_baslangic = models.TimeField("Mesai Başlangıcı", null=True, blank=True, editable=False)

@@ -3,7 +3,7 @@
 {% comment %}
   Sorgu robotunun anahtarı. Sistem yalnızca özetini saklar: anahtar bu
   yanıtta bir kez görünür. GET onay, POST üretim — düz bir bağlantı robotu
-  sessizce kilitlemesin. Gösterilen blok laptoptaki ayar.json'ın kendisidir.
+  sessizce kilitlemesin. Gösterilen blok robotun makinesindeki ayar.json'ın kendisidir.
 {% endcomment %}
 
 {% block content %}
@@ -12,7 +12,7 @@
     {% if anahtar %}
     <p class="mb-4 text-sm text-base-500">
       <b>{{ robot.ad }}</b> için yeni anahtar üretildi; eskisi artık geçersiz. Bu anahtar
-      bir daha gösterilmeyecek. Aşağıdakini laptopta <b>znetfaturasorgu/ayar.json</b>
+      bir daha gösterilmeyecek. Aşağıdakini robotun makinesinde <b>znetfaturasorgu/ayar.json</b>
       dosyasına olduğu gibi yapıştır, sonra <b>isci.bat</b>'ı yeniden başlat.
     </p>
     <pre id="mesaj" class="mb-4 overflow-x-auto rounded-md border border-base-200 p-4 font-mono text-sm dark:border-base-700"

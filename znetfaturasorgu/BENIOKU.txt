@@ -35,7 +35,7 @@ klasörüne düşer; sayfa değiştiyse bize onu gönder.
 
 DJANGO'YA BAĞLANINCA
 --------------------
-1) Yönetim panelinde Fatura → Sorgu Robotları → robot ekle → "Yeni anahtar".
+1) Yönetim panelinde Sorgu Robotu → Robotlar → robot ekle → "Yeni anahtar".
    Çıkan bloğu olduğu gibi bu klasörde ayar.json dosyasına yapıştır.
    Robotun sayfasında "Hesabı"nı seç (giris.bat ile girdiğin hesabın
    sağlayıcısı, ör. Kontorbizde): paket sorgusunda görülen yeni paket
@@ -61,7 +61,7 @@ NOTLAR
   ayar.json'u düzenle, isci.bat'ı yeniden başlat.
 - Oturum düşerse işçi "oturum düştü" der; giris.bat ile yeniden gir.
 - İşçi "HTTP Error 401" derse ayar.json'daki api_key yanlış ya da robot
-  panelde kapalı: Fatura → Sorgu Robotları → Yeni anahtar, çıkan bloğu
+  panelde kapalı: Sorgu Robotu → Robotlar → Yeni anahtar, çıkan bloğu
   ayar.json'a yapıştır. "HTTP Error 403" sunucunun önündeki güvenlik
   katmanıdır; robotun güncel sürümü buna takılmaz.
 - "oturum" klasörünü kimseyle paylaşma; giriş bilgini taşır.

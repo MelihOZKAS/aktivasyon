@@ -316,7 +316,7 @@ class RobotAdmin(ModelAdmin):
     def oturum_gosterimi(self, obj):
         if obj.oturum_canli:
             return _soluk("canlı")
-        return format_html('<b style="color:#D42046">düştü — laptopta giris.bat</b>')
+        return format_html('<b style="color:#D42046">düştü — robotun makinesinde giris.bat</b>')
 
     @display(description="İşler")
     def isler_gosterimi(self, obj):

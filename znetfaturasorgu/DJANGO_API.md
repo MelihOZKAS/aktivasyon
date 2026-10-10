@@ -1,7 +1,7 @@
 # Fatura robotu ↔ Django sözleşmesi
 
 > **Django tarafı kuruldu** (`apps/fatura`). Robotu bağlamak için: yönetim
-> panelinde **Fatura → Sorgu Robotları** → robot ekle (ör. `ev-laptop`) →
+> panelinde **Sorgu Robotu → Robotlar** → robot ekle (ör. `ev-laptop`) →
 > **Yeni anahtar**. Ekranda hazır bir `ayar.json` bloğu çıkar (adres
 > `https://www.aktivasyoncu.com.tr` — **www'li**: www'siz alan 301 ile
 > yönleniyor ve yönlendirmede POST gövdesi düşüyor); olduğu gibi bu

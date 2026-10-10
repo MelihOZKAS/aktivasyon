@@ -2295,6 +2295,9 @@ class RobotPaketSorgusuTestleri(Temel):
         self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
         robotlar = self.client.get(reverse("admin:fatura_robot_changelist"))
         self.assertContains(robotlar, "hesap: İki")
+        # Fatura ve kontörün ortak robotu: menüde kendi bölümü, üç ekran bir arada.
+        for metin in ("Sorgu Robotu", "/yonetim/fatura/robot/", "/yonetim/fatura/sorgu/", "/yonetim/kontor/robotsorgusu/"):
+            self.assertContains(robotlar, metin)
         self.assertContains(self.client.get(reverse("admin:fatura_robot_change", args=[self.robot.pk])), 'name="saglayici"')
         self.assertContains(self.client.get(reverse("admin:kontor_robotsorgusu_changelist")), "2 paket")
         gorulen = GorulenPaket.objects.get(kod="8249866")

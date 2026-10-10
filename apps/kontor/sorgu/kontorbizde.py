@@ -256,7 +256,7 @@ def sonuc_al(numara, operator):
             raise SorguBekleniyor(BEKLEME_MESAJI)
         if son.sonuc_tarihi and timezone.now() - son.sonuc_tarihi < TAZELIK:
             if son.durum == RobotSorgusuDurumu.TAMAM:
-                # Kod ve alış robotun girdiği hesabındır (Sorgu Robotları → Hesabı).
+                # Kod ve alış robotun girdiği hesabındır (Sorgu Robotu → Robotlar → Hesabı).
                 saglayici = son.robot.saglayici_id if son.robot_id else None
                 return SorguSonucu(paketleri_coz(son.sonuc), saglayici=saglayici)
             raise SorguHatasi(son.mesaj or HATA_MESAJI)

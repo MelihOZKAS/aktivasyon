@@ -399,8 +399,6 @@ UNFOLD = {
                         "badge": "apps.rozetler.yeni_kontor_paketleri",
                     },
                     {"title": "Kategoriler", "icon": "category", "link": "/yonetim/kontor/kategori/"},
-                    # Robotun aboneye özel paket sorguları (Turkcell, Türk Telekom); robot Fatura altında.
-                    {"title": "Robot Sorguları", "icon": "smart_toy", "link": "/yonetim/kontor/robotsorgusu/"},
                     {"title": "Sağlayıcılar", "icon": "hub", "link": "/yonetim/kontor/saglayici/"},
                     {
                         "title": "Bayiye Özel Sağlayıcı",
@@ -421,12 +419,24 @@ UNFOLD = {
                         # Bayi ödedi, yönetim sağlayıcıda henüz ödemedi: elle yapılacak iş.
                         "badge": "apps.rozetler.bekleyen_fatura_odemeleri",
                     },
-                    {"title": "Sorgular", "icon": "manage_search", "link": "/yonetim/fatura/sorgu/"},
                     {"title": "Kurumlar", "icon": "account_balance", "link": "/yonetim/fatura/kurum/"},
                     # Kontörle aynı gruplar, aynı düzen; burada yalnızca fatura kurumları.
                     {"title": "Fiyat Grupları", "icon": "groups", "link": "/yonetim/fatura/faturafiyatgrubu/"},
                     {"title": "Bölümler", "icon": "category", "link": "/yonetim/fatura/kategori/"},
-                    {"title": "Sorgu Robotları", "icon": "smart_toy", "link": "/yonetim/fatura/robot/"},
+                ],
+            },
+            {
+                # Fatura ve kontörün ortak robotu: aynı program, aynı kayıt, aynı
+                # anahtar ikisini de sorgular. Bir süre robotlar Fatura'nın, paket
+                # sorguları Kontör'ün altındaydı; yönetici "ikisi ortak olsa daha
+                # mantıklı değil mi?" dedi. Kayıtlar yerinde (fatura/kontor
+                # uygulamaları), yalnızca menü bir arada.
+                "title": "Sorgu Robotu",
+                "separator": True,
+                "items": [
+                    {"title": "Robotlar", "icon": "smart_toy", "link": "/yonetim/fatura/robot/"},
+                    {"title": "Fatura Sorguları", "icon": "manage_search", "link": "/yonetim/fatura/sorgu/"},
+                    {"title": "Paket Sorguları", "icon": "cell_tower", "link": "/yonetim/kontor/robotsorgusu/"},
                 ],
             },
             {

@@ -11,7 +11,7 @@ Kurum listesi (id → token) `kurumlar.json`'dan okunur, site sürekli
 taranmaz. Yalnızca elle yenilenir: `python isci.py katalog` (katalog.bat).
 Çalışan işçi dosyanın değiştiğini görür, yeniden başlatmaya gerek yoktur.
 
-Ayar: ayar.json (yönetim panelinde Sorgu Robotları → Yeni anahtar).
+Ayar: ayar.json (yönetim panelinde Sorgu Robotu → Robotlar → Yeni anahtar).
 Çalıştır: python isci.py            (isci.bat)
           python isci.py katalog    (katalog.bat)
 """
@@ -37,7 +37,7 @@ ISLER = "fatura,paket"
 
 def ayarlar():
     if not AYAR.exists():
-        raise SystemExit("ayar.json yok. Yönetim panelinde Sorgu Robotları → Yeni anahtar.")
+        raise SystemExit("ayar.json yok. Yönetim panelinde Sorgu Robotu → Robotlar → Yeni anahtar.")
     return json.loads(AYAR.read_text(encoding="utf-8"))
 
 
@@ -59,7 +59,7 @@ def _ipucu(hata):
     """HTTP hatasının terminalde ne yapılacağını söyleyen kısa açıklaması."""
     metin = str(hata)
     if "401" in metin:
-        return "→ api_key yanlış ya da robot panelde kapalı (Fatura → Sorgu Robotları → Yeni anahtar)"
+        return "→ api_key yanlış ya da robot panelde kapalı (Sorgu Robotu → Robotlar → Yeni anahtar)"
     if "403" in metin:
         return "→ sunucunun önündeki güvenlik katmanı isteği kesti"
     return ""
