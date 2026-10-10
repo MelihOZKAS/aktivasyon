@@ -43,6 +43,10 @@ NOTLAR
   saatlerde "08:00–23:00 arasında yapılır" görür. Değiştirmek için
   ayar.json'u düzenle, isci.bat'ı yeniden başlat.
 - Oturum düşerse işçi "oturum düştü" der; giris.bat ile yeniden gir.
+- İşçi "HTTP Error 401" derse ayar.json'daki api_key yanlış ya da robot
+  panelde kapalı: Fatura → Sorgu Robotları → Yeni anahtar, çıkan bloğu
+  ayar.json'a yapıştır. "HTTP Error 403" sunucunun önündeki güvenlik
+  katmanıdır; robotun güncel sürümü buna takılmaz.
 - "oturum" klasörünü kimseyle paylaşma; giriş bilgini taşır.
 - Bazı kurumlar gece 23:00-06:00 tahsilata kapalı; robot bunu "hata" +
   mesaj olarak döndürür, bayiye o mesaj gösterilir.

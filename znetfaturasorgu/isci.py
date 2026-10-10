@@ -50,11 +50,28 @@ class _YonlendirmeYok(urllib.request.HTTPRedirectHandler):
 _ACICI = urllib.request.build_opener(_YonlendirmeYok)
 
 
+def _ipucu(hata):
+    """HTTP hatasının terminalde ne yapılacağını söyleyen kısa açıklaması."""
+    metin = str(hata)
+    if "401" in metin:
+        return "→ api_key yanlış ya da robot panelde kapalı (Fatura → Sorgu Robotları → Yeni anahtar)"
+    if "403" in metin:
+        return "→ sunucunun önündeki güvenlik katmanı isteği kesti"
+    return ""
+
+
 def _istek(url, api_key, govde=None):
     veri = json.dumps(govde).encode() if govde is not None else None
     r = urllib.request.Request(
         url, data=veri, method="POST" if veri else "GET",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            # Cloudflare Python'un varsayılan kimliğini ("Python-urllib") bot
+            # sayıp "error code: 1010" ile 403 veriyor; istek Django'ya hiç
+            # ulaşmıyordu. Robot kendi adıyla gider.
+            "User-Agent": "FaturaRobotu/1.0",
+        },
     )
     with _ACICI.open(r, timeout=20) as cevap:
         govde = cevap.read().decode("utf-8")
@@ -176,7 +193,7 @@ def main():
                 # turda "'ascii' codec can't encode" verip hiç iş alamıyordu.
                 is_ = _istek(f"{taban}/fatura/robot/is/?{urllib.parse.urlencode({'robot': ad})}", anahtar)
             except Exception as e:  # noqa: BLE001
-                print("  Django'ya ulaşılamadı:", e)
+                print("  Django'ya ulaşılamadı:", e, _ipucu(e))
                 time.sleep(aralik)
                 continue
             if not is_.get("var"):

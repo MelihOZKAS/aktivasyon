@@ -81,6 +81,32 @@ def baglan(p, headless=True):
     )
 
 
+def _git(sayfa, adres, deneme=4):
+    """Sayfaya gider; site araya kendi yönlendirmesini sokarsa bekleyip yeniden dener.
+
+    Girişten sonra site kendiliğinden menu.php?first=true'ya gidiyor. Robot
+    tam o sırada Fatura'yı açarsa ya "interrupted by another navigation"
+    hatası alıyor ya da hatasız ama menü sayfasında kalıyordu. İkisinde de
+    sitenin işi bitene kadar beklenir, Fatura yeniden açılır. Giriş sayfasına
+    düşmek (oturum yok) yeniden denenmez; onu çağıran `_girisli_mi` söyler.
+    """
+    for i in range(deneme):
+        son = i == deneme - 1
+        try:
+            sayfa.goto(adres, wait_until="domcontentloaded")
+        except Exception as hata:  # noqa: BLE001
+            if "interrupted by another navigation" not in str(hata) or son:
+                raise
+        else:
+            if "menu.php" in adres or "menu.php" not in sayfa.url or son:
+                return
+        try:
+            sayfa.wait_for_load_state("load", timeout=15000)
+        except Exception:  # noqa: BLE001
+            pass
+        sayfa.wait_for_timeout(1000)
+
+
 def _girisli_mi(sayfa):
     """Fatura sayfası açıldıysa ve kategori düğmeleri geldiyse oturum canlıdır."""
     return sayfa.query_selector("input[onclick*='Goster=Kurumlar']") is not None
@@ -124,7 +150,7 @@ def token_coz(token):
 def katalog(ctx):
     """Bütün kategorilerdeki kurumları, token ve alan tanımlarıyla toplar."""
     sayfa = ctx.pages[0] if ctx.pages else ctx.new_page()
-    sayfa.goto(FATURA, wait_until="domcontentloaded")
+    _git(sayfa, FATURA)
     sayfa.wait_for_timeout(600)
     if not _girisli_mi(sayfa):
         raise RuntimeError("Oturum yok/düşmüş. Önce 'python robot.py giris'.")
@@ -277,7 +303,7 @@ def sorgula(ctx, token, numara):
     """
     sayfa = ctx.new_page()
     try:
-        sayfa.goto(FATURA, wait_until="domcontentloaded")
+        _git(sayfa, FATURA)
         sayfa.wait_for_timeout(600)
         if not _girisli_mi(sayfa):
             raise RuntimeError("Oturum yok/düşmüş. Önce 'python robot.py giris'.")
@@ -333,9 +359,9 @@ def _giris():
             viewport={"width": 1280, "height": 900},
         )
         sayfa = ctx.pages[0] if ctx.pages else ctx.new_page()
-        sayfa.goto(SITE, wait_until="domcontentloaded")
+        _git(sayfa, SITE)
         input("Giriş bitince Enter > ")
-        sayfa.goto(FATURA, wait_until="domcontentloaded")
+        _git(sayfa, FATURA)
         sayfa.wait_for_timeout(1000)
         print("Oturum hazır." if _girisli_mi(sayfa) else "DİKKAT: hâlâ giriş gerekli görünüyor.")
         ctx.close()

@@ -140,6 +140,10 @@ laptopta yeniden giriş yapar (`giris.bat`).
 ## 4. Güvenlik / notlar
 - Bütün uçlar `Authorization: Bearer <API_KEY>` ister (paylaşılan gizli anahtar,
   `ayar.json`'da). İnternete açık bir uç olduğu için anahtarsız istek 401 döner.
+- Robot her isteğe `User-Agent: FaturaRobotu/1.0` koyar. Sitenin önündeki
+  Cloudflare Python'un varsayılan kimliğini (`Python-urllib`) bot sayıp
+  `error code: 1010` ile **403** veriyor; istek Django'ya hiç ulaşmaz.
+  Terminalde 403 görülürse sebep budur, 401 ise anahtar yanlıştır.
 - `odeme_token` her faturada gelir ama **ödeme bu sürümde yapılmaz**; Django
   saklar, ödeme ileride (elle ya da ayrı, dikkatli bir adımda) yapılır.
 - Robot talebi işlerken `kurum_id`'yi `kurumlar.json`'dan token'a çevirir.

@@ -678,7 +678,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   (`urllib.parse.urlencode`): Türkçe harfli ad ("İş-laptopu") ham
   yazılınca istek satırı ASCII'ye çevrilemiyor, robot her turda "'ascii'
   codec can't encode" verip hiç iş alamıyordu. İşçi konsola da UTF-8 yazar
-  (`sys.stdout.reconfigure`), bat'sız açılışta Türkçe yazı çökertmesin. **Aynı sorgu iki robota gitmez**: `is_ver`
+  (`sys.stdout.reconfigure`), bat'sız açılışta Türkçe yazı çökertmesin.
+  **Robot her isteğe kendi adını koyar** (`User-Agent: FaturaRobotu/1.0`):
+  sitenin önünde Cloudflare var ve Python'un varsayılan kimliğini
+  (`Python-urllib/3.x`) bot sayıp `error code: 1010` ile 403 veriyor —
+  istek Django'ya hiç ulaşmıyor, robot "403 Forbidden" deyip duruyordu.
+  401 ise Django'nun cevabıdır (anahtar yanlış/robot kapalı); işçi
+  ikisini terminalde ayırt eder. Robota yeni bir istek eklersen `_istek`'ten
+  geçir. Kontorbizde'de girişten sonra site kendiliğinden
+  `menu.php?first=true`'ya gidiyor; robot o sırada Fatura'yı açınca
+  "interrupted by another navigation" alıyordu. Sayfa açmanın tek yolu
+  `robot._git`: bu yönlendirmeyi bekleyip yeniden dener. **Aynı sorgu iki robota gitmez**: `is_ver`
   satırı `select_for_update(skip_locked=True)` ile alır; beş robot aynı
   anda sorsa da her biri başka satırı kapar. Robot çevrimdışıysa (60 sn
   nabız yok) bayi sorgu **açamaz**, ekran sebebini söyler; robotun almadığı
