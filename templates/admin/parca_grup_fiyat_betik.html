@@ -1,0 +1,100 @@
+{% comment %}
+  Fiyat grubu sayfalarının ortak hesap aracı (Kontör ve Fatura → Fiyat Grupları).
+  Form `#gf-form`; satır `.gf-sec` (işaret), `.gf-fiyat` (kutu), `.gf-kar`;
+  satırın `data-alis` ve `data-operator` (operatör / müşteri fiyatı) değerleri
+  aracın tabanıdır. İki sayfa aynı kodu kullanır: biri düzelince öbürü de.
+{% endcomment %}
+<script>
+(function () {
+  var form = document.getElementById("gf-form");
+  if (!form) return;
+  var kutular = form.querySelectorAll(".gf-sec");
+  var sayac = document.getElementById("gf-secili");
+  var not = document.getElementById("gf-toplu-not");
+
+  function sayi(metin) {
+    metin = (metin || "").trim().replace(/\s/g, "");
+    if (!metin) return null;
+    if (metin.indexOf(",") !== -1) metin = metin.replace(/\./g, "").replace(",", ".");
+    var n = parseFloat(metin);
+    return isNaN(n) ? null : n;
+  }
+  function yaz(n) { return (Math.round(n * 100) / 100).toFixed(2).replace(".", ","); }
+
+  // Kâr sütunu yazarken güncellenir.
+  function kar(satir) {
+    var fiyat = sayi(satir.querySelector(".gf-fiyat").value);
+    var alis = sayi(satir.dataset.alis);
+    var hucre = satir.querySelector(".gf-kar");
+    if (fiyat === null || alis === null) { hucre.innerHTML = '<span style="color:#6F7B8F">—</span>'; return; }
+    var k = fiyat - alis;
+    hucre.innerHTML = '<span style="color:' + (k > 0 ? "#0F8A4D" : "#D42046") + '">' + yaz(k) + "</span>";
+  }
+
+  form.addEventListener("input", function (e) {
+    if (e.target.classList.contains("gf-fiyat")) kar(e.target.closest("tr"));
+  });
+
+  function say() {
+    var n = 0;
+    kutular.forEach(function (k) { if (k.checked) n++; });
+    sayac.textContent = n;
+  }
+  form.addEventListener("change", function (e) {
+    if (e.target.classList.contains("gf-sec")) say();
+  });
+  // "Hepsini işaretle" her tabloda yalnızca kendi satırlarını işaretler
+  // (paketler ve fatura kurumları ayrı).
+  form.querySelectorAll(".gf-hepsi").forEach(function (hepsi) {
+    hepsi.addEventListener("change", function () {
+      var acik = this.checked;
+      this.closest("table").querySelectorAll(".gf-sec").forEach(function (k) { k.checked = acik; });
+      say();
+    });
+  });
+
+  function isaretliler() {
+    return Array.prototype.filter.call(kutular, function (k) { return k.checked; })
+      .map(function (k) { return k.closest("tr"); });
+  }
+
+  // Taban (alış ya da operatör fiyatı) + % / + ₺ / aynen: işaretli
+  // satırların tutarını hesaplayıp kutulara yazar.
+  var degerKutusu = document.getElementById("gf-toplu-deger");
+  var yontemKutusu = document.getElementById("gf-toplu-yontem");
+  function yontemDegisti() {
+    var aynen = yontemKutusu.value.split(":")[1] === "aynen";
+    degerKutusu.disabled = aynen;
+    degerKutusu.placeholder = aynen ? "—" : "örn. 3";
+  }
+  yontemKutusu.addEventListener("change", yontemDegisti);
+  yontemDegisti();
+
+  document.getElementById("gf-toplu-uygula").addEventListener("click", function () {
+    var parca = yontemKutusu.value.split(":");
+    var taban = parca[0], islem = parca[1];
+    var deger = islem === "aynen" ? 0 : sayi(degerKutusu.value);
+    var satirlar = isaretliler();
+    if (!satirlar.length) { not.textContent = "Önce soldan satır işaretle."; return; }
+    if (deger === null) { not.textContent = "Yüzde ya da tutarı yaz."; return; }
+    var yazilan = 0, tabansiz = 0;
+    satirlar.forEach(function (satir) {
+      var t = sayi(taban === "operator" ? satir.dataset.operator : satir.dataset.alis);
+      if (t === null) { tabansiz++; return; }
+      var fiyat = islem === "yuzde" ? t * (1 + deger / 100) : t + deger;
+      satir.querySelector(".gf-fiyat").value = yaz(fiyat);
+      kar(satir);
+      yazilan++;
+    });
+    var eksik = taban === "operator" ? "operatör / müşteri fiyatı yok" : "alışı yok";
+    not.textContent = yazilan + " satırın tutarı yazıldı" +
+      (tabansiz ? ", " + tabansiz + " satırın " + eksik + " (elle yaz)" : "") + ". Kaydetmeyi unutma.";
+  });
+
+  document.getElementById("gf-toplu-sil").addEventListener("click", function () {
+    var satirlar = isaretliler();
+    satirlar.forEach(function (satir) { satir.querySelector(".gf-fiyat").value = ""; kar(satir); });
+    not.textContent = satirlar.length + " satırın tutarı silindi. Kaydedince bu gruba satılmazlar.";
+  });
+})();
+</script>

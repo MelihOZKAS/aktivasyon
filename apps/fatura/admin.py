@@ -1,6 +1,8 @@
+from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Count, Prefetch
 from django.http import Http404
 from django.shortcuts import redirect, render
@@ -8,9 +10,21 @@ from django.urls import path, reverse
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin
 from unfold.decorators import display
+from unfold.widgets import UnfoldAdminTextInputWidget
 
 from apps.bayi.etiket import kullanici_etiketi_html
-from apps.fatura.models import GrupFiyati, Kategori, Kurum, Odeme, OdemeDurumu, Robot, Sorgu, SorguDurumu
+from apps.fatura import fiyat as fatura_fiyat
+from apps.fatura.models import (
+    FaturaFiyatGrubu,
+    GrupFiyati,
+    Kategori,
+    Kurum,
+    Odeme,
+    OdemeDurumu,
+    Robot,
+    Sorgu,
+    SorguDurumu,
+)
 from apps.fatura.services import fiyat_grubu
 from apps.fatura.services import KararVerilemez, iptal_et, odendi_isaretle
 from apps.filtreler import GunAraligiFiltresi
@@ -62,8 +76,8 @@ class KategoriAdmin(ModelAdmin):
 class KurumAdmin(ModelAdmin):
     """Fatura kurumu — kontördeki paket ekranının aynısı.
 
-    Bayinin ödeyeceği **fiyat grubunun sayfasından** girilir (Kontör → Fiyat
-    Grupları → grup → Fatura tablosu); burada yalnızca okunur, aynı rakam
+    Bayinin ödeyeceği **fiyat grubunun sayfasından** girilir (Fatura → Fiyat
+    Grupları → grup); burada yalnızca okunur, aynı rakam
     iki yerden girilmesin. "Müşteriye" kontördeki tavsiye satış gibi listede
     satırdan düzenlenir ve gruba göre değişmez.
     """
@@ -77,8 +91,8 @@ class KurumAdmin(ModelAdmin):
     def get_fieldsets(self, request, obj=None):
         fiyat = ["tavsiye", "grup_fiyatlari_gosterimi", "alis_fiyati"]
         aciklama = (
-            "Bayinin ödeyeceği <b>Kontör → Fiyat Grupları</b>'nda grubun sayfasından girilir "
-            "(paketlerin altındaki <b>Fatura</b> tablosu); rakamı yazılmayan grup bu kurumu "
+            "Bayinin ödeyeceği <b>Fatura → Fiyat Grupları</b>'nda grubun sayfasından girilir "
+            "(kontördeki fiyat listesinin aynı düzeni); rakamı yazılmayan grup bu kurumu "
             "göremez. Sorgulu kurumda o rakam fatura başına hizmet bedelidir (bayi fatura tutarı "
             "+ bunu öder), sorgusuz kalemde net bayi fiyatı. <b>Müşteriye</b> gruba göre değişmez. "
             "Alışımız yalnızca sorgusuz kalemin kâr hesabı içindir."
@@ -139,6 +153,108 @@ class KurumAdmin(ModelAdmin):
                 (g.ad, f"{on_ek}{yazili[g.pk]}" if g.pk in yazili else format_html('<span style="color:#94A3B8">satılmaz</span>'))
                 for g in gruplar
             ),
+        )
+
+
+@admin.register(FaturaFiyatGrubu)
+class FaturaFiyatGrubuAdmin(ModelAdmin):
+    """Perakende, Toptan… — kontördeki grup ekranının faturadaki eşi, aynı düzen.
+
+    Gruplar kontörle ortaktır (vekil model): bayi ikisinde de cüzdanındaki
+    grubu öder. Grubun sayfası **tek sayfadır**: üstte ayarlar, altta fatura
+    kurumları; satırda tek rakam, boş = bu gruba satılmaz, hesap aracı üstte
+    (kontörün aracı, ortak `admin/parca_grup_fiyat_betik.html`). Kontörün
+    grup sayfası yalnızca paketleri gösterir — bir süre fatura tablosu da
+    oradaydı, yönetici "Fatura'ya bastım kontör fiyatları geliyor" dedi.
+    """
+
+    list_display = ("ad", "fiyatli_sayisi", "varsayilan", "bayi_sayisi", "aciklama")
+    search_fields = ("ad",)
+    fields = ("ad", "varsayilan", "aciklama")
+
+    def has_delete_permission(self, request, obj=None):
+        # Grup kontörle ortak: buradan silinseydi kontör paket fiyatları da giderdi.
+        return False
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        """Grubun sayfası fatura fiyatlarıdır; ayarlar da o sayfanın üstünde durur."""
+        return redirect("admin:fatura_faturafiyatgrubu_fiyatlar", object_id)
+
+    def response_add(self, request, obj, post_url_continue=None):
+        return redirect("admin:fatura_faturafiyatgrubu_fiyatlar", obj.pk)
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(_bayi=Count("cuzdanlar", distinct=True), _fiyatli=Count("fatura_fiyatlari", distinct=True))
+        )
+
+    @display(description="Fiyatı yazılı kurum", ordering="_fiyatli")
+    def fiyatli_sayisi(self, obj):
+        return obj._fiyatli or "—"
+
+    @display(description="Bayi", ordering="_bayi")
+    def bayi_sayisi(self, obj):
+        adres = reverse("admin:finans_cuzdan_changelist") + f"?kontor_grubu__id__exact={obj.pk}"
+        return format_html('<a href="{}">{}</a>', adres, obj._bayi)
+
+    def get_urls(self):
+        return [
+            path(
+                "<int:object_id>/fiyatlar/",
+                self.admin_site.admin_view(self.fiyatlar),
+                name="fatura_faturafiyatgrubu_fiyatlar",
+            ),
+            *super().get_urls(),
+        ]
+
+    def fiyatlar(self, request, object_id):
+        grup = self.get_object(request, object_id)
+        if grup is None:
+            raise Http404("Fiyat grubu bulunamadı.")
+        if not self.has_change_permission(request, grup):
+            raise PermissionDenied
+
+        pasif = request.GET.get("pasif") == "1"
+        liste = fatura_fiyat.kurumlar(pasif)
+
+        GrupFormu = forms.modelform_factory(
+            FaturaFiyatGrubu,
+            fields=("ad", "varsayilan", "aciklama"),
+            widgets={"ad": UnfoldAdminTextInputWidget, "aciklama": UnfoldAdminTextInputWidget},
+        )
+        grup_formu = GrupFormu(request.POST if "_grup" in request.POST else None, instance=grup)
+        if "_grup" in request.POST:
+            if grup_formu.is_valid():
+                grup_formu.save()
+                self.message_user(request, f"{grup}: grup ayarları kaydedildi.", messages.SUCCESS)
+                return redirect(request.get_full_path())
+            self.message_user(request, "Grup ayarları kaydedilmedi; hatayı düzeltin.", messages.ERROR)
+
+        fiyat_postu = request.method == "POST" and "_grup" not in request.POST
+        hatalar = {}
+        if fiyat_postu:
+            yazilacak, hatalar = fatura_fiyat.ayikla(liste, request.POST)
+            if not hatalar:
+                with transaction.atomic():
+                    degisen = fatura_fiyat.kaydet(grup, yazilacak)
+                self.message_user(request, f"{grup}: {degisen} kurumun fiyatı kaydedildi.", messages.SUCCESS)
+                return redirect(request.get_full_path())
+            self.message_user(request, "Bazı satırlar kaydedilmedi; kırmızı yazan satırları düzeltin.", messages.ERROR)
+
+        return render(
+            request,
+            "admin/fatura/grup_fiyatlari.html",
+            {
+                **self.admin_site.each_context(request),
+                "title": f"{grup} · fatura fiyatları",
+                "opts": self.model._meta,
+                "grup": grup,
+                "grup_formu": grup_formu,
+                "satirlar": fatura_fiyat.satirlar(grup, liste, request.POST if fiyat_postu else None, hatalar),
+                "pasif": pasif,
+            },
         )
 
 

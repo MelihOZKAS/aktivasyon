@@ -546,15 +546,22 @@ class GrupFiyatTestleri(Temel):
         self.assertContains(yanit, 'data-bayi="412.000000"')     # Toptan: 410 + 2
         self.assertContains(yanit, 'data-musteri="420.000000"')  # müşteri: 410 + 10, gruptan bağımsız
 
-    def test_grubun_sayfasindan_paketlerle_birlikte_yazilir(self):
+    def test_fatura_fiyati_faturanin_kendi_grup_sayfasindan_yazilir(self):
         from apps.fatura.models import GrupFiyati
 
         self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
-        adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[self.perakende.pk])
+        # Fatura → Fiyat Grupları: aynı gruplar, faturanın kendi listesi.
+        liste = self.client.get(reverse("admin:fatura_faturafiyatgrubu_changelist"))
+        self.assertContains(liste, "Perakende")
+        self.assertContains(liste, "Fiyatı yazılı kurum")
+        # Grubu açınca yalnızca fatura kurumları (kontör paketi yok).
+        degisiklik = reverse("admin:fatura_faturafiyatgrubu_change", args=[self.perakende.pk])
+        adres = reverse("admin:fatura_faturafiyatgrubu_fiyatlar", args=[self.perakende.pk])
+        self.assertRedirects(self.client.get(degisiklik), adres)
         yanit = self.client.get(adres)
-        self.assertContains(yanit, "Fatura")
         self.assertContains(yanit, 'name="fatura_%d"' % self.vodafone.pk)
-        self.assertContains(yanit, 'name="fatura_%d"' % self.hgs.pk)
+        self.assertContains(yanit, "Müşteri fiyatı (aynen)")      # kontörün aracı, fatura etiketiyle
+        self.assertNotContains(yanit, 'name="fiyat_')               # kontör paket kutusu yok
         v, h = f"fatura_{self.vodafone.pk}", f"fatura_{self.hgs.pk}"
         self.client.post(adres, {v: "3,50", h: "99"})
         self.assertEqual(GrupFiyati.objects.get(kurum=self.vodafone, grup=self.perakende).tutar, TL("3.50"))
@@ -567,8 +574,19 @@ class GrupFiyatTestleri(Temel):
         self.assertContains(self.client.post(adres, {h: "0", v: "1"}), "0 olamaz")
         self.assertEqual(GrupFiyati.objects.get(kurum=self.hgs, grup=self.perakende).tutar, TL("99.00"))
         self.assertFalse(GrupFiyati.objects.filter(kurum=self.vodafone, grup=self.perakende).exists())
-        # Grup listesi fatura kurumu sayısını da yazar.
-        self.assertContains(self.client.get(reverse("admin:kontor_fiyatgrubu_changelist")), "Fiyatı yazılı fatura kurumu")
+        # Grup kontörle ortak: faturadan silinemez (kontör paket fiyatları da giderdi).
+        sil = reverse("admin:fatura_faturafiyatgrubu_delete", args=[self.perakende.pk])
+        self.assertEqual(self.client.get(sil).status_code, 403)
+
+    def test_kontor_grup_sayfasinda_fatura_yok(self):
+        """"Fatura'ya bastım kontör fiyatları geliyor": iki sayfa ayrı, düzen aynı."""
+        from apps.fatura.models import GrupFiyati
+
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[self.perakende.pk])
+        self.assertNotContains(self.client.get(adres), 'name="fatura_')
+        self.client.post(adres, {f"fatura_{self.vodafone.pk}": "1"})
+        self.assertFalse(GrupFiyati.objects.filter(kurum=self.vodafone, grup=self.perakende).exists())
 
     def test_kurum_ekrani_kontor_paketi_gibi(self):
         self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
@@ -581,7 +599,21 @@ class GrupFiyatTestleri(Temel):
         # Varsayılan grup varken kurumun kendi rakamı hiçbir bayiye uymaz: alan gizli.
         self.assertNotContains(form, 'name="hizmet_bedeli"')
 
+    def test_yalnizca_kontor_izni_olan_fatura_fiyatini_yazamaz(self):
+        from django.contrib.auth.models import Permission
+
+        personel = User.objects.create_user("kontorcu", password="x", is_staff=True)
+        personel.user_permissions.add(Permission.objects.get(codename="change_fiyatgrubu"))
+        self.client.force_login(personel)
+        self.assertEqual(
+            self.client.get(reverse("admin:kontor_fiyatgrubu_paketler", args=[self.perakende.pk])).status_code, 200
+        )
+        self.assertEqual(
+            self.client.get(reverse("admin:fatura_faturafiyatgrubu_fiyatlar", args=[self.perakende.pk])).status_code,
+            403,
+        )
+
     def test_izinsiz_personel_grup_sayfasini_acamaz(self):
         self.client.force_login(User.objects.create_user("personel", password="x", is_staff=True))
-        adres = reverse("admin:kontor_fiyatgrubu_paketler", args=[self.perakende.pk])
-        self.assertEqual(self.client.get(adres).status_code, 403)
+        for ad in ("kontor_fiyatgrubu_paketler", "fatura_faturafiyatgrubu_fiyatlar"):
+            self.assertEqual(self.client.get(reverse(f"admin:{ad}", args=[self.perakende.pk])).status_code, 403, ad)

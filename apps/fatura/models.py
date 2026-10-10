@@ -23,6 +23,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.katalog.models import ZamanDamgali
+from apps.kontor.models import FiyatGrubu
 from apps.katalog.utils import turkce_slug
 from apps.magaza.models import referans_no_uret
 
@@ -241,11 +242,27 @@ class Kurum(ZamanDamgali):
         return (Decimal(str(saglayici_toplami)) + (self.tavsiye or SIFIR)).quantize(Decimal("0.01"))
 
 
+class FaturaFiyatGrubu(FiyatGrubu):
+    """Kontörün fiyat grupları, faturanın menüsünde (Fatura → Fiyat Grupları).
+
+    Yeni tablo değil, aynı gruplar (vekil model): Perakende, Toptan… hem
+    kontörde hem faturada aynıdır, bayi ikisinde de cüzdanındaki grubu öder.
+    Ayrı giriş yeri, çünkü "Fatura'ya bastım kontör fiyatları geliyor":
+    grubun sayfası burada yalnızca fatura kurumlarını gösterir, kontörde
+    yalnızca paketleri. Düzen ikisinde aynıdır.
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = "Fiyat Grubu"
+        verbose_name_plural = "Fiyat Grupları"
+
+
 class GrupFiyati(models.Model):
     """Kurumun bir kontör fiyat grubundaki rakamı (Perakende, Toptan…).
 
-    Kontördeki `PaketFiyati`nin aynısı ve aynı sayfadan girilir (grubun
-    sayfası). Bayi kontörde hangi gruptaysa faturada da o grubun rakamını
+    Kontördeki `PaketFiyati`nin aynısı, aynı düzende girilir (Fatura → Fiyat
+    Grupları → grup). Bayi kontörde hangi gruptaysa faturada da o grubun rakamını
     öder (`Cuzdan.kontor_grubu`, boşsa varsayılan grup). Tek rakam, anlamı
     kurumun türüne göre: sorgulu kurumda fatura başına hizmet bedeli,
     sorgusuz kalemde net bayi fiyatı. **Satır yoksa kurum o gruba satılmaz.**

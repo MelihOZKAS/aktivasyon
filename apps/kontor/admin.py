@@ -675,7 +675,7 @@ class FiyatGrubuAdmin(ModelAdmin):
     Paketler binlerce olabilir: operatör/kategoriye süzülür, sayfa başı 50.
     """
 
-    list_display = ("ad", "fiyatli_sayisi", "fatura_sayisi", "varsayilan", "bayi_sayisi", "aciklama")
+    list_display = ("ad", "fiyatli_sayisi", "varsayilan", "bayi_sayisi", "aciklama")
     search_fields = ("ad",)
     fields = ("ad", "varsayilan", "aciklama")
 
@@ -690,20 +690,12 @@ class FiyatGrubuAdmin(ModelAdmin):
         return (
             super()
             .get_queryset(request)
-            .annotate(
-                _bayi=Count("cuzdanlar", distinct=True),
-                _fiyatli=Count("paket_fiyatlari", distinct=True),
-                _fatura=Count("fatura_fiyatlari", distinct=True),
-            )
+            .annotate(_bayi=Count("cuzdanlar", distinct=True), _fiyatli=Count("paket_fiyatlari", distinct=True))
         )
 
     @display(description="Fiyatı yazılı paket", ordering="_fiyatli")
     def fiyatli_sayisi(self, obj):
         return obj._fiyatli or "—"
-
-    @display(description="Fiyatı yazılı fatura kurumu", ordering="_fatura")
-    def fatura_sayisi(self, obj):
-        return obj._fatura or "—"
 
     @display(description="Bayi", ordering="_bayi")
     def bayi_sayisi(self, obj):
@@ -748,12 +740,6 @@ class FiyatGrubuAdmin(ModelAdmin):
         sayfadakiler = list(sayfa.object_list)
         kayitlar = {k.paket_id: k for k in grup.paket_fiyatlari.filter(paket__in=sayfadakiler)}
         operator_fiyati = operator_fiyatlari(sayfadakiler)
-        # Fatura kurumları aynı sayfada, aynı formda (apps.fatura.fiyat):
-        # kontördeki gibi satırda tek rakam, boş = bu gruba satılmaz.
-        from apps.fatura import fiyat as fatura_fiyat
-
-        fatura_kurumlari = fatura_fiyat.kurumlar(pasif)
-        fatura_hatalar = {}
 
         GrupFormu = forms.modelform_factory(
             FiyatGrubu,
@@ -777,11 +763,9 @@ class FiyatGrubuAdmin(ModelAdmin):
                     yazilacak.append((paket, _ondalik(request.POST.get(f"fiyat_{paket.pk}", ""))))
                 except (InvalidOperation, ValueError):
                     hatalar[paket.pk] = "Rakam anlaşılamadı."
-            fatura_yazilacak, fatura_hatalar = fatura_fiyat.ayikla(fatura_kurumlari, request.POST)
-            if not hatalar and not fatura_hatalar:
+            if not hatalar:
                 degisen = 0
                 with transaction.atomic():
-                    fatura_degisen = fatura_fiyat.kaydet(grup, fatura_yazilacak)
                     for paket, fiyat in yazilacak:
                         kayit = kayitlar.get(paket.pk)
                         if fiyat is None:
@@ -795,8 +779,7 @@ class FiyatGrubuAdmin(ModelAdmin):
                             kayit.fiyat = fiyat
                             kayit.save(update_fields=["fiyat"])
                             degisen += 1
-                ek = f", {fatura_degisen} fatura kurumunun fiyatı" if fatura_degisen else ""
-                self.message_user(request, f"{grup}: {degisen} paketin fiyatı{ek} kaydedildi.", messages.SUCCESS)
+                self.message_user(request, f"{grup}: {degisen} paketin fiyatı kaydedildi.", messages.SUCCESS)
                 return HttpResponseRedirect(request.get_full_path())
             self.message_user(request, "Bazı satırlar kaydedilmedi; kırmızı yazan satırları düzeltin.", messages.ERROR)
 
@@ -819,10 +802,6 @@ class FiyatGrubuAdmin(ModelAdmin):
                 }
             )
 
-        fatura_satirlari = fatura_fiyat.satirlar(
-            grup, fatura_kurumlari, request.POST if fiyat_postu else None, fatura_hatalar
-        )
-
         sorgu = request.GET.copy()
         sorgu.pop("sayfa", None)
         return render(
@@ -830,8 +809,7 @@ class FiyatGrubuAdmin(ModelAdmin):
             "admin/kontor/grup_paket_fiyatlari.html",
             {
                 **self.admin_site.each_context(request),
-                "title": f"{grup} · fiyatlar",
-                "fatura_satirlari": fatura_satirlari,
+                "title": f"{grup} · kontör fiyatları",
                 "opts": self.model._meta,
                 "grup": grup,
                 "grup_formu": grup_formu,

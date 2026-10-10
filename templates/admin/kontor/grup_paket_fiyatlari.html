@@ -11,23 +11,12 @@
   Operatöre/kategoriye süzülür, sayfa başı 50 paket: bir operatörde bin
   paket olabilir. Yalnızca bu sayfadaki paketler kaydedilir.
 
-  Altında aynı formda Fatura tablosu (apps.fatura.fiyat): fatura kurumlarının
-  bu gruptaki rakamı, kontördeki kuralla. Hesap aracı iki tabloda da çalışır;
-  fatura satırı aracı alış (sorgulu kurumda 0) ve müşteri fiyatıyla besler.
-
   Sınıflar unfold'un derlenmiş CSS'inden; bizim app.css yönetimde yüklü
   değil, kutular satır içi stille çizilir. Girdiler 16px (iOS yakınlaştırmasın).
 {% endcomment %}
 
 {% block content %}
-<style>
-  .gf-girdi { border:1px solid #d6dce5; border-radius:.375rem; padding:.45rem .6rem; font-size:16px; background:#fff; min-height:44px; }
-  .gf-tablo td, .gf-tablo th { padding:.5rem .4rem; vertical-align:middle; }
-  .gf-tablo tbody tr { border-top:1px solid #eef1f5; }
-  .gf-dugme { border:1px solid #d6dce5; border-radius:.375rem; padding:.5rem .9rem; font-weight:600; font-size:.875rem; min-height:44px; background:#fff; cursor:pointer; }
-  .gf-birincil { background:#0D1320; color:#fff; border-color:#0D1320; }
-  .gf-soluk { color:#6F7B8F; font-size:.75rem; }
-</style>
+{% include "admin/parca_grup_fiyat_stil.html" %}
 
 <div class="space-y-4">
   <form method="post" class="rounded-default border border-base-200 bg-white p-4">
@@ -94,7 +83,7 @@
           <option value="alis:yuzde">Alış + %</option>
           <option value="alis:tutar">Alış + ₺</option>
         </optgroup>
-        <optgroup label="Operatör / müşteri fiyatından">
+        <optgroup label="Operatör fiyatından">
           <option value="operator:aynen">Operatör fiyatı (aynen)</option>
           <option value="operator:yuzde">Operatör fiyatı + %</option>
           <option value="operator:tutar">Operatör fiyatı + ₺</option>
@@ -142,55 +131,6 @@
       </table>
     </div>
 
-    {% if fatura_satirlari %}
-    {% comment %}
-      Fatura kurumları: kontördeki paket satırının aynısı. Sorgulu kurumda
-      kutu fatura başına hizmet bedeli (alış 0: fatura tutarı aynen geçer,
-      kutu tamamen kârdır), sorgusuz kalemde net bayi fiyatı. Boş = bu gruba
-      satılmaz. "Müşteriye" kurumun tek rakamıdır, burada yalnızca okunur.
-    {% endcomment %}
-    <h3 class="mt-6 font-semibold">Fatura</h3>
-    <p class="gf-soluk mb-2" style="max-width:56rem;font-size:.8rem">
-      <b>Sorgulu</b> kurumda (Turkcell, Vodafone…) kutu <b>fatura başına hizmet bedelidir</b>: bu gruptaki bayi
-      fatura tutarı + bunu öder; tutarı aynen geçirmek için <b>0</b> yaz. <b>Sorgusuz</b> kalemde (HGS 100 TL)
-      kutu <b>net bayi fiyatıdır</b>. Boş bırakılan kurum bu gruba satılmaz. Müşteriye fiyatı Fatura →
-      Kurumlar'dan girilir, gruba göre değişmez.
-    </p>
-    <div class="overflow-x-auto rounded-default border border-base-200 bg-white">
-      <table class="gf-tablo w-full text-sm" style="min-width:22rem">
-        <thead>
-          <tr class="text-left text-base-500">
-            <th style="width:2.5rem"><input type="checkbox" class="gf-hepsi" aria-label="Bütün fatura kurumlarını işaretle" style="width:20px;height:20px"></th>
-            <th>Kurum</th>
-            <th>Alış</th>
-            <th>Müşteriye</th>
-            <th>Bayi Satış Tutarı</th>
-            <th>Kâr</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for s in fatura_satirlari %}
-          <tr data-alis="{{ s.alis|default_if_none:''|stringformat:'s' }}" data-operator="{{ s.musteri|default_if_none:''|stringformat:'s' }}">
-            <td><input type="checkbox" class="gf-sec" aria-label="{{ s.kurum.ad }} işaretle" style="width:20px;height:20px"></td>
-            <td>
-              <span class="font-medium">{{ s.kurum.ad }}</span>{% if not s.kurum.aktif %} <span class="gf-soluk">(pasif)</span>{% endif %}<br>
-              <span class="gf-soluk">{% if s.kurum.sorgulu %}sorgulu · hizmet bedeli{% else %}sorgusuz · net fiyat{% endif %} · {{ s.kurum.kategori.ad|default:"Diğer" }}</span>
-            </td>
-            <td>{% if s.kurum.sorgulu %}<span class="gf-soluk">fatura tutarı</span>{% elif s.alis is not None %}{{ s.alis }}{% else %}<span style="color:#6F7B8F">—</span>{% endif %}</td>
-            <td>{% if s.musteri is not None %}{% if s.kurum.sorgulu %}+{% endif %}{{ s.musteri }}{% else %}<span style="color:#6F7B8F">—</span>{% endif %}</td>
-            <td>
-              <input name="fatura_{{ s.kurum.pk }}" value="{{ s.deger }}" class="gf-girdi gf-fiyat" inputmode="decimal"
-                     style="width:6.5rem" placeholder="satılmaz" aria-label="{{ s.kurum.ad }} bayi satış tutarı">
-              {% if s.hata %}<br><span style="color:#D42046;font-size:.75rem">{{ s.hata }}</span>{% endif %}
-            </td>
-            <td class="gf-kar">{% if s.kar is not None %}<span style="color:{% if s.kar > 0 %}#0F8A4D{% else %}#D42046{% endif %}">{{ s.kar }}</span>{% else %}<span style="color:#6F7B8F">—</span>{% endif %}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endif %}
-
     <div class="mt-3 flex flex-wrap items-center justify-between gap-3">
       <button type="submit" class="gf-dugme gf-birincil">Bu sayfayı kaydet</button>
       {% if sayfa.has_other_pages %}
@@ -206,98 +146,5 @@
   </form>
 </div>
 
-<script>
-(function () {
-  var form = document.getElementById("gf-form");
-  if (!form) return;
-  var kutular = form.querySelectorAll(".gf-sec");
-  var sayac = document.getElementById("gf-secili");
-  var not = document.getElementById("gf-toplu-not");
-
-  function sayi(metin) {
-    metin = (metin || "").trim().replace(/\s/g, "");
-    if (!metin) return null;
-    if (metin.indexOf(",") !== -1) metin = metin.replace(/\./g, "").replace(",", ".");
-    var n = parseFloat(metin);
-    return isNaN(n) ? null : n;
-  }
-  function yaz(n) { return (Math.round(n * 100) / 100).toFixed(2).replace(".", ","); }
-
-  // Kâr sütunu yazarken güncellenir.
-  function kar(satir) {
-    var fiyat = sayi(satir.querySelector(".gf-fiyat").value);
-    var alis = sayi(satir.dataset.alis);
-    var hucre = satir.querySelector(".gf-kar");
-    if (fiyat === null || alis === null) { hucre.innerHTML = '<span style="color:#6F7B8F">—</span>'; return; }
-    var k = fiyat - alis;
-    hucre.innerHTML = '<span style="color:' + (k > 0 ? "#0F8A4D" : "#D42046") + '">' + yaz(k) + "</span>";
-  }
-
-  form.addEventListener("input", function (e) {
-    if (e.target.classList.contains("gf-fiyat")) kar(e.target.closest("tr"));
-  });
-
-  function say() {
-    var n = 0;
-    kutular.forEach(function (k) { if (k.checked) n++; });
-    sayac.textContent = n;
-  }
-  form.addEventListener("change", function (e) {
-    if (e.target.classList.contains("gf-sec")) say();
-  });
-  // "Hepsini işaretle" her tabloda yalnızca kendi satırlarını işaretler
-  // (paketler ve fatura kurumları ayrı).
-  form.querySelectorAll(".gf-hepsi").forEach(function (hepsi) {
-    hepsi.addEventListener("change", function () {
-      var acik = this.checked;
-      this.closest("table").querySelectorAll(".gf-sec").forEach(function (k) { k.checked = acik; });
-      say();
-    });
-  });
-
-  function isaretliler() {
-    return Array.prototype.filter.call(kutular, function (k) { return k.checked; })
-      .map(function (k) { return k.closest("tr"); });
-  }
-
-  // Taban (alış ya da operatör fiyatı) + % / + ₺ / aynen: işaretli
-  // satırların tutarını hesaplayıp kutulara yazar.
-  var degerKutusu = document.getElementById("gf-toplu-deger");
-  var yontemKutusu = document.getElementById("gf-toplu-yontem");
-  function yontemDegisti() {
-    var aynen = yontemKutusu.value.split(":")[1] === "aynen";
-    degerKutusu.disabled = aynen;
-    degerKutusu.placeholder = aynen ? "—" : "örn. 3";
-  }
-  yontemKutusu.addEventListener("change", yontemDegisti);
-  yontemDegisti();
-
-  document.getElementById("gf-toplu-uygula").addEventListener("click", function () {
-    var parca = yontemKutusu.value.split(":");
-    var taban = parca[0], islem = parca[1];
-    var deger = islem === "aynen" ? 0 : sayi(degerKutusu.value);
-    var satirlar = isaretliler();
-    if (!satirlar.length) { not.textContent = "Önce soldan satır işaretle."; return; }
-    if (deger === null) { not.textContent = "Yüzde ya da tutarı yaz."; return; }
-    var yazilan = 0, tabansiz = 0;
-    satirlar.forEach(function (satir) {
-      var t = sayi(taban === "operator" ? satir.dataset.operator : satir.dataset.alis);
-      if (t === null) { tabansiz++; return; }
-      var fiyat = islem === "yuzde" ? t * (1 + deger / 100) : t + deger;
-      satir.querySelector(".gf-fiyat").value = yaz(fiyat);
-      kar(satir);
-      yazilan++;
-    });
-    var eksik = taban === "operator" ? "operatör / müşteri fiyatı yok" : "alışı yok";
-    not.textContent = yazilan + " satırın tutarı yazıldı" +
-      (tabansiz ? ", " + tabansiz + " satırın " + eksik + " (elle yaz)" : "") + ". Kaydetmeyi unutma.";
-  });
-
-  document.getElementById("gf-toplu-sil").addEventListener("click", function () {
-    var satirlar = isaretliler();
-    satirlar.forEach(function (satir) { satir.querySelector(".gf-fiyat").value = ""; kar(satir); });
-    not.textContent = satirlar.length + " satırın tutarı silindi. Kaydedince bu gruba satılmazlar.";
-  });
-})();
-</script>
+{% include "admin/parca_grup_fiyat_betik.html" %}
 {% endblock %}
