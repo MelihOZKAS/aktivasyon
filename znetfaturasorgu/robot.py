@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Znet fatura sorgu robotu — çekirdek.
+"""Znet sorgu robotu — çekirdek: fatura sorgusu ve aboneye özel paketler.
 
-Ne yapar: gerçek bir Chromium'da, senin açtığın oturumla kontorbizde fatura
-sayfasını sürer, bir kurumun sorgu formuna numarayı yazıp **gerçek Sorgula
-düğmesine basar** ve dönen fatura listesini ayrıştırır. Jeton (znet_token,
-Turnstile) taklit edilmez; sayfanın kendi JS'i üretir, biz yalnızca DOM'u
-sürüp sonucu okuruz.
+Ne yapar: gerçek bir Chromium'da, senin açtığın oturumla kontorbizde'yi sürer.
+İki iş yapar:
+  • Fatura: fatura sayfasında bir kurumun sorgu formuna numarayı yazıp
+    **gerçek Sorgula düğmesine basar**, dönen fatura listesini ayrıştırır.
+  • Paket: kontör sayfasında numarayı yazar, sayfa operatörü bulunca
+    "ABONEYE ÖZEL PAKETLERİ SORGULA"ya basar, çıkan paketleri ayrıştırır.
+Jeton (znet_token, Turnstile) taklit edilmez; sayfanın kendi JS'i üretir,
+biz yalnızca DOM'u sürüp sonucu okuruz.
 
 Oturum iki şekilde verilir:
   • Kalıcı profil (laptop): `giris` ile bir kez elle girilir, `oturum/`
@@ -17,14 +20,17 @@ CLI:
   python robot.py giris                     # tarayıcı açılır, elle giriş yap
   python robot.py katalog                   # siteyi tarar, kurumlar.json'a yazar
   python robot.py sorgu <kurum> <numara>    # kurum adı (ör. vodafone) + numara
+  python robot.py paket [operatör] <numara> # turkcell / avea; aboneye özel paketler
 """
 
 import base64
+import html
 import json
 import os
 import pathlib
 import re
 import sys
+import time
 import urllib.parse
 
 from playwright.sync_api import sync_playwright
@@ -37,6 +43,11 @@ KURUMLAR = BURASI / "kurumlar.json"
 
 SITE = "https://bayi.kontorbizde.com/"
 FATURA = "https://bayi.kontorbizde.com/Fatura/"
+KONTOR = "https://bayi.kontorbizde.com/Kontor/index.php"
+# Robotun kendi hatasında sayfanın görüntüsü ve HTML'i buraya düşer (depoya
+# girmez): sayfa değişince ne gördüğümüzü bilmek için. Son KAYIT_SINIRI tutulur.
+KAYITLAR = BURASI / "kayitlar"
+KAYIT_SINIRI = 40
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36")
 
@@ -349,6 +360,199 @@ def sorgula(ctx, token, numara):
         sayfa.close()
 
 
+# ------------------------------------------------------------------- paket
+def operator_kodu(metin):
+    """"Avea", "Türk Telekom", "TURKCELL" → turkcell / vodafone / avea; tanınmazsa boş."""
+    s = kurum_id(str(metin or "")).replace("-", "")
+    s = {"turktelekom": "avea", "tt": "avea", "ttmobil": "avea"}.get(s, s)
+    return s if s in ("turkcell", "vodafone", "avea") else ""
+
+
+def _paket_kodu(deger):
+    """"8249866.00" → "8249866"."""
+    m = re.fullmatch(r"\s*(\d+)(?:\.0+)?\s*", deger or "")
+    return m.group(1) if m else (deger or "").strip()
+
+
+def _argumanlar(metin, bas):
+    """`yukle_onay(` sonrasındaki tırnaklı değerler, kapanış parantezine kadar.
+
+    Açıklamada parantez olabilir ("(Sana Özel)"); düz regex onu kapanış
+    sanardı. Tırnağın içi atlanır, `\'` kaçışı korunur.
+    """
+    degerler, i = [], bas
+    while i < len(metin):
+        c = metin[i]
+        if c == ")":
+            break
+        if c == "'":
+            j, parca = i + 1, []
+            while j < len(metin) and metin[j] != "'":
+                if metin[j] == "\\" and j + 1 < len(metin):
+                    parca.append(metin[j + 1])
+                    j += 2
+                    continue
+                parca.append(metin[j])
+                j += 1
+            degerler.append(html.unescape("".join(parca)))
+            i = j + 1
+            continue
+        i += 1
+    return degerler
+
+
+_KUTU = re.compile(r"<div\b[^>]*\burunlist_dis\b[^>]*>", re.I)
+
+
+def _veri(etiket, ad):
+    m = re.search(rf'data-{ad}\s*=\s*["\']([^"\']*)', etiket or "")
+    return m.group(1).strip() if m else ""
+
+
+def paket_cevabini_coz(metin):
+    """Paket sorgusunun cevabı → {"operator", "paketler": [...]}.
+
+    Her paket bir kutudur: dış kutuda `data-gun/gb/dk`, içinde
+    yukle_onay('5050488485','Avea','Ses','8249866.00','AVEA FIRSAT SES',
+    'Büyük Fırsat 60GB','','1549.00','1475.00','74.00','30 Gün, …','','').
+    Sıra: numara, operatör, tip, paket kodu, grup, ad, ?, fiyat (müşterinin
+    ödediği), alış (bize), kâr, açıklama.
+    """
+    kutular = [(m.start(), m.group(0)) for m in _KUTU.finditer(metin)]
+    paketler, bas = [], 0
+    while True:
+        i = metin.find("yukle_onay(", bas)
+        if i < 0:
+            break
+        bas = i + len("yukle_onay(")
+        a = _argumanlar(metin, bas)
+        if len(a) < 11:      # fonksiyonun tanımı ya da başka bir çağrı
+            continue
+        etiket = next((e for basi, e in reversed(kutular) if basi < i), "")
+        paketler.append({
+            "kod": _paket_kodu(a[3]),
+            "operator": a[1].strip(),
+            "tip": a[2].strip(),
+            "grup": " ".join(a[4].split()),
+            "ad": " ".join(a[5].split()),
+            "fiyat": a[7].strip(),
+            "alis": a[8].strip(),
+            "aciklama": " ".join(a[10].split()),
+            "gun": _veri(etiket, "gun"),
+            "gb": _veri(etiket, "gb"),
+            "dk": _veri(etiket, "dk"),
+        })
+    operator = next((operator_kodu(p["operator"]) for p in paketler if operator_kodu(p["operator"])), "")
+    return {"operator": operator, "paketler": paketler}
+
+
+def _kayit_al(sayfa, ad):
+    """Hata anındaki sayfa: kayitlar/<zaman>-<ad>.png ve .html. Hata vermez."""
+    try:
+        KAYITLAR.mkdir(exist_ok=True)
+        damga = time.strftime("%Y%m%d-%H%M%S")
+        sayfa.screenshot(path=str(KAYITLAR / f"{damga}-{ad}.png"), full_page=True)
+        (KAYITLAR / f"{damga}-{ad}.html").write_text(sayfa.content(), encoding="utf-8")
+        for eski in sorted(KAYITLAR.iterdir())[:-KAYIT_SINIRI]:
+            eski.unlink()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def paket_sorgula(ctx, numara, beklenen=""):
+    """Kontör sayfasında numaranın aboneye özel paketlerini sorgular.
+
+    Sayfanın kendi akışı sürülür: numara kutusuna rakam rakam yazılır (her
+    tuşta sayfa operatörü arar), operatör bulununca "ABONEYE ÖZEL PAKETLERİ
+    SORGULA" düğmesi gelir, ona basılır. `beklenen` (turkcell / avea)
+    verilmişse ve sayfanın bulduğu operatör başkaysa düğmeye basılmaz:
+    numara taşınmış, sorgu boşuna gitmesin.
+
+    Cevap, düğmeden sonra gelen ağ cevabından okunur — sayfada önceden duran
+    bir paket listesi karışmasın. Hata olursa sayfa kayitlar/'a yazılır.
+    """
+    sayfa = ctx.new_page()
+    try:
+        _git(sayfa, KONTOR)
+        kutu = sayfa.locator("#sorgu_input_0")
+        try:
+            kutu.wait_for(state="attached", timeout=15000)
+        except Exception:  # noqa: BLE001
+            if sayfa.query_selector("input[type=password]"):
+                raise RuntimeError("Oturum yok/düşmüş. Önce giris.bat.")
+            raise RuntimeError("Kontör sayfasında numara kutusu bulunamadı.")
+        # Kutu sayfa açılırken kapalı (disabled) geliyor; sayfa hazırlanınca açılır.
+        try:
+            sayfa.wait_for_function(
+                "()=>{const e=document.getElementById('sorgu_input_0');return e&&!e.disabled}",
+                timeout=15000,
+            )
+        except Exception:  # noqa: BLE001
+            raise RuntimeError("Numara kutusu açılmadı (sayfa hazırlanamadı).")
+        kutu.fill("")
+        kutu.press_sequentially(str(numara), delay=60)
+        dugme = sayfa.locator("#paketsorgula")
+        try:
+            dugme.wait_for(state="visible", timeout=15000)
+        except Exception:  # noqa: BLE001
+            raise RuntimeError("Operatör bulunamadı; 'Aboneye özel paketleri sorgula' düğmesi çıkmadı.")
+
+        bulunan = operator_kodu(sayfa.evaluate(
+            "()=>{const e=document.getElementById('giz_operator');return e?e.value:''}"
+        ))
+        if beklenen and bulunan and bulunan != beklenen:
+            return {"operator": bulunan, "paketler": [], "durum": "", "mesaj": ""}
+
+        once_vardi = "yukle_onay(" in sayfa.content()
+        govdeler = []
+
+        def yakala(cevap):
+            try:
+                if cevap.request.resource_type in ("xhr", "fetch"):
+                    govdeler.append(cevap.text())
+            except Exception:  # noqa: BLE001
+                pass
+
+        sayfa.on("response", yakala)
+        dugme.click()
+        ilk = None
+        for adim in range(50):          # en çok 25 sn
+            sayfa.wait_for_timeout(500)
+            if any("yukle_onay(" in g for g in govdeler):
+                break
+            if govdeler and ilk is None:
+                ilk = adim
+            if ilk is not None and adim - ilk >= 6:   # cevap geldi, paket yok
+                break
+
+        govde = next((g for g in govdeler if "yukle_onay(" in g), "")
+        if not govde and not once_vardi and "yukle_onay(" in sayfa.content():
+            govde = sayfa.content()     # sayfa paketi kendi JS'iyle çizdiyse
+        if not govde:
+            if not govdeler:
+                raise RuntimeError("Paket sorgusunun cevabı gelmedi (zaman aşımı).")
+            duz = _temiz(max(govdeler, key=len))
+            hata = re.search(r"ZNET=\d+-HATA=(.+?)(?:<|$)", duz)
+            if hata:
+                return {"operator": bulunan, "paketler": [], "durum": "hata",
+                        "mesaj": hata.group(1).strip()[:200]}
+            # Paket yok; sağlayıcının metni terminale (bayiye değil: ne olduğu belli değil).
+            print("    paket yok; cevap:", duz[:200])
+            return {"operator": bulunan, "paketler": [], "durum": "", "mesaj": ""}
+
+        sonuc = paket_cevabini_coz(govde)
+        if not sonuc["paketler"]:
+            raise RuntimeError("Paket cevabı ayrıştırılamadı (sayfa değişmiş olabilir).")
+        sonuc["operator"] = sonuc["operator"] or bulunan
+        sonuc["durum"], sonuc["mesaj"] = "", ""
+        return sonuc
+    except Exception:
+        _kayit_al(sayfa, f"paket-{numara}")
+        raise
+    finally:
+        sayfa.close()
+
+
 # --------------------------------------------------------------------- CLI
 def _giris():
     print("Tarayıcı açılıyor. Siteye gir, ekrandaki resmi çöz, panel açılınca")
@@ -406,6 +610,11 @@ def main():
                         return
                     token = k["token"]
                 print(json.dumps(sorgula(ctx, token, numara), ensure_ascii=False, indent=2))
+            elif komut == "paket":
+                # paket <numara> ya da paket <operatör> <numara>
+                beklenen = operator_kodu(sys.argv[2]) if len(sys.argv) > 3 else ""
+                numara = sys.argv[-1]
+                print(json.dumps(paket_sorgula(ctx, numara, beklenen), ensure_ascii=False, indent=2))
             else:
                 print(__doc__)
         finally:

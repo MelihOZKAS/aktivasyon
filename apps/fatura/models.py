@@ -291,7 +291,10 @@ def anahtar_ozeti(anahtar):
 
 
 class Robot(ZamanDamgali):
-    """Sorguyu yapan laptop. Her robotun kendi anahtarı vardır.
+    """Sorguyu yapan bilgisayar (laptop ya da Windows sunucu). Her robotun kendi anahtarı vardır.
+
+    Tek robot iki işi birden yapar: fatura sorgusu ve kontörün aboneye özel
+    paket sorgusu (`kontor.RobotSorgusu`). İkisi aynı kapıdan verilir.
 
     Anahtar bir kez gösterilir, yalnızca SHA-256 özeti saklanır (kontördeki
     bayi API şifresinin aynısı). Robot birkaç saniyede bir nabız atar;
@@ -304,6 +307,10 @@ class Robot(ZamanDamgali):
     son_nabiz = models.DateTimeField("Son Nabız", null=True, blank=True, editable=False)
     mesgul = models.BooleanField("Meşgul", default=False, editable=False)
     oturum_canli = models.BooleanField("Oturum Canlı", default=True, editable=False)
+    # Robot kontörün paket sorgusunu da yapıyor mu? Robot iş isterken
+    # söyler (`isler=fatura,paket`); eski sürüm söylemez, ona paket işi
+    # verilmez ve paket sorgusu için çevrimiçi sayılmaz.
+    paket_sorgusu = models.BooleanField("Paket Sorgusu", default=False, editable=False)
     # Robotun çalışma saatleri (laptoptaki ayar.json'dan, nabızla gelir).
     # Robot bu saatlerin dışında hiç istek atmaz; bayiye "sistem bağlı değil"
     # yerine "08:00–23:00 arasında" denebilsin diye burada tutulur.

@@ -107,18 +107,21 @@ def robot_cevrimici_mi():
     return Robot.objects.filter(aktif=True, son_nabiz__gte=timezone.now() - CEVRIMICI_SURESI).exists()
 
 
-def kapali_mesaji():
+def kapali_mesaji(ne="Fatura sorgusu", robotlar=None):
     """Robot yokken bayiye ne denir: mesai dışıysa saatler, değilse genel mesaj.
 
     Robot çalışma saatleri dışında bilerek susar; bayi "sistem bağlı değil"
-    görüp yöneticiyi aramasın, ne zaman sorgulayabileceğini görsün.
+    görüp yöneticiyi aramasın, ne zaman sorgulayabileceğini görsün. Kontörün
+    paket sorgusu da aynı robotlardan birini bekler; `ne` ve `robotlar` onun
+    için verilir.
     """
-    saatli = [r for r in Robot.objects.filter(aktif=True) if r.mesai_metni]
+    robotlar = Robot.objects.filter(aktif=True) if robotlar is None else robotlar
+    saatli = [r for r in robotlar if r.mesai_metni]
     simdi = timezone.localtime().time()
     if saatli and not any(r.mesai_icinde(simdi) for r in saatli):
         araliklar = " / ".join(sorted({r.mesai_metni for r in saatli}))
-        return f"Fatura sorgusu {araliklar} arasında yapılır."
-    return ROBOT_YOK_MESAJI
+        return f"{ne} {araliklar} arasında yapılır."
+    return f"{ne} şu an yapılamıyor; biraz sonra yeniden dene."
 
 
 def _numara(kurum, numara):
@@ -195,6 +198,45 @@ def is_ver(robot):
         sorgu.alinma_tarihi = simdi
         sorgu.save(update_fields=["durum", "robot", "alinma_tarihi", "guncelleme_tarihi"])
     return Sorgu.objects.select_related("kurum").get(pk=sorgu.pk)
+
+
+def _ilk_bekleyen():
+    return (
+        Sorgu.objects.filter(durum=SorguDurumu.BEKLIYOR, olusturma_tarihi__gte=timezone.now() - ALINMA_SINIRI)
+        .order_by("olusturma_tarihi")
+        .values_list("olusturma_tarihi", flat=True)
+        .first()
+    )
+
+
+def siradaki_is(robot, *, paket=False):
+    """Robotun sıradaki işi: `("fatura", Sorgu)`, `("paket", RobotSorgusu)` ya da `None`.
+
+    Tek robot iki işi de yapar: fatura sorgusu ve kontörün aboneye özel
+    paket sorgusu (`apps/kontor/sorgu/kontorbizde.py`). İki kuyrukta da
+    bekleyen varsa **önce gelen** verilir — ikisinde de ekranında bekleyen
+    bir bayi var. Paket işi yalnızca onu yapabildiğini söyleyen robota gider
+    (`paket`); eski sürüm robot yalnızca fatura alır.
+    """
+    if paket:
+        from apps.kontor.sorgu import kontorbizde
+
+        kontorbizde.suresi_dolanlari_kapat()
+        suresi_dolanlari_kapat()
+        paket_ilk, fatura_ilk = kontorbizde.ilk_bekleyen(), _ilk_bekleyen()
+        if paket_ilk is not None and (fatura_ilk is None or paket_ilk <= fatura_ilk):
+            is_ = kontorbizde.is_ver(robot)
+            if is_ is not None:
+                return "paket", is_
+    sorgu = is_ver(robot)
+    if sorgu is not None:
+        return "fatura", sorgu
+    if paket:
+        # Fatura kuyruğu boşaldıysa (başka robot kaptı) bekleyen paket işi.
+        is_ = kontorbizde.is_ver(robot)
+        if is_ is not None:
+            return "paket", is_
+    return None
 
 
 def _tutar(deger):

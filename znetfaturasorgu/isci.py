@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Fatura işçisi — Django kuyruğundan iş çekip sorgular.
+"""Sorgu işçisi — Django kuyruğundan iş çekip sorgular.
 
-Sözleşme: DJANGO_API.md. Tek tarayıcı açık tutulur (her sorguda yeniden
-açılmaz), oturum `oturum/` profilinde yaşar. Aynı numara iki işçiye gitmez:
-işi veren uç atomik kilitler, işçi sadece "bana iş ver" der.
+Sözleşme: DJANGO_API.md. İki iş yapar, hangisi gelirse: fatura sorgusu ve
+kontörün aboneye özel paket sorgusu. Her istekte **tek iş** alınır, bitince
+sonucu yazılır, sonra sıradaki istenir. Tek tarayıcı açık tutulur (her
+sorguda yeniden açılmaz), oturum `oturum/` profilinde yaşar. Aynı iş iki
+işçiye gitmez: işi veren uç atomik kilitler, işçi sadece "bana iş ver" der.
 
 Kurum listesi (id → token) `kurumlar.json`'dan okunur, site sürekli
 taranmaz. Yalnızca elle yenilenir: `python isci.py katalog` (katalog.bat).
@@ -28,6 +30,9 @@ import robot
 
 BURASI = pathlib.Path(__file__).resolve().parent
 AYAR = BURASI / "ayar.json"
+# Django'ya her istekte söylenir: bu robot hangi işleri yapabiliyor. Eski
+# sürüm söylemiyordu; Django ona yalnızca fatura verir.
+ISLER = "fatura,paket"
 
 
 def ayarlar():
@@ -149,10 +154,10 @@ def main():
         except Exception:  # noqa: BLE001
             pass
 
-    def basarisiz(talep_id, hata):
+    def basarisiz(tur, talep_id, hata):
         try:
             _istek(f"{taban}/fatura/robot/sonuc/", anahtar,
-                   {"talep_id": talep_id, "robot": ad, "basarisiz": True, "hata": str(hata)[:300]})
+                   {"tur": tur, "talep_id": talep_id, "robot": ad, "basarisiz": True, "hata": str(hata)[:300]})
         except Exception:  # noqa: BLE001
             pass
 
@@ -191,7 +196,8 @@ def main():
                 # Ad adrese kodlanarak konur: Türkçe harfli ad ("İş-laptopu")
                 # ham yazılınca istek satırı ASCII'ye çevrilemiyor, robot her
                 # turda "'ascii' codec can't encode" verip hiç iş alamıyordu.
-                is_ = _istek(f"{taban}/fatura/robot/is/?{urllib.parse.urlencode({'robot': ad})}", anahtar)
+                sorgu = urllib.parse.urlencode({"robot": ad, "isler": ISLER})
+                is_ = _istek(f"{taban}/fatura/robot/is/?{sorgu}", anahtar)
             except Exception as e:  # noqa: BLE001
                 print("  Django'ya ulaşılamadı:", e, _ipucu(e))
                 time.sleep(aralik)
@@ -201,31 +207,38 @@ def main():
                 continue
 
             t = is_["talep"]
-            print(f"  iş #{t['talep_id']}: {t['kurum_id']} / {t['numara']}")
+            tur = is_.get("tur", "fatura")
             nabiz("mesgul", "canli")
-            token = harita.get(t["kurum_id"])
-            if not token:
-                print("    kurum kurumlar.json'da yok → katalog.bat ile yenile")
-                basarisiz(t["talep_id"], "kurum kurumlar.json'da yok; katalog.bat ile yenile")
-                continue
             try:
-                veri = robot.sorgula(ctx, token, t["numara"])
+                if tur == "paket":
+                    print(f"  paket #{t['talep_id']}: {t.get('operator', '')} / {t['numara']}")
+                    veri = robot.paket_sorgula(ctx, t["numara"], t.get("operator", ""))
+                    ozet = f"{len(veri['paketler'])} paket"
+                    if t.get("operator") and veri["operator"] and veri["operator"] != t["operator"]:
+                        ozet = f"numara {veri['operator']} hattı, sorgulanmadı"
+                else:
+                    print(f"  fatura #{t['talep_id']}: {t['kurum_id']} / {t['numara']}")
+                    token = harita.get(t["kurum_id"])
+                    if not token:
+                        raise RuntimeError("kurum kurumlar.json'da yok; katalog.bat ile yenile")
+                    veri = robot.sorgula(ctx, token, t["numara"])
+                    ozet = veri["durum"]
             except Exception as e:  # noqa: BLE001
                 # Sonuç hemen yazılır: bayi zaman aşımını beklemesin, yönetim
                 # sebebi Sorgular listesinde görsün.
                 print("    HATA:", e)
-                basarisiz(t["talep_id"], e)
+                basarisiz(tur, t["talep_id"], e)
                 if "turum" in str(e):
-                    # Oturum düştü: yönetici laptopta giris.bat ile girene kadar bekle.
+                    # Oturum düştü: yönetici giris.bat ile girene kadar bekle.
                     nabiz("bos", "dustu")
                     time.sleep(15)
-                elif "token" in str(e):
-                    print("    token eskimiş olabilir → katalog.bat ile yenile")
+                elif "token" in str(e) or "kurumlar.json" in str(e):
+                    print("    kurum listesi eskimiş olabilir → katalog.bat ile yenile")
                 continue
             try:
                 _istek(f"{taban}/fatura/robot/sonuc/", anahtar,
-                       {"talep_id": t["talep_id"], "robot": ad, "veri": veri})
-                print(f"    → {veri['durum']}")
+                       {"tur": tur, "talep_id": t["talep_id"], "robot": ad, "veri": veri})
+                print(f"    → {ozet}")
             except Exception as e:  # noqa: BLE001
                 print("    sonuç yollanamadı:", e)
 

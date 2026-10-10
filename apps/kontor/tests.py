@@ -2090,3 +2090,176 @@ class OyunBolumuTestleri(Temel):
         yanit = self.client.get(reverse("kontor:oyunlar"))
         self.assertContains(yanit, 'href="/oyun/"')
         self.assertContains(yanit, 'href="/kontor/"')
+
+
+# -- Robotun aboneye özel paket sorgusu (Turkcell, Türk Telekom) --------------
+
+from apps.fatura.models import Robot  # noqa: E402
+from apps.kontor.models import GorulenPaket, RobotSorgusu, RobotSorgusuDurumu  # noqa: E402
+from apps.kontor.sorgu import SorguBekleniyor, kontorbizde  # noqa: E402
+
+ROBOT_PAKETLERI = {
+    "operator": "avea",
+    "paketler": [
+        {"kod": "1744.00", "operator": "Avea", "tip": "Ses", "grup": "AVEA  FIRSAT  SES",
+         "ad": "Büyük Fırsat 60GB", "fiyat": "1549.00", "alis": "1475.00",
+         "aciklama": "30 Gün, Heryöne 750 Dk, 60 Gb İnternet, Heryöne 250 Sms", "gun": "30", "gb": "60", "dk": "750"},
+        {"kod": "8249866.00", "operator": "Avea", "tip": "Ses", "grup": "AVEA SANA ÖZEL",
+         "ad": "Haftalık 5GB", "fiyat": "199.00", "alis": "190.00",
+         "aciklama": "7 Gün, 1.000 Dk, 5 Gb İnternet", "gun": "", "gb": "", "dk": ""},
+    ],
+}
+
+
+@override_settings(KONTOR_ARKA_PLAN=False, KONTOR_ATOMIK_DENETIMI=False, CACHES=TEST_ONBELLEK)
+class RobotPaketSorgusuTestleri(Temel):
+    """Robot sorgular, bayi ekranı ve gönderim planı cevabı istek içinde beklemez."""
+
+    NUMARA = "5050488485"
+
+    def setUp(self):
+        super().setUp()
+        from django.core.cache import caches
+
+        caches["kontor_sorgu"].clear()
+        tt = Operator.objects.create(ad="Türk Telekom", renk="#00a0e3")
+        self.kategori = Kategori.objects.create(
+            ad="Türk Telekom Paket", operator=tt, api_tip="ses", sorgu_kaynagi="kontorbizde-avea",
+            sorgu_sahibi_goster=False,
+        )
+        self.paket = Paket.objects.create(
+            kategori=self.kategori, kod="1744", ad="TT 60 GB", satis_fiyati=TL("120.00"),
+            dakika=750, internet_mb=60000, gun=30,
+        )
+        Rota.objects.create(paket=self.paket, saglayici=self.bir, sira=1, alis_fiyati=TL("100.00"))
+        self.robot = Robot.objects.create(ad="sunucu-1", paket_sorgusu=True, son_nabiz=timezone.now())
+        self.client.force_login(self.bayi)
+        self.adres = reverse("kontor:sorgu", args=[self.kategori.slug])
+
+    def robot_cevaplar(self, veri=ROBOT_PAKETLERI, **kw):
+        is_ = kontorbizde.is_ver(self.robot)
+        self.assertIsNotNone(is_)
+        return kontorbizde.sonuc_yaz(self.robot, is_.pk, veri=veri, **kw)
+
+    def test_bayi_ekrani_bekler_sonra_paketleri_gosterir(self):
+        yanit = self.client.get(self.adres, {"hedef": "0505 048 84 85"})
+        self.assertContains(yanit, "sorgulanıyor")
+        self.assertContains(yanit, 'hx-trigger="every 2s"')
+        is_ = RobotSorgusu.objects.get()
+        self.assertEqual((is_.numara, is_.operator, is_.durum), (self.NUMARA, "avea", RobotSorgusuDurumu.BEKLIYOR))
+        # Yoklama ikinci sorgu açmaz.
+        self.assertContains(self.client.get(self.adres, {"hedef": self.NUMARA}), "sorgulanıyor")
+        self.assertEqual(RobotSorgusu.objects.count(), 1)
+
+        self.robot_cevaplar()
+        yanit = self.client.get(self.adres, {"hedef": self.NUMARA})
+        self.assertContains(yanit, "TT 60 GB")
+        self.assertNotContains(yanit, "every 2s")
+        # Bütün paketler Operatörde Görülen'e: katalogdaki geçilir, olmayan yeni ve içeriğiyle.
+        yeni = GorulenPaket.objects.get(kod="8249866")
+        self.assertEqual((yeni.kategori, yeni.fiyat), (self.kategori, TL("199.00")))
+        self.assertEqual((yeni.dakika, yeni.internet_mb, yeni.gun), (1000, 5000, 7))
+        self.assertTrue(GorulenPaket.objects.filter(kod="1744").exists())
+        # Sonuç önbellekte: aynı numara bir daha robota gitmez.
+        self.client.get(self.adres, {"hedef": self.NUMARA})
+        self.assertEqual(RobotSorgusu.objects.count(), 1)
+
+    def test_kataloga_ekle_icerigiyle_acar(self):
+        from apps.kontor.services import gorulen_paketi_kataloga_ekle
+
+        self.client.get(self.adres, {"hedef": self.NUMARA})
+        self.robot_cevaplar()
+        self.client.get(self.adres, {"hedef": self.NUMARA})
+        paket, yeni = gorulen_paketi_kataloga_ekle(GorulenPaket.objects.get(kod="8249866"))
+        self.assertTrue(yeni)
+        self.assertEqual((paket.dakika, paket.internet_mb, paket.gun, paket.tavsiye_fiyati), (1000, 5000, 7, TL("199.00")))
+
+    def test_icerik_kutudan_yoksa_aciklamadan(self):
+        temiz = kontorbizde.veriyi_temizle(ROBOT_PAKETLERI)
+        birinci, ikinci = temiz["paketler"]
+        self.assertEqual((birinci["kod"], birinci["dakika"], birinci["internet_mb"], birinci["sms"]), ("1744", 750, 60000, 250))
+        self.assertEqual((ikinci["kod"], ikinci["dakika"], ikinci["internet_mb"], ikinci["gun"]), ("8249866", 1000, 5000, 7))
+
+    def test_ayni_kod_iki_paketse_ikisi_de_kalir(self):
+        veri = {"paketler": [
+            {"kod": "13239", "ad": "Tam Senlik 10 GB", "fiyat": "500"},
+            {"kod": "13239", "ad": "Tam Senlik 20 GB", "fiyat": "700"},
+            {"kod": "13239", "ad": "Tam Senlik 20 GB", "fiyat": "700"},
+        ]}
+        kodlar = [p.kod for p in kontorbizde.paketleri_coz(kontorbizde.veriyi_temizle(veri))]
+        self.assertEqual(kodlar, ["13239-tam-senlik-10-gb-500", "13239-tam-senlik-20-gb-700"])
+
+    def test_baska_operatorun_numarasi_kullanilmaz(self):
+        self.client.get(self.adres, {"hedef": self.NUMARA})
+        self.robot_cevaplar({"operator": "Turkcell", "paketler": []})
+        yanit = self.client.get(self.adres, {"hedef": self.NUMARA})
+        self.assertContains(yanit, "Turkcell hattı görünüyor")
+        self.assertFalse(GorulenPaket.objects.exists())
+        # Robot operatörü okuyamayıp paketleri getirse de paketlerin üstündeki operatöre bakılır.
+        veri = {"paketler": [dict(ROBOT_PAKETLERI["paketler"][0], operator="Turkcell")]}
+        RobotSorgusu.objects.create(numara="5050000000", operator="avea")
+        sorgu = self.robot_cevaplar(veri)
+        self.assertEqual(sorgu.durum, RobotSorgusuDurumu.HATA)
+
+    def test_bos_liste_ve_robot_hatasi_hata_sayilir(self):
+        RobotSorgusu.objects.create(numara=self.NUMARA, operator="avea")
+        sorgu = self.robot_cevaplar({"operator": "avea", "paketler": []})
+        self.assertEqual((sorgu.durum, sorgu.mesaj), (RobotSorgusuDurumu.HATA, kontorbizde.BOS_MESAJI))
+        RobotSorgusu.objects.create(numara="5050000000", operator="avea")
+        sorgu = self.robot_cevaplar(None, hata="Oturum yok/düşmüş")
+        self.assertEqual(sorgu.mesaj, kontorbizde.HATA_MESAJI)
+        self.assertEqual(sorgu.sonuc["robot_hatasi"], "Oturum yok/düşmüş")
+
+    def test_robot_kapaliysa_ya_da_eski_surumse_sorgu_acilmaz(self):
+        Robot.objects.update(son_nabiz=timezone.now() - timedelta(minutes=5))
+        yanit = self.client.get(self.adres, {"hedef": self.NUMARA})
+        self.assertContains(yanit, "Paket sorgusu şu an yapılamıyor")
+        Robot.objects.update(son_nabiz=timezone.now(), paket_sorgusu=False)
+        self.assertContains(self.client.get(self.adres, {"hedef": self.NUMARA}), "şu an yapılamıyor")
+        self.assertFalse(RobotSorgusu.objects.exists())
+
+    def test_alinmayan_sorgu_kapanir_robota_verilmez(self):
+        eski = RobotSorgusu.objects.create(numara=self.NUMARA, operator="avea")
+        RobotSorgusu.objects.filter(pk=eski.pk).update(olusturma_tarihi=timezone.now() - timedelta(seconds=40))
+        self.assertIsNone(kontorbizde.is_ver(self.robot))
+        eski.refresh_from_db()
+        self.assertEqual(eski.durum, RobotSorgusuDurumu.HATA)
+        # Hata bayiye bir süre gösterilir, sonra yeniden denenir.
+        with self.assertRaisesMessage(SorguHatasi, kontorbizde.HATA_MESAJI):
+            kontorbizde.sonuc_al(self.NUMARA, "avea")
+        RobotSorgusu.objects.filter(pk=eski.pk).update(sonuc_tarihi=timezone.now() - timedelta(minutes=1))
+        with self.assertRaises(SorguBekleniyor):
+            kontorbizde.sonuc_al(self.NUMARA, "avea")
+
+    # -- Gönderim planı --------------------------------------------------------
+
+    def plan_ac(self):
+        self.kategori.gonderim_oncesi_sorgu = True
+        self.kategori.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            islem = yukleme_baslat(self.bayi, self.paket, self.NUMARA)
+        islem.refresh_from_db()
+        return islem
+
+    def test_plan_robotu_bekler_gonderim_yapmaz(self):
+        islem = self.plan_ac()
+        self.assertEqual(islem.durum, IslemDurumu.SIRADA)
+        self.assertIsNone(islem.plan)
+        self.assertEqual(DURUM["Bir"]["gonderilen"], [])
+        self.robot_cevaplar()
+        islem = isle(islem.pk)
+        self.assertEqual(islem.plan, [self.paket.pk])
+        self.assertEqual([g[2] for g in DURUM["Bir"]["gonderilen"]], ["1744"])
+
+    def test_robot_cevap_vermezse_ana_paket_gider(self):
+        islem = self.plan_ac()
+        Islem.objects.filter(pk=islem.pk).update(olusturma_tarihi=timezone.now() - timedelta(seconds=61))
+        islem = isle(islem.pk)
+        self.assertEqual(islem.plan, [self.paket.pk])
+        self.assertEqual(len(DURUM["Bir"]["gonderilen"]), 1)
+
+    def test_robot_kapaliysa_plan_beklemez(self):
+        Robot.objects.update(son_nabiz=None)
+        islem = self.plan_ac()
+        self.assertEqual(islem.plan, [self.paket.pk])
+        self.assertEqual(len(DURUM["Bir"]["gonderilen"]), 1)

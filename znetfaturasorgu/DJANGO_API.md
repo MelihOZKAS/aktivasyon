@@ -8,10 +8,15 @@
 > klasördeki `ayar.json`'a yapıştır, `isci.bat`'ı başlat. Sunucu robotu
 > anahtarından tanır; istekteki `robot` alanı yalnızca bilgi amaçlıdır.
 
-Bu dosya, Django tarafının (ayrı yazılacak) robotla nasıl konuşacağını anlatır.
-Robot (`robot.py` / `isci.py`) laptopta çalışır, Django sunucuda. **Robot
-Django'ya sorar** (pull): laptop dışarı port açmaz. Para/ödeme bu sürümde
-**yoktur** — robot yalnızca sorgu yapar.
+Bu dosya, Django tarafının robotla nasıl konuşacağını anlatır. Robot
+(`robot.py` / `isci.py`) laptopta ya da Windows sunucuda çalışır, Django
+sunucuda. **Robot Django'ya sorar** (pull): robotun makinesi dışarı port
+açmaz. Para/ödeme bu sürümde **yoktur** — robot yalnızca sorgu yapar.
+
+Robot iki iş yapar, hangisi gelirse: **fatura sorgusu** (bölüm 2) ve
+kontörün **aboneye özel paket sorgusu** (bölüm 2b). Her "iş var mı?"
+isteğinde Django **tek iş** verir; robot onu bitirip sonucu yazar, sonra
+sıradakini ister.
 
 ---
 
@@ -62,21 +67,29 @@ kurum adından türetilen tekil id kullanıyoruz: `vodafone`, `turkcell`,
 ## 2. Sorgu kuyruğu (pull)
 
 ### a) Robot iş ister
-`GET /fatura/robot/is/?robot=ev-laptop`
+`GET /fatura/robot/is/?robot=ev-laptop&isler=fatura,paket`
 Sunucu bekleyen bir talebi **atomik kilitleyip** (SELECT ... FOR UPDATE SKIP
 LOCKED) verir. Böylece **aynı numara iki robota gitmez** — 5 robot da aynı anda
 sorsa her biri farklı iş kapar.
+
+`isler` robotun yapabildiği işlerdir. `paket` yoksa (eski sürüm) robota
+yalnızca fatura verilir ve paket sorgusu için çevrimiçi sayılmaz. İki
+kuyrukta da iş varsa **önce açılan** verilir.
 ```json
-// iş varsa:
-{"var": true, "talep": {"talep_id": 1234, "kurum_id": "vodafone", "kurum_adi": "Vodafone", "numara": "5332590138"}}
+// fatura işi:
+{"var": true, "tur": "fatura", "talep": {"talep_id": 1234, "kurum_id": "vodafone", "kurum_adi": "Vodafone", "numara": "5332590138"}}
+// paket işi (bölüm 2b):
+{"var": true, "tur": "paket", "talep": {"talep_id": 55, "numara": "5050488485", "operator": "avea"}}
 // yoksa:
 {"var": false}
 ```
 
 ### b) Robot sonucu yazar
-`POST /fatura/robot/sonuc/`
+`POST /fatura/robot/sonuc/` — `tur` işin türüdür (`fatura` / `paket`); yoksa
+fatura sayılır. Talep numaraları kuyruk başınadır.
 ```json
 {
+  "tur": "fatura",
   "talep_id": 1234,
   "robot": "ev-laptop",
   "veri": {
@@ -115,6 +128,65 @@ Robot/altyapı hatası (oturum düştü, zaman aşımı) ayrı gelir:
 ```json
 {"talep_id": 1234, "robot": "ev-laptop", "basarisiz": true, "hata": "Oturum düştü"}
 ```
+
+---
+
+## 2b. Aboneye özel paket sorgusu (kontör, Turkcell / Türk Telekom)
+
+Bayi kontörde numarayı yazınca (ya da kategoride "göndermeden önce paket
+sorgusu" açıksa yükleme gitmeden önce) Django bir **paket işi** açar. Robot
+`https://bayi.kontorbizde.com/Kontor/index.php`'yi açar, numarayı
+`#sorgu_input_0`'a rakam rakam yazar (sayfa her tuşta operatörü arar),
+`#paketsorgula` ("ABONEYE ÖZEL PAKETLERİ SORGULA") çıkınca sayfanın bulduğu
+operatörü (`#giz_operator`) işin `operator`'üyle karşılaştırır:
+
+- **Eşitse** düğmeye basar, düğmeden sonra gelen ağ cevabındaki paket
+  kutularını ayrıştırır.
+- **Farklıysa** (numara taşınmış) düğmeye basmaz, bulduğu operatörü boş
+  listeyle döndürür. Bayi "Bu numara Turkcell hattı görünüyor" görür.
+
+Her paket kutusu:
+```html
+<div class="urunlist_dis" data-gun="30" data-gb="60" data-dk="750">
+  <div onclick="yukle_onay('5050488485','Avea','Ses','1744.00','AVEA FIRSAT SES',
+       'Büyük Fırsat 60GB','','1549.00','1475.00','74.00','30 Gün, Heryöne 750 Dk, …','','');">
+```
+`yukle_onay` sırası: numara, operatör, tip, **paket kodu**, grup, ad, ?,
+**fiyat** (müşterinin ödediği), **alış** (bize), kâr, açıklama.
+
+Sonuç:
+```json
+{
+  "tur": "paket",
+  "talep_id": 55,
+  "veri": {
+    "operator": "avea",
+    "durum": "",
+    "mesaj": "",
+    "paketler": [
+      {"kod": "1744", "operator": "Avea", "tip": "Ses", "grup": "AVEA FIRSAT SES",
+       "ad": "Büyük Fırsat 60GB", "fiyat": "1549.00", "alis": "1475.00",
+       "aciklama": "30 Gün, Heryöne 750 Dk, 60 Gb İnternet, Heryöne 250 Sms",
+       "gun": "30", "gb": "60", "dk": "750"}
+    ]
+  }
+}
+```
+- `kod` kataloğumuzdaki `Paket.kod`'dur ("1744.00" → "1744").
+- Dönen **bütün** paketler Operatörde Görülen'e işlenir: katalogda olan geçilir,
+  olmayan "Yeni" düşer; Kataloğa ekle içeriğiyle (DK, GB, SMS, gün) açar.
+- **Boş liste hata sayılır** ("Bu numaraya özel paket bulunamadı"): robotun
+  ayrıştıramadığı bir cevap "paket yok" diye okunsaydı plan her satışı
+  sağlayıcıya gitmeden iptal ederdi. Hata olunca plan ana paketi gönderir.
+- Sağlayıcı `ZNET=n-HATA=…` derse `"durum": "hata"` + `mesaj` (bayi görür).
+- Robot hatası (oturum düştü, kutu açılmadı) `"basarisiz": true` ile gelir;
+  robot o anki sayfanın görüntüsünü ve HTML'ini `kayitlar/`'a yazar.
+
+Django bekleme sınırları: robot 30 sn'de almazsa, aldıktan sonra 60 sn'de
+yazmazsa iş kapanır; gönderim planı en çok 60 sn bekler, sonra ana paketi
+gönderir.
+
+Elle deneme (Django'suz): `paket.bat turkcell 5321234567`.
 
 ---
 

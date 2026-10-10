@@ -1,12 +1,17 @@
-ZNET FATURA SORGU ROBOTU
-========================
+ZNET SORGU ROBOTU (fatura + paket)
+==================================
 
-Ne yapar: laptopta gerçek bir tarayıcıda senin oturumunla kontorbizde fatura
-sayfasını sürer, bir kurumun numarasını sorgular, fatura listesini döndürür.
-Jeton taklit edilmez; sayfanın kendi "Sorgula"sına basılır. Para/ödeme YOK,
-yalnızca sorgu.
+Ne yapar: gerçek bir tarayıcıda senin oturumunla kontorbizde'yi sürer, iki iş
+yapar:
+  - Fatura: bir kurumun numarasını sorgular, fatura listesini döndürür.
+  - Paket: kontör sayfasında numaranın aboneye özel paketlerini sorgular
+    (Turkcell, Türk Telekom). Numaranın operatörü beklenenden farklıysa
+    sorgulamaz.
+Jeton taklit edilmez; sayfanın kendi düğmelerine basılır. Para/ödeme YOK,
+yalnızca sorgu. Django'dan her seferinde tek iş alır.
 
-GEREKLİ: Windows laptop + Python 3.11+ (python.org, "Add to PATH" işaretli).
+GEREKLİ: Windows (laptop ya da Windows Server) + Python 3.11+ (python.org,
+"Add to PATH" işaretli).
 
 KURULUM (bir kere)
 ------------------
@@ -22,11 +27,20 @@ TEST (Django olmadan)
 Sonuç JSON olarak yazılır (abone adı, fatura no, son ödeme, fatura bedeli…).
 Kurum listesi kurumlar.json'dadır (katalog.bat ile yenilenir).
 
+  paket.bat turkcell 5321234567
+  paket.bat avea 5051234567
+Numaranın aboneye özel paketleri JSON olarak yazılır (kod, ad, fiyat, alış,
+gün/GB/DK). Hata olursa o anki sayfanın görüntüsü ve HTML'i "kayitlar"
+klasörüne düşer; sayfa değiştiyse bize onu gönder.
+
 DJANGO'YA BAĞLANINCA
 --------------------
 1) Yönetim panelinde Fatura → Sorgu Robotları → robot ekle → "Yeni anahtar".
    Çıkan bloğu olduğu gibi bu klasörde ayar.json dosyasına yapıştır.
-2) isci.bat      → işçi başlar; Django kuyruğundan iş çekip sorgular.
+2) isci.bat      → işçi başlar; Django kuyruğundan iş çekip sorgular (fatura
+                   ve paket, hangisi gelirse). Panelde robotun "İşler"
+                   sütunu "Fatura · Paket" yazmalı; yalnızca "Fatura"
+                   yazıyorsa bu klasör eski sürümdür.
 3) katalog.bat   → YALNIZCA İSTEDİĞİNDE: kurum listesini siteden yeniden
                    çeker (kurumlar.json) ve Django'ya yollar. Sağlayıcı yeni
                    kurum ekleyince ya da robot "katalog.bat ile yenile"

@@ -29,6 +29,13 @@ Kurallar (servis uygular, kaynak düşünmez):
   · Sorgu satışı hiçbir zaman durdurmaz: kaynak hata verirse ya da
     susarsa bayi sebebini görür, paket listesi eskisi gibi seçilebilir.
   · Aynı numara `ONBELLEK_SURESI` içinde ikinci kez sorulmaz.
+
+**Cevabı beklenen kaynak** (robot): sorguyu kuyruğa koyup hemen döner,
+cevap henüz yoksa `SorguBekleniyor` yükseltir. Bayi ekranı kendini birkaç
+saniyede bir yeniler, gönderim planı işlemi sırada bekletir; ikisi de
+kaynağı yeniden çağırır, kaynak hazır sonucu o zaman döndürür. Kimse cevabı
+istek içinde beklemez — gunicorn işçisi tarayıcının sorgusunu beklerken
+siteye hizmet edemezdi.
 """
 
 import importlib
@@ -41,6 +48,14 @@ class SorguHatasi(Exception):
     """Kaynak cevap vermedi ya da numarayı sorgulayamadı; sebebi mesajda."""
 
 
+class SorguBekleniyor(SorguHatasi):
+    """Sorgu kuyrukta ya da robotta; birkaç saniye sonra yeniden sorulur.
+
+    `SorguHatasi`'dır: bunu tanımayan bir çağıran sorguyu yapılamamış sayar
+    ve satış sürer — bekleyen sorgu yüzünden hiçbir yer kilitlenmez.
+    """
+
+
 @dataclass
 class SorguPaketi:
     kod: str
@@ -48,6 +63,11 @@ class SorguPaketi:
     aciklama: str = ""
     gun: int = 0
     fiyat: Decimal = None
+    # İçerik kaynak söylüyorsa dolar; Kataloğa ekle paketi bununla açar
+    # (ucuz alternatif hesabı dakika, GB ve güne bakar).
+    dakika: int = 0
+    internet_mb: int = 0
+    sms: int = 0
 
 
 @dataclass

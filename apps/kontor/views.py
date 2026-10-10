@@ -24,7 +24,7 @@ from apps.bayi.telefon import normalize
 from apps.bayi.yetki import bayi_gerekli
 from apps.finans.services import SiparisVerilemez
 from apps.kontor.models import Islem, IslemDurumu, Kategori, Paket
-from apps.kontor.sorgu import SorguHatasi
+from apps.kontor.sorgu import SorguBekleniyor, SorguHatasi
 from apps.kontor.services import (
     fiyatlandir,
     numarayi_sorgula,
@@ -125,18 +125,21 @@ def kategori(request, slug, oyun=False):
 @bayi_gerekli
 @_bolum
 def sorgu(request, slug, oyun=False):
-    """HTMX: numaranın alabileceği paketler. Salt okuma, para oynamaz."""
+    """HTMX: numaranın alabileceği paketler. Salt okuma, para oynamaz.
+
+    Kaynak robotsa cevap istek içinde beklenmez: kutu "sorgulanıyor" der ve
+    2 sn'de bir aynı adresi (aynı numara, aynı "yenile") yeniden ister;
+    robot sonucu yazınca liste gelir, yoklama durur.
+    """
     kategori_kaydi = _satistaki_kategori(slug, oyun)
+    hedef = request.GET.get("hedef", "")[:64]
+    yenile = request.GET.get("yenile") == "1"
     baglam = {"kategori": kategori_kaydi, "bakiye": _bakiye(request)}
     try:
-        baglam.update(
-            numarayi_sorgula(
-                kategori_kaydi,
-                request.GET.get("hedef", ""),
-                request.user,
-                yenile=request.GET.get("yenile") == "1",
-            )
-        )
+        baglam.update(numarayi_sorgula(kategori_kaydi, hedef, request.user, yenile=yenile))
+    except SorguBekleniyor:
+        parametreler = {"hedef": hedef, **({"yenile": "1"} if yenile else {})}
+        baglam["yoklama_adresi"] = f"{kategori_kaydi.sorgu_url}?{urlencode(parametreler)}"
     except SorguHatasi as hata:
         baglam["hata"] = str(hata)
     return render(request, "kontor/parca_sorgu.html", baglam)

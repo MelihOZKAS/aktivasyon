@@ -277,7 +277,7 @@ class FaturaFiyatGrubuAdmin(ModelAdmin):
 @admin.register(Robot)
 class RobotAdmin(ModelAdmin):
     list_display = (
-        "ad", "durum_gosterimi", "oturum_gosterimi", "mesai_gosterimi", "son_nabiz", "aktif",
+        "ad", "durum_gosterimi", "oturum_gosterimi", "isler_gosterimi", "mesai_gosterimi", "son_nabiz", "aktif",
         "anahtar_durumu", "anahtar_dugmesi",
     )
     list_editable = ("aktif",)
@@ -295,6 +295,13 @@ class RobotAdmin(ModelAdmin):
         if obj.oturum_canli:
             return _soluk("canlı")
         return format_html('<b style="color:#D42046">düştü — laptopta giris.bat</b>')
+
+    @display(description="İşler")
+    def isler_gosterimi(self, obj):
+        # Robot iş isterken söyler; eski sürüm yalnızca fatura yapar.
+        if obj.paket_sorgusu:
+            return "Fatura · Paket"
+        return format_html('Fatura <span style="color:{}">· paket için robotu güncelle</span>', GRI)
 
     @display(description="Çalışma saatleri")
     def mesai_gosterimi(self, obj):

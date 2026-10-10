@@ -1,6 +1,8 @@
 """Sorgu robotunun kapısı. Sözleşme: znetfaturasorgu/DJANGO_API.md.
 
-Robot laptopta çalışır ve **bize sorar** (pull): laptop dışarı port açmaz.
+Robot laptopta ya da Windows sunucuda çalışır ve **bize sorar** (pull):
+robotun makinesi dışarı port açmaz. Aynı kapıdan iki iş verilir: fatura
+sorgusu ve kontörün aboneye özel paket sorgusu (`tur`).
 Her istek `Authorization: Bearer <anahtar>` taşır; anahtar robotun kaydında
 yalnızca özetiyle durur. Her doğrulanmış istek nabız sayılır — nabız ucu
 çökse de robot çevrimiçi görünür.
@@ -14,7 +16,8 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from apps.fatura.models import Robot, anahtar_ozeti
-from apps.fatura.services import is_ver, katalog_yaz, nabiz, sonuc_yaz
+from apps.fatura.services import katalog_yaz, nabiz, siradaki_is, sonuc_yaz
+from apps.kontor.sorgu import kontorbizde
 
 
 def _robot(request):
@@ -54,16 +57,29 @@ def _govde(request):
 
 @_robot_gerekli("GET")
 def is_(request, robot):
-    sorgu = is_ver(robot)
-    if sorgu is None:
+    # Robot hangi işleri yapabildiğini her istekte söyler (`isler=fatura,paket`).
+    # Eski sürüm söylemez: ona paket işi verilmez, paket için çevrimiçi sayılmaz.
+    paket = "paket" in request.GET.get("isler", "").split(",")
+    if robot.paket_sorgusu != paket:
+        Robot.objects.filter(pk=robot.pk).update(paket_sorgusu=paket)
+    sira = siradaki_is(robot, paket=paket)
+    if sira is None:
         return JsonResponse({"var": False})
+    tur, kayit = sira
+    if tur == "paket":
+        return JsonResponse({
+            "var": True,
+            "tur": "paket",
+            "talep": {"talep_id": kayit.pk, "numara": kayit.numara, "operator": kayit.operator},
+        })
     return JsonResponse({
         "var": True,
+        "tur": "fatura",
         "talep": {
-            "talep_id": sorgu.pk,
-            "kurum_id": sorgu.kurum.kod,
-            "kurum_adi": sorgu.kurum.ad,
-            "numara": sorgu.numara,
+            "talep_id": kayit.pk,
+            "kurum_id": kayit.kurum.kod,
+            "kurum_adi": kayit.kurum.ad,
+            "numara": kayit.numara,
         },
     })
 
@@ -73,10 +89,12 @@ def sonuc(request, robot):
     veri = _govde(request)
     if veri is None or not str(veri.get("talep_id", "")).isdigit():
         return JsonResponse({"hata": "talep_id gerekli"}, status=400)
+    # Talep numaraları kuyruk başınadır; tür yoksa (eski robot) fatura.
+    yaz = kontorbizde.sonuc_yaz if veri.get("tur") == "paket" else sonuc_yaz
     if veri.get("basarisiz"):
-        sonuc_yaz(robot, int(veri["talep_id"]), hata=str(veri.get("hata") or "robot hatası"))
+        yaz(robot, int(veri["talep_id"]), hata=str(veri.get("hata") or "robot hatası"))
     else:
-        sonuc_yaz(robot, int(veri["talep_id"]), veri=veri.get("veri") or {})
+        yaz(robot, int(veri["talep_id"]), veri=veri.get("veri") or {})
     return JsonResponse({"ok": True})
 
 

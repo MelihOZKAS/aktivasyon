@@ -642,6 +642,35 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   + kod başına tekildir. `0020` düz `13239` koduyla açılmış eski kayıtları
   temizledi (eşi varsa birleştirdi, yoksa kodu yeni biçime çevirdi).
   Ucuz alternatif (eski `Sorgu.php` akışı) yukarıda: gönderim planı.
+  · **Turkcell ve Türk Telekom sorgusunu fatura robotu yapar**
+  (`sorgu/kontorbizde.py`, `RobotSorgusu`; menüde Kontör → Robot
+  Sorguları). İkisinin bizim kullanabileceğimiz açık sorgusu yok;
+  sağlayıcının kontör sayfası numarayı yazınca operatörü bulur, "ABONEYE
+  ÖZEL PAKETLERİ SORGULA" paketleri listeler. **Tek robot iki işi de
+  yapar**, aynı kapıdan (`/fatura/robot/is/`, `tur`): her istekte tek iş,
+  iki kuyrukta da iş varsa önce açılan (`fatura.services.siradaki_is`).
+  Paket işi yalnızca yapabildiğini söyleyen robota gider (`isler=fatura,paket`
+  → `Robot.paket_sorgusu`; eski sürüm yalnızca fatura alır, panelde "İşler"
+  sütunu söyler). **Kaynak operatör başınadır** (`kontorbizde-turkcell`,
+  `kontorbizde-avea`); robot sayfanın bulduğu operatörü (`#giz_operator`)
+  işin operatörüyle karşılaştırır, tutmazsa **sorgulamaz** — bayi "bu
+  numara Turkcell hattı" görür, başka operatörün paketleri yanlış kategoriyle
+  Operatörde Görülen'e düşmez (robot operatörü okuyamazsa paketlerin
+  üstündeki operatöre Django bakar). Paket kodu `yukle_onay(...)`'ın
+  dördüncü değeridir ("8249866.00" → "8249866"). Dönen bütün paketler
+  Operatörde Görülen'e işlenir; içerik (DK, GB, SMS, gün; kutunun `data-*`'ı,
+  yoksa açıklama) de yazılır ve **Kataloğa ekle paketi içeriğiyle açar** —
+  ucuz alternatif hesabı bu alanlara bakıyor. **Cevap istek içinde
+  beklenmez:** kaynak işi kuyruğa koyup `SorguBekleniyor` yükseltir (bir
+  `SorguHatasi`; onu tanımayan yer sorguyu yapılamamış sayar, satış sürer).
+  Bayi kutusu "sorgulanıyor" der ve 2 sn'de bir aynı adresi ister; gönderim
+  planı işlemi **sırada** bırakır (hiçbir şey gönderilmez), işçinin ya da
+  bayi sayfasının sonraki turu yeniden bakar, `PLAN_BEKLEMESI` (60 sn)
+  dolunca ana paket gider. Robot kapalıysa iş açılmaz, sebep (çalışma
+  saatleri) yazılır, plan beklemez. **Boş liste hata sayılır:**
+  ayrıştırılamayan bir cevap "paket yok" diye okunsaydı plan ana paketi de
+  numarada yok sayıp her satışı iptal ederdi. Robot hata anında sayfanın
+  görüntüsünü ve HTML'ini kendi `kayitlar/` klasörüne yazar (depoya girmez).
 - **Fatura ödeme ayrı bir bölümdür** (`apps/fatura`, `/fatura/…`, menüde
   Oyun & Pin'in altında). Akış: kurum seç → numara → sorgu → fatura seç →
   öde. Sağlayıcının (Kontorbizde) fatura API'si **yok**; sorguyu laptopta
@@ -652,7 +681,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   de otomatikleştirilmez — oturum düşünce yönetici `giris.bat` ile elle
   girer. Sözleşme `znetfaturasorgu/DJANGO_API.md`.
   · **Robot bize sorar (pull)**, boşken 5 sn'de bir (`ayar.json` →
-  `aralik_sn`); iş varsa beklemeden sıradakine geçer. Her doğrulanmış istek
+  `aralik_sn`); iş varsa beklemeden sıradakine geçer. Robotun makinesi
+  sabit IP'li bir Windows sunucu olsa da yön değişmez: bizim robota
+  gitmemiz orada port, HTTPS ve kimlik doğrulamalı bir servis demek, sorgu
+  birkaç saniye sürdüğü için de bayinin isteği gunicorn işçisini o kadar
+  tutardı (üç işçi var). Hız gerekiyorsa `aralik_sn` düşürülür. Her doğrulanmış istek
   nabız sayılır, ayrı nabız yalnızca durum değişince ya da dakikada bir
   gider; boşta robot başına dakikada ~13 istek. Kontorbizde'ye yalnızca
   bayi sorgu yapınca gidilir. Kurum listesi (`kurumlar.json`, id → token)

@@ -26,7 +26,7 @@ echo [3/3] Chromium tarayicisi iniyor (biraz surebilir)...
 python -m playwright install chromium || goto hata
 
 echo.
-echo Kurulum tamam. Simdi calistir.bat ile baslat.
+echo Kurulum tamam. Simdi giris.bat ile siteye gir, sonra isci.bat ile baslat.
 pause
 exit /b 0
 

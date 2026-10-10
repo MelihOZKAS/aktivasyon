@@ -232,6 +232,40 @@ class RobotApiTestleri(Temel):
         self.assertFalse(Kurum.objects.get(kod="turkcell").aktif)   # yönetim bakmadan açılmaz
 
 
+    def test_paket_isi_yalnizca_paket_yapan_robota_once_gelen_once(self):
+        from apps.kontor.models import RobotSorgusu, RobotSorgusuDurumu
+
+        paket_isi = RobotSorgusu.objects.create(numara="5050488485", operator="avea")
+        # Eski sürüm robot (isler yok) paket işi almaz, paket için hazır sayılmaz.
+        self.assertEqual(self.iste("is").json(), {"var": False})
+        self.robot.refresh_from_db()
+        self.assertFalse(self.robot.paket_sorgusu)
+
+        adres = reverse("fatura:robot-is") + "?isler=fatura,paket"
+        baslik = {"HTTP_AUTHORIZATION": f"Bearer {self.anahtar}"}
+        sorgu = sorgu_baslat(self.bayi, self.vodafone, "5332590138")
+        Sorgu.objects.filter(pk=sorgu.pk).update(olusturma_tarihi=timezone.now() - timedelta(seconds=5))
+        # Fatura sorgusu önce açıldı: önce o.
+        self.assertEqual(self.client.get(adres, **baslik).json()["tur"], "fatura")
+        cevap = self.client.get(adres, **baslik).json()
+        self.assertEqual(cevap, {
+            "var": True, "tur": "paket",
+            "talep": {"talep_id": paket_isi.pk, "numara": "5050488485", "operator": "avea"},
+        })
+        self.robot.refresh_from_db()
+        self.assertTrue(self.robot.paket_sorgusu)
+
+        veri = {"operator": "Avea", "paketler": [{"kod": "1744.00", "ad": "60 GB", "fiyat": "1549.00"}]}
+        self.iste("sonuc", {"tur": "paket", "talep_id": paket_isi.pk, "veri": veri})
+        paket_isi.refresh_from_db()
+        self.assertEqual(paket_isi.durum, RobotSorgusuDurumu.TAMAM)
+        self.assertEqual(paket_isi.paketler[0]["kod"], "1744")
+        # Türsüz sonuç (eski robot) fatura kuyruğuna yazılır, paket işine dokunmaz.
+        self.iste("sonuc", {"talep_id": sorgu.pk, "veri": ROBOT_VERISI})
+        sorgu.refresh_from_db()
+        self.assertEqual(sorgu.durum, SorguDurumu.TAMAM)
+
+
 class OdemeTestleri(Temel):
     def test_tutar_sorgunun_kaydindan_hizmet_bedeli_eklenir(self):
         sorgu = self.tamam_sorgu()

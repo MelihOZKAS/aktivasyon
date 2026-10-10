@@ -800,6 +800,12 @@ class GorulenPaket(models.Model):
         help_text="Fiyat değiştiyse bir önceki değer.",
     )
     fiyat_degisme = models.DateTimeField("Fiyat Değişti", null=True, blank=True)
+    # İçerik kaynağın söylediğidir (robot sorgusu söyler, Vodafone söylemez);
+    # Kataloğa ekle paketi bununla açar, yönetici DK/GB'yi elle yazmasın.
+    dakika = models.PositiveIntegerField("Dakika", default=0)
+    internet_mb = models.PositiveIntegerField("İnternet (MB)", default=0)
+    sms = models.PositiveIntegerField("SMS", default=0)
+    gun = models.PositiveIntegerField("Gün", default=0)
     ilk_gorulme = models.DateTimeField("İlk Görülme", auto_now_add=True)
     son_gorulme = models.DateTimeField("Son Görülme")
     yok_say = models.BooleanField(
@@ -823,6 +829,65 @@ class GorulenPaket(models.Model):
         if self.kategori_id is None:
             return None
         return Paket.objects.filter(kategori_id=self.kategori_id, kod=self.kod).first()
+
+
+class RobotSorgusuDurumu(models.TextChoices):
+    BEKLIYOR = "bekliyor", "Sırada"
+    SORGULANIYOR = "sorgulaniyor", "Sorgulanıyor"
+    TAMAM = "tamam", "Tamamlandı"
+    HATA = "hata", "Sorgulanamadı"
+
+
+class RobotSorgusu(ZamanDamgali):
+    """Robota verilen numara sorgusu: aboneye özel paketler.
+
+    Fatura sorgusunu yapan robot (`fatura.Robot`, `znetfaturasorgu/`) bunu
+    da yapar: sağlayıcının kontör sayfasında numarayı yazıp "aboneye özel
+    paketleri sorgula"ya basar, çıkan paketleri döndürür. Kuyruk fatura
+    sorgusununkiyle aynı düzendedir — robot sorar, iş alır, sonucu yazar.
+    Kaynak `apps/kontor/sorgu/kontorbizde.py`; kayıt yönetimin "robot ne
+    dedi" sorusu için durur, bayiye ve plana giden sonuç önbellektedir.
+    """
+
+    numara = models.CharField("Numara", max_length=10)
+    # Beklenen operatör (protokol adı: turkcell, avea). Sayfa numaranın
+    # operatörünü kendisi bulur; tutmazsa (numara taşınmış) robot sorgulamaz.
+    operator = models.CharField("Operatör", max_length=20)
+    durum = models.CharField(
+        "Durum", max_length=20, choices=RobotSorgusuDurumu.choices, default=RobotSorgusuDurumu.BEKLIYOR
+    )
+    robot = models.ForeignKey(
+        "fatura.Robot",
+        verbose_name="Robot",
+        related_name="paket_sorgulari",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    alinma_tarihi = models.DateTimeField("Robot Aldı", null=True, blank=True)
+    sonuc_tarihi = models.DateTimeField("Sonuç", null=True, blank=True)
+    sonuc = models.JSONField("Sonuç", default=dict, blank=True)
+    mesaj = models.CharField("Mesaj", max_length=255, blank=True)
+
+    class Meta:
+        verbose_name = "Robot Paket Sorgusu"
+        verbose_name_plural = "Robot Paket Sorguları"
+        ordering = ["-olusturma_tarihi"]
+        indexes = [
+            models.Index(fields=["durum", "olusturma_tarihi"]),
+            models.Index(fields=["numara", "-olusturma_tarihi"]),
+        ]
+
+    def __str__(self):
+        return f"{self.numara} · {self.get_durum_display()}"
+
+    @property
+    def acik(self):
+        return self.durum in (RobotSorgusuDurumu.BEKLIYOR, RobotSorgusuDurumu.SORGULANIYOR)
+
+    @property
+    def paketler(self):
+        return list((self.sonuc or {}).get("paketler") or [])
 
 
 class IslemDurumu(models.TextChoices):

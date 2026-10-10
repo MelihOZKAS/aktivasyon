@@ -343,6 +343,11 @@ def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
     }
 
 
+# Kaynağın söylediği paket içeriği; Kataloğa ekle paketi bununla açar.
+# Vodafone söylemez (0 kalır), robotun sorgusu söyler.
+ICERIK_ALANLARI = ("dakika", "internet_mb", "sms", "gun")
+
+
 def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
     """Sorguda görülen paketleri takip listesine işler; hata sorguyu düşürmez.
 
@@ -376,6 +381,7 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
                         aciklama=veri.aciklama or "",
                         fiyat=veri.fiyat,
                         son_gorulme=simdi,
+                        **{alan: getattr(veri, alan, 0) or 0 for alan in ICERIK_ALANLARI},
                     )
                 )
                 continue
@@ -387,7 +393,8 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
                     degisenler.append(gorulen)
                 gorulen.fiyat = veri.fiyat
                 degisti = True
-            for alan, deger in (("ad", (veri.ad or "")[:200]), ("aciklama", veri.aciklama or "")):
+            icerik = [(alan, getattr(veri, alan, 0) or 0) for alan in ICERIK_ALANLARI]
+            for alan, deger in (("ad", (veri.ad or "")[:200]), ("aciklama", veri.aciklama or ""), *icerik):
                 if deger and deger != getattr(gorulen, alan):
                     setattr(gorulen, alan, deger)
                     degisti = True
@@ -406,7 +413,10 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
             if guncellenecek:
                 GorulenPaket.objects.bulk_update(
                     guncellenecek,
-                    ["fiyat", "onceki_fiyat", "fiyat_degisme", "ad", "aciklama", "kategori", "son_gorulme"],
+                    [
+                        "fiyat", "onceki_fiyat", "fiyat_degisme", "ad", "aciklama", "kategori", "son_gorulme",
+                        *ICERIK_ALANLARI,
+                    ],
                 )
     except Exception:
         logger.exception("Görülen paketler yazılamadı (%s)", kaynak_kodu)
@@ -482,6 +492,8 @@ def gorulen_paketi_kataloga_ekle(gorulen):
             "aciklama": gorulen.aciklama[:255],
             # Operatörün fiyatı müşterinin ödeyeceğidir: tavsiye olarak gelir.
             "tavsiye_fiyati": gorulen.fiyat,
+            # İçerik sorgu söylediyse dolu gelir; ucuz alternatif hesabı buna bakar.
+            **{alan: getattr(gorulen, alan) for alan in ICERIK_ALANLARI},
         },
     )
 
@@ -674,6 +686,12 @@ def bekleyenleri_isle():
     return len(pkler)
 
 
+# Gönderim öncesi sorgunun cevabı beklenen kaynakta (robot) işlem en çok
+# bu kadar sırada bekler; cevap gelmezse ana paket gönderilir — sorgu satışı
+# durdurmaz. Robotun kendi sınırları (almadı 30 sn, yazmadı 60 sn) bundan
+# önce de düşürebilir.
+PLAN_BEKLEMESI = timedelta(seconds=60)
+
 PAKET_YOK_MESAJI = (
     "Bu numara bu paketi şu an alamıyor (vergi borcu ya da TL yüklemesi gerekebilir). "
     "Tutar iade edildi."
@@ -686,12 +704,14 @@ def _plani_cikar(islem):
     Kategoride "göndermeden önce paket sorgusu" kapalıysa, sorgu kaynağı
     yoksa, kategori tam kontörse (alternatifi olmaz, `Kategori.sorgulanir`),
     paket "alternatif yapılmasın"sa ya da sorgu hata verirse plan
-    yalnızca ana pakettir — sorgu satışı durdurmaz. Sorgu
+    yalnızca ana pakettir — sorgu satışı durdurmaz. Robot henüz
+    cevaplamadıysa `SorguBekleniyor` geçer (işlem sırada bekler);
+    `PLAN_BEKLEMESI` dolunca beklenmez, ana paket gider. Sorgu
     başarılı ama ana paket de hiçbir alternatif de listede yoksa plan boştur:
     işlem sağlayıcıya hiç gitmeden iptal edilir (eski sistemde de öyleydi;
     boşuna gönderim ve ret beklemesi olmaz).
     """
-    from apps.kontor.sorgu import SorguHatasi
+    from apps.kontor.sorgu import SorguBekleniyor, SorguHatasi
 
     paket = islem.paket
     if paket is None:
@@ -706,6 +726,11 @@ def _plani_cikar(islem):
         return [paket.pk]
     try:
         kayit = _kaynaga_sor(kategori, islem.hedef)
+    except SorguBekleniyor:
+        if timezone.now() - islem.olusturma_tarihi < PLAN_BEKLEMESI:
+            raise
+        logger.warning("Gönderim öncesi sorgunun cevabı gelmedi (%s); ana paket gidiyor.", islem.pk)
+        return [paket.pk]
     except SorguHatasi as hata:
         logger.warning("Gönderim öncesi sorgu yapılamadı (%s): %s", islem.pk, hata)
         return [paket.pk]
@@ -740,7 +765,14 @@ def _siradakine_gonder(islem, son_ret=""):
         return
 
     if islem.plan is None:
-        islem.plan = _plani_cikar(islem)
+        from apps.kontor.sorgu import SorguBekleniyor
+
+        try:
+            islem.plan = _plani_cikar(islem)
+        except SorguBekleniyor:
+            # Robot numarayı sorguluyor: işlem sırada kalır, işçinin ya da
+            # bayinin sayfasının sonraki turu yeniden bakar. Hiçbir şey gönderilmedi.
+            return
         islem.save(update_fields=["plan", "guncelleme_tarihi"])
         if not islem.plan and islem.paket_id is not None:
             _iptal_et(islem, PAKET_YOK_MESAJI)

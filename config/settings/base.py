@@ -399,6 +399,8 @@ UNFOLD = {
                         "badge": "apps.rozetler.yeni_kontor_paketleri",
                     },
                     {"title": "Kategoriler", "icon": "category", "link": "/yonetim/kontor/kategori/"},
+                    # Robotun aboneye özel paket sorguları (Turkcell, Türk Telekom); robot Fatura altında.
+                    {"title": "Robot Sorguları", "icon": "smart_toy", "link": "/yonetim/kontor/robotsorgusu/"},
                     {"title": "Sağlayıcılar", "icon": "hub", "link": "/yonetim/kontor/saglayici/"},
                     {
                         "title": "Bayiye Özel Sağlayıcı",

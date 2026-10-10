@@ -46,6 +46,8 @@ from apps.kontor.models import (
     Kategori,
     Paket,
     PaketFiyati,
+    RobotSorgusu,
+    RobotSorgusuDurumu,
     Rota,
     Saglayici,
 )
@@ -479,8 +481,8 @@ class GorulenPaketAdmin(ModelAdmin):
     list_filter = (KatalogFiltresi, "kaynak", "kategori__operator", "kategori")
     search_fields = ("kod", "ad", "aciklama")
     readonly_fields = (
-        "kaynak", "kod", "kategori", "ad", "aciklama", "fiyat", "onceki_fiyat", "fiyat_degisme",
-        "ilk_gorulme", "son_gorulme",
+        "kaynak", "kod", "kategori", "ad", "aciklama", "dakika", "internet_mb", "sms", "gun", "fiyat",
+        "onceki_fiyat", "fiyat_degisme", "ilk_gorulme", "son_gorulme",
     )
     fields = readonly_fields + ("yok_say",)
     actions = ("yok_say_isaretle", "yok_saymayi_kaldir")
@@ -577,6 +579,55 @@ class GorulenPaketAdmin(ModelAdmin):
     def yok_saymayi_kaldir(self, request, queryset):
         adet = queryset.update(yok_say=False)
         self.message_user(request, f"{adet} paket yeniden takipte.", messages.SUCCESS)
+
+
+# -- Robotun paket sorguları ----------------------------------------------
+
+ROBOT_SORGUSU_RENKLERI = {
+    RobotSorgusuDurumu.BEKLIYOR: "#6F7B8F",
+    RobotSorgusuDurumu.SORGULANIYOR: "#B45309",
+    RobotSorgusuDurumu.TAMAM: "#0F8A4D",
+    RobotSorgusuDurumu.HATA: "#D42046",
+}
+
+
+@admin.register(RobotSorgusu)
+class RobotSorgusuAdmin(ModelAdmin):
+    """Robotun yaptığı aboneye özel paket sorguları; yalnızca okunur.
+
+    "Bayi sorgulanamadı görüyor" şikâyetinde bakılacak yer: robotun kendi
+    hatası (oturum düştü, sayfa açılmadı) bayiye gösterilmez, burada yazar.
+    """
+
+    list_display = ("olusturma_tarihi", "numara", "operator", "durum_gosterimi", "sonuc_ozeti", "robot")
+    list_filter = ("durum", "operator", "robot", ("olusturma_tarihi", GunAraligiFiltresi))
+    search_fields = ("numara",)
+    list_per_page = 50
+    readonly_fields = [f.name for f in RobotSorgusu._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("robot")
+
+    @display(description="Durum", ordering="durum")
+    def durum_gosterimi(self, obj):
+        return _rozet(obj.get_durum_display(), ROBOT_SORGUSU_RENKLERI.get(obj.durum, "#6F7B8F"))
+
+    @display(description="Sonuç")
+    def sonuc_ozeti(self, obj):
+        if obj.durum == RobotSorgusuDurumu.TAMAM:
+            return f"{len(obj.paketler)} paket"
+        robot_hatasi = (obj.sonuc or {}).get("robot_hatasi")
+        if robot_hatasi:
+            return format_html(
+                '{}<br><span style="color:#6F7B8F;font-size:.7rem">robot: {}</span>', obj.mesaj, robot_hatasi
+            )
+        return obj.mesaj or "—"
 
 
 # -- Kategori -------------------------------------------------------------

@@ -5,9 +5,22 @@
   bizim satmadığımız paketler bayiye gösterilmez — alamayacağı paketin
   listesi işine yaramıyordu; yönetim onları Operatörde Görülen'de görür.
   Hata satışı durdurmaz: aşağıdaki paket listesi yine seçilebilir.
+
+  Kaynak robotsa (aboneye özel paketler) cevap birkaç saniye sürer: kutu
+  "sorgulanıyor" der ve 2 sn'de bir kendini yeniler; sonuç gelince hx-
+  öznitelikleri düşer, yoklama durur — fatura sorgusundaki kutunun aynısı.
 {% endcomment %}
-<div id="sorgu-sonucu" class="mb-5">
-  {% if hata %}
+<div id="sorgu-sonucu" class="mb-5"
+     {% if yoklama_adresi %}hx-get="{{ yoklama_adresi }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  {% if yoklama_adresi %}
+  <div class="sim yuzey rounded-kart border border-cizgi p-4">
+    <p class="flex items-center gap-2 text-sm font-semibold">
+      <span class="gonderim-sinyali" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      Numaraya özel paketler sorgulanıyor…
+    </p>
+    <p class="mt-1 text-xs text-soluk">Birkaç saniye sürer. Beklemeden aşağıdaki paketlerden de seçebilirsin.</p>
+  </div>
+  {% elif hata %}
   <div class="sim rounded-kart border border-uyari/40 bg-uyari/5 p-4 text-sm">
     <p class="font-semibold text-uyari">Sorgulanamadı</p>
     <p class="mt-1 text-murekkep-yumusak">{{ hata }} Aşağıdaki paketlerden yine seçebilirsin.</p>
