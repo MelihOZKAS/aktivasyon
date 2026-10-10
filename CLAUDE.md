@@ -717,6 +717,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   biri düzelince öbürü de; fatura satırı aracı alışla (sorgulu kurumda 0,
   sorgusuzda alışımız) ve müşteri fiyatıyla (`data-operator`) besler. Grup
   faturadan silinemez (kontör paket fiyatları da giderdi), kontörden silinir.
+  Fatura izni yalnızca fatura rakamını yazdırır; grubun adı ve **varsayılan**
+  işareti kontörle ortak olduğundan (varsayılanı değiştirmek grupsuz
+  bayilerin kontör fiyatını da değiştirir) faturanın sayfasında kontör grubu
+  iznine bağlıdır — izni olmayana form çizilmez, elle gönderilen istek 403;
+  faturadan grup eklemek de `kontor.add_fiyatgrubu` ister.
   Satırda **boş = o gruba satılmaz** (kontördeki gibi). Anlamı kurumun
   türüne göre: sorgulu kurumda fatura başına hizmet bedeli (bayi
   `sağlayıcı toplamı + bunu` öder; tutarı aynen geçirmek için **0** — en

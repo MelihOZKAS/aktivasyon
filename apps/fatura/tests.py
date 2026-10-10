@@ -613,6 +613,33 @@ class GrupFiyatTestleri(Temel):
             403,
         )
 
+    def test_yalnizca_fatura_izni_grubu_degistiremez_fiyat_yazar(self):
+        """Fatura izni fatura rakamını yazar; ortak grubun ayarı (varsayılan) kontörü de etkiler."""
+        from django.contrib.auth.models import Permission
+
+        from apps.fatura.models import GrupFiyati
+
+        personel = User.objects.create_user("faturaci", password="x", is_staff=True)
+        personel.user_permissions.add(
+            Permission.objects.get(codename="change_faturafiyatgrubu"),
+            Permission.objects.get(codename="view_faturafiyatgrubu"),
+            Permission.objects.get(codename="add_faturafiyatgrubu"),
+        )
+        self.client.force_login(personel)
+        adres = reverse("admin:fatura_faturafiyatgrubu_fiyatlar", args=[self.perakende.pk])
+        yanit = self.client.get(adres)
+        self.assertNotContains(yanit, 'name="_grup"')                 # grup formu yok
+        self.assertContains(yanit, 'name="fatura_%d"' % self.vodafone.pk)
+        self.client.post(adres, {f"fatura_{self.vodafone.pk}": "2"})
+        self.assertEqual(GrupFiyati.objects.get(kurum=self.vodafone, grup=self.perakende).tutar, TL("2.00"))
+        # Elle gönderilen grup ayarı reddedilir; varsayılan yerinde kalır.
+        cevap = self.client.post(adres, {"_grup": "1", "ad": "Perakende", "varsayilan": ""})
+        self.assertEqual(cevap.status_code, 403)
+        self.perakende.refresh_from_db()
+        self.assertTrue(self.perakende.varsayilan)
+        # Faturadan grup eklemek de kontör izni ister.
+        self.assertEqual(self.client.get(reverse("admin:fatura_faturafiyatgrubu_add")).status_code, 403)
+
     def test_izinsiz_personel_grup_sayfasini_acamaz(self):
         self.client.force_login(User.objects.create_user("personel", password="x", is_staff=True))
         for ad in ("kontor_fiyatgrubu_paketler", "fatura_faturafiyatgrubu_fiyatlar"):

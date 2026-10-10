@@ -18,6 +18,7 @@
 {% include "admin/parca_grup_fiyat_stil.html" %}
 
 <div class="space-y-4">
+  {% if grup_duzenlenir %}
   <form method="post" class="rounded-default border border-base-200 bg-white p-4">
     {% csrf_token %}
     <div class="flex flex-wrap items-end gap-3">
@@ -37,6 +38,17 @@
     {% for hata in grup_formu.non_field_errors %}<p style="color:#D42046;font-size:.8rem">{{ hata }}</p>{% endfor %}
     <p class="gf-soluk mt-2">Bu grup kontörle ortaktır (aynı Perakende, Toptan…); bayi cüzdanındaki grubu ikisinde de öder.</p>
   </form>
+  {% else %}
+  {% comment %}
+    Grup ayarı kontörle ortak ve kontör fiyatını da etkiler; kontör grubu
+    izni olmayan yalnızca okur.
+  {% endcomment %}
+  <div class="rounded-default border border-base-200 bg-white p-4 text-sm">
+    <b>{{ grup.ad }}</b>{% if grup.varsayilan %} <span class="gf-soluk">(varsayılan grup)</span>{% endif %}
+    {% if grup.aciklama %}<span class="gf-soluk"> · {{ grup.aciklama }}</span>{% endif %}
+    <p class="gf-soluk mt-1">Grup kontörle ortaktır; adını ve varsayılanını kontör fiyat grubu yetkisi olan değiştirir.</p>
+  </div>
+  {% endif %}
 
   <p class="text-sm" style="max-width:56rem">
     Her kurumun <b>Bayi Satış Tutarı</b>'nı yaz; bu gruptaki bayi o rakamı öder. Boş bırakılan kurum bu gruba

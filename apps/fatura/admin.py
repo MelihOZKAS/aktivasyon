@@ -176,6 +176,11 @@ class FaturaFiyatGrubuAdmin(ModelAdmin):
         # Grup kontörle ortak: buradan silinseydi kontör paket fiyatları da giderdi.
         return False
 
+    def has_add_permission(self, request):
+        # Yeni grup (hele "varsayılan" işaretliyse) kontör fiyatlarını da etkiler:
+        # fatura izni yetmez, kontör grubu ekleme izni de gerekir.
+        return super().has_add_permission(request) and request.user.has_perm("kontor.add_fiyatgrubu")
+
     def change_view(self, request, object_id, form_url="", extra_context=None):
         """Grubun sayfası fatura fiyatlarıdır; ayarlar da o sayfanın üstünde durur."""
         return redirect("admin:fatura_faturafiyatgrubu_fiyatlar", object_id)
@@ -218,6 +223,13 @@ class FaturaFiyatGrubuAdmin(ModelAdmin):
 
         pasif = request.GET.get("pasif") == "1"
         liste = fatura_fiyat.kurumlar(pasif)
+        # Grubun adı ve "varsayılan" işareti kontörle ortaktır: varsayılanı
+        # değiştirmek grubu seçilmemiş bayilerin kontör fiyatını da değiştirir.
+        # Fatura izni yalnızca fatura rakamlarını yazdırır; grup ayarı kontör
+        # grubu izni ister (form çizilmez, elle gönderilen istek reddedilir).
+        grup_duzenlenir = request.user.has_perm("kontor.change_fiyatgrubu")
+        if "_grup" in request.POST and not grup_duzenlenir:
+            raise PermissionDenied
 
         GrupFormu = forms.modelform_factory(
             FaturaFiyatGrubu,
@@ -252,6 +264,7 @@ class FaturaFiyatGrubuAdmin(ModelAdmin):
                 "opts": self.model._meta,
                 "grup": grup,
                 "grup_formu": grup_formu,
+                "grup_duzenlenir": grup_duzenlenir,
                 "satirlar": fatura_fiyat.satirlar(grup, liste, request.POST if fiyat_postu else None, hatalar),
                 "pasif": pasif,
             },
