@@ -789,7 +789,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   faturadan grup eklemek de `kontor.add_fiyatgrubu` ister.
   Satırda **boş = o gruba satılmaz** (kontördeki gibi). Anlamı kurumun
   türüne göre: sorgulu kurumda fatura başına hizmet bedeli (bayi
-  `sağlayıcı toplamı + bunu` öder; tutarı aynen geçirmek için **0** — en
+  `fatura bedeli + bunu` öder; tutarı aynen geçirmek için **0** — en
   hızlısı "hepsini işaretle → Alış + ₺ → 0"), sorgusuz kalemde (HGS 100 TL)
   net bayi fiyatı (0 yazılamaz). **Hepsine aynı bedel** faturaya özgüdür:
   grubun sayfasının üstündeki tek kutu bütün sorgulu kurumlara aynı fatura
@@ -800,8 +800,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kendi `hizmet_bedeli` / `bayi_fiyati`'sı geçerli, paketin `satis_fiyati`
   gibi — alanlar yalnızca o durumda kurum formunda görünür. **Müşteri
   fiyatı** kurumun tek `tavsiye` rakamıdır, gruba göre değişmez (kontördeki
-  tavsiye satış gibi, Kurumlar listesinde satırdan): sorgulu `sağlayıcı
-  toplamı + tavsiye`, sorgusuz `tavsiye`. Kurum sayfası grup rakamlarını
+  tavsiye satış gibi, Kurumlar listesinde satırdan): sorgulu `fatura
+  bedeli + tavsiye`, sorgusuz `tavsiye`. **Taban faturanın kendi
+  bedelidir** (`services.fatura_tutari`), sağlayıcının "Toplam Tutar"ı
+  değil: o kendi işlem bedelini (20 ₺) ve G. hizmet bedelini katıyor. Bir
+  süre taban oydu; 487 ₺'lik fatura Perakende'de (+7,50) bayiye 514,50 ₺,
+  müşteriye (+20) 527 ₺ yazıyordu — yönetici "487'yi alacağız, hizmet
+  bedelini karıştırmayacağız" dedi (doğrusu 494,50 / 507). Karar ekranı
+  sağlayıcının toplamını yine ayrı sütunda gösterir. Kurum sayfası grup rakamlarını
   yalnızca okunur gösterir. Tek hesap `services.fiyat_grubu` /
   `hizmet_bedeli` / `sabit_fiyat`, görünürlük
   `Kurum.objects.bayiye_acik(grup)`. **Bu iki kez yanlış kuruldu:** önce

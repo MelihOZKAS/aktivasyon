@@ -228,18 +228,20 @@ class Kurum(ZamanDamgali):
         return temiz
 
     # -- Sorgulu kurumda fatura başına tutarlar -----------------------------
-    def bayi_tutari(self, saglayici_toplami, hizmet=None):
-        """Bayinin bir fatura için ödeyeceği: sağlayıcının toplamı + hizmet bedeli.
+    # Taban faturanın kendi bedelidir (`services.fatura_tutari`), sağlayıcının
+    # işlem bedeli katılmış "Toplam Tutar" değil.
+    def bayi_tutari(self, fatura_tutari, hizmet=None):
+        """Bayinin bir fatura için ödeyeceği: fatura bedeli + grubun hizmet bedeli.
 
         `hizmet` bayinin grubundaki rakamdır (`services.hizmet_bedeli`);
         verilmezse kurumun kendi hizmet bedeli (fiyat grubu yokken).
         """
         hizmet = self.hizmet_bedeli if hizmet is None else hizmet
-        return (Decimal(str(saglayici_toplami)) + hizmet).quantize(Decimal("0.01"))
+        return (Decimal(str(fatura_tutari)) + hizmet).quantize(Decimal("0.01"))
 
-    def musteri_tutari(self, saglayici_toplami):
-        """Müşteriye söylenecek: sağlayıcının toplamı + müşteriye ek. Gruba göre değişmez."""
-        return (Decimal(str(saglayici_toplami)) + (self.tavsiye or SIFIR)).quantize(Decimal("0.01"))
+    def musteri_tutari(self, fatura_tutari):
+        """Müşteriye söylenecek: fatura bedeli + müşteriye ek. Gruba göre değişmez."""
+        return (Decimal(str(fatura_tutari)) + (self.tavsiye or SIFIR)).quantize(Decimal("0.01"))
 
 
 class FaturaFiyatGrubu(FiyatGrubu):
@@ -469,7 +471,10 @@ class Odeme(ZamanDamgali):
     )
     saglayici_tutari = models.DecimalField(
         "Sağlayıcıya Ödenecek", max_digits=12, decimal_places=2, null=True, blank=True,
-        help_text="Yönetimin sağlayıcıda ödeyeceği toplam (sorgusuzda alışımız).",
+        help_text=(
+            "Sorgulu kurumda faturaların bedeli (sağlayıcının kendi işlem bedeli hariç); "
+            "sorgusuz kalemde alışımız."
+        ),
     )
     hizmet_bedeli = models.DecimalField("Hizmet Bedeli", max_digits=12, decimal_places=2, default=SIFIR)
     tavsiye_fiyati = models.DecimalField(

@@ -17,7 +17,7 @@
       {% if odeme.abone_adi %}<div><dt class="text-base-500">Abone</dt><dd class="font-medium">{{ odeme.abone_adi }}</dd></div>{% endif %}
       <div><dt class="text-base-500">Bayiden düşen</dt><dd class="font-bold">{{ odeme.siparis.tutar }} ₺</dd></div>
       {% if odeme.saglayici_tutari is not None %}
-      <div><dt class="text-base-500">Sağlayıcıya ödenecek</dt><dd class="font-bold">{{ odeme.saglayici_tutari }} ₺</dd></div>
+      <div><dt class="text-base-500">{% if odeme.faturalar %}Fatura bedeli{% else %}Alışımız{% endif %}</dt><dd class="font-bold">{{ odeme.saglayici_tutari }} ₺</dd></div>
       {% endif %}
       <div><dt class="text-base-500">Durum</dt><dd class="font-medium">{{ odeme.get_durum_display }}</dd></div>
     </dl>
@@ -27,7 +27,7 @@
       <table class="w-full text-sm">
         <thead><tr class="text-left text-base-500">
           <th class="py-1.5 pr-3">Fatura No</th><th class="py-1.5 pr-3">Son ödeme</th>
-          <th class="py-1.5 pr-3 text-right">Fatura</th><th class="py-1.5 pr-3 text-right">Sağlayıcı toplamı</th>
+          <th class="py-1.5 pr-3 text-right">Fatura</th><th class="py-1.5 pr-3 text-right">Sağlayıcı toplamı (işlem bedeli dahil)</th>
           <th class="py-1.5 text-right">Bayiden</th>
         </tr></thead>
         <tbody>

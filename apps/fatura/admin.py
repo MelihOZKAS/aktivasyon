@@ -484,8 +484,8 @@ class OdemeAdmin(ModelAdmin):
         if obj.saglayici_tutari is None:
             return obj.siparis.tutar
         return format_html(
-            '<b>{}</b><br><span style="color:{};font-size:.7rem">sağlayıcıya {}</span>',
-            obj.siparis.tutar, GRI, obj.saglayici_tutari,
+            '<b>{}</b><br><span style="color:{};font-size:.7rem">{} {}</span>',
+            obj.siparis.tutar, GRI, "fatura" if obj.faturalar else "alış", obj.saglayici_tutari,
         )
 
     @display(description="Durum", ordering="durum")

@@ -248,6 +248,19 @@ def _tutar(deger):
         return None
 
 
+def fatura_tutari(fatura):
+    """Faturanın kendi bedeli: bayinin ve müşterinin rakamı bunun üstüne kurulur.
+
+    Sağlayıcının "Toplam Tutar"ı kendi işlem bedelini (20 ₺) ve G. hizmet
+    bedelini katıyor. Bir süre taban oydu: 487 ₺'lik fatura Perakende'de
+    (+7,50) bayiye 514,50 ₺, müşteriye (+20) 527 ₺ yazıyordu. Yönetim: "487'yi
+    alacağız, hizmet bedelini karıştırmayacağız." Doğrusu 494,50 / 507.
+    Bedel okunamadıysa (eski kayıt) toplam kullanılır.
+    """
+    bedel = _tutar(fatura.get("fatura_bedeli"))
+    return bedel if bedel is not None and bedel > 0 else Decimal(fatura["toplam_tutar"])
+
+
 def vade_durumu(son_odeme_tarihi, bugun=None):
     """Son ödeme gününe göre "gecikmis" / "bugun" / "" (anlaşılamadıysa da "").
 
@@ -501,12 +514,12 @@ def odeme_baslat(bayi, sorgu, secilen, *, anahtar=None):
         for f in sorgu.faturalar:            # sorgudaki sırayla
             if f["fatura_no"] not in secilen:
                 continue
-            toplam = Decimal(f["toplam_tutar"])
-            bayi_tutari = kurum.bayi_tutari(toplam, hizmet)
+            bedel = fatura_tutari(f)
+            bayi_tutari = kurum.bayi_tutari(bedel, hizmet)
             kalemler.append({**f, "bayi_tutari": str(bayi_tutari)})
-            saglayici += toplam
+            saglayici += bedel
             bayi_toplam += bayi_tutari
-            musteri += kurum.musteri_tutari(toplam)
+            musteri += kurum.musteri_tutari(bedel)
 
         siparis = Siparis.objects.create(
             bayi=bayi,

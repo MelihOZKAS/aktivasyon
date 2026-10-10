@@ -270,12 +270,36 @@ class OdemeTestleri(Temel):
     def test_tutar_sorgunun_kaydindan_hizmet_bedeli_eklenir(self):
         sorgu = self.tamam_sorgu()
         odeme = odeme_baslat(self.bayi, sorgu, ["FD60950NCB9D53"])
-        # 410 sağlayıcı + 5 hizmet = 415; müşteriye 410 + 10 = 420 (gruptan bağımsız).
-        self.assertEqual(odeme.siparis.tutar, TL("415.00"))
-        self.assertEqual((odeme.saglayici_tutari, odeme.hizmet_bedeli, odeme.tavsiye_fiyati), (TL("410.00"), TL("5.00"), TL("420.00")))
-        self.assertEqual(self.bakiye(), TL("585.00"))
+        # Taban faturanın bedeli (390), sağlayıcının işlem bedelli toplamı (410) değil:
+        # 390 + 5 hizmet = 395; müşteriye 390 + 10 = 400 (gruptan bağımsız).
+        self.assertEqual(odeme.siparis.tutar, TL("395.00"))
+        self.assertEqual((odeme.saglayici_tutari, odeme.hizmet_bedeli, odeme.tavsiye_fiyati), (TL("390.00"), TL("5.00"), TL("400.00")))
+        self.assertEqual(self.bakiye(), TL("605.00"))
         self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
         self.assertEqual(odeme.faturalar[0]["odeme_token"], "tok1")
+
+    def test_saglayicinin_islem_bedeli_tabana_girmez(self):
+        """Canlıdaki örnek: fatura 487, sağlayıcının işlem bedeli 20 (toplam 507), grup +7,50, müşteriye +20."""
+        from apps.fatura.services import fatura_tutari
+
+        self.vodafone.hizmet_bedeli, self.vodafone.tavsiye = TL("7.50"), TL("20.00")
+        self.vodafone.save()
+        veri = {"faturalar": [{"fatura_no": "FD61051O8DFDFE", "son_odeme_tarihi": "20.10.2026",
+                               "fatura_bedeli_tl": 487.0, "g_hizmet_bedeli": 0.0, "islem_bedeli": 20.0,
+                               "toplam_tutar": 507.0}]}
+        sorgu = Sorgu.objects.create(bayi=self.bayi, kurum=self.vodafone, numara="5327114056",
+                                     durum=SorguDurumu.SORGULANIYOR)
+        sonuc_yaz(self.robot, sorgu.pk, veri=veri)
+        sorgu.refresh_from_db()
+        self.client.force_login(self.bayi)
+        yanit = self.client.get(sorgu.get_absolute_url())
+        self.assertContains(yanit, 'data-bayi="494.500000"')
+        self.assertContains(yanit, 'data-musteri="507.000000"')
+        odeme = odeme_baslat(self.bayi, sorgu, ["FD61051O8DFDFE"])
+        self.assertEqual((odeme.siparis.tutar, odeme.saglayici_tutari, odeme.hizmet_bedeli), (TL("494.50"), TL("487.00"), TL("7.50")))
+        self.assertEqual(odeme.tavsiye_fiyati, TL("507.00"))
+        # Bedel okunamamış eski kayıtta toplam kullanılır.
+        self.assertEqual(fatura_tutari({"fatura_bedeli": "", "toplam_tutar": "410.00"}), TL("410.00"))
 
     def test_ayni_fatura_iki_kez_odenmez_iptalden_sonra_odenir(self):
         sorgu = self.tamam_sorgu()
@@ -312,7 +336,7 @@ class OdemeTestleri(Temel):
         a = odeme_baslat(self.bayi, sorgu, ["FD60950NCB9D53"], anahtar="k1")
         b = odeme_baslat(self.bayi, sorgu, ["FD60950NCB9D53"], anahtar="k1")
         self.assertEqual(a.pk, b.pk)
-        self.assertEqual(self.bakiye(), TL("585.00"))
+        self.assertEqual(self.bakiye(), TL("605.00"))
 
     def test_sorgusuz_kalem_sabit_fiyatla_odenir_tekrar_korunur(self):
         odeme = sabit_odeme_baslat(self.bayi, self.hgs, "34abc123")
@@ -327,14 +351,14 @@ class OdemeTestleri(Temel):
         sorgu = self.tamam_sorgu()
         a = odeme_baslat(self.bayi, sorgu, ["FD60950NCB9D53"])
         b = odeme_baslat(self.bayi, sorgu, ["FD00000000002"])
-        self.assertEqual(self.bakiye(), TL("380.00"))   # 1000 - 415 - 205
+        self.assertEqual(self.bakiye(), TL("420.00"))   # 1000 - (390 + 5) - (180 + 5)
         odendi_isaretle(a, not_="Dekont 123")
         a.refresh_from_db()
         self.assertEqual((a.durum, a.siparis.durum), (OdemeDurumu.ODENDI, SiparisDurumu.TESLIM))
         iptal_et(b, sebep="Fatura kurumda kapanmış")
         b.refresh_from_db()
         self.assertEqual((b.durum, b.siparis.durum), (OdemeDurumu.IPTAL, SiparisDurumu.IPTAL))
-        self.assertEqual(self.bakiye(), TL("585.00"))   # yalnızca iptal edilen döndü
+        self.assertEqual(self.bakiye(), TL("605.00"))   # yalnızca iptal edilen döndü
         with self.assertRaises(KararVerilemez):
             iptal_et(a, sebep="geç")
         with self.assertRaises(KararVerilemez):
@@ -383,7 +407,7 @@ class EkranTestleri(Temel):
         )
         odeme = Odeme.objects.get()
         self.assertRedirects(yanit, odeme.get_absolute_url())
-        self.assertEqual(odeme.siparis.tutar, TL("415.00"))
+        self.assertEqual(odeme.siparis.tutar, TL("395.00"))
         self.assertContains(self.client.get(odeme.get_absolute_url()), "Ödeniyor")
         # Ödenen fatura yeniden seçilemez.
         self.assertContains(self.client.get(sorgu.get_absolute_url()), "ödendi / ödeniyor")
@@ -456,7 +480,7 @@ class YonetimTestleri(Temel):
         self.client.post(reverse("admin:fatura_odeme_karar", args=[b.pk]), {"karar": "iptal", "sebep": "Kapanmış"})
         b.refresh_from_db()
         self.assertEqual(b.durum, OdemeDurumu.IPTAL)
-        self.assertEqual(self.bakiye(), TL("585.00"))
+        self.assertEqual(self.bakiye(), TL("605.00"))
 
     def test_robot_anahtari_post_ile_uretilir_bir_kez_gosterilir(self):
         adres = reverse("admin:fatura_robot_anahtar", args=[self.robot.pk])
@@ -487,7 +511,7 @@ class YonetimTestleri(Temel):
         self.assertEqual(self.client.post(anahtar).status_code, 403)
         odeme.refresh_from_db()
         self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
-        self.assertEqual(self.bakiye(), TL("585.00"))
+        self.assertEqual(self.bakiye(), TL("605.00"))
         self.assertEqual(Robot.objects.get(pk=self.robot.pk).anahtar_ozeti, eski_ozet)
 
     def test_listeler_acilir(self):
@@ -590,8 +614,8 @@ class GrupFiyatTestleri(Temel):
 
     def test_grubundaki_fiyati_oder_musteri_fiyati_gruptan_bagimsiz(self):
         toptan = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD60950NCB9D53"])
-        self.assertEqual(toptan.siparis.tutar, TL("412.00"))      # 410 + Toptan 2
-        self.assertEqual(toptan.tavsiye_fiyati, TL("420.00"))     # 410 + müşteriye 10
+        self.assertEqual(toptan.siparis.tutar, TL("392.00"))      # fatura 390 + Toptan 2
+        self.assertEqual(toptan.tavsiye_fiyati, TL("400.00"))     # fatura 390 + müşteriye 10
         self.assertEqual(sabit_odeme_baslat(self.bayi, self.hgs, "34ABC123").siparis.tutar, TL("101.00"))
 
     def test_rakami_yazilmayan_gruba_satilmaz(self):
@@ -614,13 +638,13 @@ class GrupFiyatTestleri(Temel):
         GrupFiyati.objects.create(kurum=self.vodafone, grup=self.perakende, tutar=TL("0"))
         perakendeci = self.baska_bayi("5320000009", self.perakende)
         odeme = odeme_baslat(perakendeci, self.tamam_sorgu(numara="5332590199", bayi=perakendeci), ["FD60950NCB9D53"])
-        self.assertEqual(odeme.siparis.tutar, TL("410.00"))
+        self.assertEqual(odeme.siparis.tutar, TL("390.00"))
 
     def test_sorgu_ekrani_bayinin_grup_fiyatini_gosterir(self):
         self.client.force_login(self.bayi)
         yanit = self.client.get(self.tamam_sorgu().get_absolute_url())
-        self.assertContains(yanit, 'data-bayi="412.000000"')     # Toptan: 410 + 2
-        self.assertContains(yanit, 'data-musteri="420.000000"')  # müşteri: 410 + 10, gruptan bağımsız
+        self.assertContains(yanit, 'data-bayi="392.000000"')     # Toptan: fatura 390 + 2
+        self.assertContains(yanit, 'data-musteri="400.000000"')  # müşteri: 390 + 10, gruptan bağımsız
 
     def test_fatura_fiyati_faturanin_kendi_grup_sayfasindan_yazilir(self):
         from apps.fatura.models import GrupFiyati

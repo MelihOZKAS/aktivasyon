@@ -23,6 +23,7 @@ from apps.bayi.yetki import bayi_gerekli
 from apps.fatura.models import Kategori, Kurum, Odeme, Sorgu
 from apps.fatura.services import (
     ODEME_SURESI,
+    fatura_tutari,
     fiyat_grubu,
     grup_tutarlari,
     hizmet_bedeli,
@@ -172,11 +173,11 @@ def _sorgu_baglami(request, sorgu):
     # Sorgudan sonra bayinin grubundaki rakam silindiyse ödenemez tutar
     # gösterilmez; ekran "satışta değil" der (ödeme zaten reddeder).
     for f in sorgu.faturalar if hizmet is not None else []:
-        toplam = Decimal(f["toplam_tutar"])
+        bedel = fatura_tutari(f)
         satirlar.append({
             **f,
-            "bayi_tutari": kurum_kaydi.bayi_tutari(toplam, hizmet),
-            "musteri_tutari": kurum_kaydi.musteri_tutari(toplam),
+            "bayi_tutari": kurum_kaydi.bayi_tutari(bedel, hizmet),
+            "musteri_tutari": kurum_kaydi.musteri_tutari(bedel),
             "odendi": f["fatura_no"] in odenmis,
             "vade": vade_durumu(f.get("son_odeme_tarihi"), bugun),
         })
