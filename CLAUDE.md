@@ -667,14 +667,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dördüncü değeridir ("8249866.00" → "8249866"). Dönen bütün paketler
   Operatörde Görülen'e işlenir; içerik (DK, GB, SMS, gün; kutunun `data-*`'ı,
   yoksa açıklama) de yazılır ve **Kataloğa ekle paketi içeriğiyle açar** —
-  ucuz alternatif hesabı bu alanlara bakıyor. **Kod ve alış robotun
-  girdiği hesabındır:** Sorgu Robotu → Robotlar'da robota "Hesabı" (sağlayıcı,
-  `Robot.saglayici`) seçilir; Kataloğa ekle yeni paketi o sağlayıcıya
-  karşı site kodu ve robotun gördüğü alışla bağlı açar, yükleme onun
-  API'sine gider (`GorulenPaket.saglayici/saglayici_kodu/alis`). Var olan
-  paketin sırasına ve alışına dokunulmaz; hesap seçilmemişse paket
-  sağlayıcısız açılır (panel robot satırında "hesabı seçilmedi" der).
-  **Cevap istek içinde beklenmez:** kaynak işi kuyruğa koyup `SorguBekleniyor` yükseltir (bir
+  ucuz alternatif hesabı bu alanlara bakıyor. **Robot yalnızca sorgular:**
+  hangi paketin alınabileceğini söyler, yükleme her zaman paketin kendi
+  sağlayıcı sırasından (`Rota`) API'ye gider, sonucu oradan sorulur.
+  Vodafone'un sorgusu bizim sunucudan (`vodafone.py`), Turkcell ve Türk
+  Telekom'unki robottan; yüklemenin yolu üçünde de aynı. Bir süre robota
+  bir sağlayıcı hesabı bağlanıyor, Kataloğa ekle paketi o sağlayıcıya bağlı
+  açıyordu; yönetici "burada api seçmemize gerek yok" dedi — sorgunun
+  kaynağı yüklemenin nereye gideceğini belirlemez. `0026`/`fatura.0009`
+  alanları kaldırdı. **Cevap istek içinde beklenmez:** kaynak işi kuyruğa koyup `SorguBekleniyor` yükseltir (bir
   `SorguHatasi`; onu tanımayan yer sorguyu yapılamamış sayar, satış sürer).
   Bayi kutusu "sorgulanıyor" der ve 2 sn'de bir aynı adresi ister; gönderim
   planı işlemi **sırada** bırakır (hiçbir şey gönderilmez), işçinin ya da

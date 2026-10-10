@@ -302,8 +302,7 @@ class RobotAdmin(ModelAdmin):
         "anahtar_durumu", "anahtar_dugmesi",
     )
     list_editable = ("aktif",)
-    list_select_related = ("saglayici",)
-    fields = ("ad", "aktif", "saglayici", "son_nabiz")
+    fields = ("ad", "aktif", "son_nabiz")
     readonly_fields = ("son_nabiz",)
 
     @display(description="Durum")
@@ -321,12 +320,9 @@ class RobotAdmin(ModelAdmin):
     @display(description="İşler")
     def isler_gosterimi(self, obj):
         # Robot iş isterken söyler; eski sürüm yalnızca fatura yapar.
-        if not obj.paket_sorgusu:
-            return format_html('Fatura <span style="color:{}">· paket için robotu güncelle</span>', GRI)
-        if obj.saglayici_id is None:
-            # Hesap seçilmeden de sorgular; Kataloğa ekle paketi sağlayıcısız açar.
-            return format_html('Fatura · Paket<br><span style="color:#B45309">hesabı seçilmedi</span>')
-        return format_html('Fatura · Paket<br><span style="color:{}">hesap: {}</span>', GRI, obj.saglayici)
+        if obj.paket_sorgusu:
+            return "Fatura · Paket"
+        return format_html('Fatura <span style="color:{}">· paket için robotu güncelle</span>', GRI)
 
     @display(description="Çalışma saatleri")
     def mesai_gosterimi(self, obj):

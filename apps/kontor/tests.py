@@ -2164,36 +2164,16 @@ class RobotPaketSorgusuTestleri(Temel):
         self.client.get(self.adres, {"hedef": self.NUMARA})
         self.assertEqual(RobotSorgusu.objects.count(), 1)
 
-    def test_kataloga_ekle_icerigiyle_ve_robotun_hesabina_bagli_acar(self):
+    def test_kataloga_ekle_icerigiyle_acar_saglayiciya_baglamaz(self):
         from apps.kontor.services import gorulen_paketi_kataloga_ekle
 
-        self.robot.saglayici = self.iki
-        self.robot.save()
         self.client.get(self.adres, {"hedef": self.NUMARA})
         self.robot_cevaplar()
         self.client.get(self.adres, {"hedef": self.NUMARA})
-        gorulen = GorulenPaket.objects.get(kod="8249866")
-        self.assertEqual((gorulen.saglayici, gorulen.saglayici_kodu, gorulen.alis), (self.iki, "8249866", TL("190.00")))
-        paket, yeni = gorulen_paketi_kataloga_ekle(gorulen)
+        paket, yeni = gorulen_paketi_kataloga_ekle(GorulenPaket.objects.get(kod="8249866"))
         self.assertTrue(yeni)
         self.assertEqual((paket.dakika, paket.internet_mb, paket.gun, paket.tavsiye_fiyati), (1000, 5000, 7, TL("199.00")))
-        # Yükleme robotun girdiği hesabın sağlayıcısına gider: kod paketinki, alış robotun gördüğü.
-        rota = paket.rotalar.get()
-        self.assertEqual((rota.saglayici, rota.gidecek_kod, rota.alis_fiyati, rota.aktif), (self.iki, "8249866", TL("190.00"), True))
-        # Katalogdaki pakete dokunulmaz: sırası ve alışı yönetimindir.
-        _, yeni = gorulen_paketi_kataloga_ekle(GorulenPaket.objects.get(kod="1744"))
-        self.assertFalse(yeni)
-        self.assertEqual(list(self.paket.rotalar.values_list("saglayici__ad", "alis_fiyati")), [("Bir", TL("100.00"))])
-
-    def test_hesabi_secilmemis_robotun_paketi_saglayicisiz_acilir(self):
-        from apps.kontor.services import gorulen_paketi_kataloga_ekle
-
-        self.client.get(self.adres, {"hedef": self.NUMARA})
-        self.robot_cevaplar()
-        self.client.get(self.adres, {"hedef": self.NUMARA})
-        gorulen = GorulenPaket.objects.get(kod="8249866")
-        self.assertIsNone(gorulen.saglayici)
-        paket, _ = gorulen_paketi_kataloga_ekle(gorulen)
+        # Robot yalnızca sorgular: hangi API'ye gideceğini yönetici paketin sırasında seçer.
         self.assertFalse(paket.rotalar.exists())
 
     def test_icerik_kutudan_yoksa_aciklamadan(self):
@@ -2287,20 +2267,19 @@ class RobotPaketSorgusuTestleri(Temel):
         self.assertEqual(len(DURUM["Bir"]["gonderilen"]), 1)
 
     def test_yonetim_ekranlari_acilir(self):
-        self.robot.saglayici = self.iki
-        self.robot.save()
         self.client.get(self.adres, {"hedef": self.NUMARA})
         self.robot_cevaplar()
         self.client.get(self.adres, {"hedef": self.NUMARA})
         self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
         robotlar = self.client.get(reverse("admin:fatura_robot_changelist"))
-        self.assertContains(robotlar, "hesap: İki")
+        self.assertContains(robotlar, "Fatura · Paket")
         # Fatura ve kontörün ortak robotu: menüde kendi bölümü, üç ekran bir arada.
         for metin in ("Sorgu Robotu", "/yonetim/fatura/robot/", "/yonetim/fatura/sorgu/", "/yonetim/kontor/robotsorgusu/"):
             self.assertContains(robotlar, metin)
-        self.assertContains(self.client.get(reverse("admin:fatura_robot_change", args=[self.robot.pk])), 'name="saglayici"')
+        # Robotun sayfasında sağlayıcı (API) seçilmez: robot yalnızca sorgular.
+        self.assertNotContains(self.client.get(reverse("admin:fatura_robot_change", args=[self.robot.pk])), 'name="saglayici"')
         self.assertContains(self.client.get(reverse("admin:kontor_robotsorgusu_changelist")), "2 paket")
         gorulen = GorulenPaket.objects.get(kod="8249866")
-        self.assertContains(self.client.get(reverse("admin:kontor_gorulenpaket_change", args=[gorulen.pk])), "190")
+        self.assertContains(self.client.get(reverse("admin:kontor_gorulenpaket_change", args=[gorulen.pk])), "Haftalık 5GB")
         yanit = self.client.post(reverse("admin:kontor_gorulenpaket_ekle", args=[gorulen.pk]), follow=True)
-        self.assertContains(yanit, "İki sağlayıcısına kodu ve alışıyla bağlandı")
+        self.assertContains(yanit, "kataloğa eklendi")

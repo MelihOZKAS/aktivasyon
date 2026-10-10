@@ -482,7 +482,7 @@ class GorulenPaketAdmin(ModelAdmin):
     search_fields = ("kod", "ad", "aciklama")
     readonly_fields = (
         "kaynak", "kod", "kategori", "ad", "aciklama", "dakika", "internet_mb", "sms", "gun", "fiyat",
-        "onceki_fiyat", "fiyat_degisme", "saglayici", "saglayici_kodu", "alis", "ilk_gorulme", "son_gorulme",
+        "onceki_fiyat", "fiyat_degisme", "ilk_gorulme", "son_gorulme",
     )
     fields = readonly_fields + ("yok_say",)
     actions = ("yok_say_isaretle", "yok_saymayi_kaldir")
@@ -561,16 +561,11 @@ class GorulenPaketAdmin(ModelAdmin):
         except KararVerilemez as hata:
             self.message_user(request, str(hata), messages.ERROR)
             return redirect("admin:kontor_gorulenpaket_changelist")
-        if yeni and gorulen.saglayici_id:
-            baglanti = (
-                f"{gorulen.saglayici} sağlayıcısına kodu ve alışıyla bağlandı (robotun girdiği hesap)."
-            )
-        else:
-            baglanti = "Sağlayıcıya bağlamazsanız alındığında işlem askıya düşer."
         self.message_user(
             request,
             f"“{paket.ad}” {'kataloğa eklendi' if yeni else 'zaten katalogdaydı'}. Fiyat grubunun "
-            f"sayfasında Bayi Satış Tutarını yazın, fiyatı olmadan bayiye görünmez. {baglanti}",
+            "sayfasında Bayi Satış Tutarını yazın, fiyatı olmadan bayiye görünmez. Sağlayıcıya "
+            "bağlamazsanız alındığında işlem askıya düşer.",
             messages.SUCCESS if yeni else messages.INFO,
         )
         return redirect("admin:kontor_paket_change", paket.pk)

@@ -37,9 +37,6 @@ DJANGO'YA BAĞLANINCA
 --------------------
 1) Yönetim panelinde Sorgu Robotu → Robotlar → robot ekle → "Yeni anahtar".
    Çıkan bloğu olduğu gibi bu klasörde ayar.json dosyasına yapıştır.
-   Robotun sayfasında "Hesabı"nı seç (giris.bat ile girdiğin hesabın
-   sağlayıcısı, ör. Kontorbizde): paket sorgusunda görülen yeni paket
-   Kataloğa ekle ile o sağlayıcıya kodu ve alışıyla bağlı açılır.
 2) isci.bat      → işçi başlar; Django kuyruğundan iş çekip sorgular (fatura
                    ve paket, hangisi gelirse). Panelde robotun "İşler"
                    sütunu "Fatura · Paket" yazmalı; yalnızca "Fatura"

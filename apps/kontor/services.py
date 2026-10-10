@@ -306,7 +306,7 @@ def _kaynaga_sor(kategori, numara, *, yenile=False):
             sonuc = SorguSonucu(list(sonuc or []))
         kayit = {"sonuc": sonuc, "zaman": timezone.now()}
         onbellek.set(anahtar, kayit, ONBELLEK_SURESI)
-        gorulenleri_yaz(kaynak.kod, kategori, sonuc.paketler, saglayici_id=getattr(sonuc, "saglayici", None))
+        gorulenleri_yaz(kaynak.kod, kategori, sonuc.paketler)
     return kayit
 
 
@@ -348,18 +348,8 @@ def numarayi_sorgula(kategori, hedef, bayi, *, yenile=False):
 ICERIK_ALANLARI = ("dakika", "internet_mb", "sms", "gun")
 
 
-def _hesap_alanlari(veri, saglayici_id):
-    """Paketin görüldüğü sağlayıcı hesabı, oradaki kodu ve alışı; hesap yoksa boş."""
-    if not saglayici_id:
-        return {}
-    return {
-        "saglayici_id": saglayici_id,
-        "saglayici_kodu": (getattr(veri, "saglayici_kodu", "") or "")[:60],
-        "alis": getattr(veri, "alis", None),
-    }
 
-
-def gorulenleri_yaz(kaynak_kodu, kategori, paketler, *, saglayici_id=None):
+def gorulenleri_yaz(kaynak_kodu, kategori, paketler):
     """Sorguda görülen paketleri takip listesine işler; hata sorguyu düşürmez.
 
     **Yazma en aza indirilir.** Her bayi sorgusu buradan geçiyor; bir süre
@@ -369,8 +359,6 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler, *, saglayici_id=None):
     **bugünden eskiyse** güncellenir. Aynı gün yeniden görülen, değişmemiş
     paket için veritabanına hiç yazılmaz. Fiyat değiştiyse eskisi
     `onceki_fiyat`'a geçer. Yönetimin kararı (`yok_say`) korunur.
-    `saglayici_id` paketlerin görüldüğü sağlayıcı hesabıdır (robot); verilirse
-    hesap, oradaki kod ve alış da yazılır.
     """
     from apps.kontor.models import GorulenPaket
 
@@ -395,7 +383,6 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler, *, saglayici_id=None):
                         fiyat=veri.fiyat,
                         son_gorulme=simdi,
                         **{alan: getattr(veri, alan, 0) or 0 for alan in ICERIK_ALANLARI},
-                        **_hesap_alanlari(veri, saglayici_id),
                     )
                 )
                 continue
@@ -408,8 +395,7 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler, *, saglayici_id=None):
                 gorulen.fiyat = veri.fiyat
                 degisti = True
             icerik = [(alan, getattr(veri, alan, 0) or 0) for alan in ICERIK_ALANLARI]
-            hesap = list(_hesap_alanlari(veri, saglayici_id).items())
-            for alan, deger in (("ad", (veri.ad or "")[:200]), ("aciklama", veri.aciklama or ""), *icerik, *hesap):
+            for alan, deger in (("ad", (veri.ad or "")[:200]), ("aciklama", veri.aciklama or ""), *icerik):
                 if deger and deger != getattr(gorulen, alan):
                     setattr(gorulen, alan, deger)
                     degisti = True
@@ -430,7 +416,7 @@ def gorulenleri_yaz(kaynak_kodu, kategori, paketler, *, saglayici_id=None):
                     guncellenecek,
                     [
                         "fiyat", "onceki_fiyat", "fiyat_degisme", "ad", "aciklama", "kategori", "son_gorulme",
-                        *ICERIK_ALANLARI, "saglayici", "saglayici_kodu", "alis",
+                        *ICERIK_ALANLARI,
                     ],
                 )
     except Exception:
@@ -491,34 +477,16 @@ def _fiyat_degisimini_bildir(kaynak_kodu, degisenler):
 
 
 def gorulen_paketi_kataloga_ekle(gorulen):
-    """Görülen paketi kategorisine paket olarak açar; fiyatsız.
+    """Görülen paketi kategorisine paket olarak açar; fiyatsız ve rotasız.
 
     Fiyatı olmayan paket bayiye listelenmez (`satistaki_paketler`): açıldığı
-    an görünmez, yönetici fiyatını yazıp tamamlar. Paket bir sağlayıcının
-    hesabında görüldüyse (robotun sorgusu, `Robot.saglayici`) o sağlayıcıya
-    oradaki kodu ve alışıyla bağlı açılır: yükleme o sağlayıcının API'sine
-    gider. Görülmediyse (Vodafone sorgusu) sağlayıcısız açılır. Paket zaten
-    katalogdaysa sırasına ve alışına dokunulmaz.
+    an görünmez, yönetici fiyatını yazıp tamamlar. Sağlayıcıya (API'ye)
+    yönetici bağlar; sorgunun kaynağı hangi sağlayıcıya gönderileceğini
+    belirlemez.
     Dönüş: (paket, yeni_mi).
     """
     if gorulen.kategori_id is None:
         raise KararVerilemez("Bu paketin hangi kategoride görüldüğü bilinmiyor.")
-    with transaction.atomic():
-        paket, yeni = _gorulenden_paket(gorulen)
-        if yeni and gorulen.saglayici_id:
-            kod = gorulen.saglayici_kodu
-            Rota.objects.create(
-                paket=paket,
-                saglayici_id=gorulen.saglayici_id,
-                sira=1,
-                # Boş kod paketinkine düşer; yalnızca farklıysa yazılır.
-                uzak_kod=kod if kod and kod != paket.kod else "",
-                alis_fiyati=gorulen.alis,
-            )
-    return paket, yeni
-
-
-def _gorulenden_paket(gorulen):
     return Paket.objects.get_or_create(
         kategori_id=gorulen.kategori_id,
         kod=gorulen.kod,
