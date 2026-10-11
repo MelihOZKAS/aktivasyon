@@ -48,6 +48,16 @@ class SorguHatasi(Exception):
     """Kaynak cevap vermedi ya da numarayı sorgulayamadı; sebebi mesajda."""
 
 
+class NumaraPaketAlamaz(SorguHatasi):
+    """Kaynak cevap verdi: numara şu an hiçbir paket alamaz (vergi borcu).
+
+    Mesaj bayiye gösterilir; gönderim planı sağlayıcıya gitmeden iptal +
+    iade eder. `SorguHatasi`'dır: onu tanımayan yer sorguyu yapılamamış
+    sayar, satış eskisi gibi sürer. Önbelleğe girmez — borç ödenince sonraki
+    sorgu tazesini görür.
+    """
+
+
 class SorguBekleniyor(SorguHatasi):
     """Sorgu kuyrukta ya da robotta; birkaç saniye sonra yeniden sorulur.
 

@@ -136,7 +136,7 @@ Robot/altyapı hatası (oturum düştü, zaman aşımı) ayrı gelir:
 Bayi kontörde numarayı yazınca (ya da kategoride "göndermeden önce paket
 sorgusu" açıksa yükleme gitmeden önce) Django bir **paket işi** açar. Robot
 `https://bayi.kontorbizde.com/Kontor/index.php`'yi açar, numarayı
-`#sorgu_input_0`'a rakam rakam yazar (sayfa her tuşta operatörü arar),
+`#sorgu_input_0`'a rakam rakam yazar (numara 10 haneye varınca sayfa operatörü bir kez arar),
 `#paketsorgula` ("ABONEYE ÖZEL PAKETLERİ SORGULA") çıkınca sayfanın bulduğu
 operatörü (`#giz_operator`) işin `operator`'üyle karşılaştırır:
 
@@ -144,6 +144,17 @@ operatörü (`#giz_operator`) işin `operator`'üyle karşılaştırır:
   kutularını ayrıştırır.
 - **Farklıysa** (numara taşınmış) düğmeye basmaz, bulduğu operatörü boş
   listeyle döndürür. Bayi "Bu numara Turkcell hattı görünüyor" görür.
+
+Bir paket işi sağlayıcıya dört istek atar, tekrarı yoktur (ağ trafiğiyle
+sayıldı): sayfa açılışı (`bilgi_api.php?Goster=Guncel`), operatör bulma
+(`operatoru=bul`), operatörün kontör listesi (`operatoru=TURKCELL`) ve tek
+paket sorgusu (`bilgi_api_paketsor.php`). Django her işi tek robota bir kez
+verir; Robot Paket Sorguları listesindeki her satır bir paket sorgusudur.
+
+Liste sağlayıcının kataloğuyla sınırlıdır: sayfa, operatörün teklif ettiği
+paketlerden yalnızca sağlayıcının tanımladıklarını gösterir. Başka bir Znet
+sitesinde görülen "5G Cepte Fırsat" burada çıkmıyordu; Kontorbizde'nin
+Turkcell kataloğunda yok, robot eksik okumuyor.
 
 Her paket kutusu:
 ```html
@@ -179,6 +190,16 @@ Sonuç:
   ayrıştıramadığı bir cevap "paket yok" diye okunsaydı plan her satışı
   sağlayıcıya gitmeden iptal ederdi. Hata olunca plan ana paketi gönderir.
 - Sağlayıcı `ZNET=n-HATA=…` derse `"durum": "hata"` + `mesaj` (bayi görür).
+- **Vergi borcu**: sayfa paketlerin yerine kırmızı satır yazar
+  (`<div … style="…color:red;">Müşterinin 212 TL TKU Borcu Bulunmaktadır</div>`).
+  Robot `"durum": "borc"`, `"mesaj"` (satırın kendisi) ve `"borc": "212"`
+  (kesirliyse `"1250.50"`) gönderir. Django sorguyu "Vergi borcu" yapar; bayi
+  "212 TL vergi borcu var, önce en az 212 TL yükle" görür, gönderim planı
+  sağlayıcıya gitmeden iptal + iade eder. Borcun tamamı ödenmeden aboneye
+  özel paket yüklenmiyor (sağlayıcının duyurusu: "1 TL borcu olsa dahi sorgu
+  çıkmıyor").
+- Borç dışında bir kırmızı satır gelirse `mesaj` olarak gider, liste boş
+  olduğu için hata sayılır ve bayi o satırı görür.
 - Robot hatası (oturum düştü, kutu açılmadı) `"basarisiz": true` ile gelir;
   robot o anki sayfanın görüntüsünü ve HTML'ini `kayitlar/`'a yazar.
 

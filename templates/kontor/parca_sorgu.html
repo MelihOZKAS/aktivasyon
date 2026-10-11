@@ -20,6 +20,16 @@
     </p>
     <p class="mt-1 text-xs text-soluk">Birkaç saniye sürer. Beklemeden aşağıdaki paketlerden de seçebilirsin.</p>
   </div>
+  {% elif engel %}
+  {% comment %}
+    Numara hiç paket alamaz (vergi borcu): "yine seçebilirsin" denmez —
+    alınan paket sağlayıcıya gitmeden iptal edilip iade edilir.
+  {% endcomment %}
+  <div class="sim rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-4 text-sm"
+       style="--sim-kenar: color-mix(in srgb, var(--color-olumsuz) 40%, transparent)">
+    <p class="font-semibold text-olumsuz">Bu numaraya paket yüklenemez</p>
+    <p class="mt-1 text-murekkep-yumusak">{{ engel }}</p>
+  </div>
   {% elif hata %}
   <div class="sim rounded-kart border border-uyari/40 bg-uyari/5 p-4 text-sm">
     <p class="font-semibold text-uyari">Sorgulanamadı</p>

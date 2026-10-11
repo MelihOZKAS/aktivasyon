@@ -587,6 +587,7 @@ ROBOT_SORGUSU_RENKLERI = {
     RobotSorgusuDurumu.BEKLIYOR: "#6F7B8F",
     RobotSorgusuDurumu.SORGULANIYOR: "#B45309",
     RobotSorgusuDurumu.TAMAM: "#0F8A4D",
+    RobotSorgusuDurumu.BORC: "#B45309",
     RobotSorgusuDurumu.HATA: "#D42046",
 }
 

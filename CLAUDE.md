@@ -685,6 +685,25 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   ayrıştırılamayan bir cevap "paket yok" diye okunsaydı plan ana paketi de
   numarada yok sayıp her satışı iptal ederdi. Robot hata anında sayfanın
   görüntüsünü ve HTML'ini kendi `kayitlar/` klasörüne yazar (depoya girmez).
+  **Vergi borcu bir cevaptır, hata değil.** TKU borcu olan numarada sayfa
+  paketlerin yerine kırmızı satır yazar ("Müşterinin 212 TL TKU Borcu
+  Bulunmaktadır"); sağlayıcının duyurusuna göre borcun tamamı ödenmeden
+  aboneye özel paket yüklenmez. Robot satırı tutarıyla gönderir
+  (`durum: "borc"`, `borc`; `robot.paket_uyarisi`), sorgu "Vergi borcu"
+  durumuna düşer, kaynak `NumaraPaketAlamaz` yükseltir: bayi "212 TL vergi
+  borcu var, önce en az 212 TL yükle" görür, gönderim planı sağlayıcıya
+  gitmeden iptal + iade eder ("sorguda her zaman göster" paketi de).
+  `SorguHatasi`'dır — tanımayan yer satışı sürdürür — ve önbelleğe girmez:
+  borç ödenince sonraki sorgu tazesini görür. Önce boş liste gibi "paket
+  bulunamadı" deniyordu, sebep ve tutar kayboluyordu.
+  **Liste sağlayıcının kataloğuyla sınırlıdır.** Sayfa operatörün teklif
+  ettiği paketlerden yalnızca sağlayıcının tanımladıklarını gösterir.
+  Başka bir Znet sitesinde görülen "5G Cepte Fırsat" Kontorbizde'de hiç
+  çıkmıyordu; ham cevapla bakıldı (aboneye özel 29 paketin hepsi
+  sağlayıcının 68 ürünlük Turkcell listesinde, 5G Cepte orada yok) — robot
+  eksik okumuyor. Bir paket işi sağlayıcıya tek paket sorgusu atar (artı
+  sayfa açılışı, operatör bulma, kontör listesi); Robot Paket Sorguları'ndaki
+  her satır bir sorgudur.
 - **Fatura ödeme ayrı bir bölümdür** (`apps/fatura`, `/fatura/…`, menüde
   Oyun & Pin'in altında). Akış: kurum seç → numara → sorgu → fatura seç →
   öde. Sağlayıcının (Kontorbizde) fatura API'si **yok**; sorguyu laptopta

@@ -446,6 +446,30 @@ def paket_cevabini_coz(metin):
     return {"operator": operator, "paketler": paketler}
 
 
+# Paketlerin yerine gelen sağlayıcı uyarısı kırmızı bir satırdır:
+#   <div align="center" style="…color:red;">Müşterinin 212 TL TKU Borcu Bulunmaktadır</div>
+_UYARI = re.compile(r"<div\b[^>]*\bcolor\s*:\s*red\b[^>]*>(.*?)</div>", re.I | re.S)
+_BORC = re.compile(r"(\d[\d.]*(?:,\d+)?)\s*(?:TL|₺)\s+TK[UÜ]\s+Borc", re.I)
+
+
+def paket_uyarisi(metin):
+    """Paket yerine gelen uyarı → (mesaj, borç). Uyarı yoksa ("", "").
+
+    Vergi (TKU) borcu olan numarada sayfa paket listesi yerine "Müşterinin
+    212 TL TKU Borcu Bulunmaktadır" yazar; borcun tamamı ödenmeden aboneye
+    özel paket yüklenemez. Borç tutarı ayrıca döner ("1.250,50" → "1250.50"):
+    Django bayiye kaç TL yüklemesi gerektiğini onunla söyler.
+    """
+    for parca in _UYARI.findall(metin or ""):
+        mesaj = " ".join(html.unescape(ETIKET.sub(" ", parca)).split())
+        if not mesaj:
+            continue
+        m = _BORC.search(mesaj)
+        borc = m.group(1).replace(".", "").replace(",", ".") if m else ""
+        return mesaj[:250], borc
+    return "", ""
+
+
 def _kayit_al(sayfa, ad):
     """Hata anındaki sayfa: kayitlar/<zaman>-<ad>.png ve .html. Hata vermez."""
     try:
@@ -462,8 +486,8 @@ def _kayit_al(sayfa, ad):
 def paket_sorgula(ctx, numara, beklenen=""):
     """Kontör sayfasında numaranın aboneye özel paketlerini sorgular.
 
-    Sayfanın kendi akışı sürülür: numara kutusuna rakam rakam yazılır (her
-    tuşta sayfa operatörü arar), operatör bulununca "ABONEYE ÖZEL PAKETLERİ
+    Sayfanın kendi akışı sürülür: numara kutusuna rakam rakam yazılır (10.
+    hanede sayfa operatörü bir kez arar), operatör bulununca "ABONEYE ÖZEL PAKETLERİ
     SORGULA" düğmesi gelir, ona basılır. `beklenen` (turkcell / avea)
     verilmişse ve sayfanın bulduğu operatör başkaysa düğmeye basılmaz:
     numara taşınmış, sorgu boşuna gitmesin.
@@ -531,14 +555,21 @@ def paket_sorgula(ctx, numara, beklenen=""):
         if not govde:
             if not govdeler:
                 raise RuntimeError("Paket sorgusunun cevabı gelmedi (zaman aşımı).")
-            duz = _temiz(max(govdeler, key=len))
+            ham = max(govdeler, key=len)
+            duz = _temiz(ham)
             hata = re.search(r"ZNET=\d+-HATA=(.+?)(?:<|$)", duz)
             if hata:
                 return {"operator": bulunan, "paketler": [], "durum": "hata",
                         "mesaj": hata.group(1).strip()[:200]}
-            # Paket yok; sağlayıcının metni terminale (bayiye değil: ne olduğu belli değil).
-            print("    paket yok; cevap:", duz[:200])
-            return {"operator": bulunan, "paketler": [], "durum": "", "mesaj": ""}
+            # Paketlerin yerinde kırmızı uyarı: vergi borcu (tutarıyla) ya da
+            # numaraya dair başka bir söz. Bu satır bayiye gösterilir.
+            mesaj, borc = paket_uyarisi(ham)
+            if borc:
+                print(f"    vergi borcu: {borc} TL")
+                return {"operator": bulunan, "paketler": [], "durum": "borc", "mesaj": mesaj, "borc": borc}
+            # Uyarı da yoksa sağlayıcının metni terminale (bayiye değil: ne olduğu belli değil).
+            print("    paket yok; cevap:", mesaj or duz[:200])
+            return {"operator": bulunan, "paketler": [], "durum": "", "mesaj": mesaj}
 
         sonuc = paket_cevabini_coz(govde)
         if not sonuc["paketler"]:

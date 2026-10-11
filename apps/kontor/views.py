@@ -24,7 +24,7 @@ from apps.bayi.telefon import normalize
 from apps.bayi.yetki import bayi_gerekli
 from apps.finans.services import SiparisVerilemez
 from apps.kontor.models import Islem, IslemDurumu, Kategori, Paket
-from apps.kontor.sorgu import SorguBekleniyor, SorguHatasi
+from apps.kontor.sorgu import NumaraPaketAlamaz, SorguBekleniyor, SorguHatasi
 from apps.kontor.services import (
     fiyatlandir,
     numarayi_sorgula,
@@ -140,6 +140,8 @@ def sorgu(request, slug, oyun=False):
     except SorguBekleniyor:
         parametreler = {"hedef": hedef, **({"yenile": "1"} if yenile else {})}
         baglam["yoklama_adresi"] = f"{kategori_kaydi.sorgu_url}?{urlencode(parametreler)}"
+    except NumaraPaketAlamaz as engel:
+        baglam["engel"] = str(engel)
     except SorguHatasi as hata:
         baglam["hata"] = str(hata)
     return render(request, "kontor/parca_sorgu.html", baglam)

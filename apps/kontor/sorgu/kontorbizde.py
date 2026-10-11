@@ -35,6 +35,22 @@ oradan sorulur. Robota bir sağlayıcı hesabı bağlanmaz — bir süre bağlan
 ve Kataloğa ekle paketi o sağlayıcıya bağlı açıyordu; yönetici "burada api
 seçmemize gerek yok" dedi.
 
+**Vergi borcu bir cevaptır, hata değil.** TKU (telsiz kullanım ücreti)
+borcu olan numarada sayfa paketlerin yerine "Müşterinin 212 TL TKU Borcu
+Bulunmaktadır" yazar; sağlayıcının duyurusuna göre borcun tamamı
+ödenmeden aboneye özel paket yüklenemez, 1 TL borç bile listeyi boşaltır.
+Robot satırı tutarıyla gönderir (`durum: "borc"`, `borc: "212"`), sorgu
+"Vergi borcu" durumuna düşer ve kaynak `NumaraPaketAlamaz` yükseltir:
+bayi kaç TL yüklemesi gerektiğini görür, gönderim planı sağlayıcıya hiç
+gitmeden iptal + iade eder. Bir süre "paket bulunamadı" deniyordu; sebep
+kayboluyor, plan da paketi boşuna sağlayıcıya gönderiyordu.
+
+**Liste sağlayıcının kataloğuyla sınırlıdır.** Sayfa, operatörün numaraya
+teklif ettiği paketlerden yalnızca sağlayıcının kendi kataloğunda tanımlı
+olanları listeler. Başka bir Znet sitesinde görünen "5G Cepte Fırsat"
+Kontorbizde'de hiç çıkmıyordu; ham cevapla bakıldı, robot eksik okumuyor —
+sağlayıcının Turkcell kataloğunda o paketler yok.
+
 **Boş liste hata sayılır.** Robotun ayrıştıramadığı bir cevap "paket yok"
 diye okunsaydı gönderim planı ana paketi de numarada yok sayar, her satışı
 sağlayıcıya hiç gitmeden iptal ederdi. Paketi gerçekten olmayan numarada
@@ -51,7 +67,14 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.katalog.utils import turkce_slug
-from apps.kontor.sorgu import SorguBekleniyor, SorguHatasi, SorguPaketi, SorguSonucu, kaynak
+from apps.kontor.sorgu import (
+    NumaraPaketAlamaz,
+    SorguBekleniyor,
+    SorguHatasi,
+    SorguPaketi,
+    SorguSonucu,
+    kaynak,
+)
 from apps.kontor.sorgu.vodafone import tutar_metni
 
 # Robotun almadığı sorgu bu süreden sonra kapanır: robot meşgulse ya da
@@ -79,6 +102,15 @@ def operator_kodu(metin):
     sade = turkce_slug(str(metin or "")).replace("-", "")
     sade = _OPERATOR_ESLERI.get(sade, sade)
     return sade if sade in OPERATOR_ADLARI else ""
+
+
+def borc_mesaji(tutar):
+    """Bayinin göreceği vergi borcu satırı: ne yapacağını söyler."""
+    metin = f"{tutar:.2f}".replace(".", ",").removesuffix(",00")
+    return (
+        f"Müşterinin {metin} TL vergi (TKU) borcu var. Borcun tamamı ödenmeden paket yüklenemez; "
+        f"önce hatta en az {metin} TL yükleme yapın."
+    )
 
 
 def baska_operator_mesaji(operator):
@@ -162,9 +194,12 @@ def veriyi_temizle(veri):
     operator = operator_kodu(veri.get("operator"))
     if not operator:
         operator = next((p["operator"] for p in paketler if p["operator"]), "")
+    durum = veri.get("durum") if veri.get("durum") in ("hata", "borc") else ""
+    borc = _ondalik(veri.get("borc")) if durum == "borc" else None
     return {
-        "durum": "hata" if veri.get("durum") == "hata" else "",
+        "durum": durum if durum != "borc" or (borc and borc > 0) else "",
         "mesaj": str(veri.get("mesaj") or "").strip()[:255],
+        "borc": str(borc) if borc and borc > 0 else "",
         "operator": operator,
         "paketler": paketler,
     }
@@ -252,6 +287,8 @@ def sonuc_al(numara, operator):
         if son.sonuc_tarihi and timezone.now() - son.sonuc_tarihi < TAZELIK:
             if son.durum == RobotSorgusuDurumu.TAMAM:
                 return SorguSonucu(paketleri_coz(son.sonuc))
+            if son.durum == RobotSorgusuDurumu.BORC:
+                raise NumaraPaketAlamaz(son.mesaj)
             raise SorguHatasi(son.mesaj or HATA_MESAJI)
     if not robot_hazir_mi():
         raise SorguHatasi(kapali_mesaji("Paket sorgusu", robotlar=_paket_robotlari()))
@@ -323,6 +360,9 @@ def sonuc_yaz(robot, talep_id, *, veri=None, hata=""):
             if temiz["operator"] and temiz["operator"] != sorgu.operator:
                 sorgu.durum = RobotSorgusuDurumu.HATA
                 sorgu.mesaj = baska_operator_mesaji(temiz["operator"])
+            elif temiz["durum"] == "borc" and not temiz["paketler"]:
+                sorgu.durum = RobotSorgusuDurumu.BORC
+                sorgu.mesaj = borc_mesaji(_ondalik(temiz["borc"]))
             elif temiz["durum"] == "hata":
                 # Sağlayıcının kendi mesajı bayiye gösterilir: ne yapacağını söyler.
                 sorgu.durum = RobotSorgusuDurumu.HATA

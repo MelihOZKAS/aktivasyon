@@ -2111,6 +2111,14 @@ ROBOT_PAKETLERI = {
 }
 
 
+# Sağlayıcının sayfası vergi borcunda paket yerine kırmızı satır yazar; robot
+# tutarıyla gönderir (`znetfaturasorgu/robot.py`, `paket_uyarisi`).
+ROBOT_VERGI_BORCU = {
+    "operator": "avea", "paketler": [], "durum": "borc",
+    "mesaj": "Müşterinin 212 TL TKU Borcu Bulunmaktadır", "borc": "212",
+}
+
+
 @override_settings(KONTOR_ARKA_PLAN=False, KONTOR_ATOMIK_DENETIMI=False, CACHES=TEST_ONBELLEK)
 class RobotPaketSorgusuTestleri(Temel):
     """Robot sorgular, bayi ekranı ve gönderim planı cevabı istek içinde beklemez."""
@@ -2212,6 +2220,22 @@ class RobotPaketSorgusuTestleri(Temel):
         self.assertEqual(sorgu.mesaj, kontorbizde.HATA_MESAJI)
         self.assertEqual(sorgu.sonuc["robot_hatasi"], "Oturum yok/düşmüş")
 
+    def test_vergi_borcu_tutariyla_bayiye_yazilir(self):
+        self.client.get(self.adres, {"hedef": self.NUMARA})
+        sorgu = self.robot_cevaplar(ROBOT_VERGI_BORCU)
+        self.assertEqual((sorgu.durum, sorgu.sonuc["borc"]), (RobotSorgusuDurumu.BORC, "212.00"))
+        yanit = self.client.get(self.adres, {"hedef": self.NUMARA})
+        self.assertContains(yanit, "Bu numaraya paket yüklenemez")
+        self.assertContains(yanit, "Müşterinin 212 TL vergi (TKU) borcu var")
+        self.assertContains(yanit, "en az 212 TL yükleme")
+        self.assertNotContains(yanit, "yine seçebilirsin")
+        self.assertIn("1250,50 TL", kontorbizde.borc_mesaji(TL("1250.50")))
+        # Tutarsız borç cevabı borç sayılmaz: boş liste kuralına düşer.
+        self.assertEqual(kontorbizde.veriyi_temizle(dict(ROBOT_VERGI_BORCU, borc=""))["durum"], "")
+        # Borç önbelleğe girmez: ödenince sonraki sorgu tazesini görür.
+        RobotSorgusu.objects.update(sonuc_tarihi=timezone.now() - timedelta(minutes=1))
+        self.assertContains(self.client.get(self.adres, {"hedef": self.NUMARA}), "sorgulanıyor")
+
     def test_robot_kapaliysa_ya_da_eski_surumse_sorgu_acilmaz(self):
         Robot.objects.update(son_nabiz=timezone.now() - timedelta(minutes=5))
         yanit = self.client.get(self.adres, {"hedef": self.NUMARA})
@@ -2252,6 +2276,20 @@ class RobotPaketSorgusuTestleri(Temel):
         islem = isle(islem.pk)
         self.assertEqual(islem.plan, [self.paket.pk])
         self.assertEqual([g[2] for g in DURUM["Bir"]["gonderilen"]], ["1744"])
+
+    def test_vergi_borcunda_saglayiciya_gitmeden_iade(self):
+        # "Sorguda her zaman göster" de gönderilmez: borç ödenmeden hiçbir paket yüklenmiyor.
+        self.paket.sorguda_hep_goster = True
+        self.paket.save()
+        once = self.bakiye()
+        islem = self.plan_ac()
+        self.robot_cevaplar(ROBOT_VERGI_BORCU)
+        islem = isle(islem.pk)
+        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
+        self.assertIn("212 TL vergi (TKU) borcu var", islem.sonuc_mesaji)
+        self.assertIn("Tutar iade edildi.", islem.sonuc_mesaji)
+        self.assertEqual(DURUM["Bir"]["gonderilen"], [])
+        self.assertEqual(self.bakiye(), once)
 
     def test_robot_cevap_vermezse_ana_paket_gider(self):
         islem = self.plan_ac()

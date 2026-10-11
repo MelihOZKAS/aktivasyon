@@ -712,9 +712,12 @@ def _plani_cikar(islem):
     `PLAN_BEKLEMESI` dolunca beklenmez, ana paket gider. Sorgu
     başarılı ama ana paket de hiçbir alternatif de listede yoksa plan boştur:
     işlem sağlayıcıya hiç gitmeden iptal edilir (eski sistemde de öyleydi;
-    boşuna gönderim ve ret beklemesi olmaz).
+    boşuna gönderim ve ret beklemesi olmaz). Sorgu numaranın hiç paket
+    alamadığını söylerse (vergi borcu) `NumaraPaketAlamaz` geçer: "sorguda
+    her zaman göster" işaretli paket de gönderilmez, borç ödenmeden hiçbiri
+    yüklenmiyor.
     """
-    from apps.kontor.sorgu import SorguBekleniyor, SorguHatasi
+    from apps.kontor.sorgu import NumaraPaketAlamaz, SorguBekleniyor, SorguHatasi
 
     paket = islem.paket
     if paket is None:
@@ -734,6 +737,8 @@ def _plani_cikar(islem):
             raise
         logger.warning("Gönderim öncesi sorgunun cevabı gelmedi (%s); ana paket gidiyor.", islem.pk)
         return [paket.pk]
+    except NumaraPaketAlamaz:
+        raise
     except SorguHatasi as hata:
         logger.warning("Gönderim öncesi sorgu yapılamadı (%s): %s", islem.pk, hata)
         return [paket.pk]
@@ -768,13 +773,17 @@ def _siradakine_gonder(islem, son_ret=""):
         return
 
     if islem.plan is None:
-        from apps.kontor.sorgu import SorguBekleniyor
+        from apps.kontor.sorgu import NumaraPaketAlamaz, SorguBekleniyor
 
         try:
             islem.plan = _plani_cikar(islem)
         except SorguBekleniyor:
             # Robot numarayı sorguluyor: işlem sırada kalır, işçinin ya da
             # bayinin sayfasının sonraki turu yeniden bakar. Hiçbir şey gönderilmedi.
+            return
+        except NumaraPaketAlamaz as engel:
+            # Vergi borcu: sebep tutarıyla bayiye yazılır, sağlayıcıya gidilmez.
+            _iptal_et(islem, f"{engel} Tutar iade edildi.")
             return
         islem.save(update_fields=["plan", "guncelleme_tarihi"])
         if not islem.plan and islem.paket_id is not None:

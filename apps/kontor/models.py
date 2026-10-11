@@ -835,6 +835,7 @@ class RobotSorgusuDurumu(models.TextChoices):
     BEKLIYOR = "bekliyor", "Sırada"
     SORGULANIYOR = "sorgulaniyor", "Sorgulanıyor"
     TAMAM = "tamam", "Tamamlandı"
+    BORC = "borc", "Vergi borcu"
     HATA = "hata", "Sorgulanamadı"
 
 
