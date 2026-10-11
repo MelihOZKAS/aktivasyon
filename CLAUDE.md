@@ -843,6 +843,31 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   iade" (sebep zorunlu, bayi görür). Tek kapı `services.odendi_isaretle` /
   `iptal_et`; sonuçlanmış ödemeye ikinci karar verilmez. Bekleyenler yan
   menüde rozetle sayılır ve çın sesiyle haber verilir.
+- **Dekont müşteriye verilir: 58 mm, 80 mm termal ve A5** (`apps/bayi/dekont.py`,
+  `templates/dekont/sayfa.html`). Kontörde işlem sayfasından
+  (`/kontor/islem/<ref>/dekont/`), faturada ödeme sayfasından
+  (`/fatura/odeme/<ref>/dekont/`, ödemedeki bütün faturalar) ve **sepet**
+  olarak Ödemelerim'den: işaretlenen ödemeler tek dekontta, her biri ara
+  toplamıyla, altta tek toplam (`/fatura/dekont/?odeme=…`, en çok bir
+  sayfa = 30). Müşteri elektrik, su, telefonu birlikte ödetiyor; ödemeler
+  ayrı kayıt, fiş tek.
+  · **Dekont bayinin fişidir:** üstte firması (profildeki ünvan, adres,
+  telefon), sağlayıcının adı hiç geçmez. **Rakam müşteriye dönüktür** —
+  kontörde `Islem.tavsiye_fiyati`, faturada `Odeme.tavsiye_fiyati` (fatura
+  bedelleri + hizmet bedeli satırı; `fatura.services.dekont_ozeti`). Bayinin
+  alışı yazılmaz; tavsiye kaydı yoksa bilinen tek rakam olan bayinin ödediği
+  yazılır. "Mali değeri yoktur" yazar.
+  · **Kontörde yalnızca yüklenmiş işlemde** (pin satışında pin kodu
+  dekontta): sonuç saniyeler içinde gelir, sürerken fiş verilseydi müşteri
+  "yüklendi" kağıdıyla yüklenmemiş hatla kalabilirdi. **Faturada ödeme
+  sürerken de verilir**, durum "Ödeniyor" yazar: ödemeyi yönetim elle
+  yapar, sürebilir, müşteri tezgâhta bekliyor. İptal edilende hiç yok.
+  · **Biçim cihaza aittir** (yazıcı o cihaza bağlı): seçim `localStorage`'da
+  durur, sunucuya gitmez. Termal yazıcının basılabilir genişliği rulodan
+  dardır (58'de 48 mm, 80'de 72 mm); içerik o genişlikte ortalanır.
+  **Rulo sayfası içeriğin boyu kadar kurulur** (`@page` boyu baskıdan önce
+  betikle ölçülür): sabit boy verilseydi yazıcı fişin altına boş kağıt
+  sürerdi. Termal kafa gri basamaz; dekontta yalnızca siyah ve düz çizgi var.
 - **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme
   bildiriminin `durum` alanı formda düzenlenebilir; yönetici "Onaylandı"
   seçip kaydedince bildirim onaylanmış **görünüyor** ama para hiç hareket

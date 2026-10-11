@@ -452,6 +452,45 @@ class EkranTestleri(Temel):
         self.assertNotContains(self.client.get(reverse("magaza:siparislerim")), "Fatura ·")
         self.assertContains(self.client.get(reverse("fatura:odemeler")), "5332590138")
 
+    def test_dekont_musteri_fiyatiyla_butun_faturalar(self):
+        odeme = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD60950NCB9D53", "FD00000000002"])
+        adres = reverse("fatura:odeme-dekont", args=[odeme.referans_no])
+        # Ödeme sürerken de verilir; durum yazar.
+        self.assertContains(self.client.get(odeme.get_absolute_url()), adres)
+        yanit = self.client.get(adres)
+        # Müşteriye: 390 + 180 fatura, 2 × 10 hizmet bedeli = 590. Bayinin ödediği (580) girmez.
+        for metin in ("FATURA ÖDEME DEKONTU", "Vodafone", "5332590138", "M***** A*****", "FD60950NCB9D53",
+                      "FD00000000002", "390,00", "180,00", "Hizmet bedeli", "20,00", "590,00 ₺", "Ödeniyor"):
+            self.assertContains(yanit, metin)
+        self.assertNotContains(yanit, "580,00")
+        self.assertNotContains(yanit, "Ara toplam")   # tek ödeme
+
+        iptal_et(odeme, sebep="kurum kapalı")
+        self.assertEqual(self.client.get(adres).status_code, 404)
+        self.assertNotContains(self.client.get(odeme.get_absolute_url()), adres)
+
+    def test_sepet_dekontu_secilen_odemeler_tek_toplamla(self):
+        a = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD60950NCB9D53"])
+        b = sabit_odeme_baslat(self.bayi, self.hgs, "34abc123")
+        iptal = odeme_baslat(self.bayi, self.tamam_sorgu(numara="5332590100"), ["FD00000000002"])
+        iptal_et(iptal, sebep="olmadı")
+        baska = User.objects.create_user("5320000000", password="parola12345")
+        Cuzdan.objects.create(bayi=baska, bakiye=TL("1000.00"))
+        yabanci = sabit_odeme_baslat(baska, self.hgs, "34abc999")
+
+        liste = self.client.get(reverse("fatura:odemeler"))
+        self.assertContains(liste, 'form="dekont-sepeti"', count=2)   # iptal edilenin kutusu yok
+        yanit = self.client.get(reverse("fatura:dekont"), {"odeme": [
+            a.referans_no, b.referans_no, iptal.referans_no, yabanci.referans_no, a.referans_no,
+        ]})
+        # 400 (390 + 10) + HGS müşteri fiyatı 105 = 505; iptal ve başkasının ödemesi düşer.
+        self.assertContains(yanit, "505,00 ₺")
+        self.assertContains(yanit, "Ara toplam", count=1)
+        self.assertContains(yanit, "34ABC123")
+        self.assertNotContains(yanit, iptal.referans_no)
+        self.assertNotContains(yanit, yabanci.referans_no)
+        self.assertEqual(self.client.get(reverse("fatura:dekont"), {"odeme": [iptal.referans_no]}).status_code, 404)
+
     def test_baskasinin_sorgusu_ve_odemesi_404(self):
         baska = User.objects.create_user("5320000000", password="parola12345")
         sorgu = self.tamam_sorgu(bayi=baska)

@@ -261,6 +261,24 @@ def fatura_tutari(fatura):
     return bedel if bedel is not None and bedel > 0 else Decimal(fatura["toplam_tutar"])
 
 
+def dekont_ozeti(odeme):
+    """Dekontta müşteriye dönük rakamlar: fatura bedelleri, hizmet bedeli, toplam.
+
+    Toplam müşteri fiyatıdır (`tavsiye_fiyati`: faturaların bedeli + kurumun
+    müşteriye eki), hizmet bedeli ikisinin farkıdır. Bayinin ödediği dekonta
+    girmez; yalnızca müşteri fiyatı kaydı olmayan ödemede o yazılır — başka
+    bilinen rakam yok. Sorgusuz kalemde (HGS 100 TL) fatura satırı yoktur.
+    """
+    satirlar = [
+        {"fatura_no": f.get("fatura_no", ""), "son_odeme": f.get("son_odeme_tarihi", ""), "tutar": fatura_tutari(f)}
+        for f in odeme.faturalar
+    ]
+    toplam = odeme.tavsiye_fiyati or odeme.siparis.tutar
+    bedel = sum((s["tutar"] for s in satirlar), Decimal("0"))
+    hizmet = toplam - bedel if satirlar and toplam > bedel else Decimal("0")
+    return {"odeme": odeme, "satirlar": satirlar, "hizmet": hizmet, "toplam": toplam}
+
+
 def vade_durumu(son_odeme_tarihi, bugun=None):
     """Son ödeme gününe göre "gecikmis" / "bugun" / "" (anlaşılamadıysa da "").
 

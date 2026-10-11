@@ -1,0 +1,33 @@
+{% extends "dekont/sayfa.html" %}
+{% load panel %}
+
+{% block referans %}{{ referans }}{% endblock %}
+{% block dekont_basligi %}FATURA ÖDEME DEKONTU{% endblock %}
+
+{% block dekont %}
+{% comment %}
+  Her ödeme bir blok: kurum, abone, faturalar, hizmet bedeli. Sepette
+  (birden çok ödeme) her blok kendi ara toplamını yazar, en altta tek
+  toplam durur. Rakamlar müşteriye dönüktür (`services.dekont_ozeti`).
+{% endcomment %}
+{% for blok in bloklar %}
+{% with odeme=blok.odeme %}
+<section class="dk-blok">
+  <div class="dk-satir"><b>{{ odeme.kurum_adi }}</b><span>{{ odeme.get_durum_display }}</span></div>
+  <div class="dk-satir dk-kucuk"><span>{{ odeme.referans_no }}</span><span>{{ odeme.karar_tarihi|default:odeme.olusturma_tarihi|date:"d.m.Y H:i" }}</span></div>
+  <div class="dk-satir"><span>{{ odeme.kurum.alan_etiketi|default:"Abone no" }}</span><span>{{ odeme.numara }}</span></div>
+  {% if odeme.abone_adi %}<div class="dk-satir"><span>Abone</span><span>{{ odeme.abone_adi }}</span></div>{% endif %}
+  {% for f in blok.satirlar %}
+  <div class="dk-satir"><span>{{ f.fatura_no }}</span><span>{{ f.tutar|para }}</span></div>
+  {% if f.son_odeme %}<p class="dk-kucuk">Son ödeme {{ f.son_odeme }}</p>{% endif %}
+  {% endfor %}
+  {% if blok.hizmet %}<div class="dk-satir"><span>Hizmet bedeli</span><span>{{ blok.hizmet|para }}</span></div>{% endif %}
+  {% if bloklar|length > 1 or not blok.satirlar %}
+  <div class="dk-satir"><span>{% if blok.satirlar %}Ara toplam{% else %}Tutar{% endif %}</span><span>{{ blok.toplam|para }}</span></div>
+  {% endif %}
+</section>
+{% endwith %}
+{% endfor %}
+<hr class="dk-cizgi">
+<div class="dk-satir dk-toplam"><span>TOPLAM</span><span>{{ toplam|para }} ₺</span></div>
+{% endblock %}

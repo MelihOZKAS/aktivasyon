@@ -11,6 +11,7 @@ urlpatterns = [
     path("kontor/islemler/", views.islemler, name="islemler"),
     path("kontor/islem/<str:referans>/", views.islem, name="islem"),
     path("kontor/islem/<str:referans>/durum/", views.islem_durum, name="islem-durum"),
+    path("kontor/islem/<str:referans>/dekont/", views.dekont, name="dekont"),
     path("kontor/<slug:slug>/", views.kategori, name="kategori"),
     path("kontor/<slug:slug>/sorgu/", views.sorgu, name="sorgu"),
     path("kontor/<slug:slug>/<str:kod>/", views.paket, name="paket"),

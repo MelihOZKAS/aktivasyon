@@ -9,6 +9,7 @@
   <div class="sim rounded-kart border border-olumlu/40 bg-olumlu/5 p-5">
     <p class="baslik text-lg font-bold text-olumlu">Ödendi</p>
     {% if odeme.sonuc_notu %}<p class="mt-1 text-sm text-murekkep-yumusak">{{ odeme.sonuc_notu }}</p>{% endif %}
+    {% include "fatura/parca_dekont_dugmesi.html" %}
   </div>
   {% elif odeme.durum == "iptal" %}
   <div class="sim rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-5">
@@ -27,6 +28,7 @@
     <p class="mt-1 text-sm text-murekkep-yumusak">
       Fatura kuruma ödeniyor. Ödenince burada “Ödendi” yazar; ödenemezse tutar bakiyene geri döner.
     </p>
+    {% include "fatura/parca_dekont_dugmesi.html" %}
   </div>
   {% endif %}
 </div>

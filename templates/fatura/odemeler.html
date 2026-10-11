@@ -18,9 +18,39 @@
   {% if odemeler %}
   <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
     {% for odeme in odemeler %}
-    {% include "fatura/parca_odeme_satir.html" %}
+    {% include "fatura/parca_odeme_satir.html" with secim=True %}
     {% endfor %}
   </div>
+  {% comment %}
+    Sepet dekontu: müşteri birkaç faturasını birlikte ödetiyor, her ödeme
+    ayrı kayıt ama müşteriye tek fiş verilir. Satırdaki kutular bu formun
+    alanıdır (`form="dekont-sepeti"`); çubuk ekranın altında durur, seçim
+    yokken düğme kapalıdır.
+  {% endcomment %}
+  <form id="dekont-sepeti" method="get" action="{% url 'fatura:dekont' %}" class="sticky bottom-0 z-10 mt-3 pb-3">
+    <div class="sim yuzey flex items-center justify-between gap-3 border border-cizgi-koyu px-4 py-2.5">
+      <p class="min-w-0 text-sm" data-sepet-yazi>Tek dekontta vermek istediğin ödemeleri işaretle.</p>
+      <button type="submit" class="dugme dugme-birincil shrink-0 disabled:cursor-not-allowed disabled:opacity-40" data-sepet-dugme disabled>
+        <span class="ikon" aria-hidden="true">print</span> Dekont
+      </button>
+    </div>
+  </form>
+  <script>
+    (function () {
+      var kutular = document.querySelectorAll("[data-sepet]");
+      var yazi = document.querySelector("[data-sepet-yazi]");
+      var dugme = document.querySelector("[data-sepet-dugme]");
+      var bos = yazi.textContent;
+      function guncelle() {
+        var adet = 0;
+        kutular.forEach(function (k) { if (k.checked) adet += 1; });
+        dugme.disabled = adet === 0;
+        yazi.textContent = adet ? adet + " ödeme tek dekontta" : bos;
+      }
+      kutular.forEach(function (k) { k.addEventListener("change", guncelle); });
+      guncelle();   // geri tuşuyla dönülünce işaretler tarayıcıda kalır
+    })();
+  </script>
   {% if sayfa.has_other_pages %}
   <nav class="mt-4 flex items-center justify-between gap-2 text-sm" aria-label="Sayfalar">
     {% if sayfa.has_previous %}

@@ -2,15 +2,31 @@
 {% comment %}
   Tek ödeme satırı; fatura ekranının altında ve Ödemelerim'de. Rozet rengi
   durumu anlatır: yeşil ödendi, kırmızı iptal (iade edildi), turuncu sürüyor.
+
+  `secim` verilirse (Ödemelerim) solda dekont kutusu durur: işaretlenen
+  ödemeler tek dekontta toplanır. Kutu bağlantının içinde olamaz; satır
+  kutudur, bağlantı `after:inset-0` ile satırı kaplar. İptal edilen ödemenin
+  dekontu yoktur, kutusu da yok.
 {% endcomment %}
-<a href="{{ odeme.get_absolute_url }}"
-   class="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-cizgi p-4 last:border-b-0 hover:bg-zemin">
-  <span class="min-w-0 flex-1 basis-52">
+<div class="relative flex items-center gap-3 border-b border-cizgi p-4 last:border-b-0 hover:bg-zemin">
+  {% if secim %}
+  {% if odeme.durum != "iptal" %}
+  <label class="relative z-10 -my-2 -ml-2 flex size-11 shrink-0 cursor-pointer items-center justify-center">
+    <input type="checkbox" name="odeme" value="{{ odeme.referans_no }}" form="dekont-sepeti" data-sepet
+           class="size-5 cursor-pointer accent-murekkep">
+    <span class="sr-only">Dekonta ekle</span>
+  </label>
+  {% else %}
+  <span class="-ml-2 size-11 shrink-0" aria-hidden="true"></span>
+  {% endif %}
+  {% endif %}
+  <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2">
+  <a href="{{ odeme.get_absolute_url }}" class="min-w-0 flex-1 basis-52 after:absolute after:inset-0">
     <span class="rakam block truncate font-medium">{{ odeme.numara }}{% if odeme.abone_adi %} · {{ odeme.abone_adi }}{% endif %}</span>
     <span class="mt-0.5 block truncate text-xs text-soluk">
       {{ odeme.kurum_adi }}{% if odeme.faturalar %} · {{ odeme.faturalar|length }} fatura{% endif %} · {{ odeme.olusturma_tarihi|date:"d.m.Y H:i" }}
     </span>
-  </span>
+  </a>
   <span class="flex items-center gap-3">
     <span class="rakam font-semibold {% if odeme.durum == 'iptal' %}text-silik line-through{% endif %}">{{ odeme.siparis.tutar|para }} ₺</span>
     <span class="rounded-full px-2.5 py-1 text-xs font-semibold text-white
@@ -18,4 +34,5 @@
       {{ odeme.get_durum_display }}
     </span>
   </span>
-</a>
+  </div>
+</div>

@@ -1,0 +1,24 @@
+{% extends "dekont/sayfa.html" %}
+{% load panel %}
+
+{% block referans %}{{ islem.siparis.referans_no }}{% endblock %}
+{% block dekont_basligi %}{% if pin %}PİN SATIŞ DEKONTU{% else %}YÜKLEME DEKONTU{% endif %}{% endblock %}
+
+{% block dekont %}
+<div class="dk-satir"><span>Tarih</span><span>{{ islem.sonuc_tarihi|default:islem.olusturma_tarihi|date:"d.m.Y H:i" }}</span></div>
+<div class="dk-satir"><span>İşlem no</span><span>{{ islem.siparis.referans_no }}</span></div>
+{% if islem.kategori %}<div class="dk-satir"><span>Ürün grubu</span><span>{{ islem.kategori.ad }}</span></div>{% endif %}
+<div class="dk-satir"><span>Ürün</span><span>{{ islem.paket_adi }}</span></div>
+{% if islem.hedef %}
+<div class="dk-satir">
+  <span>{{ islem.kategori.hedef_basligi|default:"Numara" }}</span>
+  <span>{% if islem.kategori.hedef == "telefon" %}{{ islem.hedef|telefon }}{% else %}{{ islem.hedef }}{% endif %}</span>
+</div>
+{% endif %}
+{% if pin and islem.sonuc_mesaji %}
+<p class="dk-pin">{{ islem.sonuc_mesaji }}</p>
+{% endif %}
+<hr class="dk-cizgi">
+<div class="dk-satir dk-toplam"><span>TUTAR</span><span>{{ tutar|para }} ₺</span></div>
+<div class="dk-satir"><span>Durum</span><span>{% if pin %}Teslim edildi{% else %}Yüklendi{% endif %}</span></div>
+{% endblock %}

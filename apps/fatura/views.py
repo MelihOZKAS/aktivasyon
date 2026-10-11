@@ -16,13 +16,16 @@ from django.db import IntegrityError
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from apps.bayi.dekont import firma
 from apps.bayi.yetki import bayi_gerekli
-from apps.fatura.models import Kategori, Kurum, Odeme, Sorgu
+from apps.fatura.models import Kategori, Kurum, Odeme, OdemeDurumu, Sorgu
 from apps.fatura.services import (
     ODEME_SURESI,
+    dekont_ozeti,
     fatura_tutari,
     fiyat_grubu,
     grup_tutarlari,
@@ -42,6 +45,8 @@ from apps.finans.services import SiparisVerilemez
 from apps.magaza.models import Siparis
 
 SON_ODEME_ADEDI = 5
+# Bir dekontta en çok bu kadar ödeme: Ödemelerim'in bir sayfası.
+SEPET_SINIRI = 30
 
 
 def _bakiye(request):
@@ -247,6 +252,57 @@ def odeme(request, referans):
 @bayi_gerekli
 def odeme_durum(request, referans):
     return render(request, "fatura/parca_odeme.html", {"odeme": _odeme(request, referans)})
+
+
+def _dekont(request, odemeler, geri):
+    bloklar = [dekont_ozeti(odeme) for odeme in odemeler]
+    return render(
+        request,
+        "fatura/dekont.html",
+        {
+            "bloklar": bloklar,
+            "toplam": sum((b["toplam"] for b in bloklar), Decimal("0")),
+            "referans": ", ".join(o.referans_no for o in odemeler),
+            "firma": firma(request.user),
+            "geri": geri,
+        },
+    )
+
+
+@login_required
+@bayi_gerekli
+def odeme_dekont(request, referans):
+    """Tek ödemenin dekontu; ödemedeki bütün faturalar bir arada.
+
+    Ödeme sürerken de verilir (durum "Ödeniyor" yazar): ödemeyi yönetim elle
+    yapar, sürebilir, müşteri tezgâhta fiş bekliyor. İptal edilen ödemenin
+    dekontu yoktur — para bayiye döndü.
+    """
+    odeme = _odeme(request, referans)
+    if odeme.durum == OdemeDurumu.IPTAL:
+        raise Http404("İptal edilen ödemenin dekontu verilmez.")
+    return _dekont(request, [odeme], odeme.get_absolute_url())
+
+
+@login_required
+@bayi_gerekli
+def dekont(request):
+    """Sepet: Ödemelerim'de işaretlenen ödemeler tek dekontta, tek toplamla.
+
+    Müşteri birkaç faturasını (elektrik, su, telefon) birlikte ödetiyor;
+    her ödeme ayrı kayıttır ama müşteriye tek fiş verilir. Başkasının ya da
+    iptal edilmiş ödeme sessizce düşer.
+    """
+    referanslar = list(dict.fromkeys(r.strip() for r in request.GET.getlist("odeme") if r.strip()))
+    odemeler = list(
+        Odeme.objects.filter(bayi=request.user, siparis__referans_no__in=referanslar[:SEPET_SINIRI])
+        .exclude(durum=OdemeDurumu.IPTAL)
+        .select_related("siparis", "kurum")
+        .order_by("olusturma_tarihi", "pk")
+    )
+    if not odemeler:
+        raise Http404("Dekonta eklenecek ödeme yok.")
+    return _dekont(request, odemeler, reverse("fatura:odemeler"))
 
 
 @login_required

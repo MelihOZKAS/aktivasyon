@@ -1,0 +1,11 @@
+{% comment %}
+  Ödeme sürerken de dekont verilir: ödemeyi yönetim elle yapar, sürebilir;
+  dekontta durum "Ödeniyor" yazar. İptal edilen ödemede çizilmez.
+  Birden çok ödeme tek dekontta: Ödemelerim'de işaretlenir.
+{% endcomment %}
+<div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+  <a href="{% url 'fatura:odeme-dekont' odeme.referans_no %}" class="dugme dugme-sessiz text-sm">
+    <span class="ikon" aria-hidden="true">print</span> Dekont yazdır
+  </a>
+  <a href="{% url 'fatura:odemeler' %}" class="inline-flex min-h-11 items-center text-xs font-medium text-soluk underline">Birden çok ödeme tek dekontta</a>
+</div>

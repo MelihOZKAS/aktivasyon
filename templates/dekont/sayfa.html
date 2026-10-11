@@ -1,0 +1,183 @@
+{% load static panel %}<!doctype html>
+<html lang="tr" data-bicim="80">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex">
+  <title>Dekont · {% block referans %}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'app.css' %}">
+  {% comment %}
+    Müşteriye verilen dekont (apps/bayi/dekont.py). Üç kağıt: 58 mm ve 80 mm
+    termal rulo, A5. Termal yazıcının basılabilir genişliği rulodan dardır
+    (58 mm'de 48 mm, 80 mm'de 72 mm); içerik o genişlikte, sayfanın ortasında
+    durur. Rulo sayfası içeriğin boyu kadar kurulur (@page boyu betikten):
+    sabit bir boy verilseydi yazıcı fişin altına boş kağıt sürerdi.
+
+    Termal kafa gri basamaz: dekontta yalnızca siyah ve düz çizgi var. Biçim
+    cihaza aittir (yazıcı o cihaza bağlı), localStorage'da durur.
+  {% endcomment %}
+  <style>
+    html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 10.5px; }
+    html[data-bicim="80"] { --dk-genislik: 72mm; --dk-yazi: 12px; }
+    html[data-bicim="a5"] { --dk-genislik: 124mm; --dk-yazi: 13.5px; }
+
+    .dekont-kagit {
+      max-width: 100%;
+      width: max-content;
+      margin: 1.25rem auto 2.5rem;
+      border: 1px solid var(--color-cizgi);
+      background: #fff;
+      padding: 4mm;
+    }
+    .dekont {
+      box-sizing: border-box;
+      width: var(--dk-genislik);
+      max-width: 100%;
+      padding: 1mm 0 3mm;
+      color: #000;
+      font: 500 var(--dk-yazi)/1.35 Manrope, system-ui, sans-serif;
+      font-variant-numeric: tabular-nums;
+      overflow-wrap: anywhere;
+    }
+    .dekont p { margin: 0; }
+    .dk-orta { text-align: center; }
+    .dk-firma-ad { font-size: 1.25em; font-weight: 800; line-height: 1.2; }
+    .dk-baslik {
+      margin: 0.7em 0 0.5em;
+      padding: 0.35em 0;
+      border-block: 1px solid #000;
+      text-align: center;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+    .dk-cizgi { margin: 0.5em 0; border: 0; border-top: 1px dashed #000; }
+    .dk-satir { display: flex; justify-content: space-between; gap: 0.8em; padding: 0.1em 0; }
+    .dk-satir > * { min-width: 0; }
+    .dk-satir > :last-child { text-align: right; font-weight: 700; }
+    .dk-kucuk { font-size: 0.85em; }
+    .dk-blok + .dk-blok { margin-top: 0.6em; padding-top: 0.6em; border-top: 1px dashed #000; }
+    .dk-toplam { font-size: 1.3em; font-weight: 800; }
+    .dk-toplam > :last-child { font-weight: 800; }
+    .dk-pin {
+      margin: 0.5em 0;
+      padding: 0.4em;
+      border: 1px solid #000;
+      text-align: center;
+      font-size: 1.2em;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+    }
+    .dk-alt { margin-top: 0.8em; text-align: center; font-size: 0.85em; }
+
+    .dk-bicim[aria-pressed="true"] {
+      background: var(--color-murekkep);
+      border-color: var(--color-murekkep);
+      color: #fff;
+    }
+
+    @media print {
+      .dekont-arac { display: none !important; }
+      html, body { background: #fff !important; margin: 0; }
+      .dekont-kagit { margin: 0 auto; border: 0; padding: 0; }
+    }
+  </style>
+  <style id="dekont-sayfa-boyutu"></style>
+</head>
+<body class="min-h-dvh bg-zemin">
+  <header class="dekont-arac sticky top-0 z-10 border-b border-cizgi bg-yuzey px-4 py-2">
+    <div class="mx-auto flex max-w-xl flex-wrap items-center gap-2">
+      <a href="{{ geri }}" class="dugme dugme-sessiz shrink-0" aria-label="Geri dön">
+        <span class="ikon" aria-hidden="true">arrow_back</span>
+        <span class="hidden sm:inline">Geri</span>
+      </a>
+      <p class="min-w-0 flex-1 truncate font-semibold">Dekont</p>
+      <button type="button" class="dugme dugme-birincil shrink-0" data-yazdir>
+        <span class="ikon" aria-hidden="true">print</span> Yazdır
+      </button>
+      <div class="flex basis-full gap-1.5" role="group" aria-label="Kağıt">
+        <button type="button" class="dugme dugme-sessiz dk-bicim flex-1" data-bicim="58" aria-pressed="false">58 mm</button>
+        <button type="button" class="dugme dugme-sessiz dk-bicim flex-1" data-bicim="80" aria-pressed="true">80 mm</button>
+        <button type="button" class="dugme dugme-sessiz dk-bicim flex-1" data-bicim="a5" aria-pressed="false">A5</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="px-4">
+    <div class="dekont-kagit">
+      <article class="dekont" id="dekont">
+        <div class="dk-orta">
+          <p class="dk-firma-ad">{{ firma.ad }}</p>
+          {% if firma.adres %}<p class="dk-kucuk">{{ firma.adres }}</p>{% endif %}
+          {% if firma.telefon %}<p class="dk-kucuk">Tel: {{ firma.telefon|telefon }}</p>{% endif %}
+        </div>
+        <p class="dk-baslik">{% block dekont_basligi %}{% endblock %}</p>
+
+        {% block dekont %}{% endblock %}
+
+        <div class="dk-alt">
+          <p>Teşekkür ederiz.</p>
+          <p>Bilgi amaçlıdır, mali değeri yoktur.</p>
+        </div>
+      </article>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var kok = document.documentElement;
+      var dekont = document.getElementById("dekont");
+      var sayfaStili = document.getElementById("dekont-sayfa-boyutu");
+      var RULO = { "58": 58, "80": 80 };
+
+      function oku() {
+        try { return localStorage.getItem("dekont-bicimi"); } catch (e) { return null; }
+      }
+      function sakla(bicim) {
+        try { localStorage.setItem("dekont-bicimi", bicim); } catch (e) { /* gizli pencere */ }
+      }
+
+      // Rulo sayfası içeriğin boyu kadar: CSS mm'si 96 dpi'dir, ekrandaki
+      // ölçü baskıdakiyle aynı genişlikte ve aynı yazıyla alınır.
+      function sayfayiKur() {
+        var bicim = kok.dataset.bicim;
+        if (!RULO[bicim]) {
+          sayfaStili.textContent = "@page { size: A5 portrait; margin: 12mm; }";
+          return;
+        }
+        var boy = Math.ceil(dekont.getBoundingClientRect().height * 25.4 / 96) + 6;
+        sayfaStili.textContent = "@page { size: " + RULO[bicim] + "mm " + boy + "mm; margin: 0; }";
+      }
+
+      function sec(bicim) {
+        if (!RULO[bicim] && bicim !== "a5") bicim = "80";
+        kok.dataset.bicim = bicim;
+        document.querySelectorAll(".dk-bicim").forEach(function (dugme) {
+          dugme.setAttribute("aria-pressed", String(dugme.dataset.bicim === bicim));
+        });
+        sayfayiKur();
+      }
+
+      document.querySelectorAll(".dk-bicim").forEach(function (dugme) {
+        dugme.addEventListener("click", function () {
+          sec(dugme.dataset.bicim);
+          sakla(dugme.dataset.bicim);
+        });
+      });
+      document.querySelector("[data-yazdir]").addEventListener("click", function () {
+        sayfayiKur();
+        window.print();
+      });
+      window.addEventListener("beforeprint", sayfayiKur);
+
+      sec(oku() || "80");
+      // Yazı tipi gelince satırlar kayabilir; boy yeniden ölçülür.
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(sayfayiKur);
+    })();
+  </script>
+</body>
+</html>

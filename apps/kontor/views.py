@@ -18,12 +18,14 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
+from apps.bayi.dekont import firma
 from apps.bayi.telefon import normalize
 from apps.bayi.yetki import bayi_gerekli
 from apps.finans.services import SiparisVerilemez
-from apps.kontor.models import Islem, IslemDurumu, Kategori, Paket
+from apps.kontor.models import Hedef, Islem, IslemDurumu, Kategori, Paket
 from apps.kontor.sorgu import NumaraPaketAlamaz, SorguBekleniyor, SorguHatasi
 from apps.kontor.services import (
     fiyatlandir,
@@ -235,6 +237,32 @@ def islem_durum(request, referans):
     """HTMX: sonuç geldi mi? Geldiyse kutu yenilenir ve sorgu durur."""
     islem_kaydi = _guncel(_islem(request, referans))
     return render(request, "kontor/parca_durum.html", {"islem": islem_kaydi})
+
+
+@login_required
+@bayi_gerekli
+def dekont(request, referans):
+    """Müşteriye verilen dekont (58 mm, 80 mm, A5). Yalnızca yüklenmiş işlemde.
+
+    Kontörün sonucu saniyeler içinde gelir; sürerken ya da askıdayken fiş
+    verilseydi müşteri elinde "yüklendi" kağıdıyla, yüklenmemiş bir hatla
+    kalabilirdi. Tutar müşteriye dönüktür: tavsiye satış, yoksa bayinin
+    ödediği (`apps/bayi/dekont.py`).
+    """
+    islem_kaydi = _islem(request, referans)
+    if islem_kaydi.durum != IslemDurumu.BASARILI:
+        raise Http404("Dekont yalnızca yüklenmiş işlemde verilir.")
+    return render(
+        request,
+        "kontor/dekont.html",
+        {
+            "islem": islem_kaydi,
+            "firma": firma(request.user),
+            "tutar": islem_kaydi.tavsiye_fiyati or islem_kaydi.siparis.tutar,
+            "pin": bool(islem_kaydi.kategori and islem_kaydi.kategori.hedef == Hedef.YOK),
+            "geri": islem_kaydi.get_absolute_url(),
+        },
+    )
 
 
 @login_required

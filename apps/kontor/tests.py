@@ -848,6 +848,41 @@ class EkranTestleri(Temel):
         self.client.force_login(baska)
         self.assertEqual(self.client.get(islem.get_absolute_url()).status_code, 404)
 
+    def test_dekont_yalniz_yuklenmis_islemde_musteri_fiyatiyla(self):
+        from apps.bayi.models import BayiProfili
+
+        BayiProfili.objects.create(
+            kullanici=self.bayi, unvan="Ege İletişim", adres="Atatürk Cd. 5", sehir="İzmir", telefon="5324445566"
+        )
+        self.paket.tavsiye_fiyati = TL("150.00")
+        self.paket.save()
+        islem = self.yukle()
+        adres = reverse("kontor:dekont", args=[islem.siparis.referans_no])
+        # Sürerken dekont yok: müşteri elinde "yüklendi" kağıdıyla yüklenmemiş hatla kalmasın.
+        self.assertEqual(self.client.get(adres).status_code, 404)
+        self.assertNotContains(self.client.get(islem.get_absolute_url()), adres)
+
+        _ayar("Bir", sorgu="basarili")
+        Islem.objects.update(son_sorgu=None)
+        islem = isle(islem.pk)
+        self.assertEqual(islem.durum, IslemDurumu.BASARILI)
+        self.assertContains(self.client.get(islem.get_absolute_url()), adres)
+        yanit = self.client.get(adres)
+        for metin in (
+            "Ege İletişim", "Atatürk Cd. 5 İzmir", "0532 444 55 66", "YÜKLEME DEKONTU", "Kolay Paket 15",
+            "0532 999 88 77", "150,00 ₺", islem.siparis.referans_no, "58 mm", "80 mm", "A5",
+        ):
+            self.assertContains(yanit, metin)
+        # Bayinin ödediği müşterinin fişine girmez.
+        self.assertNotContains(yanit, "110,00")
+        # Tavsiye yoksa bilinen tek rakam bayinin ödediğidir.
+        Islem.objects.filter(pk=islem.pk).update(tavsiye_fiyati=None)
+        self.assertContains(self.client.get(adres), "110,00 ₺")
+
+        baska = User.objects.create_user("5320000000", password="x")
+        self.client.force_login(baska)
+        self.assertEqual(self.client.get(adres).status_code, 404)
+
     def test_kontor_siparisi_magaza_listesinde_gorunmez(self):
         self.yukle()
         yanit = self.client.get(reverse("magaza:siparislerim"))
