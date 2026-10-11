@@ -2779,3 +2779,100 @@ class ParolaDegistirme(TestCase):
         cevap = self.client.get(self.adres)
         self.assertEqual(cevap.status_code, 302)
         self.assertIn(reverse("bayi:giris"), cevap["Location"])
+
+
+# -- Kazancım: kontör, oyun-pin ve fatura kazancı -----------------------------
+
+from datetime import datetime, time, timedelta  # noqa: E402
+
+from django.utils import timezone  # noqa: E402
+
+
+class KazancTestleri(TestCase):
+    """Kazanç tavsiye fiyatla, yalnızca sonuçlanmış işten, gün yerel saatle."""
+
+    def setUp(self):
+        from apps.fatura.models import OdemeDurumu
+        from apps.kontor.models import IslemDurumu, Kategori
+
+        self.bayi = User.objects.create_user("5321112233", password="x")
+        Cuzdan.objects.create(bayi=self.bayi)
+        self.client.force_login(self.bayi)
+        self.bugun = timezone.localdate()
+        self.dun = self.bugun - timedelta(days=1)
+        self.kontor = Kategori.objects.create(ad="Turkcell Paket", api_operator="turkcell", api_tip="ses")
+        self.oyun = Kategori.objects.create(ad="PUBG UC", oyun=True, hedef="yok", api_operator="pubg", api_tip="uc")
+        self.BASARILI, self.IPTAL, self.ODENDI, self.BEKLIYOR = (
+            IslemDurumu.BASARILI, IslemDurumu.IPTAL, OdemeDurumu.ODENDI, OdemeDurumu.BEKLIYOR,
+        )
+
+    def _an(self, gun, saat=12, dakika=0):
+        return timezone.make_aware(datetime.combine(gun, time(saat, dakika)))
+
+    def _siparis(self, bayi, tutar):
+        from apps.magaza.models import Siparis
+
+        return Siparis.objects.create(bayi=bayi, urun_adi="x", birim_fiyat=tutar, tutar=tutar)
+
+    def islem(self, tutar, tavsiye, an, *, kategori=None, durum=None, bayi=None):
+        from apps.kontor.models import Islem
+
+        bayi = bayi or self.bayi
+        kayit = Islem.objects.create(
+            siparis=self._siparis(bayi, Decimal(tutar)), bayi=bayi, kategori=kategori or self.kontor,
+            paket_adi="p", hedef="5320000000", tavsiye_fiyati=Decimal(tavsiye) if tavsiye else None,
+            durum=durum or self.BASARILI,
+        )
+        Islem.objects.filter(pk=kayit.pk).update(olusturma_tarihi=an)
+
+    def odeme(self, tutar, tavsiye, an, *, durum=None):
+        from apps.fatura.models import Odeme
+
+        kayit = Odeme.objects.create(
+            siparis=self._siparis(self.bayi, Decimal(tutar)), bayi=self.bayi, kurum_adi="Vodafone",
+            numara="5332590138", tavsiye_fiyati=Decimal(tavsiye), durum=durum or self.ODENDI,
+        )
+        Odeme.objects.filter(pk=kayit.pk).update(olusturma_tarihi=an)
+
+    def test_tavsiye_fiyatla_bolum_bolum_ve_gun_gun(self):
+        from apps.bayi.kazanc import kazanc
+
+        self.islem("110.00", "150.00", self._an(self.bugun))
+        self.islem("50.00", None, self._an(self.bugun))                   # tavsiyesiz: kazanç 0
+        self.islem("25.00", "30.00", self._an(self.dun, 23, 30), kategori=self.oyun)   # gece: dünün
+        self.odeme("494.50", "507.00", self._an(self.dun))
+        # Sayılmayanlar: iptal kontör, ödenmeyi bekleyen fatura, başka bayi, aralık dışı.
+        self.islem("100.00", "120.00", self._an(self.bugun), durum=self.IPTAL)
+        self.odeme("100.00", "110.00", self._an(self.bugun), durum=self.BEKLIYOR)
+        self.islem("100.00", "120.00", self._an(self.bugun), bayi=User.objects.create_user("5320000001"))
+        self.islem("100.00", "120.00", self._an(self.bugun - timedelta(days=40)))
+
+        rapor = kazanc(self.bayi, self.dun, self.bugun)
+        t = rapor["toplam"]
+        self.assertEqual((t["adet"], t["satis"], t["maliyet"], t["kazanc"]),
+                         (4, Decimal("737.00"), Decimal("679.50"), Decimal("57.50")))
+        self.assertEqual([(kod, s["kazanc"]) for kod, _, s in rapor["bolumler"]],
+                         [("kontor", Decimal("40.00")), ("oyun", Decimal("5.00")), ("fatura", Decimal("12.50"))])
+        bugun, dun = rapor["gunler"]
+        self.assertEqual((bugun["gun"], bugun["toplam"]["kazanc"], bugun["toplam"]["adet"]), (self.bugun, Decimal("40.00"), 2))
+        self.assertEqual((dun["gun"], dun["toplam"]["kazanc"]), (self.dun, Decimal("17.50")))
+        # Günün satırları bölüm sütunlarıyla hizalı: bugün oyun ve fatura yok.
+        self.assertEqual([s and s["kazanc"] for s in bugun["satirlar"]], [Decimal("40.00"), None, None])
+
+    def test_sayfa_ve_aralik_siniri(self):
+        self.islem("110.00", "150.00", self._an(self.bugun))
+        adres = reverse("bayi:kazanc")
+        yanit = self.client.get(adres, {"bas": self.bugun.isoformat(), "bit": self.bugun.isoformat()})
+        self.assertContains(yanit, "Kazancım")
+        self.assertContains(yanit, "40,00 ₺")
+        self.assertContains(yanit, "tavsiye fiyatla")
+        self.assertContains(self.client.get(reverse("bayi:panel")), f'href="{adres}"')
+        # 31 günü aşan aralık sebebini yazar, bu aya düşer.
+        uzun = self.client.get(adres, {"bas": (self.bugun - timedelta(days=40)).isoformat(), "bit": self.bugun.isoformat()})
+        self.assertContains(uzun, "en fazla 31 gün olabilir")
+        self.assertContains(uzun, "Bu ay gösteriliyor")
+        self.assertEqual(uzun.context["baslangic"], self.bugun.replace(day=1))
+        ters = self.client.get(adres, {"bas": self.bugun.isoformat(), "bit": self.dun.isoformat()})
+        self.assertContains(ters, "başlangıçtan önce olamaz")
+        bos = self.client.get(adres, {"bas": "2020-01-01", "bit": "2020-01-02"})
+        self.assertContains(bos, "yüklenmiş kontör ya da ödenmiş fatura yok")

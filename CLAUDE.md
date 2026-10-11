@@ -868,6 +868,22 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   **Rulo sayfası içeriğin boyu kadar kurulur** (`@page` boyu baskıdan önce
   betikle ölçülür): sabit boy verilseydi yazıcı fişin altına boş kağıt
   sürerdi. Termal kafa gri basamaz; dekontta yalnızca siyah ve düz çizgi var.
+- **Bayi kontör, oyun-pin ve fatura kazancını Kazancım'da görür**
+  (`/kazanc/`, `apps/bayi/kazanc.py`): dönem toplamı, bölüm bölüm (Kontör,
+  Oyun & Pin, Fatura) ve günlük döküm. Hazır aralıklar (bugün, dün, son 7
+  gün, bu ay, geçen ay) ve özel aralık; **aralık en fazla 31 gündür** —
+  sayfa her açılışta bayinin işlemlerini toplar, indeksli olsa da yıllık
+  aralık sunucuyu boşuna yorar. Aşılırsa sebebi yazılır, bu ay gösterilir.
+  · **Kazanç tavsiye fiyatla hesaplanır** — dekonttaki rakamın aynısı
+  (tavsiye > 0 ise o, yoksa bayinin ödediği, kazanç 0). Müşteriden gerçekte
+  ne alındığını sistem bilmez; sayfa bunu yazar. eSIM'deki gibi bu bir
+  hakediş değildir, cüzdana girmez.
+  · Yalnızca sonuçlanmış iş sayılır: yüklenen kontör, **ödenen** fatura
+  (ödenmeyi bekleyen ödendiğinde girer). Gün satışın yapıldığı gündür
+  (`olusturma_tarihi`, yerel saat; gece 23:30'daki satış o güne yazılır).
+  Rakamlar saklanmaz, her açılışta kayıtlardan toplanır.
+  · Günlük tabloda günün kazancı tarihin hemen yanındadır: telefonda tablo
+  kendi kutusunda kayar, asıl rakam kaymadan görünsün.
 - **Karar hangi yoldan verilirse verilsin tek servisten geçer.** Ödeme
   bildiriminin `durum` alanı formda düzenlenebilir; yönetici "Onaylandı"
   seçip kaydedince bildirim onaylanmış **görünüyor** ama para hiç hareket
@@ -1182,10 +1198,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   talep zaten rozetle sayılıyor.
 - **Bayi menüsünün sırası bilinçlidir:** Panel, Tarifeler, Yeni başvuru,
   Başvurularım, Hakedişler, Destek, Cüzdan, Mağaza, eSIM, Kontör, Oyun &
-  Pin, Fatura. Bayi müşteriyle önce tarifeye bakıyor, sonra başvuruyu giriyor; menü
+  Pin, Fatura, Kazancım. Bayi müşteriyle önce tarifeye bakıyor, sonra başvuruyu giriyor; menü
   bu sırayı izler. Mağaza cüzdanın hemen ardındadır (önce parayı görür,
   sonra harcar); sonradan gelen satış bölümleri (eSIM, Kontör, Oyun & Pin,
-  Fatura) alta eklendi, üstteki sıra bozulmasın diye.
+  Fatura) alta eklendi, üstteki sıra bozulmasın diye. Kazancım satış
+  bölümlerinin altındadır: önce satar, sonra ne kazandığına bakar.
 - **Rol ekranları karışmaz.** Bayi görünümleri `@bayi_gerekli`, tedarikçi
   görünümleri `@tedarikci_gerekli` ile korunur (`apps/bayi/yetki.py`).
   Yeni bir ekran eklerken hangi role ait olduğunu belirt; profili olmayan

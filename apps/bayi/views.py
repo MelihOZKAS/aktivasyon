@@ -438,6 +438,41 @@ def bayi_basvurusu(request):
 
 @login_required
 @bayi_gerekli
+def kazanc_gorunumu(request):
+    """Kontör, oyun-pin ve fatura kazancı: günlük döküm ve dönem toplamı.
+
+    Aralık en fazla 31 gündür; aşılırsa sebebi yazılır, bu ay gösterilir
+    (`apps/bayi/kazanc.py`).
+    """
+    from apps.bayi import kazanc
+
+    bugun = timezone.localdate()
+    hata = ""
+    try:
+        baslangic, bitis = kazanc.araligi_coz(request.GET.get("bas", ""), request.GET.get("bit", ""), bugun)
+    except kazanc.AralikHatasi as sebep:
+        hata = str(sebep)
+        baslangic, bitis = kazanc.araligi_coz("", "", bugun)
+    hazir = kazanc.hazir_araliklar(bugun)
+    return render(
+        request,
+        "bayi/kazanc.html",
+        {
+            "rapor": kazanc.kazanc(request.user, baslangic, bitis),
+            "baslangic": baslangic,
+            "bitis": bitis,
+            "gun_sayisi": (bitis - baslangic).days + 1,
+            "bugun": bugun,
+            "hazir": hazir,
+            "secili": next((kod for kod, _, bas, bit in hazir if (bas, bit) == (baslangic, bitis)), ""),
+            "hata": hata,
+            "en_uzun": kazanc.EN_UZUN_ARALIK,
+        },
+    )
+
+
+@login_required
+@bayi_gerekli
 def hakedisler(request):
     """Bayinin hangi işten ne kazanacağını açıkça gösteren sayfa.
 
