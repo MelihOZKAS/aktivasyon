@@ -726,10 +726,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   dosyanın değiştiğini görüp yeniden okur. Sorgu hata verirse işçi sonucu
   hemen `basarisiz` yazar, bayi zaman aşımını beklemez. **Robot yalnızca
   çalışma saatlerinde çalışır** (`ayar.json` → `calisma_saatleri`,
-  varsayılan 08:00-23:00; sağlayıcı da 23:00-06:00 tahsilatı kapatıyor):
-  dışında Django'ya hiç istek atmaz. Saatler nabızla gelir
-  (`Robot.mesai_baslangic/bitis`); robot susunca bayi "sistem bağlı değil"
-  değil "08:00–23:00 arasında yapılır" görür (`services.kapali_mesaji`) —
+  varsayılan 06:00-00:01; sağlayıcı bazı kurumlarda 23:00-06:00 tahsilatı
+  kapatıyor, sorgu sürüyor): dışında Django'ya hiç istek atmaz. Saatler
+  nabızla gelir (`Robot.mesai_baslangic/bitis`); robot susunca bayi "sistem
+  bağlı değil" değil "06:00–00:01 arasında yapılır" görür
+  (`services.kapali_mesaji`) —
   yoksa her gece yöneticiyi arardı. Laptop dışarı
   port açmaz: `/fatura/robot/is/`
   (iş al), `/sonuc/`, `/kalp/` (nabız), `/katalog/` (isteğe bağlı kurum

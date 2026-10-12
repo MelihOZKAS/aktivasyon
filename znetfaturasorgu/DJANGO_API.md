@@ -267,7 +267,7 @@ durum değişince (boş/meşgul, oturum düştü) ya da dakikada bir gider:
 `POST /fatura/robot/kalp/`
 ```json
 // istek:
-{"robot": "ev-laptop", "durum": "bos", "oturum": "canli", "mesai": "08:00-23:00"}
+{"robot": "ev-laptop", "durum": "bos", "oturum": "canli", "mesai": "06:00-00:01"}
 // cevap: robotun gireceği aktif hesaplar (ayrı uç yok, her nabızda taze):
 {"ok": true, "hesaplar": [
   {"id": 7, "kullanici_adi": "5309346655", "sifre": "…", "guvenlik_resmi": "kivi"}
@@ -276,7 +276,7 @@ durum değişince (boş/meşgul, oturum düştü) ya da dakikada bir gider:
 `mesai`: robotun çalışma saatleri (`ayar.json` → `calisma_saatleri`). Robot bu
 saatlerin dışında **hiç istek atmaz**, dakikada bir yalnızca kendi saatine
 bakar. Django saatleri robotun kaydına yazar; robot susunca bayiye "sistem
-bağlı değil" yerine "Fatura sorgusu 08:00–23:00 arasında yapılır" der.
+bağlı değil" yerine "Fatura sorgusu 06:00–00:01 arasında yapılır" der.
 `durum`: `bos|mesgul`. `oturum`: `canli|dustu`.
 
 **Hesaplar nabız cevabında döner:** robot her nabızda kullanıcı adı, şifre

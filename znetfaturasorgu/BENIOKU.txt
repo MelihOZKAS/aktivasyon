@@ -64,8 +64,8 @@ Django tarafı kurulu (apps/fatura); uçların ayrıntısı: DJANGO_API.md.
 NOTLAR
 ------
 - Robot yalnızca ayar.json'daki "calisma_saatleri" içinde çalışır
-  (varsayılan 08:00-23:00). Dışında Django'ya hiç istek atmaz; bayi o
-  saatlerde "08:00–23:00 arasında yapılır" görür. Değiştirmek için
+  (varsayılan 06:00-00:01). Dışında Django'ya hiç istek atmaz; bayi o
+  saatlerde "06:00–00:01 arasında yapılır" görür. Değiştirmek için
   ayar.json'u düzenle, isci.bat'ı yeniden başlat.
 - Bir hesabın oturumu düşerse robot o hesaba kendisi yeniden giriş yapar
   (bir sonraki işte). Giriş yapamıyorsa (şifre ya da güvenlik resmi yanlış)

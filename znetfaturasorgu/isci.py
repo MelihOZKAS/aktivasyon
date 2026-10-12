@@ -152,8 +152,8 @@ def main():
     aralik = a.get("aralik_sn", 5)
     # Çalışma saatleri dışında Django'ya hiç istek atılmaz; robot dakikada
     # bir yalnızca kendi saatine bakar. Saatler nabızla Django'ya da gider:
-    # bayi mesai dışında "08:00–23:00 arasında" görür, "sistem bağlı değil" değil.
-    saatler = a.get("calisma_saatleri", "08:00-23:00")
+    # bayi mesai dışında "06:00–00:01 arasında" görür, "sistem bağlı değil" değil.
+    saatler = a.get("calisma_saatleri", "06:00-00:01")
     bas, bit = calisma_saatleri(saatler)
 
     # Hesaplar nabız cevabında gelir (Django, anahtarla doğrulanmış): kullanıcı
