@@ -194,7 +194,7 @@ def veriyi_temizle(veri):
     operator = operator_kodu(veri.get("operator"))
     if not operator:
         operator = next((p["operator"] for p in paketler if p["operator"]), "")
-    durum = veri.get("durum") if veri.get("durum") in ("hata", "borc") else ""
+    durum = veri.get("durum") if veri.get("durum") in ("hata", "borc", "limit") else ""
     borc = _ondalik(veri.get("borc")) if durum == "borc" else None
     return {
         "durum": durum if durum != "borc" or (borc and borc > 0) else "",
@@ -322,8 +322,11 @@ def is_ver(robot):
     """Robota bekleyen bir paket sorgusu verir; yoksa `None`.
 
     Aynı sorgu iki robota gitmez: satır `SELECT … FOR UPDATE SKIP LOCKED`
-    ile alınır — fatura kuyruğunun aynısı.
+    ile alınır — fatura kuyruğunun aynısı. İş bir sağlayıcı hesabına atanır
+    ve o hesabın kontör hakkı **gönderim anında** eksilir; hakkı kalan hesap
+    yoksa iş atanmaz (başka robota/hesaba kalır).
     """
+    from apps.fatura.services import hesap_sec_ve_say
     from apps.kontor.models import RobotSorgusu, RobotSorgusuDurumu
 
     suresi_dolanlari_kapat()
@@ -337,10 +340,14 @@ def is_ver(robot):
         )
         if sorgu is None:
             return None
+        hesap = hesap_sec_ve_say(robot, "paket")
+        if hesap is None:
+            return None
         sorgu.durum = RobotSorgusuDurumu.SORGULANIYOR
         sorgu.robot = robot
+        sorgu.hesap = hesap
         sorgu.alinma_tarihi = simdi
-        sorgu.save(update_fields=["durum", "robot", "alinma_tarihi", "guncelleme_tarihi"])
+        sorgu.save(update_fields=["durum", "robot", "hesap", "alinma_tarihi", "guncelleme_tarihi"])
     return sorgu
 
 
@@ -363,14 +370,20 @@ def sonuc_yaz(robot, talep_id, *, veri=None, hata=""):
             sorgu.mesaj = HATA_MESAJI
             sorgu.sonuc = {"robot_hatasi": str(hata or "sonuç yok")[:500]}
         else:
+            # Sayım gönderim anında yapıldı (hesap_sec_ve_say); burada sayılmaz.
             temiz = veriyi_temizle(veri)
             sorgu.sonuc = temiz
-            if temiz["sorgulandi"]:
-                # Robot sağlayıcıya sorguyu gönderdi: kontör hakkı bir eksildi.
-                # (Operatör uymadıysa düğmeye basmaz, sorgulandi False — sayılmaz.)
-                from apps.fatura.services import sayac_arttir
+            if temiz["durum"] == "limit":
+                # Sağlayıcı bu hesabın kontör hakkının dolduğunu söyledi:
+                # hesabı bugünlük kapat, sorguyu yeniden denenebilir hata yap
+                # (başka hesaba/robota düşsün).
+                from apps.fatura.services import saglayici_limiti_doldu
 
-                transaction.on_commit(partial(sayac_arttir, robot.pk, "paket"))
+                saglayici_limiti_doldu(sorgu.hesap_id, "paket")
+                sorgu.durum = RobotSorgusuDurumu.HATA
+                sorgu.mesaj = HATA_MESAJI
+                sorgu.save()
+                return sorgu
             if temiz["operator"] and temiz["operator"] != sorgu.operator:
                 sorgu.durum = RobotSorgusuDurumu.HATA
                 sorgu.mesaj = baska_operator_mesaji(temiz["operator"])

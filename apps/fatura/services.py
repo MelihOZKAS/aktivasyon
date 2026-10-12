@@ -6,7 +6,6 @@ Para yalnızca `finans.services` üzerinden hareket eder (`siparis_odemesini_isl
 
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from functools import partial
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -19,6 +18,7 @@ from apps.fatura.models import (
     Odeme,
     OdemeDurumu,
     Robot,
+    RobotHesabi,
     Sorgu,
     SorguDurumu,
 )
@@ -107,39 +107,61 @@ def sabit_fiyat(kurum, grup, tutarlar=None):
 def cevrimici_robotlar(tur="fatura"):
     """O türü (fatura / paket) bugün hâlâ yapabilen, çevrimiçi robotlar.
 
-    Limiti dolan robot listeden düşer: hakkı biten hesap daha fazla
-    sorgulanmaz. Sayı az (≤ birkaç hesap), süzme Python'da.
+    Hakkı kalan hesabı olmayan robot listeden düşer: bütün hesapları dolduysa
+    o robot artık o türde sorgulayamaz. Sayı az (birkaç robot × birkaç
+    on hesap), süzme Python'da.
     """
-    qs = Robot.objects.filter(aktif=True, son_nabiz__gte=timezone.now() - CEVRIMICI_SURESI)
+    qs = Robot.objects.filter(aktif=True, son_nabiz__gte=timezone.now() - CEVRIMICI_SURESI).prefetch_related("hesaplar")
     if tur == "paket":
         qs = qs.filter(paket_sorgusu=True)
-    return [r for r in qs if not r.limit_doldu(tur)]
+    return [r for r in qs if r.hak_kalan_mi(tur)]
 
 
 def robot_cevrimici_mi():
     return bool(cevrimici_robotlar("fatura"))
 
 
-def sayac_arttir(robot_pk, tur):
-    """Robotun bugünkü sorgu sayacını bir arttırır; gün değiştiyse sıfırlar.
+def hesap_sec_ve_say(robot, tur):
+    """Robotun o türde hakkı kalan hesabını seçip sayacını **gönderim anında**
+    bir arttırır; hesabı döndürür (yoksa `None`).
 
-    Sağlayıcı hesap başına günlük sorgu hakkı veriyor; sayaç bunu takip eder,
-    hak dolunca robot o türden iş almaz (`cevrimici_robotlar`, `siradaki_is`).
-    Gece 00:00 geçilince ilk sayımda sayaçlar sıfırlanır — ayrı bir cron yok.
-    `tur`: "paket" (kontör) ya da "fatura".
+    Sayım sonucu beklemeden burada yapılır: sağlayıcıya işi yolladığımız an o
+    hesabın günlük hakkı eksilir. Hesaplar `select_for_update` ile kilitlenir
+    (eş zamanlı istek aynı sayacı iki kez yazmasın). En az kullanılmış hesap
+    seçilir ki haklar dengeli tükensin. Gün değiştiyse sayaç 0'dan başlar
+    (gece 00:00 sıfırı; cron yok).
     """
     bugun = timezone.localdate()
     alan = "kontor_sayaci" if tur == "paket" else "fatura_sayaci"
     with transaction.atomic():
-        robot = Robot.objects.select_for_update().filter(pk=robot_pk).first()
-        if robot is None:
-            return
-        if robot.sayac_gunu != bugun:
-            robot.sayac_gunu = bugun
-            robot.fatura_sayaci = 0
-            robot.kontor_sayaci = 0
-        setattr(robot, alan, getattr(robot, alan) + 1)
-        robot.save(update_fields=["sayac_gunu", "fatura_sayaci", "kontor_sayaci", "guncelleme_tarihi"])
+        hesaplar = list(
+            RobotHesabi.objects.select_for_update().filter(robot=robot, aktif=True).order_by("sira", "pk")
+        )
+        adaylar = [h for h in hesaplar if not h.limit_doldu(tur, bugun)]
+        if not adaylar:
+            return None
+        hesap = min(adaylar, key=lambda h: (h.bugunku_sayi(tur, bugun), h.sira, h.pk))
+        if hesap.sayac_gunu != bugun:
+            hesap.sayac_gunu = bugun
+            hesap.fatura_sayaci = 0
+            hesap.kontor_sayaci = 0
+        setattr(hesap, alan, getattr(hesap, alan) + 1)
+        hesap.save(update_fields=["sayac_gunu", "fatura_sayaci", "kontor_sayaci", "guncelleme_tarihi"])
+    return hesap
+
+
+def saglayici_limiti_doldu(hesap_pk, tur):
+    """Sağlayıcı bu **hesabın** bu türdeki günlük hakkının dolduğunu söyledi.
+
+    "Sorgu limitinizi doldurdunuz" uyarısı gelince çağrılır: o hesap bugünlük
+    o türde iş almaz (saydığımız limit 0/sınırsız olsa da), gece 00:00'da
+    (gün değişince) kendiliğinden açılır. Sorgunun kendisi yeniden denenebilir
+    hata yapılır; iş robotun başka hesabına ya da başka robota düşer.
+    """
+    if not hesap_pk:
+        return
+    alan = "kontor_doldu" if tur == "paket" else "fatura_doldu"
+    RobotHesabi.objects.filter(pk=hesap_pk).update(**{alan: timezone.localdate(), "guncelleme_tarihi": timezone.now()})
 
 
 def kapali_mesaji(ne="Fatura sorgusu", robotlar=None, tur="fatura"):
@@ -157,8 +179,14 @@ def kapali_mesaji(ne="Fatura sorgusu", robotlar=None, tur="fatura"):
     if saatli and not any(r.mesai_icinde(simdi) for r in saatli):
         araliklar = " / ".join(sorted({r.mesai_metni for r in saatli}))
         return f"{ne} {araliklar} arasında yapılır."
-    calisan = [r for r in robotlar if r.cevrimici and r.mesai_icinde(simdi)]
-    if calisan and all(r.limit_doldu(tur) for r in calisan):
+    # Çevrimiçi, hesabı olan ama hepsinin hakkı bugün dolduysa: sebep saat
+    # değil, hak (yarın açılır). Hiç hesabı olmayan robot buraya girmez —
+    # o bir ayar sorunu, "yarın açılır" yanıltıcı olur; genel mesaj verilir.
+    hesapli = [
+        r for r in robotlar
+        if r.cevrimici and r.mesai_icinde(simdi) and any(h.aktif for h in r.hesaplar.all())
+    ]
+    if hesapli and not any(r.hak_kalan_mi(tur) for r in hesapli):
         return f"Bugünkü {ne.lower()} hakkı doldu; yarın yeniden açılır."
     return f"{ne} şu an yapılamıyor; biraz sonra yeniden dene."
 
@@ -215,11 +243,12 @@ def suresi_dolanlari_kapat():
 
 
 def is_ver(robot):
-    """Robota bekleyen bir sorgu verir; yoksa `None`.
+    """Robota bekleyen bir sorgu verir; yoksa (ya da hesabı kalmadıysa) `None`.
 
     **Aynı sorgu iki robota gitmez:** satır `SELECT … FOR UPDATE SKIP
-    LOCKED` ile alınır. Beş robot aynı anda sorsa da her biri kilitlenmemiş
-    başka bir satırı kapar, kilitli olanı atlar.
+    LOCKED` ile alınır. İş bir hesaba atanır ve o hesabın hakkı **gönderim
+    anında** eksilir (`hesap_sec_ve_say`); hakkı kalan hesap yoksa iş
+    atanmaz, başka robota/hesaba kalır.
     """
     suresi_dolanlari_kapat()
     simdi = timezone.now()
@@ -232,11 +261,15 @@ def is_ver(robot):
         )
         if sorgu is None:
             return None
+        hesap = hesap_sec_ve_say(robot, "fatura")
+        if hesap is None:
+            return None
         sorgu.durum = SorguDurumu.SORGULANIYOR
         sorgu.robot = robot
+        sorgu.hesap = hesap
         sorgu.alinma_tarihi = simdi
-        sorgu.save(update_fields=["durum", "robot", "alinma_tarihi", "guncelleme_tarihi"])
-    return Sorgu.objects.select_related("kurum").get(pk=sorgu.pk)
+        sorgu.save(update_fields=["durum", "robot", "hesap", "alinma_tarihi", "guncelleme_tarihi"])
+    return Sorgu.objects.select_related("kurum", "hesap").get(pk=sorgu.pk)
 
 
 def _ilk_bekleyen():
@@ -257,11 +290,11 @@ def siradaki_is(robot, *, paket=False):
     bir bayi var. Paket işi yalnızca onu yapabildiğini söyleyen robota gider
     (`paket`); eski sürüm robot yalnızca fatura alır.
 
-    Bugünkü hakkı dolan türde iş verilmez: fatura hakkı bitse de kontör
-    sürer, kontör bitse de fatura (`Robot.limit_doldu`).
+    Bugünkü hakkı dolan türde iş verilmez: fatura hesaplarının hakkı bitse de
+    kontör sürer, kontör bitse de fatura (`Robot.hak_kalan_mi`).
     """
-    fatura_acik = not robot.limit_doldu("fatura")
-    paket_acik = paket and not robot.limit_doldu("paket")
+    fatura_acik = robot.hak_kalan_mi("fatura")
+    paket_acik = paket and robot.hak_kalan_mi("paket")
     if not (fatura_acik or paket_acik):
         return None
 
@@ -382,7 +415,7 @@ def _veriyi_temizle(veri):
     durum = str((veri or {}).get("durum") or "")
     if faturalar:
         durum = "bulundu"
-    elif durum not in ("borc_yok", "hata"):
+    elif durum not in ("borc_yok", "hata", "limit"):
         durum = "borc_yok"
     return {
         "durum": durum,
@@ -409,11 +442,18 @@ def sonuc_yaz(robot, talep_id, *, veri=None, hata=""):
             sorgu.mesaj = "Sorgu şu an yapılamadı; biraz sonra yeniden dene."
             sorgu.sonuc = {"robot_hatasi": str(hata or "sonuç yok")[:500]}
         else:
-            # Robot sağlayıcıya sorguyu gönderdi: hakkı bir eksildi (robotun
-            # iç hatası yukarıda; o sağlayıcıya hiç gitmedi, sayılmaz).
-            transaction.on_commit(partial(sayac_arttir, robot.pk, "fatura"))
+            # Sayım gönderim anında yapıldı (hesap_sec_ve_say); burada sayılmaz.
             temiz = _veriyi_temizle(veri)
             sorgu.sonuc = temiz
+            if temiz["durum"] == "limit":
+                # Sağlayıcı bu hesabın hakkının dolduğunu söyledi: hesabı
+                # bugünlük kapat, sorguyu yeniden denenebilir hata yap (başka
+                # hesaba/robota düşsün).
+                saglayici_limiti_doldu(sorgu.hesap_id, "fatura")
+                sorgu.durum = SorguDurumu.HATA
+                sorgu.mesaj = "Sorgu şu an yapılamadı; biraz sonra yeniden dene."
+                sorgu.save()
+                return sorgu
             if temiz["durum"] == "hata":
                 # Sağlayıcının kendi mesajı ("23:00-06:00 arasında tahsilat
                 # yapılamaz") bayiye gösterilir: ne yapacağını söyler.

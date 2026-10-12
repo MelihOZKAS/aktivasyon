@@ -759,23 +759,37 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   anda sorsa da her biri başka satırı kapar. Robot çevrimdışıysa (60 sn
   nabız yok) bayi sorgu **açamaz**, ekran sebebini söyler; robotun almadığı
   sorgu 45 sn, aldığı ama yazmadığı 75 sn sonra kapanır.
-  · **Hesap başına günlük sorgu hakkı sayılır** (`Robot.fatura_sayaci` /
-  `kontor_sayaci`, `fatura_limiti` / `kontor_limiti`). Sağlayıcı her hesaba
-  günlük sorgu hakkı veriyor (ör. 10 fatura + 10 kontör); her robot bir
-  hesapla girer, limit o hesabındır. **Fatura ve kontör ayrı sayılır.**
-  Sayaç `services.sayac_arttir` ile artar; yalnızca sorgu sağlayıcıya
-  **gerçekten gittiyse** (robotun iç hatası `basarisiz` değil, numara
-  taşınması `sorgulandi:false` değil) — `sonuc_yaz`'larda `on_commit`'le.
-  Hak dolunca robot o türden iş almaz (`siradaki_is`, `cevrimici_robotlar`),
-  öbür tür sürer; hepsi dolduysa bayi "Bugünkü … hakkı doldu; yarın
-  yeniden açılır" görür (`kapali_mesaji`, `tur`). Limit **panelden** girilir
-  (Robotlar listesinde satırdan, 0 = sınırsız), "Bugünkü sorgu" sütunu
-  kullanımı fatura/kontör ayrı ve renkli gösterir. **Sayaç gece 00:00'da
-  sıfırlanır** — ayrı cron yok: `sayac_gunu` bugünden eskiyse sayı 0 okunur,
-  ilk sayımda tazelenir (`Robot.bugunku_sayi`). Limit **aşmak için değil,
-  hesabın hakkını tüketmemek için**; sağlayıcının kontrolünü aşan bir şey
-  yapılmaz. Birden çok hesap = birden çok robot (klasör kopyalanır, her
-  birine ayrı anahtar), her biri kendi hakkı kadar sorgular.
+  · **Robot bir laptop/işçidir, altında birden çok sağlayıcı hesabı olur**
+  (`RobotHesabi`: kullanıcı adı, şifre, güvenlik resmi, günlük haklar ve
+  sayaçlar). Sağlayıcı **hesap başına** günlük sorgu hakkı veriyor (ör. 10
+  fatura + 10 kontör); robot hesaplarıyla sırayla sorgular. Hesaplar
+  **panelden** girilir (Robot sayfasındaki satır-içi tablo; şifre maskeli,
+  `RobotHesabiFormu`); robot onları **nabız cevabında** çeker (`api.kalp`,
+  ayrı uç yok — her nabızda taze, panelde hesap eklenince yeniden başlatmadan
+  görür). Robot her hesaba kendi profilinde (storage_state) **otomatik giriş
+  yapar**: kullanıcı adı + şifre, sonra yöneticinin seçtiği güvenlik resmini
+  (kivi → E.png; `robot.GUVENLIK`) işaretler — yanlış seçim oturumu bitirdiği
+  için resim adı doğru olmalı. **Sağlayıcının güvenlik/bot kontrolünü gizleme
+  ya da aşma yapılmaz**; bunlar kullanıcının kendi hesapları, giriş kendi
+  bilgileriyle.
+  · **Sayım gönderim anında, hesap başına** (`services.hesap_sec_ve_say`):
+  Django işi verirken robotun o türde (fatura/paket) hakkı kalan, en az
+  kullanılmış hesabını seçer, **o an +1** yapar ve `Sorgu.hesap` /
+  `RobotSorgusu.hesap`'a yazar; `is_` cevabı hesabı taşır. Sonucun gelmesi
+  beklenmez — sağlayıcıya işi yolladığımız an hak eksilir. **Fatura ve kontör
+  ayrı sayılır.** Hesapların hakkı dolunca o robot o türde iş almaz
+  (`Robot.hak_kalan_mi`, `cevrimici_robotlar`); bir hesap dolsa da öbürü
+  sürer. Hiç hesabı kalmayan robot yoksa bayi "Bugünkü … hakkı doldu; yarın
+  yeniden açılır" görür (`kapali_mesaji`, yalnızca **hesabı olup** hepsi dolu
+  robotlarda; hesapsız robot ayar sorunudur, genel mesaj verilir).
+  · **Sağlayıcı "Sorgu limitinizi doldurdunuz" derse o hesap bugünlük
+  kapanır** (`robot.limit_doldu_mu` → `durum:"limit"` → `saglayici_limiti_doldu`
+  `Sorgu.hesap`'a). Sorgunun kendisi yeniden denenebilir hata olur, iş başka
+  hesaba/robota düşer. Hesabın saydığımız limiti 0 (sınırsız) olsa da bu
+  uyarı durdurur. **Gece 00:00'da sıfırlanır** — cron yok: `sayac_gunu` /
+  `*_doldu` bugünden eskiyse sayı 0 / dolu-değil okunur. Amaç hakkı **aşmak
+  değil tüketmemek**. Panelde "Hesaplar · bugün" özeti ve satır-içi tabloda
+  her hesabın fatura/kontör kullanımı renkli görünür.
   · **Kurumun kimliği `Kurum.kod`'dur** (`vodafone`, `100-tl-yukle-plaka`),
   sağlayıcının `api_adi`'si değil — o tekil değil (171 dört "TL Yükle"de
   tekrar ediyor). Kod kurum adından türetilir (`robot.kurum_id`); Django

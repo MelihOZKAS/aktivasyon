@@ -66,15 +66,22 @@ def is_(request, robot):
     if sira is None:
         return JsonResponse({"var": False})
     tur, kayit = sira
+    # İşi hangi sağlayıcı hesabıyla yapacağı: Django gönderim anında seçti ve
+    # hakkını eksiltti. Robot kullanıcı adıyla o hesabın oturumunu seçer
+    # (kimlik bilgilerini /hesaplar/'dan önceden çekti).
+    hesap = kayit.hesap
+    hesap_bilgi = {"id": hesap.pk, "kullanici_adi": hesap.kullanici_adi} if hesap else None
     if tur == "paket":
         return JsonResponse({
             "var": True,
             "tur": "paket",
+            "hesap": hesap_bilgi,
             "talep": {"talep_id": kayit.pk, "numara": kayit.numara, "operator": kayit.operator},
         })
     return JsonResponse({
         "var": True,
         "tur": "fatura",
+        "hesap": hesap_bilgi,
         "talep": {
             "talep_id": kayit.pk,
             "kurum_id": kayit.kurum.kod,
@@ -82,6 +89,20 @@ def is_(request, robot):
             "numara": kayit.numara,
         },
     })
+
+
+def _hesap_listesi(robot):
+    """Robotun gireceği aktif sağlayıcı hesapları: kullanıcı adı, şifre, resim.
+
+    Ayrı bir uç yok: robot her nabızda anahtarıyla doğrulanıyor (lisans
+    kontrolü), hesaplar o cevapta gider — hem taze kalır (panelde hesap
+    eklenince robot yeniden başlatılmadan görür). Kimlik bilgileri yalnızca
+    robotun anahtarıyla kimliklenmiş uçtan verilir; panelde şifre maskeli.
+    """
+    return [
+        {"id": h.pk, "kullanici_adi": h.kullanici_adi, "sifre": h.sifre, "guvenlik_resmi": h.guvenlik_resmi}
+        for h in robot.hesaplar.filter(aktif=True).order_by("sira", "pk")
+    ]
 
 
 @_robot_gerekli("POST")
@@ -107,7 +128,9 @@ def kalp(request, robot):
         oturum=str(veri.get("oturum") or ""),
         mesai=str(veri.get("mesai") or ""),
     )
-    return JsonResponse({"ok": True})
+    # Hesaplar nabız cevabında döner: ayrı uç yok, robot her nabızda taze
+    # listeyi alır (panelde hesap eklenince yeniden başlatmadan görür).
+    return JsonResponse({"ok": True, "hesaplar": _hesap_listesi(robot)})
 
 
 @_robot_gerekli("POST")

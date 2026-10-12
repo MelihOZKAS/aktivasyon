@@ -92,6 +92,94 @@ def baglan(p, headless=True):
     )
 
 
+# ------------------------------------------------------- çok hesaplı giriş
+# Güvenlik resmi sayfasındaki her resim bir dosyadır; yöneticinin hesap için
+# seçtiği resmin dosyasına tıklanınca giriş tamamlanır. Dosya→resim eşlemesi
+# (statik resimlerden çıkarıldı): E.png = kivi, B.png = elma …
+GUVENLIK = {
+    "elma": "B", "yesilelma": "K", "kivi": "E", "limon": "F", "domates": "L",
+    "biber": "J", "sogan": "H", "karpuz": "G", "patlican": "D", "portakal": "I",
+    "lahana": "C", "balkabagi": "A",
+}
+
+
+def _guvenlik_harfi(ad):
+    return GUVENLIK.get(kurum_id(ad).replace("-", ""))
+
+
+def yeni_tarayici(p, headless=True):
+    """Tek Chromium; hesaplar bunun ayrı context'lerinde (profil) çalışır."""
+    return p.chromium.launch(headless=headless)
+
+
+def hesap_context(tarayici, oturum_dosyasi):
+    """Hesabın kendi context'i; varsa önceki oturumu (storage_state) yükler.
+
+    Her hesap ayrı context: çerezleri karışmaz. Oturum bir JSON dosyasında
+    saklanır (`oturum/<kullanıcı>.json`), girişten sonra `oturumu_kaydet` ile
+    yazılır; sonraki açılışta tekrar giriş gerekmez.
+    """
+    dosya = pathlib.Path(oturum_dosyasi)
+    durum = str(dosya) if dosya.exists() else None
+    return tarayici.new_context(
+        user_agent=UA, viewport={"width": 1280, "height": 900}, storage_state=durum
+    )
+
+
+def oturumu_kaydet(ctx, oturum_dosyasi):
+    pathlib.Path(oturum_dosyasi).parent.mkdir(parents=True, exist_ok=True)
+    ctx.storage_state(path=str(oturum_dosyasi))
+
+
+def oturum_acik_mi(ctx):
+    """Context'in oturumu canlı mı? Fatura sayfası kategori düğmeleriyle geliyorsa evet."""
+    sayfa = ctx.new_page()
+    try:
+        _git(sayfa, FATURA)
+        sayfa.wait_for_timeout(500)
+        return _girisli_mi(sayfa)
+    finally:
+        sayfa.close()
+
+
+def giris_yap(ctx, kullanici_adi, sifre, guvenlik_resmi):
+    """Hesaba giriş yapar: kullanıcı adı + şifre, sonra güvenlik resmini seçer.
+
+    Güvenlik resmi sayfasında yöneticinin hesap için seçtiği resmin dosyasına
+    tıklanır (kivi → E.png). **Yanlış seçim oturumu bitirir**, o yüzden resim
+    adı doğru olmalı. Giriş başarılıysa oturumu döndürür (True); başarısızsa
+    sebebini `RuntimeError` ile söyler. Bazı hesapta güvenlik resmi kapalıysa
+    doğrudan panele düşülür.
+    """
+    harf = _guvenlik_harfi(guvenlik_resmi)
+    if not harf:
+        raise RuntimeError(f"Tanınmayan güvenlik resmi: {guvenlik_resmi!r} (elma, kivi, limon…).")
+    sayfa = ctx.new_page()
+    try:
+        _git(sayfa, SITE)
+        sayfa.fill("#kullanici_adi", kullanici_adi)
+        sayfa.fill("#password", sifre)
+        # Giriş düğmesi sayfa açılınca 2 sn sonra görünür oluyor.
+        sayfa.locator("#girisbutton").wait_for(state="visible", timeout=15000)
+        sayfa.click("#girisbutton")
+        try:
+            sayfa.wait_for_url(re.compile(r"parolax"), timeout=15000)
+        except Exception:  # noqa: BLE001
+            if "menu.php" in sayfa.url:
+                return True   # güvenlik resmi kapalı; doğrudan panel
+            raise RuntimeError("Giriş sonrası güvenlik sayfası gelmedi (kullanıcı adı/şifre yanlış olabilir).")
+        resim = sayfa.locator(f"img[src*='/{harf}.png']").first
+        resim.wait_for(state="visible", timeout=10000)
+        resim.click()
+        try:
+            sayfa.wait_for_url(re.compile(r"menu\.php"), timeout=15000)
+        except Exception:  # noqa: BLE001
+            raise RuntimeError("Panel açılmadı; güvenlik resmi yanlış olabilir (oturum sonlanmış olabilir).")
+        return True
+    finally:
+        sayfa.close()
+
+
 def _git(sayfa, adres, deneme=4):
     """Sayfaya gider; site araya kendi yönlendirmesini sokarsa bekleyip yeniden dener.
 
@@ -295,6 +383,10 @@ def cevabi_coz(html):
     hata = re.search(r"ZNET=\d+-HATA=(.+?)(?:<|$)", duz)
     if sonuc["faturalar"]:
         sonuc["durum"] = "bulundu"
+    elif limit_doldu_mu(duz):
+        # Hesabın günlük sorgu hakkı doldu: Django bu hesabı bugünlük kapatır.
+        sonuc["durum"] = "limit"
+        sonuc["mesaj"] = "Sorgu limiti doldu."
     elif hata:
         sonuc["durum"] = "hata"
         # Mesaja sağlayıcının JS'i bulaşabiliyor; ilk script izinde kes.
@@ -450,6 +542,14 @@ def paket_cevabini_coz(metin):
 #   <div align="center" style="…color:red;">Müşterinin 212 TL TKU Borcu Bulunmaktadır</div>
 _UYARI = re.compile(r"<div\b[^>]*\bcolor\s*:\s*red\b[^>]*>(.*?)</div>", re.I | re.S)
 _BORC = re.compile(r"(\d[\d.]*(?:,\d+)?)\s*(?:TL|₺)\s+TK[UÜ]\s+Borc", re.I)
+# Hesabın günlük sorgu hakkı dolunca sağlayıcı paket/fatura yerine
+# "Sorgu limitinizi doldurdunuz. Lütfen Yükleme Yapınız." yazar.
+_LIMIT = re.compile(r"sorgu\s+limit", re.I)
+
+
+def limit_doldu_mu(metin):
+    """Sağlayıcı bu hesabın günlük sorgu hakkının dolduğunu mu söylüyor?"""
+    return bool(_LIMIT.search(metin or ""))
 
 
 def paket_uyarisi(metin):
@@ -559,6 +659,12 @@ def paket_sorgula(ctx, numara, beklenen=""):
                 raise RuntimeError("Paket sorgusunun cevabı gelmedi (zaman aşımı).")
             ham = max(govdeler, key=len)
             duz = _temiz(ham)
+            if limit_doldu_mu(duz):
+                # Hesabın günlük sorgu hakkı doldu: Django bu hesabı kapatır,
+                # sorgu başka hesaba düşer. Hak harcanmadı (sorgulandi=False).
+                print("    sorgu limiti doldu")
+                return {"operator": bulunan, "paketler": [], "durum": "limit",
+                        "mesaj": "Sorgu limiti doldu.", "sorgulandi": False}
             hata = re.search(r"ZNET=\d+-HATA=(.+?)(?:<|$)", duz)
             if hata:
                 return {"operator": bulunan, "paketler": [], "durum": "hata",

@@ -16,9 +16,11 @@ GEREKLİ: Windows (laptop ya da Windows Server) + Python 3.11+ (python.org,
 KURULUM (bir kere)
 ------------------
 1) kur.bat        → çift tıkla. Playwright + Chromium kurar.
-2) giris.bat      → tarayıcı açılır. Siteye gir, ekrandaki resmi çöz, panel
-                    açılınca terminale dönüp Enter'a bas. Oturum "oturum/"
-                    klasöründe saklanır; günlerce tekrar istemez.
+2) Hesaplar artık PANELDEN girilir, elle giriş YOK: Sorgu Robotu → Robotlar
+   → robotun sayfasında "Robot Hesapları" tablosuna her hesabın kullanıcı
+   adını (cep), şifresini ve güvenlik resmini (kivi, elma, limon…) yaz.
+   Robot bunları çeker ve her hesaba kendisi giriş yapar (güvenlik resmini
+   otomatik seçer). (giris.bat yalnızca acil durumda, tek profil için durur.)
 
 TEST (Django olmadan)
 ---------------------
@@ -37,22 +39,25 @@ DJANGO'YA BAĞLANINCA
 --------------------
 1) Yönetim panelinde Sorgu Robotu → Robotlar → robot ekle → "Yeni anahtar".
    Çıkan bloğu olduğu gibi bu klasörde ayar.json dosyasına yapıştır.
-2) isci.bat      → işçi başlar; Django kuyruğundan iş çekip sorgular (fatura
-                   ve paket, hangisi gelirse). Panelde robotun "İşler"
-                   sütunu "Fatura · Paket" yazmalı; yalnızca "Fatura"
-                   yazıyorsa bu klasör eski sürümdür.
+   Aynı robotun sayfasındaki "Robot Hesapları" tablosuna hesapları gir
+   (kullanıcı adı, şifre, güvenlik resmi; istediğin kadar — 10, 20…).
+2) isci.bat      → işçi başlar; hesapları Django'dan çeker, her birine giriş
+                   yapar, kuyruktan iş çekip sorgular. Django her işi, hakkı
+                   kalan bir hesaba verir. Robotun "İşler" sütunu "Fatura ·
+                   Paket" yazmalı; "Hesaplar · bugün" sütunu kullanımı gösterir.
 3) katalog.bat   → YALNIZCA İSTEDİĞİNDE: kurum listesini siteden yeniden
-                   çeker (kurumlar.json) ve Django'ya yollar. Sağlayıcı yeni
-                   kurum ekleyince ya da robot "katalog.bat ile yenile"
-                   deyince çalıştır. İşçi açıkken de çalışır.
-   Birden çok robot için aynı klasörü kopyalayıp panelde her biri için ayrı
-   robot + anahtar aç; aynı numara iki robota gitmez (kuyruk atomik kilitler).
-4) GÜNLÜK HAK: Sağlayıcı hesap başına günlük sorgu hakkı veriyor (ör. 10
-   fatura + 10 kontör). Panelde Sorgu Robotu → Robotlar listesinde her robota
-   "Günlük Fatura Hakkı" ve "Günlük Kontör Hakkı" yazabilirsin (0 = sınırsız).
-   Hak dolunca o robot o türden iş almaz, öbür tür sürer; sayaç gece 00:00'da
-   sıfırlanır. "Bugünkü sorgu" sütunu fatura ve kontörü ayrı gösterir. Her
-   hesap kendi hakkı kadar sorgular; hak aşmak için değil, tüketmemek için.
+                   çeker (kurumlar.json) ve Django'ya yollar. İlk hesapla
+                   tarar. Sağlayıcı yeni kurum ekleyince çalıştır.
+   Daha fazla kapasite için ya aynı robota daha çok hesap ekle ya da başka
+   bir makinede aynı klasörü kopyalayıp ayrı robot + anahtar aç.
+4) GÜNLÜK HAK: Sağlayıcı HESAP başına günlük sorgu hakkı veriyor (ör. 10
+   fatura + 10 kontör). Her hesap satırında "Günlük Fatura/Kontör Hakkı"
+   yazabilirsin (0 = sınırsız; boş bırakırsan robotun varsayılanı gelir).
+   Sayım GÖNDERİM ANINDA yapılır (sonucu beklemez). Bir hesabın hakkı
+   dolunca o hesaba iş gitmez, öbür hesaba gider; hepsi dolunca bayi "yarın
+   açılır" görür. Sağlayıcı "Sorgu limitinizi doldurdunuz" derse o hesap
+   bugünlük kapanır. Hepsi gece 00:00'da sıfırlanır. Amaç hakkı aşmak değil,
+   her hesabın kendi hakkını tüketmemek.
 
 Django tarafı kurulu (apps/fatura); uçların ayrıntısı: DJANGO_API.md.
 
@@ -62,7 +67,11 @@ NOTLAR
   (varsayılan 08:00-23:00). Dışında Django'ya hiç istek atmaz; bayi o
   saatlerde "08:00–23:00 arasında yapılır" görür. Değiştirmek için
   ayar.json'u düzenle, isci.bat'ı yeniden başlat.
-- Oturum düşerse işçi "oturum düştü" der; giris.bat ile yeniden gir.
+- Bir hesabın oturumu düşerse robot o hesaba kendisi yeniden giriş yapar
+  (bir sonraki işte). Giriş yapamıyorsa (şifre ya da güvenlik resmi yanlış)
+  o hesaptan sonuç gelmez; paneldeki bilgiyi düzelt. Güvenlik resmi adını
+  doğru yaz (kivi, elma, limon, domates, biber, soğan, karpuz, patlıcan,
+  portakal, lahana, balkabağı, yeşilelma) — yanlış resim oturumu bitirir.
 - İşçi "HTTP Error 401" derse ayar.json'daki api_key yanlış ya da robot
   panelde kapalı: Sorgu Robotu → Robotlar → Yeni anahtar, çıkan bloğu
   ayar.json'a yapıştır. "HTTP Error 403" sunucunun önündeki güvenlik

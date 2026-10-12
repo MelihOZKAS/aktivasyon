@@ -103,20 +103,38 @@ def _degisme_zamani():
     return robot.KURUMLAR.stat().st_mtime if robot.KURUMLAR.exists() else 0
 
 
+def _ilk_hesabi_cek(taban, anahtar, ad):
+    """Django'dan (nabızla) ilk aktif hesabı alır: {kullanici_adi, sifre, guvenlik_resmi}."""
+    cevap = _istek(f"{taban}/fatura/robot/kalp/", anahtar, {"robot": ad, "durum": "bos", "oturum": "canli"})
+    hesaplar = (cevap or {}).get("hesaplar") or []
+    return hesaplar[0] if hesaplar else None
+
+
 def katalog_komutu():
-    """Siteyi tarar, kurumlar.json'u yazar; ayar.json varsa Django'ya da yollar."""
-    print("Kurum listesi taranıyor…")
+    """Siteyi tarar, kurumlar.json'u yazar; ayar.json varsa Django'ya da yollar.
+
+    Katalog da bir hesapla giriş gerektirir: Django'dan ilk hesabı çekip onunla
+    tarar (kurum listesi bütün hesaplarda aynı).
+    """
+    if not AYAR.exists():
+        raise SystemExit("ayar.json yok; önce panelde anahtar üret.")
+    a = ayarlar()
+    taban = a["django_url"].rstrip("/")
+    hesap = _ilk_hesabi_cek(taban, a["api_key"], a.get("robot_adi", "robot"))
+    if hesap is None:
+        raise SystemExit("Django'da aktif hesap yok; panelde Sorgu Robotu → Robotlar → hesap ekle.")
+    print(f"Kurum listesi {hesap['kullanici_adi']} hesabıyla taranıyor…")
     with sync_playwright() as p:
-        ctx = robot.baglan(p, headless=True)
+        tarayici = robot.yeni_tarayici(p, headless=True)
+        ctx = robot.hesap_context(tarayici, robot.OTURUM / f"{hesap['kullanici_adi']}.json")
         try:
+            if not robot.oturum_acik_mi(ctx):
+                robot.giris_yap(ctx, hesap["kullanici_adi"], hesap.get("sifre", ""), hesap.get("guvenlik_resmi", ""))
+                robot.oturumu_kaydet(ctx, robot.OTURUM / f"{hesap['kullanici_adi']}.json")
             kurumlar = robot.katalog_kaydet(ctx)
         finally:
-            ctx.close()
+            tarayici.close()
     print(f"{len(kurumlar)} kurum kurumlar.json'a yazıldı.")
-    if not AYAR.exists():
-        print("ayar.json yok; Django'ya yollanmadı.")
-        return
-    a = ayarlar()
     try:
         cevap = _istek(f"{a['django_url'].rstrip('/')}/fatura/robot/katalog/", a["api_key"],
                        {"robot": a.get("robot_adi", "robot"), "kurumlar": kurumlar})
@@ -138,21 +156,29 @@ def main():
     saatler = a.get("calisma_saatleri", "08:00-23:00")
     bas, bit = calisma_saatleri(saatler)
 
-    # Nabız yalnızca durum değişince ya da dakikada bir gider: her "iş var
-    # mı?" isteği sunucuda zaten nabız sayılıyor (çevrimiçi göstergesi ondan
-    # beslenir). Bu istek yalnızca meşgul/oturum düştü bilgisini taşır.
+    # Hesaplar nabız cevabında gelir (Django, anahtarla doğrulanmış): kullanıcı
+    # adı → {id, sifre, guvenlik_resmi}. Panelde hesap eklenince robot yeniden
+    # başlatılmadan görür. Her hesabın oturumu ayrı context'te; ilk işte giriş
+    # yapılır (storage_state ile saklanır, sonraki açılışta tekrar istemez).
+    hesap_bilgi = {}
+    oturumlar = {}
     son_nabiz = {"durum": None, "zaman": 0.0}
 
-    def nabiz(durum, oturum):
+    def nabiz(durum, oturum, zorla=False):
         anahtar_durum = (durum, oturum)
-        if anahtar_durum == son_nabiz["durum"] and time.time() - son_nabiz["zaman"] < 60:
-            return
+        if not zorla and anahtar_durum == son_nabiz["durum"] and time.time() - son_nabiz["zaman"] < 60:
+            return None
         try:
-            _istek(f"{taban}/fatura/robot/kalp/", anahtar,
-                   {"robot": ad, "durum": durum, "oturum": oturum, "mesai": saatler})
+            cevap = _istek(f"{taban}/fatura/robot/kalp/", anahtar,
+                           {"robot": ad, "durum": durum, "oturum": oturum, "mesai": saatler})
             son_nabiz.update(durum=anahtar_durum, zaman=time.time())
+            for h in (cevap or {}).get("hesaplar") or []:
+                ku = str(h.get("kullanici_adi") or "")
+                if ku:
+                    hesap_bilgi[ku] = h
+            return cevap
         except Exception:  # noqa: BLE001
-            pass
+            return None
 
     def basarisiz(tur, talep_id, hata):
         try:
@@ -161,16 +187,47 @@ def main():
         except Exception:  # noqa: BLE001
             pass
 
+    def hesap_context(tarayici, kullanici):
+        """Hesabın giriş yapılmış context'i; yoksa açar + otomatik giriş yapar."""
+        ctx = oturumlar.get(kullanici)
+        if ctx is not None:
+            return ctx
+        bilgi = hesap_bilgi.get(kullanici)
+        if bilgi is None:
+            raise RuntimeError(f"{kullanici} hesabı Django'dan gelmedi (panelde aktif mi?).")
+        dosya = robot.OTURUM / f"{kullanici}.json"
+        ctx = robot.hesap_context(tarayici, dosya)
+        if not robot.oturum_acik_mi(ctx):
+            print(f"  {kullanici}: giriş yapılıyor…")
+            robot.giris_yap(ctx, kullanici, bilgi.get("sifre", ""), bilgi.get("guvenlik_resmi", ""))
+            robot.oturumu_kaydet(ctx, dosya)
+        oturumlar[kullanici] = ctx
+        return ctx
+
+    def oturumu_birak(kullanici):
+        """Girişi düşen hesabın context'ini bırak; sonraki iş yeniden giriş yapar."""
+        ctx = oturumlar.pop(kullanici, None)
+        if ctx is not None:
+            try:
+                ctx.close()
+            except Exception:  # noqa: BLE001
+                pass
+
     print(f"[{ad}] işçi başladı. Django: {taban} · {aralik} sn aralık · çalışma {saatler}")
     with sync_playwright() as p:
-        ctx = robot.baglan(p, headless=True)
+        tarayici = robot.yeni_tarayici(p, headless=True)
+        nabiz("bos", "canli", zorla=True)   # hesapları hemen al
+        if not hesap_bilgi:
+            print("  Django'dan hesap gelmedi. Panelde Sorgu Robotu → Robotlar → hesap ekle.")
+
         kurumlar = robot.kurumlari_oku()
-        if not kurumlar:
-            print("  kurumlar.json yok; site bir kez taranıyor…")
-            kurumlar = robot.katalog_kaydet(ctx)
+        if not kurumlar and hesap_bilgi:
+            ilk = sorted(hesap_bilgi)[0]
+            print(f"  kurumlar.json yok; {ilk} hesabıyla site taranıyor…")
+            kurumlar = robot.katalog_kaydet(hesap_context(tarayici, ilk))
         harita = _harita(kurumlar)
         dosya_zamani = _degisme_zamani()
-        print(f"  {len(harita)} kurum yüklendi.")
+        print(f"  {len(harita)} kurum, {len(hesap_bilgi)} hesap yüklendi.")
 
         uyuyor = False
         while True:
@@ -192,7 +249,7 @@ def main():
                 print(f"  kurum listesi yeniden yüklendi ({len(harita)} kurum)")
 
             try:
-                nabiz("bos", "canli")
+                nabiz("bos", "canli")   # hesap listesini de tazeler
                 # Ad adrese kodlanarak konur: Türkçe harfli ad ("İş-laptopu")
                 # ham yazılınca istek satırı ASCII'ye çevrilemiyor, robot her
                 # turda "'ascii' codec can't encode" verip hiç iş alamıyordu.
@@ -208,16 +265,21 @@ def main():
 
             t = is_["talep"]
             tur = is_.get("tur", "fatura")
+            # İşi hangi hesapla yapacağımızı Django seçti (hakkını da eksiltti).
+            kullanici = (is_.get("hesap") or {}).get("kullanici_adi") or ""
             nabiz("mesgul", "canli")
             try:
+                if not kullanici:
+                    raise RuntimeError("Django hesap bildirmedi (eski sürüm?).")
+                ctx = hesap_context(tarayici, kullanici)
                 if tur == "paket":
-                    print(f"  paket #{t['talep_id']}: {t.get('operator', '')} / {t['numara']}")
+                    print(f"  paket #{t['talep_id']} [{kullanici}]: {t.get('operator', '')} / {t['numara']}")
                     veri = robot.paket_sorgula(ctx, t["numara"], t.get("operator", ""))
                     ozet = f"{len(veri['paketler'])} paket"
                     if t.get("operator") and veri["operator"] and veri["operator"] != t["operator"]:
                         ozet = f"numara {veri['operator']} hattı, sorgulanmadı"
                 else:
-                    print(f"  fatura #{t['talep_id']}: {t['kurum_id']} / {t['numara']}")
+                    print(f"  fatura #{t['talep_id']} [{kullanici}]: {t['kurum_id']} / {t['numara']}")
                     token = harita.get(t["kurum_id"])
                     if not token:
                         raise RuntimeError("kurum kurumlar.json'da yok; katalog.bat ile yenile")
@@ -225,13 +287,12 @@ def main():
                     ozet = veri["durum"]
             except Exception as e:  # noqa: BLE001
                 # Sonuç hemen yazılır: bayi zaman aşımını beklemesin, yönetim
-                # sebebi Sorgular listesinde görsün.
+                # sebebi Sorgular listesinde görsün. İş başka hesaba düşebilir.
                 print("    HATA:", e)
                 basarisiz(tur, t["talep_id"], e)
-                if "turum" in str(e):
-                    # Oturum düştü: yönetici giris.bat ile girene kadar bekle.
-                    nabiz("bos", "dustu")
-                    time.sleep(15)
+                if "turum" in str(e) or "giriş" in str(e).lower() or "panel" in str(e).lower():
+                    # Bu hesabın oturumu düştü: context'i bırak, sonraki iş yeniden girer.
+                    oturumu_birak(kullanici)
                 elif "token" in str(e) or "kurumlar.json" in str(e):
                     print("    kurum listesi eskimiş olabilir → katalog.bat ile yenile")
                 continue

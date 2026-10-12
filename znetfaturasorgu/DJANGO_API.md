@@ -75,11 +75,19 @@ sorsa her biri farklı iş kapar.
 `isler` robotun yapabildiği işlerdir. `paket` yoksa (eski sürüm) robota
 yalnızca fatura verilir ve paket sorgusu için çevrimiçi sayılmaz. İki
 kuyrukta da iş varsa **önce açılan** verilir.
+
+Her iş bir **sağlayıcı hesabına** atanır: Django, robotun o türde bugün
+hakkı kalan (en az kullanılmış) hesabını seçer ve **gönderim anında o
+hesabın hakkını +1 eksiltir** (sonucu beklemeden). Cevaptaki `hesap` robotun
+hangi hesabın oturumuyla soracağını söyler (kimlik bilgilerini bölüm 3'teki
+nabız cevabından aldı). Robotun hakkı kalan hesabı yoksa o tür iş verilmez.
 ```json
 // fatura işi:
-{"var": true, "tur": "fatura", "talep": {"talep_id": 1234, "kurum_id": "vodafone", "kurum_adi": "Vodafone", "numara": "5332590138"}}
+{"var": true, "tur": "fatura", "hesap": {"id": 7, "kullanici_adi": "5309346655"},
+ "talep": {"talep_id": 1234, "kurum_id": "vodafone", "kurum_adi": "Vodafone", "numara": "5332590138"}}
 // paket işi (bölüm 2b):
-{"var": true, "tur": "paket", "talep": {"talep_id": 55, "numara": "5050488485", "operator": "avea"}}
+{"var": true, "tur": "paket", "hesap": {"id": 7, "kullanici_adi": "5309346655"},
+ "talep": {"talep_id": 55, "numara": "5050488485", "operator": "avea"}}
 // yoksa:
 {"var": false}
 ```
@@ -207,26 +215,41 @@ Sonuç:
   Django onu `true` sayar (düğmeye basıldı). Yalnızca paket sonucunda var;
   fatura hep gönderilir, sayaç her sonuçta artar.
 
-## 2c. Günlük sorgu sayacı ve hesap limiti
+## 2c. Hesaplar, günlük sayaç ve limit
 
-Sağlayıcı her hesaba günlük sorgu hakkı veriyor (ör. 10 fatura + 10
-kontör). Her robot bir hesapla girer; limit o hesabındır. Django **fatura
-ve kontör sorgularını ayrı sayar** (`Robot.fatura_sayaci` /
-`kontor_sayaci`). Sayaç robot cevabı yazıldığında, yalnızca sorgu
-sağlayıcıya gerçekten gittiyse artar: robotun iç hatası (`basarisiz`) ve
-taşınmış numara (`sorgulandi:false`) sayılmaz.
+**Robot = laptop/işçi; altında birden çok sağlayıcı hesabı var.** Hesaplar
+(kullanıcı adı, şifre, güvenlik resmi, günlük haklar) **panelden** girilir
+(Sorgu Robotu → Robotlar → robotun sayfasındaki satır-içi tablo); robot
+onları **nabız cevabında** çeker (bölüm 3) ve her biri için kendi
+profilinde (ayrı context, `oturum/<kullanıcı>.json`) **otomatik giriş**
+yapar: kullanıcı adı + şifre, sonra panelde seçilen güvenlik resmini
+(kivi → `E.png`; `robot.GUVENLIK`) işaretler. Yanlış resim oturumu bitirir,
+o yüzden ad doğru olmalı.
 
-Limit **yönetim panelinde** hesap başına girilir (Sorgu Robotu → Robotlar,
-satırda "Günlük Fatura/Kontör Hakkı"; 0 = sınırsız). Hak dolunca robot o
-türden iş almaz (`is_` o türü atlar), öbür tür sürer. Bütün hesaplar
-hakkını doldurmuşsa bayi "Bugünkü … hakkı doldu; yarın yeniden açılır"
-görür. Sayaç **gece 00:00'da sıfırlanır** — ayrı bir cron yok, gün
-değişince ilk sayımda tazelenir; panel bugünün sayısını her zaman doğru
-gösterir. Robot tarafında bir ayar gerekmez; sayaç ve limit tümüyle
-Django'dadır. Birden çok hesap için her birine ayrı robot + anahtar açılır
-(aynı klasör kopyalanır), her hesap kendi hakkı kadar sorgu yapar.
+**Sayım gönderim anında, hesap başına.** Django işi verirken robotun o türde
+bugün hakkı kalan, en az kullanılmış hesabını seçer ve **o an +1** yapar
+(`RobotHesabi.fatura_sayaci` / `kontor_sayaci`); hangi hesap seçildiği `is_`
+cevabındaki `hesap` ile gelir. Sonucun gelmesi beklenmez — sağlayıcıya işi
+yolladığımız an hak eksilir. **Fatura ve kontör ayrı sayılır.**
+
+Limit panelden hesap başına girilir ("Günlük Fatura/Kontör Hakkı"; 0 =
+sınırsız; robotun varsayılanı yeni hesaplara kopyalanır). Bir hesabın hakkı
+dolunca o hesaba iş gitmez; robotun başka açık hesabı varsa oraya gider.
+Robotun o türde hiç açık hesabı kalmazsa o tür iş almaz, öbür tür sürer.
+Hiçbir robotun açık hesabı kalmazsa bayi "Bugünkü … hakkı doldu; yarın
+yeniden açılır" görür.
+
+**Sağlayıcı "Sorgu limitinizi doldurdunuz" derse** (paket ya da fatura
+cevabında kırmızı satır) robot `"durum": "limit"` gönderir; Django o
+**hesabı** bugünlük kapatır (saydığımız limit 0/sınırsız olsa da), sorguyu
+yeniden denenebilir hata yapar (iş başka hesaba/robota düşer).
+
+Sayaç ve "limit doldu" **gece 00:00'da** kendiliğinden sıfırlanır — cron
+yok, gün değişince ilk sayımda/okumada tazelenir. Panel bugünün kullanımını
+her zaman doğru gösterir ("Hesaplar · bugün" ve satır-içi tabloda renkli).
 - Robot hatası (oturum düştü, kutu açılmadı) `"basarisiz": true` ile gelir;
-  robot o anki sayfanın görüntüsünü ve HTML'ini `kayitlar/`'a yazar.
+  robot o anki sayfanın görüntüsünü ve HTML'ini `kayitlar/`'a yazar. Giriş
+  düşen hesabın context'i bırakılır, sonraki iş o hesaba yeniden giriş yapar.
 
 Django bekleme sınırları: robot 30 sn'de almazsa, aldıktan sonra 60 sn'de
 yazmazsa iş kapanır; gönderim planı en çok 60 sn bekler, sonra ana paketi
@@ -243,15 +266,25 @@ durum değişince (boş/meşgul, oturum düştü) ya da dakikada bir gider:
 
 `POST /fatura/robot/kalp/`
 ```json
+// istek:
 {"robot": "ev-laptop", "durum": "bos", "oturum": "canli", "mesai": "08:00-23:00"}
+// cevap: robotun gireceği aktif hesaplar (ayrı uç yok, her nabızda taze):
+{"ok": true, "hesaplar": [
+  {"id": 7, "kullanici_adi": "5309346655", "sifre": "…", "guvenlik_resmi": "kivi"}
+]}
 ```
 `mesai`: robotun çalışma saatleri (`ayar.json` → `calisma_saatleri`). Robot bu
 saatlerin dışında **hiç istek atmaz**, dakikada bir yalnızca kendi saatine
 bakar. Django saatleri robotun kaydına yazar; robot susunca bayiye "sistem
 bağlı değil" yerine "Fatura sorgusu 08:00–23:00 arasında yapılır" der.
-`durum`: `bos|mesgul`. `oturum`: `canli|dustu`. Yönetim panelinde "şu an açık
-robotlar" ve "oturumu düşenler" bundan görünür; oturum düşünce yönetici
-laptopta yeniden giriş yapar (`giris.bat`).
+`durum`: `bos|mesgul`. `oturum`: `canli|dustu`.
+
+**Hesaplar nabız cevabında döner:** robot her nabızda kullanıcı adı, şifre
+ve güvenlik resmini alır (yalnızca aktif hesaplar), onlarla otomatik giriş
+yapar. Ayrı bir `/hesaplar/` ucu yok — robot zaten anahtarıyla doğrulanıyor,
+bilgi o doğrulanmış cevapta gider; panelde hesap eklenince robot yeniden
+başlatılmadan görür. **Şifre yalnızca bu cevapta, robotun anahtarına karşı
+verilir; panelde maskeli durur.**
 
 ---
 

@@ -10,9 +10,9 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils.html import format_html, format_html_join
-from unfold.admin import ModelAdmin
+from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
-from unfold.widgets import UnfoldAdminTextInputWidget
+from unfold.widgets import UnfoldAdminPasswordWidget, UnfoldAdminTextInputWidget
 
 from apps.bayi.etiket import kullanici_etiketi_html
 from apps.fatura import fiyat as fatura_fiyat
@@ -24,6 +24,7 @@ from apps.fatura.models import (
     Odeme,
     OdemeDurumu,
     Robot,
+    RobotHesabi,
     Sorgu,
     SorguDurumu,
 )
@@ -295,16 +296,78 @@ class FaturaFiyatGrubuAdmin(ModelAdmin):
 # -- Robot ---------------------------------------------------------------
 
 
+def _hesap_hak(obj, tur):
+    """Bir hesabın o türdeki bugünkü kullanımı, renkli: 3/10, limit doldu, sınırsız."""
+    if obj.pk is None:
+        return "—"
+    if obj.saglayici_doldu_mu(tur):
+        return format_html('<b style="color:#D42046">limit doldu</b>')
+    sayi, limit = obj.bugunku_sayi(tur), obj.limiti(tur)
+    if not limit:
+        return format_html("<b>{}</b>", sayi)   # sınırsız
+    renk = "#D42046" if sayi >= limit else ("#B45309" if sayi >= limit * 0.8 else "#0F8A4D")
+    return format_html('<b style="color:{}">{}/{}</b>', renk, sayi, limit)
+
+
+class RobotHesabiFormu(forms.ModelForm):
+    class Meta:
+        model = RobotHesabi
+        fields = "__all__"
+        widgets = {
+            # Şifre ekranda maskeli durur ama kayıtlı değer korunur (robot
+            # /hesaplar/ ile çeker). Staff-only admin; yine de açıkta yazmayalım.
+            "sifre": UnfoldAdminPasswordWidget(render_value=True),
+        }
+
+
+class RobotHesabiInline(TabularInline):
+    model = RobotHesabi
+    form = RobotHesabiFormu
+    extra = 0
+    fields = (
+        "kullanici_adi", "sifre", "guvenlik_resmi",
+        "fatura_limiti", "kontor_limiti", "fatura_kullanim", "kontor_kullanim",
+        "sira", "aktif",
+    )
+    readonly_fields = ("fatura_kullanim", "kontor_kullanim")
+
+    @display(description="Fatura (bugün)")
+    def fatura_kullanim(self, obj):
+        return _hesap_hak(obj, "fatura")
+
+    @display(description="Kontör (bugün)")
+    def kontor_kullanim(self, obj):
+        return _hesap_hak(obj, "paket")
+
+
 @admin.register(Robot)
 class RobotAdmin(ModelAdmin):
     list_display = (
-        "ad", "durum_gosterimi", "oturum_gosterimi", "isler_gosterimi", "sayac_gosterimi",
-        "fatura_limiti", "kontor_limiti", "mesai_gosterimi", "son_nabiz", "aktif",
-        "anahtar_durumu", "anahtar_dugmesi",
+        "ad", "durum_gosterimi", "oturum_gosterimi", "isler_gosterimi", "hesap_ozeti",
+        "mesai_gosterimi", "son_nabiz", "aktif", "anahtar_durumu", "anahtar_dugmesi",
     )
-    list_editable = ("fatura_limiti", "kontor_limiti", "aktif")
+    list_editable = ("aktif",)
     fields = ("ad", "aktif", ("fatura_limiti", "kontor_limiti"), "son_nabiz")
     readonly_fields = ("son_nabiz",)
+    inlines = (RobotHesabiInline,)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("hesaplar")
+
+    def save_formset(self, request, form, formset, change):
+        # Yeni hesap limitsiz girildiyse robotun varsayılan hakkını al.
+        nesneler = formset.save(commit=False)
+        robot = form.instance
+        for nesne in nesneler:
+            if isinstance(nesne, RobotHesabi):
+                if not nesne.fatura_limiti and robot.fatura_limiti:
+                    nesne.fatura_limiti = robot.fatura_limiti
+                if not nesne.kontor_limiti and robot.kontor_limiti:
+                    nesne.kontor_limiti = robot.kontor_limiti
+            nesne.save()
+        for nesne in formset.deleted_objects:
+            nesne.delete()
+        formset.save_m2m()
 
     @display(description="Durum")
     def durum_gosterimi(self, obj):
@@ -312,17 +375,20 @@ class RobotAdmin(ModelAdmin):
             return _rozet("Çevrimdışı", GRI)
         return _rozet("Meşgul", "#B45309") if obj.mesgul else _rozet("Açık", "#0F8A4D")
 
-    @display(description="Bugünkü sorgu")
-    def sayac_gosterimi(self, obj):
-        # Sağlayıcının hesap başına günlük hakkı; gece 00:00'da sıfırlanır.
-        return format_html("Fatura {} · Kontör {}", self._hak(obj, "fatura"), self._hak(obj, "paket"))
-
-    def _hak(self, obj, tur):
-        sayi, limit = obj.bugunku_sayi(tur), obj.limiti(tur)
-        if not limit:
-            return format_html("<b>{}</b>", sayi)   # sınırsız
-        renk = "#D42046" if sayi >= limit else ("#B45309" if sayi >= limit * 0.8 else "#0F8A4D")
-        return format_html('<b style="color:{}">{}/{}</b>', renk, sayi, limit)
+    @display(description="Hesaplar · bugün (fatura/kontör)")
+    def hesap_ozeti(self, obj):
+        # Robotun toplam hesabı ve bugünkü kullanımı; hakkı kalan hesap sayısı.
+        hesaplar = [h for h in obj.hesaplar.all() if h.aktif]
+        if not hesaplar:
+            return format_html('<b style="color:#D42046">hesap yok</b>')
+        f_top = sum(h.bugunku_fatura for h in hesaplar)
+        k_top = sum(h.bugunku_kontor for h in hesaplar)
+        f_kalan = sum(1 for h in hesaplar if not h.limit_doldu("fatura"))
+        k_kalan = sum(1 for h in hesaplar if not h.limit_doldu("paket"))
+        return format_html(
+            "{} hesap · fatura {} ({} açık) · kontör {} ({} açık)",
+            len(hesaplar), f_top, f_kalan, k_top, k_kalan,
+        )
 
     @display(description="Oturum")
     def oturum_gosterimi(self, obj):

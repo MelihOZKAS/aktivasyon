@@ -318,22 +318,22 @@ class Robot(ZamanDamgali):
     # yerine "08:00–23:00 arasında" denebilsin diye burada tutulur.
     mesai_baslangic = models.TimeField("Mesai Başlangıcı", null=True, blank=True, editable=False)
     mesai_bitis = models.TimeField("Mesai Bitişi", null=True, blank=True, editable=False)
-    # Sağlayıcı hesap başına günlük sorgu hakkı veriyor (ör. 10 fatura + 10
-    # kontör). Her robot bir hesapla girer; limit o hesabındır. Fatura ve
-    # kontör ayrı sayılır. 0 = sınırsız (limit koyma). Limit dolunca robot o
-    # türden iş almaz; aşmaya değil, hakkı tüketmemeye yarar.
+    # Robot artık bir **laptop/işçi**: altında birden çok sağlayıcı hesabı
+    # (`RobotHesabi`) olur, sorguları onlarla sırayla yapar. Aşağıdaki iki
+    # alan yeni hesaplara **varsayılan** günlük hak olarak kopyalanır
+    # (hesabın kendi hakkı 0 ise bu geçerli). Sayaç ve "doldu" bilgisi hesap
+    # başınadır (`RobotHesabi`), bu yüzden robot düzeyinde tutulmaz.
     fatura_limiti = models.PositiveSmallIntegerField(
-        "Günlük Fatura Hakkı", default=0, help_text="0 = sınırsız. Sağlayıcının bu hesaba günlük fatura sorgu hakkı."
+        "Varsayılan Fatura Hakkı", default=0, help_text="Yeni hesaplara kopyalanır. 0 = sınırsız."
     )
     kontor_limiti = models.PositiveSmallIntegerField(
-        "Günlük Kontör Hakkı", default=0, help_text="0 = sınırsız. Sağlayıcının bu hesaba günlük kontör sorgu hakkı."
+        "Varsayılan Kontör Hakkı", default=0, help_text="Yeni hesaplara kopyalanır. 0 = sınırsız."
     )
-    # Bugün yapılan sorgu sayısı; gece 00:00'da (sayac_gunu değişince ilk
-    # sayımda) sıfırlanır — ayrı bir cron yok. `sayac_gunu` sayaçların
-    # geçerli olduğu gündür; bugün değilse sayı 0 okunur.
-    fatura_sayaci = models.PositiveIntegerField("Bugünkü Fatura Sorgusu", default=0, editable=False)
-    kontor_sayaci = models.PositiveIntegerField("Bugünkü Kontör Sorgusu", default=0, editable=False)
-    sayac_gunu = models.DateField("Sayaç Günü", null=True, blank=True, editable=False)
+    # 0011'den kalan robot düzeyi sayaçlar; artık hesap başına sayılıyor,
+    # bu alanlar kullanılmıyor (şema append-only olduğu için duruyor).
+    fatura_sayaci = models.PositiveIntegerField(default=0, editable=False)
+    kontor_sayaci = models.PositiveIntegerField(default=0, editable=False)
+    sayac_gunu = models.DateField(null=True, blank=True, editable=False)
 
     class Meta:
         verbose_name = "Sorgu Robotu"
@@ -376,11 +376,78 @@ class Robot(ZamanDamgali):
             and timezone.now() - self.son_nabiz < CEVRIMICI_SURESI
         )
 
-    # -- Günlük sorgu sayacı ve limiti --
-    #
-    # `tur`: "paket" (kontör) ya da "fatura". Sağlayıcının hesap başına günlük
-    # hakkı; limit dolunca robot o türden iş almaz. Gün değişince sayı 0 okunur
-    # (gece 00:00'da sıfırlanır, cron yok — ilk sayımda `sayac_gunu` tazelenir).
+    def musait_hesap(self, tur, bugun=None):
+        """Bu robotun o türde (fatura/paket) bugün hakkı kalan ilk aktif hesabı.
+
+        Sıra: en az kullanılmış hesap önce (hakları dengeli tüketilsin), eşitse
+        sıra/pk. Hiçbiri yoksa `None` — robot o türde iş almaz. Eş zamanlı
+        istekte sayaç yarışı olmaması için seçim/arttırma `services`'te
+        `select_for_update` ile yapılır; bu yalnızca okuma-aday süzgecidir.
+        """
+        bugun = bugun or timezone.localdate()
+        adaylar = [h for h in self.hesaplar.all() if h.aktif and not h.limit_doldu(tur, bugun)]
+        adaylar.sort(key=lambda h: (h.bugunku_sayi(tur, bugun), h.sira, h.pk))
+        return adaylar[0] if adaylar else None
+
+    def hak_kalan_mi(self, tur, bugun=None):
+        """Bu robotun o türde iş alabilecek (hakkı kalan) bir hesabı var mı?"""
+        bugun = bugun or timezone.localdate()
+        return any(h.aktif and not h.limit_doldu(tur, bugun) for h in self.hesaplar.all())
+
+
+class RobotHesabi(ZamanDamgali):
+    """Robotun (laptopun) kullandığı bir sağlayıcı (Kontorbizde) hesabı.
+
+    Sağlayıcı hesap başına günlük sorgu hakkı veriyor (ör. 10 fatura + 10
+    kontör). Robot altındaki hesaplarla sırayla sorgular; her hesabın hakkı
+    ayrı sayılır. Sayım **gönderim anında** artar (sonucu beklemeden):
+    sağlayıcıya işi yolladığımız an o hesabın hakkı eksilir. Hak dolunca ya
+    da sağlayıcı "Sorgu limitinizi doldurdunuz" deyince o hesap bugünlük
+    kapanır; gece 00:00'da (gün değişince) kendiliğinden açılır.
+
+    Kullanıcı adı ve şifre sağlayıcı hesabınındır: robot bununla giriş yapar.
+    Şifre panelde maskeli durur, yalnızca robota (anahtarıyla) verilir;
+    güvenlik resmi (ör. "kivi") girişte otomatik seçilir.
+    """
+
+    robot = models.ForeignKey(Robot, verbose_name="Robot", related_name="hesaplar", on_delete=models.CASCADE)
+    kullanici_adi = models.CharField("Kullanıcı Adı (cep)", max_length=40)
+    sifre = models.CharField("Şifre", max_length=128)
+    guvenlik_resmi = models.CharField(
+        "Güvenlik Resmi", max_length=20, blank=True,
+        help_text="Girişte otomatik seçilecek resim: elma, kivi, limon, domates, biber, soğan, karpuz, patlıcan, portakal, lahana, balkabağı, yeşilelma.",
+    )
+    sira = models.PositiveIntegerField("Sıra", default=0)
+    aktif = models.BooleanField("Aktif", default=True)
+    # Robotun bu hesaba son girişinin durumu (nabızla gelir): oturum canlı mı,
+    # son hata ne. Bayiye değil yönetime; "bu hesap neden sorgu yapmıyor".
+    oturum_canli = models.BooleanField("Oturum Canlı", default=True, editable=False)
+    son_hata = models.CharField("Son Hata", max_length=255, blank=True, editable=False)
+    # Günlük haklar (0 = sınırsız). Yeni hesapta robotun varsayılanından kopyalanır.
+    fatura_limiti = models.PositiveSmallIntegerField("Günlük Fatura Hakkı", default=0, help_text="0 = sınırsız.")
+    kontor_limiti = models.PositiveSmallIntegerField("Günlük Kontör Hakkı", default=0, help_text="0 = sınırsız.")
+    # Bugünkü sayaçlar; gün değişince ilk sayımda 0 okunur (gece 00:00 sıfırı).
+    fatura_sayaci = models.PositiveIntegerField("Bugünkü Fatura", default=0, editable=False)
+    kontor_sayaci = models.PositiveIntegerField("Bugünkü Kontör", default=0, editable=False)
+    sayac_gunu = models.DateField("Sayaç Günü", null=True, blank=True, editable=False)
+    # Sağlayıcı "limit doldu" dediği gün: o türde bugünlük iş verilmez.
+    fatura_doldu = models.DateField("Fatura Doldu", null=True, blank=True, editable=False)
+    kontor_doldu = models.DateField("Kontör Doldu", null=True, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = "Robot Hesabı"
+        verbose_name_plural = "Robot Hesapları"
+        ordering = ["robot", "sira", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["robot", "kullanici_adi"], name="robot_hesap_benzersiz"),
+        ]
+
+    def __str__(self):
+        return f"{self.robot.ad} · {self.etiket}"
+
+    @property
+    def etiket(self):
+        return self.kullanici_adi or f"hesap-{self.pk}"
 
     def bugunku_sayi(self, tur, bugun=None):
         bugun = bugun or timezone.localdate()
@@ -406,7 +473,16 @@ class Robot(ZamanDamgali):
             return None
         return max(limit - self.bugunku_sayi(tur, bugun), 0)
 
+    def saglayici_doldu_mu(self, tur, bugun=None):
+        """Sağlayıcı bugün bu hesapta 'limit doldu' dedi mi? (Gün değişince sıfır.)"""
+        bugun = bugun or timezone.localdate()
+        doldu = self.kontor_doldu if tur == "paket" else self.fatura_doldu
+        return doldu == bugun
+
     def limit_doldu(self, tur, bugun=None):
+        # İki kapı: sağlayıcı "limit doldu" dedi ya da saydığımız hak bitti.
+        if self.saglayici_doldu_mu(tur, bugun):
+            return True
         kalan = self.kalan_hak(tur, bugun)
         return kalan is not None and kalan <= 0
 
@@ -444,6 +520,11 @@ class Sorgu(ZamanDamgali):
     durum = models.CharField("Durum", max_length=20, choices=SorguDurumu.choices, default=SorguDurumu.BEKLIYOR)
     robot = models.ForeignKey(
         Robot, verbose_name="Robot", related_name="sorgular", null=True, blank=True, on_delete=models.SET_NULL
+    )
+    # İş hangi sağlayıcı hesabıyla sorgulanıyor (gönderim anında seçilip hakkı
+    # eksiltilir). Sağlayıcı "limit doldu" derse bu hesap kapatılır.
+    hesap = models.ForeignKey(
+        "RobotHesabi", verbose_name="Hesap", related_name="sorgular", null=True, blank=True, on_delete=models.SET_NULL
     )
     alinma_tarihi = models.DateTimeField("Robot Aldı", null=True, blank=True)
     sonuc_tarihi = models.DateTimeField("Sonuç", null=True, blank=True)

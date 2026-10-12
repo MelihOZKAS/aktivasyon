@@ -2176,6 +2176,9 @@ class RobotPaketSorgusuTestleri(Temel):
         )
         Rota.objects.create(paket=self.paket, saglayici=self.bir, sira=1, alis_fiyati=TL("100.00"))
         self.robot = Robot.objects.create(ad="sunucu-1", paket_sorgusu=True, son_nabiz=timezone.now())
+        # Robot hesaplarıyla sorgular; iş alabilmesi için en az bir hesap.
+        from apps.fatura.models import RobotHesabi
+        self.hesap = RobotHesabi.objects.create(robot=self.robot, kullanici_adi="5301112233", sifre="x")
         self.client.force_login(self.bayi)
         self.adres = reverse("kontor:sorgu", args=[self.kategori.slug])
 

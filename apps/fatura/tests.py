@@ -12,11 +12,12 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.fatura.models import Kategori, Kurum, Odeme, OdemeDurumu, Robot, Sorgu, SorguDurumu
+from apps.fatura.models import Kategori, Kurum, Odeme, OdemeDurumu, Robot, RobotHesabi, Sorgu, SorguDurumu
 from apps.fatura.services import (
     FaturaHatasi,
     KararVerilemez,
     cevrimici_robotlar,
+    hesap_sec_ve_say,
     iptal_et,
     is_ver,
     kapali_mesaji,
@@ -26,7 +27,7 @@ from apps.fatura.services import (
     odendi_isaretle,
     robot_cevrimici_mi,
     sabit_odeme_baslat,
-    sayac_arttir,
+    saglayici_limiti_doldu,
     siradaki_is,
     sonuc_yaz,
     vade_durumu,
@@ -71,6 +72,8 @@ class Temel(TestCase):
         self.bayi = User.objects.create_user("5321112233", password="parola12345")
         self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=TL("1000.00"))
         self.robot = Robot.objects.create(ad="ev-laptop")
+        # Robot artık hesaplarıyla sorgular; iş alabilmesi için en az bir hesap.
+        self.hesap = RobotHesabi.objects.create(robot=self.robot, kullanici_adi="5301112233", sifre="x")
         self.anahtar = self.robot.yeni_anahtar()
         nabiz(self.robot)
 
@@ -255,6 +258,7 @@ class RobotApiTestleri(Temel):
         cevap = self.client.get(adres, **baslik).json()
         self.assertEqual(cevap, {
             "var": True, "tur": "paket",
+            "hesap": {"id": self.hesap.pk, "kullanici_adi": "5301112233"},
             "talep": {"talep_id": paket_isi.pk, "numara": "5050488485", "operator": "avea"},
         })
         self.robot.refresh_from_db()
@@ -808,107 +812,124 @@ class GrupFiyatTestleri(Temel):
             self.assertEqual(self.client.get(reverse(f"admin:{ad}", args=[self.perakende.pk])).status_code, 403, ad)
 
 
-class SayacTestleri(Temel):
-    """Hesap başına günlük sorgu sayacı: fatura ayrı, kontör ayrı, 00:00'da sıfır."""
+class HesapSayaciTestleri(Temel):
+    """Hesap başına günlük sorgu sayacı: gönderim anında +1, fatura/kontör ayrı, 00:00 sıfır."""
 
-    def setUp(self):
-        super().setUp()
-        # Temel.setUp nabzı .update() ile yazar; bellekteki robotu tazele ki
-        # testteki save() son_nabiz'i (None) geri yazıp robotu çevrimdışı yapmasın.
-        self.robot.refresh_from_db()
-
-    def bugun(self):
-        return timezone.localdate()
-
-    def test_sayac_arttar_ve_gun_degisince_sifirlar(self):
-        sayac_arttir(self.robot.pk, "fatura")
-        sayac_arttir(self.robot.pk, "fatura")
-        sayac_arttir(self.robot.pk, "paket")
-        self.robot.refresh_from_db()
-        self.assertEqual((self.robot.bugunku_fatura, self.robot.bugunku_kontor), (2, 1))
-        self.assertEqual(self.robot.sayac_gunu, self.bugun())
-        # Dün yapılmış gibi geri al: bugünkü sayı 0 okunur (gece 00:00 sıfırı).
-        Robot.objects.filter(pk=self.robot.pk).update(sayac_gunu=self.bugun() - timedelta(days=1))
-        self.robot.refresh_from_db()
-        self.assertEqual((self.robot.bugunku_fatura, self.robot.bugunku_kontor), (0, 0))
-        # İlk yeni sorgu dünün sayısını sıfırlar, sadece kendi türünü sayar.
-        sayac_arttir(self.robot.pk, "fatura")
-        self.robot.refresh_from_db()
-        self.assertEqual((self.robot.bugunku_fatura, self.robot.bugunku_kontor, self.robot.sayac_gunu), (1, 0, self.bugun()))
-
-    def test_limit_doldu_ve_kalan_hak(self):
-        self.robot.fatura_limiti = 3
-        self.robot.save()
-        self.assertEqual(self.robot.kalan_hak("fatura"), 3)
-        self.assertIsNone(self.robot.kalan_hak("paket"))   # 0 = sınırsız
-        for _ in range(3):
-            sayac_arttir(self.robot.pk, "fatura")
-        self.robot.refresh_from_db()
-        self.assertEqual(self.robot.kalan_hak("fatura"), 0)
-        self.assertTrue(self.robot.limit_doldu("fatura"))
-        self.assertFalse(self.robot.limit_doldu("paket"))
-
-    def test_fatura_sonucu_sayar_robot_hatasi_saymaz(self):
-        sorgu = sorgu_baslat(self.bayi, self.vodafone, "5332590138")
-        is_ver(self.robot)
-        with self.captureOnCommitCallbacks(execute=True):
-            sonuc_yaz(self.robot, sorgu.pk, veri=ROBOT_VERISI)
-        self.robot.refresh_from_db()
-        self.assertEqual(self.robot.bugunku_fatura, 1)
-        # Robotun iç hatası sağlayıcıya hiç gitmedi: sayılmaz.
-        ikinci = sorgu_baslat(self.bayi, self.vodafone, "5339990000")
-        is_ver(self.robot)
-        with self.captureOnCommitCallbacks(execute=True):
-            sonuc_yaz(self.robot, ikinci.pk, hata="Oturum düştü")
-        self.robot.refresh_from_db()
-        self.assertEqual(self.robot.bugunku_fatura, 1)
-
-    def test_limit_dolan_robota_fatura_verilmez_kontor_surer(self):
+    def test_hesap_sec_ve_say_gonderim_aninda_arttirir_dengeli_dagitir(self):
         self.robot.paket_sorgusu = True
-        self.robot.fatura_limiti = 1
         self.robot.save()
-        sayac_arttir(self.robot.pk, "fatura")       # fatura hakkı doldu
-        # Fatura kuyruğuna bekleyen sorgu (sorgu_baslat hak dolu diye reddeder).
-        Sorgu.objects.create(bayi=self.bayi, kurum=self.vodafone, numara="5332590138")
-        from apps.kontor.models import RobotSorgusu
-        RobotSorgusu.objects.create(numara="5050488485", operator="avea")
-        # siradaki_is güncel robotla çağrılır (üretimde her istekte taze yüklenir).
-        self.robot.refresh_from_db()
-        # Fatura hakkı dolu: fatura işi verilmez, bekleyen kontör işi verilir.
-        tur, _ = siradaki_is(self.robot, paket=True)
-        self.assertEqual(tur, "paket")
-        # Robot fatura yapamıyorsa yalnız fatura kuyruğu doluyken iş yok.
-        self.robot.refresh_from_db()
-        RobotSorgusu.objects.all().delete()
-        self.assertIsNone(siradaki_is(self.robot, paket=True))
+        iki = RobotHesabi.objects.create(robot=self.robot, kullanici_adi="5302223344", sifre="x", sira=2)
+        # En az kullanılmış hesap seçilir: ilk ikisi iki ayrı hesaba gider.
+        h1 = hesap_sec_ve_say(self.robot, "fatura")
+        h2 = hesap_sec_ve_say(self.robot, "fatura")
+        self.assertEqual({h1.pk, h2.pk}, {self.hesap.pk, iki.pk})
+        for h in (self.hesap, iki):
+            h.refresh_from_db()
+            self.assertEqual((h.bugunku_fatura, h.bugunku_kontor), (1, 0))
+        # Kontör ayrı sayılır.
+        hesap_sec_ve_say(self.robot, "paket")
+        self.assertEqual(sum(h.bugunku_kontor for h in RobotHesabi.objects.filter(robot=self.robot)), 1)
 
-    def test_hepsi_hakkini_doldurunca_bayi_sebebini_gorur(self):
-        self.robot.fatura_limiti = 1
-        self.robot.save()
-        self.assertTrue(robot_cevrimici_mi())
-        sayac_arttir(self.robot.pk, "fatura")
+    def test_gun_degisince_sifir(self):
+        hesap_sec_ve_say(self.robot, "fatura")
+        self.hesap.refresh_from_db()
+        self.assertEqual(self.hesap.bugunku_fatura, 1)
+        RobotHesabi.objects.filter(pk=self.hesap.pk).update(sayac_gunu=timezone.localdate() - timedelta(days=1))
+        self.hesap.refresh_from_db()
+        self.assertEqual(self.hesap.bugunku_fatura, 0)   # dünün sayısı bugüne yazılmaz
+
+    def test_limit_dolan_hesap_atlanir_hepsi_dolunca_is_yok(self):
+        RobotHesabi.objects.filter(pk=self.hesap.pk).update(fatura_limiti=1)
+        iki = RobotHesabi.objects.create(robot=self.robot, kullanici_adi="5302223344", sifre="x", sira=2, fatura_limiti=1)
+        a = hesap_sec_ve_say(self.robot, "fatura")   # biri dolar
+        b = hesap_sec_ve_say(self.robot, "fatura")   # öbürü dolar
+        self.assertEqual({a.pk, b.pk}, {self.hesap.pk, iki.pk})
+        self.robot.refresh_from_db()
+        self.assertFalse(self.robot.hak_kalan_mi("fatura"))   # ikisi de dolu
+        self.assertIsNone(hesap_sec_ve_say(self.robot, "fatura"))
         self.assertFalse(robot_cevrimici_mi())
-        self.assertEqual(cevrimici_robotlar("fatura"), [])
-        with self.assertRaisesMessage(FaturaHatasi, "hakkı doldu"):
-            sorgu_baslat(self.bayi, self.vodafone, "5332590138")
-        # Mesaj hak diyor, saat demiyor; kontör için de türüne göre.
-        self.assertIn("fatura sorgusu hakkı doldu", kapali_mesaji("Fatura sorgusu").lower())
 
-    def test_kontor_sorgusu_sorgulanmadiysa_saymaz(self):
-        from apps.kontor.models import RobotSorgusu
+    def test_sorgu_gonderiminde_sayilir_hesaba_atanir(self):
+        sorgu = sorgu_baslat(self.bayi, self.vodafone, "5332590138")
+        verilen = is_ver(self.robot)
+        self.assertEqual(verilen.hesap, self.hesap)
+        self.hesap.refresh_from_db()
+        self.assertEqual(self.hesap.bugunku_fatura, 1)   # sonucu beklemeden sayıldı
+        # is_ cevabı hesabı taşır.
+        sorgu2 = sorgu_baslat(self.bayi, self.vodafone, "5339990000")
+        cevap = self.client.get(
+            reverse("fatura:robot-is"), HTTP_AUTHORIZATION=f"Bearer {self.anahtar}"
+        ).json()
+        self.assertEqual(cevap["hesap"], {"id": self.hesap.pk, "kullanici_adi": "5301112233"})
+
+    def test_hesapsiz_robot_is_alamaz_ve_cevrimdisi_sayilir(self):
+        self.hesap.delete()
+        self.assertFalse(robot_cevrimici_mi())
+        with self.assertRaisesMessage(FaturaHatasi, "yapılamıyor"):
+            sorgu_baslat(self.bayi, self.vodafone, "5332590138")
+
+    def test_hesaplar_nabiz_cevabinda_doner(self):
+        self.hesap.guvenlik_resmi = "kivi"
+        self.hesap.save()
+        RobotHesabi.objects.create(robot=self.robot, kullanici_adi="5302223344", sifre="gizli", sira=2, aktif=False)
+        cevap = self.client.post(
+            reverse("fatura:robot-kalp"),
+            data=json.dumps({"robot": "ev-laptop", "durum": "bos", "oturum": "canli"}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.anahtar}",
+        ).json()
+        # Yalnızca aktif hesap; şifre ve güvenlik resmi robota gider.
+        self.assertEqual(len(cevap["hesaplar"]), 1)
+        self.assertEqual(cevap["hesaplar"][0], {"id": self.hesap.pk, "kullanici_adi": "5301112233", "sifre": "x", "guvenlik_resmi": "kivi"})
+
+
+class SaglayiciLimitiTestleri(Temel):
+    """Sağlayıcı 'Sorgu limitinizi doldurdunuz' deyince O HESAP bugünlük kapanır."""
+
+    def test_fatura_limiti_hesabi_kapatir_sorgu_yeniden_denenebilir(self):
+        sorgu = sorgu_baslat(self.bayi, self.vodafone, "5332590138")
+        is_ver(self.robot)   # hesaba atandı, +1
+        veri = {"durum": "limit", "mesaj": "Sorgu limiti doldu.", "faturalar": []}
+        sonuc_yaz(self.robot, sorgu.pk, veri=veri)
+        sorgu.refresh_from_db()
+        self.hesap.refresh_from_db()
+        self.assertEqual(sorgu.durum, SorguDurumu.HATA)   # yeniden denenebilir
+        self.assertTrue(self.hesap.saglayici_doldu_mu("fatura"))
+        self.assertTrue(self.hesap.limit_doldu("fatura"))
+        self.assertFalse(self.hesap.limit_doldu("paket"))
+        self.assertFalse(robot_cevrimici_mi())   # tek hesap, o da dolu
+        # Gün değişince kendiliğinden açılır.
+        yarin = timezone.localdate() + timedelta(days=1)
+        self.assertFalse(self.hesap.saglayici_doldu_mu("fatura", bugun=yarin))
+
+    def test_kontor_limiti_hesabi_kapatir(self):
+        from apps.kontor.models import RobotSorgusu, RobotSorgusuDurumu
         from apps.kontor.sorgu import kontorbizde
 
         self.robot.paket_sorgusu = True
         self.robot.save()
-        sorgu = RobotSorgusu.objects.create(numara="5050488485", operator="avea")
-        # Numara başka operatöre taşınmış: robot düğmeye basmadı (sorgulandi False).
-        with self.captureOnCommitCallbacks(execute=True):
-            kontorbizde.sonuc_yaz(self.robot, sorgu.pk, veri={"operator": "turkcell", "paketler": [], "sorgulandi": False})
-        self.robot.refresh_from_db()
-        self.assertEqual(self.robot.bugunku_kontor, 0)
-        # Gerçekten sorgulanan (sorgulandi varsayılan True) sayılır.
-        sorgu2 = RobotSorgusu.objects.create(numara="5050488486", operator="avea")
-        with self.captureOnCommitCallbacks(execute=True):
-            kontorbizde.sonuc_yaz(self.robot, sorgu2.pk, veri={"operator": "avea", "paketler": []})
-        self.robot.refresh_from_db()
-        self.assertEqual((self.robot.bugunku_kontor, self.robot.bugunku_fatura), (1, 0))
+        RobotSorgusu.objects.create(numara="5050488485", operator="avea")
+        is_ = kontorbizde.is_ver(self.robot)
+        self.assertEqual(is_.hesap, self.hesap)
+        kontorbizde.sonuc_yaz(self.robot, is_.pk, veri={"operator": "avea", "paketler": [], "durum": "limit"})
+        is_.refresh_from_db()
+        self.hesap.refresh_from_db()
+        self.assertEqual(is_.durum, RobotSorgusuDurumu.HATA)
+        self.assertTrue(self.hesap.saglayici_doldu_mu("paket"))
+        self.assertFalse(self.hesap.saglayici_doldu_mu("fatura"))
+
+    def test_sinirsiz_hesapta_da_saglayici_limiti_kapatir(self):
+        # Hesabın limiti 0 (sınırsız) olsa da sağlayıcı dolu derse durur.
+        self.assertIsNone(self.hesap.kalan_hak("fatura"))
+        saglayici_limiti_doldu(self.hesap.pk, "fatura")
+        self.hesap.refresh_from_db()
+        self.assertTrue(self.hesap.limit_doldu("fatura"))
+
+    def test_bir_hesap_dolunca_digeri_devam_eder(self):
+        iki = RobotHesabi.objects.create(robot=self.robot, kullanici_adi="5302223344", sifre="x", sira=2)
+        saglayici_limiti_doldu(self.hesap.pk, "fatura")
+        # Biri dolu ama öbürü açık: robot hâlâ fatura yapabilir, iş açık hesaba gider.
+        self.assertTrue(robot_cevrimici_mi())
+        sorgu = sorgu_baslat(self.bayi, self.vodafone, "5332590138")
+        verilen = is_ver(self.robot)
+        self.assertEqual(verilen.hesap, iki)

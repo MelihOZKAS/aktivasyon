@@ -865,6 +865,15 @@ class RobotSorgusu(ZamanDamgali):
         blank=True,
         on_delete=models.SET_NULL,
     )
+    # İş hangi sağlayıcı hesabıyla sorgulanıyor (gönderim anında seçilir).
+    hesap = models.ForeignKey(
+        "fatura.RobotHesabi",
+        verbose_name="Hesap",
+        related_name="paket_sorgulari",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
     alinma_tarihi = models.DateTimeField("Robot Aldı", null=True, blank=True)
     sonuc_tarihi = models.DateTimeField("Sonuç", null=True, blank=True)
     sonuc = models.JSONField("Sonuç", default=dict, blank=True)
