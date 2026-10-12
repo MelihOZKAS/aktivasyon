@@ -759,6 +759,23 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   anda sorsa da her biri başka satırı kapar. Robot çevrimdışıysa (60 sn
   nabız yok) bayi sorgu **açamaz**, ekran sebebini söyler; robotun almadığı
   sorgu 45 sn, aldığı ama yazmadığı 75 sn sonra kapanır.
+  · **Hesap başına günlük sorgu hakkı sayılır** (`Robot.fatura_sayaci` /
+  `kontor_sayaci`, `fatura_limiti` / `kontor_limiti`). Sağlayıcı her hesaba
+  günlük sorgu hakkı veriyor (ör. 10 fatura + 10 kontör); her robot bir
+  hesapla girer, limit o hesabındır. **Fatura ve kontör ayrı sayılır.**
+  Sayaç `services.sayac_arttir` ile artar; yalnızca sorgu sağlayıcıya
+  **gerçekten gittiyse** (robotun iç hatası `basarisiz` değil, numara
+  taşınması `sorgulandi:false` değil) — `sonuc_yaz`'larda `on_commit`'le.
+  Hak dolunca robot o türden iş almaz (`siradaki_is`, `cevrimici_robotlar`),
+  öbür tür sürer; hepsi dolduysa bayi "Bugünkü … hakkı doldu; yarın
+  yeniden açılır" görür (`kapali_mesaji`, `tur`). Limit **panelden** girilir
+  (Robotlar listesinde satırdan, 0 = sınırsız), "Bugünkü sorgu" sütunu
+  kullanımı fatura/kontör ayrı ve renkli gösterir. **Sayaç gece 00:00'da
+  sıfırlanır** — ayrı cron yok: `sayac_gunu` bugünden eskiyse sayı 0 okunur,
+  ilk sayımda tazelenir (`Robot.bugunku_sayi`). Limit **aşmak için değil,
+  hesabın hakkını tüketmemek için**; sağlayıcının kontrolünü aşan bir şey
+  yapılmaz. Birden çok hesap = birden çok robot (klasör kopyalanır, her
+  birine ayrı anahtar), her biri kendi hakkı kadar sorgular.
   · **Kurumun kimliği `Kurum.kod`'dur** (`vodafone`, `100-tl-yukle-plaka`),
   sağlayıcının `api_adi`'si değil — o tekil değil (171 dört "TL Yükle"de
   tekrar ediyor). Kod kurum adından türetilir (`robot.kurum_id`); Django

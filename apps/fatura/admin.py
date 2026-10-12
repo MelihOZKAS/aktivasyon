@@ -298,11 +298,12 @@ class FaturaFiyatGrubuAdmin(ModelAdmin):
 @admin.register(Robot)
 class RobotAdmin(ModelAdmin):
     list_display = (
-        "ad", "durum_gosterimi", "oturum_gosterimi", "isler_gosterimi", "mesai_gosterimi", "son_nabiz", "aktif",
+        "ad", "durum_gosterimi", "oturum_gosterimi", "isler_gosterimi", "sayac_gosterimi",
+        "fatura_limiti", "kontor_limiti", "mesai_gosterimi", "son_nabiz", "aktif",
         "anahtar_durumu", "anahtar_dugmesi",
     )
-    list_editable = ("aktif",)
-    fields = ("ad", "aktif", "son_nabiz")
+    list_editable = ("fatura_limiti", "kontor_limiti", "aktif")
+    fields = ("ad", "aktif", ("fatura_limiti", "kontor_limiti"), "son_nabiz")
     readonly_fields = ("son_nabiz",)
 
     @display(description="Durum")
@@ -310,6 +311,18 @@ class RobotAdmin(ModelAdmin):
         if not obj.cevrimici:
             return _rozet("Çevrimdışı", GRI)
         return _rozet("Meşgul", "#B45309") if obj.mesgul else _rozet("Açık", "#0F8A4D")
+
+    @display(description="Bugünkü sorgu")
+    def sayac_gosterimi(self, obj):
+        # Sağlayıcının hesap başına günlük hakkı; gece 00:00'da sıfırlanır.
+        return format_html("Fatura {} · Kontör {}", self._hak(obj, "fatura"), self._hak(obj, "paket"))
+
+    def _hak(self, obj, tur):
+        sayi, limit = obj.bugunku_sayi(tur), obj.limiti(tur)
+        if not limit:
+            return format_html("<b>{}</b>", sayi)   # sınırsız
+        renk = "#D42046" if sayi >= limit else ("#B45309" if sayi >= limit * 0.8 else "#0F8A4D")
+        return format_html('<b style="color:{}">{}/{}</b>', renk, sayi, limit)
 
     @display(description="Oturum")
     def oturum_gosterimi(self, obj):

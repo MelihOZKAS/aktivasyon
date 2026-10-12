@@ -525,7 +525,9 @@ def paket_sorgula(ctx, numara, beklenen=""):
             "()=>{const e=document.getElementById('giz_operator');return e?e.value:''}"
         ))
         if beklenen and bulunan and bulunan != beklenen:
-            return {"operator": bulunan, "paketler": [], "durum": "", "mesaj": ""}
+            # Numara başka operatöre taşınmış: düğmeye basılmaz, sorgu
+            # sağlayıcıya gitmez. Hak harcanmadı (sorgulandi=False).
+            return {"operator": bulunan, "paketler": [], "durum": "", "mesaj": "", "sorgulandi": False}
 
         once_vardi = "yukle_onay(" in sayfa.content()
         govdeler = []

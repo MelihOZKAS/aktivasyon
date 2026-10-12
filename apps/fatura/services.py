@@ -6,6 +6,7 @@ Para yalnızca `finans.services` üzerinden hareket eder (`siparis_odemesini_isl
 
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from functools import partial
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -103,24 +104,62 @@ def sabit_fiyat(kurum, grup, tutarlar=None):
     return fiyat if fiyat and fiyat > 0 else None
 
 
+def cevrimici_robotlar(tur="fatura"):
+    """O türü (fatura / paket) bugün hâlâ yapabilen, çevrimiçi robotlar.
+
+    Limiti dolan robot listeden düşer: hakkı biten hesap daha fazla
+    sorgulanmaz. Sayı az (≤ birkaç hesap), süzme Python'da.
+    """
+    qs = Robot.objects.filter(aktif=True, son_nabiz__gte=timezone.now() - CEVRIMICI_SURESI)
+    if tur == "paket":
+        qs = qs.filter(paket_sorgusu=True)
+    return [r for r in qs if not r.limit_doldu(tur)]
+
+
 def robot_cevrimici_mi():
-    return Robot.objects.filter(aktif=True, son_nabiz__gte=timezone.now() - CEVRIMICI_SURESI).exists()
+    return bool(cevrimici_robotlar("fatura"))
 
 
-def kapali_mesaji(ne="Fatura sorgusu", robotlar=None):
-    """Robot yokken bayiye ne denir: mesai dışıysa saatler, değilse genel mesaj.
+def sayac_arttir(robot_pk, tur):
+    """Robotun bugünkü sorgu sayacını bir arttırır; gün değiştiyse sıfırlar.
+
+    Sağlayıcı hesap başına günlük sorgu hakkı veriyor; sayaç bunu takip eder,
+    hak dolunca robot o türden iş almaz (`cevrimici_robotlar`, `siradaki_is`).
+    Gece 00:00 geçilince ilk sayımda sayaçlar sıfırlanır — ayrı bir cron yok.
+    `tur`: "paket" (kontör) ya da "fatura".
+    """
+    bugun = timezone.localdate()
+    alan = "kontor_sayaci" if tur == "paket" else "fatura_sayaci"
+    with transaction.atomic():
+        robot = Robot.objects.select_for_update().filter(pk=robot_pk).first()
+        if robot is None:
+            return
+        if robot.sayac_gunu != bugun:
+            robot.sayac_gunu = bugun
+            robot.fatura_sayaci = 0
+            robot.kontor_sayaci = 0
+        setattr(robot, alan, getattr(robot, alan) + 1)
+        robot.save(update_fields=["sayac_gunu", "fatura_sayaci", "kontor_sayaci", "guncelleme_tarihi"])
+
+
+def kapali_mesaji(ne="Fatura sorgusu", robotlar=None, tur="fatura"):
+    """Robot yokken bayiye ne denir: mesai dışıysa saatler, hak dolduysa onu.
 
     Robot çalışma saatleri dışında bilerek susar; bayi "sistem bağlı değil"
-    görüp yöneticiyi aramasın, ne zaman sorgulayabileceğini görsün. Kontörün
-    paket sorgusu da aynı robotlardan birini bekler; `ne` ve `robotlar` onun
-    için verilir.
+    görüp yöneticiyi aramasın, ne zaman sorgulayabileceğini görsün. Çevrimiçi
+    ama hepsi bugünkü hakkını doldurduysa sebep saat değil hak: yarın açılır.
+    Kontörün paket sorgusu da aynı robotları bekler; `ne`, `robotlar`, `tur`
+    onun için verilir.
     """
-    robotlar = Robot.objects.filter(aktif=True) if robotlar is None else robotlar
+    robotlar = list(Robot.objects.filter(aktif=True) if robotlar is None else robotlar)
     saatli = [r for r in robotlar if r.mesai_metni]
     simdi = timezone.localtime().time()
     if saatli and not any(r.mesai_icinde(simdi) for r in saatli):
         araliklar = " / ".join(sorted({r.mesai_metni for r in saatli}))
         return f"{ne} {araliklar} arasında yapılır."
+    calisan = [r for r in robotlar if r.cevrimici and r.mesai_icinde(simdi)]
+    if calisan and all(r.limit_doldu(tur) for r in calisan):
+        return f"Bugünkü {ne.lower()} hakkı doldu; yarın yeniden açılır."
     return f"{ne} şu an yapılamıyor; biraz sonra yeniden dene."
 
 
@@ -217,21 +256,33 @@ def siradaki_is(robot, *, paket=False):
     bekleyen varsa **önce gelen** verilir — ikisinde de ekranında bekleyen
     bir bayi var. Paket işi yalnızca onu yapabildiğini söyleyen robota gider
     (`paket`); eski sürüm robot yalnızca fatura alır.
-    """
-    if paket:
-        from apps.kontor.sorgu import kontorbizde
 
+    Bugünkü hakkı dolan türde iş verilmez: fatura hakkı bitse de kontör
+    sürer, kontör bitse de fatura (`Robot.limit_doldu`).
+    """
+    fatura_acik = not robot.limit_doldu("fatura")
+    paket_acik = paket and not robot.limit_doldu("paket")
+    if not (fatura_acik or paket_acik):
+        return None
+
+    from apps.kontor.sorgu import kontorbizde
+
+    if paket_acik:
         kontorbizde.suresi_dolanlari_kapat()
+    if fatura_acik:
         suresi_dolanlari_kapat()
-        paket_ilk, fatura_ilk = kontorbizde.ilk_bekleyen(), _ilk_bekleyen()
+    if paket_acik:
+        paket_ilk = kontorbizde.ilk_bekleyen()
+        fatura_ilk = _ilk_bekleyen() if fatura_acik else None
         if paket_ilk is not None and (fatura_ilk is None or paket_ilk <= fatura_ilk):
             is_ = kontorbizde.is_ver(robot)
             if is_ is not None:
                 return "paket", is_
-    sorgu = is_ver(robot)
-    if sorgu is not None:
-        return "fatura", sorgu
-    if paket:
+    if fatura_acik:
+        sorgu = is_ver(robot)
+        if sorgu is not None:
+            return "fatura", sorgu
+    if paket_acik:
         # Fatura kuyruğu boşaldıysa (başka robot kaptı) bekleyen paket işi.
         is_ = kontorbizde.is_ver(robot)
         if is_ is not None:
@@ -358,6 +409,9 @@ def sonuc_yaz(robot, talep_id, *, veri=None, hata=""):
             sorgu.mesaj = "Sorgu şu an yapılamadı; biraz sonra yeniden dene."
             sorgu.sonuc = {"robot_hatasi": str(hata or "sonuç yok")[:500]}
         else:
+            # Robot sağlayıcıya sorguyu gönderdi: hakkı bir eksildi (robotun
+            # iç hatası yukarıda; o sağlayıcıya hiç gitmedi, sayılmaz).
+            transaction.on_commit(partial(sayac_arttir, robot.pk, "fatura"))
             temiz = _veriyi_temizle(veri)
             sorgu.sonuc = temiz
             if temiz["durum"] == "hata":

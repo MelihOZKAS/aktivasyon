@@ -202,6 +202,9 @@ def veriyi_temizle(veri):
         "borc": str(borc) if borc and borc > 0 else "",
         "operator": operator,
         "paketler": paketler,
+        # Robot sağlayıcıya sorguyu gönderdi mi? Numara başka operatöre
+        # taşınmışsa robot düğmeye basmaz: hak harcanmaz (varsayılan True).
+        "sorgulandi": veri.get("sorgulandi", True) is not False,
     }
 
 
@@ -263,9 +266,14 @@ def _paket_robotlari():
 
 
 def robot_hazir_mi():
-    from apps.fatura.models import CEVRIMICI_SURESI
+    """Paketi bugün hâlâ yapabilen, çevrimiçi robot var mı?
 
-    return _paket_robotlari().filter(son_nabiz__gte=timezone.now() - CEVRIMICI_SURESI).exists()
+    Kontör hakkını doldurmuş hesap sayılmaz: hepsi dolduysa bayi sebebini
+    (hak doldu) görür, sorgu açılmaz.
+    """
+    from apps.fatura.services import cevrimici_robotlar
+
+    return bool(cevrimici_robotlar("paket"))
 
 
 def sonuc_al(numara, operator):
@@ -291,7 +299,7 @@ def sonuc_al(numara, operator):
                 raise NumaraPaketAlamaz(son.mesaj)
             raise SorguHatasi(son.mesaj or HATA_MESAJI)
     if not robot_hazir_mi():
-        raise SorguHatasi(kapali_mesaji("Paket sorgusu", robotlar=_paket_robotlari()))
+        raise SorguHatasi(kapali_mesaji("Paket sorgusu", robotlar=_paket_robotlari(), tur="paket"))
     RobotSorgusu.objects.create(numara=numara, operator=operator)
     raise SorguBekleniyor(BEKLEME_MESAJI)
 
@@ -357,6 +365,12 @@ def sonuc_yaz(robot, talep_id, *, veri=None, hata=""):
         else:
             temiz = veriyi_temizle(veri)
             sorgu.sonuc = temiz
+            if temiz["sorgulandi"]:
+                # Robot sağlayıcıya sorguyu gönderdi: kontör hakkı bir eksildi.
+                # (Operatör uymadıysa düğmeye basmaz, sorgulandi False — sayılmaz.)
+                from apps.fatura.services import sayac_arttir
+
+                transaction.on_commit(partial(sayac_arttir, robot.pk, "paket"))
             if temiz["operator"] and temiz["operator"] != sorgu.operator:
                 sorgu.durum = RobotSorgusuDurumu.HATA
                 sorgu.mesaj = baska_operator_mesaji(temiz["operator"])

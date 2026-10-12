@@ -47,6 +47,12 @@ DJANGO'YA BAĞLANINCA
                    deyince çalıştır. İşçi açıkken de çalışır.
    Birden çok robot için aynı klasörü kopyalayıp panelde her biri için ayrı
    robot + anahtar aç; aynı numara iki robota gitmez (kuyruk atomik kilitler).
+4) GÜNLÜK HAK: Sağlayıcı hesap başına günlük sorgu hakkı veriyor (ör. 10
+   fatura + 10 kontör). Panelde Sorgu Robotu → Robotlar listesinde her robota
+   "Günlük Fatura Hakkı" ve "Günlük Kontör Hakkı" yazabilirsin (0 = sınırsız).
+   Hak dolunca o robot o türden iş almaz, öbür tür sürer; sayaç gece 00:00'da
+   sıfırlanır. "Bugünkü sorgu" sütunu fatura ve kontörü ayrı gösterir. Her
+   hesap kendi hakkı kadar sorgular; hak aşmak için değil, tüketmemek için.
 
 Django tarafı kurulu (apps/fatura); uçların ayrıntısı: DJANGO_API.md.
 

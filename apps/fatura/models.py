@@ -318,6 +318,22 @@ class Robot(ZamanDamgali):
     # yerine "08:00–23:00 arasında" denebilsin diye burada tutulur.
     mesai_baslangic = models.TimeField("Mesai Başlangıcı", null=True, blank=True, editable=False)
     mesai_bitis = models.TimeField("Mesai Bitişi", null=True, blank=True, editable=False)
+    # Sağlayıcı hesap başına günlük sorgu hakkı veriyor (ör. 10 fatura + 10
+    # kontör). Her robot bir hesapla girer; limit o hesabındır. Fatura ve
+    # kontör ayrı sayılır. 0 = sınırsız (limit koyma). Limit dolunca robot o
+    # türden iş almaz; aşmaya değil, hakkı tüketmemeye yarar.
+    fatura_limiti = models.PositiveSmallIntegerField(
+        "Günlük Fatura Hakkı", default=0, help_text="0 = sınırsız. Sağlayıcının bu hesaba günlük fatura sorgu hakkı."
+    )
+    kontor_limiti = models.PositiveSmallIntegerField(
+        "Günlük Kontör Hakkı", default=0, help_text="0 = sınırsız. Sağlayıcının bu hesaba günlük kontör sorgu hakkı."
+    )
+    # Bugün yapılan sorgu sayısı; gece 00:00'da (sayac_gunu değişince ilk
+    # sayımda) sıfırlanır — ayrı bir cron yok. `sayac_gunu` sayaçların
+    # geçerli olduğu gündür; bugün değilse sayı 0 okunur.
+    fatura_sayaci = models.PositiveIntegerField("Bugünkü Fatura Sorgusu", default=0, editable=False)
+    kontor_sayaci = models.PositiveIntegerField("Bugünkü Kontör Sorgusu", default=0, editable=False)
+    sayac_gunu = models.DateField("Sayaç Günü", null=True, blank=True, editable=False)
 
     class Meta:
         verbose_name = "Sorgu Robotu"
@@ -359,6 +375,40 @@ class Robot(ZamanDamgali):
             and self.son_nabiz
             and timezone.now() - self.son_nabiz < CEVRIMICI_SURESI
         )
+
+    # -- Günlük sorgu sayacı ve limiti --
+    #
+    # `tur`: "paket" (kontör) ya da "fatura". Sağlayıcının hesap başına günlük
+    # hakkı; limit dolunca robot o türden iş almaz. Gün değişince sayı 0 okunur
+    # (gece 00:00'da sıfırlanır, cron yok — ilk sayımda `sayac_gunu` tazelenir).
+
+    def bugunku_sayi(self, tur, bugun=None):
+        bugun = bugun or timezone.localdate()
+        if self.sayac_gunu != bugun:
+            return 0
+        return self.kontor_sayaci if tur == "paket" else self.fatura_sayaci
+
+    @property
+    def bugunku_fatura(self):
+        return self.bugunku_sayi("fatura")
+
+    @property
+    def bugunku_kontor(self):
+        return self.bugunku_sayi("paket")
+
+    def limiti(self, tur):
+        return self.kontor_limiti if tur == "paket" else self.fatura_limiti
+
+    def kalan_hak(self, tur, bugun=None):
+        """Bugün kaç sorgu daha yapabilir; limit 0 ise None (sınırsız)."""
+        limit = self.limiti(tur)
+        if not limit:
+            return None
+        return max(limit - self.bugunku_sayi(tur, bugun), 0)
+
+    def limit_doldu(self, tur, bugun=None):
+        kalan = self.kalan_hak(tur, bugun)
+        return kalan is not None and kalan <= 0
 
 
 # -- Sorgu ----------------------------------------------------------------

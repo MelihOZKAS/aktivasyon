@@ -200,6 +200,31 @@ Sonuç:
   çıkmıyor").
 - Borç dışında bir kırmızı satır gelirse `mesaj` olarak gider, liste boş
   olduğu için hata sayılır ve bayi o satırı görür.
+- **`sorgulandi`**: robot sağlayıcıya sorguyu gönderdi mi? Numara başka
+  operatöre taşınmışsa robot "aboneye özel paketleri sorgula" düğmesine
+  basmaz, sorgu sağlayıcıya hiç gitmez ve günlük hak harcanmaz —
+  `"sorgulandi": false` gönderir. Diğer bütün cevaplarda alan yoktur,
+  Django onu `true` sayar (düğmeye basıldı). Yalnızca paket sonucunda var;
+  fatura hep gönderilir, sayaç her sonuçta artar.
+
+## 2c. Günlük sorgu sayacı ve hesap limiti
+
+Sağlayıcı her hesaba günlük sorgu hakkı veriyor (ör. 10 fatura + 10
+kontör). Her robot bir hesapla girer; limit o hesabındır. Django **fatura
+ve kontör sorgularını ayrı sayar** (`Robot.fatura_sayaci` /
+`kontor_sayaci`). Sayaç robot cevabı yazıldığında, yalnızca sorgu
+sağlayıcıya gerçekten gittiyse artar: robotun iç hatası (`basarisiz`) ve
+taşınmış numara (`sorgulandi:false`) sayılmaz.
+
+Limit **yönetim panelinde** hesap başına girilir (Sorgu Robotu → Robotlar,
+satırda "Günlük Fatura/Kontör Hakkı"; 0 = sınırsız). Hak dolunca robot o
+türden iş almaz (`is_` o türü atlar), öbür tür sürer. Bütün hesaplar
+hakkını doldurmuşsa bayi "Bugünkü … hakkı doldu; yarın yeniden açılır"
+görür. Sayaç **gece 00:00'da sıfırlanır** — ayrı bir cron yok, gün
+değişince ilk sayımda tazelenir; panel bugünün sayısını her zaman doğru
+gösterir. Robot tarafında bir ayar gerekmez; sayaç ve limit tümüyle
+Django'dadır. Birden çok hesap için her birine ayrı robot + anahtar açılır
+(aynı klasör kopyalanır), her hesap kendi hakkı kadar sorgu yapar.
 - Robot hatası (oturum düştü, kutu açılmadı) `"basarisiz": true` ile gelir;
   robot o anki sayfanın görüntüsünü ve HTML'ini `kayitlar/`'a yazar.
 

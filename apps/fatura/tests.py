@@ -16,13 +16,18 @@ from apps.fatura.models import Kategori, Kurum, Odeme, OdemeDurumu, Robot, Sorgu
 from apps.fatura.services import (
     FaturaHatasi,
     KararVerilemez,
+    cevrimici_robotlar,
     iptal_et,
     is_ver,
+    kapali_mesaji,
     katalog_yaz,
     nabiz,
     odeme_baslat,
     odendi_isaretle,
+    robot_cevrimici_mi,
     sabit_odeme_baslat,
+    sayac_arttir,
+    siradaki_is,
     sonuc_yaz,
     vade_durumu,
     sorgu_baslat,
@@ -801,3 +806,109 @@ class GrupFiyatTestleri(Temel):
         self.client.force_login(User.objects.create_user("personel", password="x", is_staff=True))
         for ad in ("kontor_fiyatgrubu_paketler", "fatura_faturafiyatgrubu_fiyatlar"):
             self.assertEqual(self.client.get(reverse(f"admin:{ad}", args=[self.perakende.pk])).status_code, 403, ad)
+
+
+class SayacTestleri(Temel):
+    """Hesap başına günlük sorgu sayacı: fatura ayrı, kontör ayrı, 00:00'da sıfır."""
+
+    def setUp(self):
+        super().setUp()
+        # Temel.setUp nabzı .update() ile yazar; bellekteki robotu tazele ki
+        # testteki save() son_nabiz'i (None) geri yazıp robotu çevrimdışı yapmasın.
+        self.robot.refresh_from_db()
+
+    def bugun(self):
+        return timezone.localdate()
+
+    def test_sayac_arttar_ve_gun_degisince_sifirlar(self):
+        sayac_arttir(self.robot.pk, "fatura")
+        sayac_arttir(self.robot.pk, "fatura")
+        sayac_arttir(self.robot.pk, "paket")
+        self.robot.refresh_from_db()
+        self.assertEqual((self.robot.bugunku_fatura, self.robot.bugunku_kontor), (2, 1))
+        self.assertEqual(self.robot.sayac_gunu, self.bugun())
+        # Dün yapılmış gibi geri al: bugünkü sayı 0 okunur (gece 00:00 sıfırı).
+        Robot.objects.filter(pk=self.robot.pk).update(sayac_gunu=self.bugun() - timedelta(days=1))
+        self.robot.refresh_from_db()
+        self.assertEqual((self.robot.bugunku_fatura, self.robot.bugunku_kontor), (0, 0))
+        # İlk yeni sorgu dünün sayısını sıfırlar, sadece kendi türünü sayar.
+        sayac_arttir(self.robot.pk, "fatura")
+        self.robot.refresh_from_db()
+        self.assertEqual((self.robot.bugunku_fatura, self.robot.bugunku_kontor, self.robot.sayac_gunu), (1, 0, self.bugun()))
+
+    def test_limit_doldu_ve_kalan_hak(self):
+        self.robot.fatura_limiti = 3
+        self.robot.save()
+        self.assertEqual(self.robot.kalan_hak("fatura"), 3)
+        self.assertIsNone(self.robot.kalan_hak("paket"))   # 0 = sınırsız
+        for _ in range(3):
+            sayac_arttir(self.robot.pk, "fatura")
+        self.robot.refresh_from_db()
+        self.assertEqual(self.robot.kalan_hak("fatura"), 0)
+        self.assertTrue(self.robot.limit_doldu("fatura"))
+        self.assertFalse(self.robot.limit_doldu("paket"))
+
+    def test_fatura_sonucu_sayar_robot_hatasi_saymaz(self):
+        sorgu = sorgu_baslat(self.bayi, self.vodafone, "5332590138")
+        is_ver(self.robot)
+        with self.captureOnCommitCallbacks(execute=True):
+            sonuc_yaz(self.robot, sorgu.pk, veri=ROBOT_VERISI)
+        self.robot.refresh_from_db()
+        self.assertEqual(self.robot.bugunku_fatura, 1)
+        # Robotun iç hatası sağlayıcıya hiç gitmedi: sayılmaz.
+        ikinci = sorgu_baslat(self.bayi, self.vodafone, "5339990000")
+        is_ver(self.robot)
+        with self.captureOnCommitCallbacks(execute=True):
+            sonuc_yaz(self.robot, ikinci.pk, hata="Oturum düştü")
+        self.robot.refresh_from_db()
+        self.assertEqual(self.robot.bugunku_fatura, 1)
+
+    def test_limit_dolan_robota_fatura_verilmez_kontor_surer(self):
+        self.robot.paket_sorgusu = True
+        self.robot.fatura_limiti = 1
+        self.robot.save()
+        sayac_arttir(self.robot.pk, "fatura")       # fatura hakkı doldu
+        # Fatura kuyruğuna bekleyen sorgu (sorgu_baslat hak dolu diye reddeder).
+        Sorgu.objects.create(bayi=self.bayi, kurum=self.vodafone, numara="5332590138")
+        from apps.kontor.models import RobotSorgusu
+        RobotSorgusu.objects.create(numara="5050488485", operator="avea")
+        # siradaki_is güncel robotla çağrılır (üretimde her istekte taze yüklenir).
+        self.robot.refresh_from_db()
+        # Fatura hakkı dolu: fatura işi verilmez, bekleyen kontör işi verilir.
+        tur, _ = siradaki_is(self.robot, paket=True)
+        self.assertEqual(tur, "paket")
+        # Robot fatura yapamıyorsa yalnız fatura kuyruğu doluyken iş yok.
+        self.robot.refresh_from_db()
+        RobotSorgusu.objects.all().delete()
+        self.assertIsNone(siradaki_is(self.robot, paket=True))
+
+    def test_hepsi_hakkini_doldurunca_bayi_sebebini_gorur(self):
+        self.robot.fatura_limiti = 1
+        self.robot.save()
+        self.assertTrue(robot_cevrimici_mi())
+        sayac_arttir(self.robot.pk, "fatura")
+        self.assertFalse(robot_cevrimici_mi())
+        self.assertEqual(cevrimici_robotlar("fatura"), [])
+        with self.assertRaisesMessage(FaturaHatasi, "hakkı doldu"):
+            sorgu_baslat(self.bayi, self.vodafone, "5332590138")
+        # Mesaj hak diyor, saat demiyor; kontör için de türüne göre.
+        self.assertIn("fatura sorgusu hakkı doldu", kapali_mesaji("Fatura sorgusu").lower())
+
+    def test_kontor_sorgusu_sorgulanmadiysa_saymaz(self):
+        from apps.kontor.models import RobotSorgusu
+        from apps.kontor.sorgu import kontorbizde
+
+        self.robot.paket_sorgusu = True
+        self.robot.save()
+        sorgu = RobotSorgusu.objects.create(numara="5050488485", operator="avea")
+        # Numara başka operatöre taşınmış: robot düğmeye basmadı (sorgulandi False).
+        with self.captureOnCommitCallbacks(execute=True):
+            kontorbizde.sonuc_yaz(self.robot, sorgu.pk, veri={"operator": "turkcell", "paketler": [], "sorgulandi": False})
+        self.robot.refresh_from_db()
+        self.assertEqual(self.robot.bugunku_kontor, 0)
+        # Gerçekten sorgulanan (sorgulandi varsayılan True) sayılır.
+        sorgu2 = RobotSorgusu.objects.create(numara="5050488486", operator="avea")
+        with self.captureOnCommitCallbacks(execute=True):
+            kontorbizde.sonuc_yaz(self.robot, sorgu2.pk, veri={"operator": "avea", "paketler": []})
+        self.robot.refresh_from_db()
+        self.assertEqual((self.robot.bugunku_kontor, self.robot.bugunku_fatura), (1, 0))
