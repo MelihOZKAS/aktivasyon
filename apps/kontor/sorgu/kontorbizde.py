@@ -363,6 +363,10 @@ def sonuc_yaz(robot, talep_id, *, veri=None, hata=""):
         sorgu = RobotSorgusu.objects.select_for_update().filter(pk=talep_id).first()
         if sorgu is None or not sorgu.acik:
             return sorgu
+        # İş yalnızca atandığı robottan sonuç kabul eder: başka robot bu işin
+        # hesabını "limit doldu" diye kapatamasın (fatura.sonuc_yaz ile aynı).
+        if sorgu.robot_id is not None and sorgu.robot_id != robot.pk:
+            return sorgu
         sorgu.robot = robot
         sorgu.sonuc_tarihi = timezone.now()
         if hata or veri is None:

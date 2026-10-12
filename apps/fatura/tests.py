@@ -933,3 +933,39 @@ class SaglayiciLimitiTestleri(Temel):
         sorgu = sorgu_baslat(self.bayi, self.vodafone, "5332590138")
         verilen = is_ver(self.robot)
         self.assertEqual(verilen.hesap, iki)
+
+
+class RobotYetkiTestleri(Temel):
+    """İş yalnızca atandığı robottan sonuç kabul eder (anahtar sızsa bile)."""
+
+    def test_baska_robot_sonuc_yazamaz_hesabi_kapatamaz(self):
+        yabanci = Robot.objects.create(ad="server-9")
+        RobotHesabi.objects.create(robot=yabanci, kullanici_adi="5309998877", sifre="x")
+        sorgu = sorgu_baslat(self.bayi, self.vodafone, "5332590138")
+        is_ver(self.robot)   # kendi hesabıma atandı
+        # Yabancı robot aynı talep_id'ye "limit" yazmaya çalışır.
+        sonuc_yaz(yabanci, sorgu.pk, veri={"durum": "limit", "faturalar": []})
+        sorgu.refresh_from_db()
+        self.hesap.refresh_from_db()
+        self.assertEqual(sorgu.durum, SorguDurumu.SORGULANIYOR)   # dokunulmadı
+        self.assertFalse(self.hesap.saglayici_doldu_mu("fatura"))  # hesabım kapanmadı
+        # Doğru robot yazınca işler.
+        sonuc_yaz(self.robot, sorgu.pk, veri=ROBOT_VERISI)
+        sorgu.refresh_from_db()
+        self.assertEqual(sorgu.durum, SorguDurumu.TAMAM)
+
+    def test_baska_robot_paket_sonucu_yazamaz(self):
+        from apps.kontor.models import RobotSorgusu, RobotSorgusuDurumu
+        from apps.kontor.sorgu import kontorbizde
+
+        self.robot.paket_sorgusu = True
+        self.robot.save()
+        yabanci = Robot.objects.create(ad="server-9", paket_sorgusu=True)
+        RobotHesabi.objects.create(robot=yabanci, kullanici_adi="5309998877", sifre="x")
+        RobotSorgusu.objects.create(numara="5050488485", operator="avea")
+        is_ = kontorbizde.is_ver(self.robot)
+        kontorbizde.sonuc_yaz(yabanci, is_.pk, veri={"operator": "avea", "paketler": [], "durum": "limit"})
+        is_.refresh_from_db()
+        self.hesap.refresh_from_db()
+        self.assertEqual(is_.durum, RobotSorgusuDurumu.SORGULANIYOR)
+        self.assertFalse(self.hesap.saglayici_doldu_mu("paket"))
