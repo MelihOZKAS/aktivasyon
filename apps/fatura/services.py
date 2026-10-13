@@ -78,8 +78,11 @@ OTOMATIK_GONDERIM_SURESI = timedelta(minutes=5)
 # Gönderimin cevabı en çok ~20 sn sürer (`http.ZAMAN_ASIMI`); bundan uzun
 # "Gönderiliyor"da kalan kayıt yarıda ölmüş süreçtir, belirsize düşer.
 YARIM_GONDERIM = timedelta(minutes=2)
-# Sağlayıcıya "ödendi mi?" bu aralıktan sık sorulmaz (kontördeki gibi 25 sn).
-SONUC_ARALIGI = timedelta(seconds=25)
+# Sağlayıcıya "ödendi mi?" bu aralıktan sık sorulmaz; ilk sorgu da gönderimden
+# bu kadar sonra. Kontördeki gibi 25 sn'ydi; yönetim "10 dakikada bir yeter"
+# dedi — fatura saniyeler içinde ödenmiyor, erken sorgu hep "bekliyor" döner.
+# Yönetimin "Sonucu sorgula"sı bu süreye bağlı değildir.
+SONUC_ARALIGI = timedelta(minutes=10)
 
 ROBOT_YOK_MESAJI = "Fatura sorgusu şu an yapılamıyor; biraz sonra yeniden dene."
 ZAMAN_ASIMI_MESAJI = "Sorgu yanıt vermedi; yeniden dene."
@@ -1054,18 +1057,31 @@ def _sonuclandir(odeme_pk):
     (kurum numarası, sağlayıcı bakiyesi) — kontördeki gibi her ödemeyi iade
     etmek yerine yönetim düzeltip yeniden gönderir; karışık sonuçta (biri
     ödendi, biri iptal) kısmi iade yönetimin kararıdır.
+
+    **İade bütün gönderimlere bakar, yalnızca sonuncuya değil:** cevabı
+    belirsiz kalmış eski bir gönderim sağlayıcıda ödenmiş olabilir; yönetim
+    faturayı elle yeniden gönderip o iptal gelirse para iade edilmez.
     """
     odeme = Odeme.objects.prefetch_related("gonderimler").filter(pk=odeme_pk).first()
-    if odeme is None or odeme.durum != OdemeDurumu.BEKLIYOR or not odeme.fatura_nolari:
+    if odeme is None or not odeme.fatura_nolari:
         return
     son = odeme.son_gonderimler()
-    if any(no not in son for no in odeme.fatura_nolari):
+    if odeme.durum == OdemeDurumu.IPTAL and any(g.durum == GonderimDurumu.ODENDI for g in son.values()):
+        # Yönetim sağlayıcıda süren ödemeyi iade etti, sağlayıcı sonradan ödedi:
+        # para hem bayiye döndü hem kuruma gitti. Sessiz kalmasın.
+        logger.error("İade edilmiş fatura ödemesi sağlayıcıda ödendi (%s)", odeme.referans_no)
+        return
+    if odeme.durum != OdemeDurumu.BEKLIYOR or any(no not in son for no in odeme.fatura_nolari):
         return
     durumlar = {son[no].durum for no in odeme.fatura_nolari}
+    odenmis_olabilir = any(
+        g.durum in (*SUREN_GONDERIM, GonderimDurumu.ODENDI, GonderimDurumu.BELIRSIZ)
+        for g in odeme.gonderimler.all()
+    )
     try:
         if durumlar == {GonderimDurumu.ODENDI}:
             odendi_isaretle(odeme)
-        elif durumlar == {GonderimDurumu.IPTAL}:
+        elif durumlar == {GonderimDurumu.IPTAL} and not odenmis_olabilir:
             sebepler = dict.fromkeys(son[no].mesaj for no in odeme.fatura_nolari if son[no].mesaj)
             iptal_et(odeme, sebep=" · ".join(sebepler) or "Kurum ödemeyi kabul etmedi.")
     except KararVerilemez:
@@ -1074,6 +1090,8 @@ def _sonuclandir(odeme_pk):
 
 def bekleyenleri_isle():
     """İşçinin fatura turu: takılanı gönderir, yarım kalanı belirsize alır, sonucu sorar.
+
+    Sonuç her gönderim için `SONUC_ARALIGI`'nda (10 dk) bir sorulur.
 
     Dönüş: dokunulan gönderim/ödeme sayısı.
     """
@@ -1093,7 +1111,8 @@ def bekleyenleri_isle():
             olusturma_tarihi__lt=simdi - GONDERIM_BEKLEMESI,
             olusturma_tarihi__gte=simdi - OTOMATIK_GONDERIM_SURESI,
         )
-        .exclude(Exists(Gonderim.objects.filter(odeme=OuterRef("pk"), elle=False)))
+        # Elle gönderimi olan da atlanır: yönetim o ödemeyi devraldı.
+        .exclude(Exists(Gonderim.objects.filter(odeme=OuterRef("pk"))))
         .values_list("pk", flat=True)[:50]
     )
     for pk in gonderilmemis:
@@ -1104,7 +1123,10 @@ def bekleyenleri_isle():
 
     sorulacak = list(
         Gonderim.objects.filter(durum=GonderimDurumu.ISLEMDE)
-        .filter(Q(son_sorgu__isnull=True) | Q(son_sorgu__lt=simdi - SONUC_ARALIGI))
+        .filter(
+            Q(son_sorgu__isnull=True, olusturma_tarihi__lt=simdi - SONUC_ARALIGI)
+            | Q(son_sorgu__lt=simdi - SONUC_ARALIGI)
+        )
         .select_related("saglayici")
         .order_by("son_sorgu", "pk")[:500]
     )

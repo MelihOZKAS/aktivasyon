@@ -1043,10 +1043,13 @@ class SaglayiciGonderimTestleri(Temel):
         with mock.patch("urllib.request.urlopen", side_effect=site):
             bekleyenleri_isle()
 
-    def sorulabilir_yap(self):
+    def sorulabilir_yap(self, once=timedelta(minutes=11)):
+        """Saati ilerletir: gönderim ve son sorgu `once` kadar önce yapılmış olur."""
         from apps.fatura.models import Gonderim
 
-        Gonderim.objects.update(son_sorgu=timezone.now() - timedelta(minutes=1))
+        eski = timezone.now() - once
+        Gonderim.objects.update(olusturma_tarihi=eski)
+        Gonderim.objects.filter(son_sorgu__isnull=False).update(son_sorgu=eski)
 
     def test_fatura_kurum_numarasiyla_gider_odenince_kapanir(self):
         site = SahteSite(fatura_ekle=["OK|0.30|2644.78|390.30", "OK|0.30|2464.48|180.30"])
@@ -1082,17 +1085,31 @@ class SaglayiciGonderimTestleri(Temel):
         self.assertEqual(odeme.siparis.durum, SiparisDurumu.TESLIM)
         self.assertEqual(self.bakiye(), TL("420.00"))  # 390 + 5 ve 180 + 5 düştü, iade yok
 
-    def test_sonuc_25_saniyeden_sik_sorulmaz(self):
+    def test_sonuc_10_dakikada_bir_sorulur_ilki_de_10_dakika_sonra(self):
+        # Yönetim: "10 dakikada bir yeter". Fatura saniyeler içinde ödenmiyor.
         site = SahteSite(fatura_ekle="OK|0.30|1000.00|390.30")
         self.ode(site)
         sorgu = SahteSite(fatura_kontrol="1:BEKLIYOR")
         self.isle(sorgu)
+        self.assertEqual(sorgu.servis("fatura_kontrol"), [])  # gönderimden hemen sonra sorulmaz
+        self.sorulabilir_yap(timedelta(minutes=9))
+        self.isle(sorgu)
+        self.assertEqual(sorgu.servis("fatura_kontrol"), [])
+        self.sorulabilir_yap()
+        self.isle(sorgu)
         self.isle(sorgu)
         self.assertEqual(len(sorgu.servis("fatura_kontrol")), 1)
+        self.sorulabilir_yap(timedelta(minutes=9))
+        self.isle(sorgu)
+        self.assertEqual(len(sorgu.servis("fatura_kontrol")), 1)
+        self.sorulabilir_yap()
+        self.isle(sorgu)
+        self.assertEqual(len(sorgu.servis("fatura_kontrol")), 2)
 
     def test_saglayici_iptal_ederse_tutar_iade_edilir_sebep_bayiye(self):
         odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
         self.assertEqual(self.bakiye(), TL("605.00"))
+        self.sorulabilir_yap()
         self.isle(SahteSite(fatura_kontrol="3:Fatura kurumda ödenmiş görünüyor"))
         odeme.refresh_from_db()
         self.assertEqual(odeme.durum, OdemeDurumu.IPTAL)
@@ -1137,7 +1154,7 @@ class SaglayiciGonderimTestleri(Temel):
     def test_belirsiz_cevap_yeniden_gonderilmez_sorgulaninca_surer(self):
         from unittest import mock
 
-        odeme = self.ode(SahteSite(fatura_ekle="4|Daha Önce Gönderilmiş (166189)"))
+        odeme = self.ode(SahteSite(fatura_ekle="OK|8|Bekleyin"))
         gonderim = odeme.gonderimler.get()
         self.assertEqual(gonderim.durum, "belirsiz")
         self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
@@ -1147,6 +1164,41 @@ class SaglayiciGonderimTestleri(Temel):
             self.client.post(adres, {"karar": "sorgula"})
         gonderim.refresh_from_db()
         self.assertEqual((gonderim.durum, gonderim.sonuc_cevabi), ("islemde", "1:BEKLIYOR"))
+
+    def test_numara_cakismasi_ret_sayilir_sonucu_sorulmaz(self):
+        # "4|Daha Önce Gönderilmiş": numara başka işlemde kullanılmış. Belirsiz
+        # sayılsaydı "Sonucu sorgula" başka faturanın sonucunu okurdu.
+        odeme = self.ode(SahteSite(fatura_ekle="4|Daha Önce Gönderilmiş (166189)"))
+        self.assertEqual(odeme.gonderimler.get().durum, "reddedildi")
+        from apps.fatura.services import sonucu_sorgula
+
+        with self.assertRaisesMessage(KararVerilemez, "Sorulacak gönderim yok"):
+            sonucu_sorgula(odeme)
+
+    def test_belirsiz_eski_gonderim_varken_iptal_iade_edilmez(self):
+        # Eski gönderim ödenmiş olabilir; elle yeniden gönderilen fatura
+        # "zaten ödenmiş" diye iptal gelirse para bayiye dönmez, yönetime kalır.
+        from unittest import mock
+
+        from apps.fatura.services import odemeyi_gonder, yonetim_bekleyenler
+
+        odeme = self.ode(SahteSite(fatura_ekle="OK|8|Bekleyin"))
+        with mock.patch("urllib.request.urlopen", side_effect=SahteSite(fatura_ekle="OK|0.30|1000.00|390.30")):
+            odemeyi_gonder(odeme.pk, elle=True)
+        self.sorulabilir_yap()
+        self.isle(SahteSite(fatura_kontrol="3:Fatura daha önce ödenmiş"))
+        odeme.refresh_from_db()
+        self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
+        self.assertEqual(self.bakiye(), TL("605.00"))
+        self.assertEqual(list(yonetim_bekleyenler()), [odeme])
+
+    def test_iade_edilen_odeme_sonradan_odenirse_loglanir(self):
+        odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
+        iptal_et(odeme, sebep="Müşteri vazgeçti")
+        self.sorulabilir_yap()
+        with self.assertLogs("apps.fatura.services", level="ERROR") as kayit:
+            self.isle(SahteSite(fatura_kontrol="2:ONAYLI"))
+        self.assertIn("İade edilmiş fatura ödemesi sağlayıcıda ödendi", kayit.output[0])
 
     def test_zaman_asiminda_belirsiz_baglanti_kurulamazsa_gonderilemedi(self):
         import socket

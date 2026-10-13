@@ -29,7 +29,7 @@ değil. Oyun pini — `servis/pin_ekle.php`, sonucu `pin_kontrol.php`:
 Fatura — `servis/fatura_ekle.php`, sonucu `fatura_top_kontrol.php`:
     ?kurum_id=8&tahsilat_api_islem_id=…&fatura_no=…&fatura_tutari=110.15…
     OK|0.30|2644.78|110.45                kabul; maliyet, kalan, toplam düşen
-    4|Daha Önce Gönderilmiş (166189)      aynı numara kullanılmış: belirsiz
+    4|Daha Önce Gönderilmiş (166189)      numara başka işlemde kullanılmış: ret
     3|Açıklama                            ret
     123456|2||##123457|3||##              toplu sonuç; bekleyen yazılmaz
 """
@@ -372,11 +372,13 @@ def tarih_bicimi(metin):
 
 
 def fatura_gonderim_coz(ham):
-    """`OK|maliyet|kalan|toplam` kabul (alış = toplam düşen), `3|…` ret.
+    """`OK|maliyet|kalan|toplam` kabul (alış = toplam düşen), `3|…` ve `4|…` ret.
 
-    `4|Daha Önce Gönderilmiş` belirsizdir: numarayı biz bir kez gönderiyoruz,
-    çakışma o numaranın başka bir işlemde (eski sistem) kullanıldığını
-    gösterir — sonucunu sormak başka bir faturanın sonucunu okumak olurdu.
+    `4|Daha Önce Gönderilmiş` da rettir: her numarayı yalnızca bir kez
+    gönderiyoruz, çakışma numaranın başka bir işlemde (eski sistem) kullanıldığını
+    gösterir — bu istek orada hiçbir şey açmadı. Belirsiz sayılsaydı "Sonucu
+    sorgula" aynı numarayla başka bir faturanın sonucunu okuyup ödemeyi
+    kapatabilir ya da iade edebilirdi.
     """
     parcalar = _parcalar(ham)
     if parcalar[0].upper() == "OK" and len(parcalar) >= 4:
@@ -385,7 +387,7 @@ def fatura_gonderim_coz(ham):
             return GonderimSonucu(
                 Gonderim.KABUL, alis=toplam, maliyet=tutar_coz(parcalar[1]), ham=ham
             )
-    if parcalar[0] == "3":
+    if parcalar[0] in ("3", "4"):
         mesaj = "|".join(parcalar[1:]) or "Sağlayıcı reddetti."
         return GonderimSonucu(Gonderim.RED, mesaj=mesaj, ham=ham)
     return GonderimSonucu(Gonderim.BELIRSIZ, mesaj=(ham or "")[:200], ham=ham)

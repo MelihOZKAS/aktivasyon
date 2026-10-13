@@ -902,8 +902,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   buraya** (tek sağlayıcıda açık olur, fatura almayan yazılımda
   kaydedilmez). Gönderim bayinin isteğinde değil, commit'ten sonra iş
   parçacığında yapılır; ölürse işçi 10 sn sonra devralır. Sonuç işçide
-  (`kontor_isle` döngüsü, `fatura.services.bekleyenleri_isle`) 25 sn'de bir
-  toplu sorulur (`fatura_top_kontrol`, 100'lük; bekleyen yazılmaz):
+  (`kontor_isle` döngüsü, `fatura.services.bekleyenleri_isle`) **10 dk'da
+  bir** toplu sorulur — ilki de gönderimden 10 dk sonra (`SONUC_ARALIGI`;
+  kontördeki gibi 25 sn'ydi, yönetim "10 dakikada bir yeter" dedi: fatura
+  saniyeler içinde ödenmiyor, erken sorgu hep "bekliyor" döner; Karar
+  ekranındaki "Sonucu sorgula" bu süreye bağlı değil; `fatura_top_kontrol`,
+  100'lük, bekleyen yazılmaz):
   hepsi **ödendi** → ödeme kendiliğinden "Ödendi"; sağlayıcı kabul edip
   hepsini **iptal** etti → kendiliğinden "İptal + iade", sebep sağlayıcının
   açıklaması (bayi görür, sağlayıcı adı yazılmaz).
@@ -912,12 +916,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Karar ekranı `non_atomic_requests`); kendiliğinden gönderim her faturaya
   bir kez (`fatura_gonderim_otomatik_tekil`); "Gönderiliyor"da 2 dk kalan
   belirsize düşer. **Ret iade değildir:** sağlayıcı gönderimi reddederse
-  (`3|…`: bakiyemiz, kurum numarası, gece kapalı) ya da cevap anlaşılmazsa
-  (zaman aşımı, `4|Daha Önce Gönderilmiş` — numara başka işlemde kullanılmış,
-  sonucunu sormak başka faturanın sonucunu okumak olurdu) ödeme **yönetimin
+  (`3|…`: bakiyemiz, kurum numarası, gece kapalı; `4|Daha Önce Gönderilmiş`
+  — numara başka işlemde kullanılmış, bu istek orada bir şey açmadı; belirsiz
+  sayılsaydı "Sonucu sorgula" başka faturanın sonucunu okuyup ödemeyi
+  kapatabilirdi) ya da cevap anlaşılmazsa (zaman aşımı) ödeme **yönetimin
   eline** düşer; kontördeki gibi her ödemeyi iade etmek yanlış eşleşmiş tek
   kurumda her satışı iptal ederdi. Karışık sonuç (biri ödendi biri iptal)
-  da yönetimindir: kısmi iade bir karardır.
+  da yönetimindir: kısmi iade bir karardır. Kendiliğinden iade **bütün
+  gönderimlere** bakar: ödemenin herhangi bir gönderimi ödenmiş, süren ya
+  da belirsizse (elle yeniden gönderilmiş faturanın eski gönderimi ödenmiş
+  olabilir) iade yapılmaz, yönetime kalır. İade edilmiş ödemenin faturası
+  sonradan sağlayıcıda ödenirse hata loglanır.
   **Kendiliğinden gönderilen ödeme** `Odeme.otomatik`'tir, açılış anında
   sağlayıcı ve kurumun numarası varsa açılır. Bu özellikten önceki ve
   numarasız kurumun ödemeleri kapalıdır; işçi 5 dk'dan eski ödemeyi de
