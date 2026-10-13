@@ -895,6 +895,24 @@ class EkranTestleri(Temel):
         self.client.force_login(baska)
         self.assertEqual(self.client.get(adres).status_code, 404)
 
+    def test_pin_dekontu_surerken_saglayici_mesajini_basmaz(self):
+        islem = self.yukle()
+        Kategori.objects.filter(pk=self.kategori.pk).update(hedef=Hedef.YOK)
+        adres = reverse("kontor:dekont", args=[islem.siparis.referans_no])
+        # Askıdaki işlemin sonuç mesajı sağlayıcının ham cevabıdır, pin değil.
+        Islem.objects.filter(pk=islem.pk).update(
+            durum=IslemDurumu.ASKIDA, sonuc_mesaji="Gönderilemedi — Bir: OK|3|Aktif Kontor|0.00|"
+        )
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "Hazırlanıyor")
+        self.assertNotContains(yanit, "Gönderilemedi")
+        self.assertNotContains(yanit, "OK|3")
+        # Yüklenince sonuç mesajı pin kodudur ve fişe girer.
+        Islem.objects.filter(pk=islem.pk).update(durum=IslemDurumu.BASARILI, sonuc_mesaji="PIN-ABCD")
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "PIN-ABCD")
+        self.assertContains(yanit, "Teslim edildi")
+
     def test_iptal_edilen_islemin_dekontu_yok(self):
         Rota.objects.filter(saglayici=self.iki).delete()
         _ayar("Bir", sorgu="iptal")

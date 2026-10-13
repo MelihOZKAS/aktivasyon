@@ -15,7 +15,12 @@
   <b>{% if islem.kategori.hedef == "telefon" %}{{ islem.hedef|telefon }}{% else %}{{ islem.hedef }}{% endif %}</b>
 </div>
 {% endif %}
-{% if pin and islem.sonuc_mesaji %}
+{% comment %}
+  Sonuç mesajı yalnızca yüklenmiş işlemde pin kodudur. Sürerken ya da
+  askıdayken sağlayıcının ham cevabını ve adını taşır ("Gönderilemedi —
+  …: OK|3|…"); müşterinin fişine girmez, bayinin ekranına da girmiyor.
+{% endcomment %}
+{% if pin and islem.durum == "basarili" and islem.sonuc_mesaji %}
 <p class="dk-pin">{{ islem.sonuc_mesaji }}</p>
 {% endif %}
 {% comment %}
