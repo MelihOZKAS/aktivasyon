@@ -1451,13 +1451,183 @@ class KarlilikRaporu(TestCase):
         self.assertContains(yanit, "Turkcell")
 
     def test_gunluk_satirlar_araligi_kapsar(self):
-        gunler = [
-            b for b in self._sayfa().context["kirilimlar"] if b["baslik"] == "Günlük"
-        ][0]
+        from decimal import Decimal
 
-        self.assertEqual(len(gunler["satirlar"]), 30)
+        gunluk = self._sayfa().context["gunluk"]
+
+        self.assertEqual(len(gunluk["satirlar"]), 30)
+        self.assertEqual(
+            gunluk["basliklar"], ["Aktivasyon", "Kontör", "Fatura", "Oyun & Pin", "eSIM"]
+        )
+        # Bugün: yalnızca aktivasyonda iş var, öbür bölümlerin hücresi boş.
+        bugun = gunluk["satirlar"][-1]
+        self.assertEqual(bugun["gun"], self.bugun)
+        self.assertEqual(bugun["karlar"], [Decimal("150.00"), None, None, None, None])
+        self.assertEqual(bugun["kar"], Decimal("150.00"))
 
     def test_personel_olmayan_giremez(self):
         self.client.force_login(self.bayi)
 
         self.assertEqual(self.client.get(self.ADRES).status_code, 302)
+
+
+class KarlilikRaporuSatisBolumleri(TestCase):
+    """Kontör, fatura ve oyun & pin de raporda: bayiye satış, alışımız, kâr.
+
+    Bir süre raporda yalnızca aktivasyon ve eSIM vardı. Yalnızca sonuçlanmış
+    iş sayılır, gün satış günüdür. Alışı kayıtlı olmayan iş kâra katılmaz:
+    alış sıfır sayılsaydı satışın tamamı kâr görünürdü.
+    """
+
+    ADRES = "/yonetim/rapor/"
+
+    def setUp(self):
+        from datetime import datetime, time, timedelta
+
+        from django.contrib.auth.models import User
+        from django.utils import timezone
+
+        from apps.fatura.models import GonderimDurumu, OdemeDurumu
+        from apps.finans.models import Cuzdan
+        from apps.kontor.models import IslemDurumu, Kategori, Saglayici
+
+        self.bayi = User.objects.create_user("5321112233", password="x")
+        Cuzdan.objects.create(bayi=self.bayi)
+        self.bugun = timezone.localdate()
+        self.dun = self.bugun - timedelta(days=1)
+        self.saglayici = Saglayici.objects.create(
+            ad="Kontorbizde", tur="znet", adres="kb.test", kullanici_adi="u", sifre="s"
+        )
+        kontor = Kategori.objects.create(ad="Turkcell Paket", api_operator="turkcell", api_tip="ses")
+        oyun = Kategori.objects.create(ad="PUBG UC", oyun=True, hedef="yok", api_operator="pubg", api_tip="uc")
+
+        def an(gun, saat=12, dakika=0):
+            return timezone.make_aware(datetime.combine(gun, time(saat, dakika)))
+
+        def siparis(tutar):
+            from apps.magaza.models import Siparis
+
+            return Siparis.objects.create(bayi=self.bayi, urun_adi="x", birim_fiyat=Decimal(tutar), tutar=Decimal(tutar))
+
+        def islem(tutar, alis, *, kategori=kontor, durum=IslemDurumu.BASARILI, gun=None):
+            from apps.kontor.models import Islem
+
+            kayit = Islem.objects.create(
+                siparis=siparis(tutar), bayi=self.bayi, kategori=kategori, paket_adi="p",
+                hedef="5320000000", durum=durum, saglayici=self.saglayici,
+                alis_tutari=Decimal(alis) if alis else None,
+            )
+            Islem.objects.filter(pk=kayit.pk).update(olusturma_tarihi=an(gun or self.bugun))
+
+        def odeme(tutar, saglayici_tutari, *, kurum="Vodafone", durum=OdemeDurumu.ODENDI, gun=None, saat=12,
+                  gonderimler=()):
+            from apps.fatura.models import Gonderim, Odeme
+
+            kayit = Odeme.objects.create(
+                siparis=siparis(tutar), bayi=self.bayi, kurum_adi=kurum, numara="5332590138", durum=durum,
+                saglayici_tutari=Decimal(saglayici_tutari) if saglayici_tutari else None,
+            )
+            Odeme.objects.filter(pk=kayit.pk).update(olusturma_tarihi=an(gun or self.bugun, saat))
+            for sira, (gonderim_durumu, gonderilen, dusen) in enumerate(gonderimler):
+                Gonderim.objects.create(
+                    odeme=kayit, saglayici=self.saglayici, fatura_no="F1", ref=f"{kayit.pk}-{sira}",
+                    tutar=Decimal(gonderilen), durum=gonderim_durumu, elle=bool(sira),
+                    dusen=Decimal(dusen) if dusen else None,
+                )
+
+        # Kontör: 110 satış, 100 alış → 10 kâr. Alışsız 50'lik satış kâra katılmaz.
+        islem("110.00", "100.00")
+        islem("50.00", None)
+        # Oyun: 25 satış, 22 alış → 3 kâr.
+        islem("25.00", "22.00", kategori=oyun)
+        # Sayılmayanlar: iptal, süren, aralık dışı.
+        islem("100.00", "90.00", durum=IslemDurumu.IPTAL)
+        islem("100.00", "90.00", durum=IslemDurumu.ISLEMDE)
+        islem("100.00", "90.00", gun=self.bugun - timedelta(days=40))
+
+        # Fatura, sağlayıcıda ödendi: alış hesabımızdan düşendir (fatura + işlem
+        # bedeli), sağlayıcının iptal ettiği ilk gönderim sayılmaz → 494,50 − 488,75.
+        odeme("494.50", "487.00", gonderimler=[
+            (GonderimDurumu.IPTAL, "487.00", "488.75"), (GonderimDurumu.ODENDI, "487.00", "488.75"),
+        ])
+        # Düşen yazılmamış gönderimde gönderilen fatura bedeli → 307,50 − 300.
+        odeme("307.50", "300.00", kurum="Turkcell", gonderimler=[(GonderimDurumu.ODENDI, "300.00", None)])
+        # Yönetimin elle ödediği (gönderim yok): faturaların bedeli. Dün gece → dünün.
+        odeme("210.00", "200.00", gun=self.dun, saat=23)
+        # Alışı girilmemiş sorgusuz kalem: kâra katılmaz.
+        odeme("100.00", None, kurum="HGS")
+        # Ödenmeyi bekleyen ve iade edilen sayılmaz.
+        odeme("100.00", "90.00", durum=OdemeDurumu.BEKLIYOR)
+        odeme("100.00", "90.00", durum=OdemeDurumu.IPTAL)
+
+        self.client.force_login(User.objects.create_superuser("yonetici", password="Panel-2026x"))
+
+    def _bolumler(self, yanit):
+        return {b["kod"]: b for b in yanit.context["bolumler"]}
+
+    def test_bolumler_satis_alis_kar(self):
+        yanit = self.client.get(self.ADRES)
+        bolumler = self._bolumler(yanit)
+
+        self.assertEqual(list(bolumler), ["kontor", "fatura", "oyun", "esim"])
+        ozet = lambda kod: {
+            ad: bolumler[kod]["toplam"][ad] for ad in ("adet", "satis", "alis", "kar", "eksik", "eksik_satis")
+        }
+        self.assertEqual(ozet("kontor"), {
+            "adet": 2, "satis": Decimal("110.00"), "alis": Decimal("100.00"), "kar": Decimal("10.00"),
+            "eksik": 1, "eksik_satis": Decimal("50.00"),
+        })
+        self.assertEqual(ozet("oyun"), {
+            "adet": 1, "satis": Decimal("25.00"), "alis": Decimal("22.00"), "kar": Decimal("3.00"),
+            "eksik": 0, "eksik_satis": Decimal("0.00"),
+        })
+        self.assertEqual(ozet("fatura"), {
+            "adet": 4, "satis": Decimal("1012.00"), "alis": Decimal("988.75"), "kar": Decimal("23.25"),
+            "eksik": 1, "eksik_satis": Decimal("100.00"),
+        })
+
+    def test_kirilimlar(self):
+        bolumler = self._bolumler(self.client.get(self.ADRES))
+
+        def kirilim(kod, baslik):
+            satirlar = next(k for k in bolumler[kod]["kirilimlar"] if k["baslik"] == baslik)["satirlar"]
+            return [(s["etiket"], s["adet"], s["kar"]) for s in satirlar]
+
+        self.assertEqual(kirilim("kontor", "Kategoriye göre"), [("Turkcell Paket", 2, Decimal("10.00"))])
+        self.assertEqual(kirilim("kontor", "Sağlayıcıya göre"), [("Kontorbizde", 2, Decimal("10.00"))])
+        self.assertEqual(kirilim("oyun", "Oyuna göre"), [("PUBG UC", 1, Decimal("3.00"))])
+        self.assertEqual(
+            kirilim("fatura", "Kuruma göre"),
+            [("Vodafone", 2, Decimal("15.75")), ("Turkcell", 1, Decimal("7.50")), ("HGS", 1, Decimal("0.00"))],
+        )
+        self.assertEqual(kirilim("fatura", "En çok kazandıran 10 bayi"), [("5321112233", 4, Decimal("23.25"))])
+
+    def test_genel_toplam_ve_gunluk(self):
+        yanit = self.client.get(self.ADRES)
+        genel = yanit.context["genel"]
+
+        self.assertEqual(
+            [(s["kod"], s["kar"]) for s in genel["satirlar"]],
+            [("aktivasyon", Decimal("0.00")), ("kontor", Decimal("10.00")), ("fatura", Decimal("23.25")),
+             ("oyun", Decimal("3.00")), ("esim", Decimal("0.00"))],
+        )
+        self.assertEqual(
+            {ad: genel["toplam"][ad] for ad in ("adet", "gelir", "gider", "kar", "eksik")},
+            {"adet": 7, "gelir": Decimal("1147.00"), "gider": Decimal("1110.75"), "kar": Decimal("36.25"),
+             "eksik": 2},
+        )
+        gunler = {s["gun"]: s for s in yanit.context["gunluk"]["satirlar"]}
+        self.assertEqual(
+            gunler[self.bugun]["karlar"], [None, Decimal("10.00"), Decimal("13.25"), Decimal("3.00"), None]
+        )
+        self.assertEqual(gunler[self.dun]["karlar"], [None, None, Decimal("10.00"), None, None])
+        self.assertEqual(gunler[self.dun]["kar"], Decimal("10.00"))
+
+    def test_sayfa(self):
+        icerik = self.client.get(self.ADRES).content.decode()
+
+        for metin in ("Bölümlere göre", "Kontör kârı", "Fatura kârı", "Oyun &amp; Pin kârı", "eSIM kârı",
+                      'href="#fatura"', "Günlük kâr", "Toplam kâr"):
+            self.assertIn(metin, icerik)
+        self.assertIn("1 işlemin alışı kayıtlı değil (bayiye satış 50,00&nbsp;₺)", icerik)
+        self.assertIn("1.012,00 ₺", icerik)  # binlik ayraç

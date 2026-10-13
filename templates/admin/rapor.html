@@ -3,10 +3,15 @@
 {% comment %}
   Kârlılık raporu. Sınıflar unfold'un derlenmiş CSS'inden gelir; bizim
   static/app.css yönetim panelinde yüklü değildir, oraya yeni sınıf
-  uydurulamaz.
+  uydurulamaz. Kullanmadan önce sınıfın orada olduğunu doğrula:
+  text-green-600, sm:grid-cols-2, gap-x-8 yok (bir süre kullanılıyordu,
+  gelir rakamı yeşil değil siyah görünüyordu).
 
-  Aralık en fazla 31 gün: rapor her açılışta başvuruları tarıyor, uzun
+  Aralık en fazla 31 gün: rapor her açılışta kayıtları tarıyor, uzun
   aralık sunucuyu boşuna yorar. Günlük tablo da bu sayede kısa kalır.
+
+  Kâr her tabloda etiketin hemen yanındadır: telefonda tablo kendi
+  kutusunda kayar, asıl rakam kaymadan görünsün (Kazancım'daki kural).
 {% endcomment %}
 
 {% block content %}
@@ -42,24 +47,24 @@
   {% endif %}
 </form>
 
-{# Üstte tek bakışta: ne girdi, ne çıktı, ne kaldı. #}
-<div class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+{# Üstte tek bakışta, bütün bölümler: ne girdi, ne çıktı, ne kaldı. #}
+<div class="mb-6 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
   <div class="rounded-xl border border-base-200 bg-white p-4 dark:border-base-800 dark:bg-base-900">
-    <p class="text-xs text-base-500">Sonuçlanan işlem</p>
-    <p class="mt-1 text-xl font-semibold">{{ toplam.adet }}</p>
+    <p class="text-xs text-base-500">İşlem</p>
+    <p class="mt-1 text-xl font-semibold">{{ genel.toplam.adet }}</p>
   </div>
   <div class="rounded-xl border border-base-200 bg-white p-4 dark:border-base-800 dark:bg-base-900">
     <p class="text-xs text-base-500">Gelir</p>
-    <p class="mt-1 text-xl font-semibold text-green-600">{{ toplam.gelir }} ₺</p>
+    <p class="mt-1 text-xl font-semibold text-green-700 dark:text-green-400">{{ genel.toplam.gelir|floatformat:"2g" }} ₺</p>
   </div>
   <div class="rounded-xl border border-base-200 bg-white p-4 dark:border-base-800 dark:bg-base-900">
     <p class="text-xs text-base-500">Gider</p>
-    <p class="mt-1 text-xl font-semibold text-red-600">{{ toplam.gider }} ₺</p>
+    <p class="mt-1 text-xl font-semibold text-red-600 dark:text-red-400">{{ genel.toplam.gider|floatformat:"2g" }} ₺</p>
   </div>
   <div class="rounded-xl border border-primary-600 bg-primary-50 p-4 dark:bg-base-900">
-    <p class="text-xs text-primary-700 dark:text-primary-400">Kâr</p>
-    <p class="mt-1 text-xl font-bold text-primary-700 dark:text-primary-400">
-      {{ toplam.kar }} ₺
+    <p class="text-xs text-primary-700 dark:text-primary-400">Toplam kâr</p>
+    <p class="mt-1 text-xl font-bold {% if genel.toplam.kar < 0 %}text-red-600{% else %}text-primary-700 dark:text-primary-400{% endif %}">
+      {{ genel.toplam.kar|floatformat:"2g" }} ₺
     </p>
   </div>
 </div>
@@ -67,138 +72,268 @@
 <section class="mb-6 rounded-default border border-base-200 bg-white p-5
                 dark:border-base-800 dark:bg-base-900">
   <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
-    Kalemler
+    Bölümlere göre
   </h2>
   <p class="mb-4 text-sm text-base-500">
-    {{ baslangic|date:"j F Y" }} – {{ bitis|date:"j F Y" }} arasında
-    <b>sonuçlanan</b> başvurular. Henüz sonuçlanmamış işlemler bu tabloda yok:
-    kâr ancak işlem sonuçlanınca kesinleşir.
+    {{ baslangic|date:"j F Y" }} – {{ bitis|date:"j F Y" }}.
+    Aktivasyon sonuçlandığı güne, kontör, fatura, oyun ve eSIM satıldığı güne yazılır.
+    Sonuçlanmamış iş sayılmaz. Bölümün adına dokununca ayrıntısına gidilir.
   </p>
-  <dl class="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
-    <div class="flex items-baseline gap-3">
-      <dt class="text-base-500">Bayiden tahsilat</dt>
-      <dd class="ml-auto font-semibold text-green-600">{{ toplam.tahsilat }} ₺</dd>
-    </div>
-    <div class="flex items-baseline gap-3">
-      <dt class="text-base-500">Giriş bedeli</dt>
-      <dd class="ml-auto font-semibold text-green-600">{{ toplam.giris }} ₺</dd>
-    </div>
-    <div class="flex items-baseline gap-3">
-      <dt class="text-base-500">Alınan prim</dt>
-      <dd class="ml-auto font-semibold text-green-600">{{ toplam.prim }} ₺</dd>
-    </div>
-    <div class="flex items-baseline gap-3">
-      <dt class="text-base-500">Bayiye hakediş</dt>
-      {# Sıfırın başına eksi koymak "−0,00" gibi tuhaf bir rakam üretiyor. #}
-      <dd class="ml-auto font-semibold text-red-600">
-        {% if toplam.hakedis %}−{% endif %}{{ toplam.hakedis }} ₺
-      </dd>
-    </div>
-    <div class="flex items-baseline gap-3">
-      <dt class="text-base-500">Maliyet (operatör / tedarikçi)</dt>
-      <dd class="ml-auto font-semibold text-red-600">
-        {% if toplam.maliyet %}−{% endif %}{{ toplam.maliyet }} ₺
-      </dd>
-    </div>
-  </dl>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-base-500">
+          <th class="py-1 pr-4 font-medium">Bölüm</th>
+          <th class="py-1 pr-4 text-right font-medium">Kâr</th>
+          <th class="py-1 pr-4 text-right font-medium">İşlem</th>
+          <th class="py-1 pr-4 text-right font-medium">Gelir</th>
+          <th class="py-1 text-right font-medium">Gider</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for satir in genel.satirlar %}
+        <tr class="border-t border-base-100 dark:border-base-800">
+          <td class="py-2 pr-4">
+            <a href="#{{ satir.kod }}" class="font-medium text-primary-600">{{ satir.ad }}</a>
+            {% if satir.eksik %}
+            <span class="block text-xs text-orange-700 dark:text-orange-400">{{ satir.eksik }} işlemin alışı yok</span>
+            {% endif %}
+          </td>
+          <td class="whitespace-nowrap py-2 pr-4 text-right font-semibold {% if satir.kar < 0 %}text-red-600{% elif satir.kar > 0 %}text-green-700 dark:text-green-400{% endif %}">{{ satir.kar|floatformat:"2g" }} ₺</td>
+          <td class="py-2 pr-4 text-right">{{ satir.adet }}</td>
+          <td class="whitespace-nowrap py-2 pr-4 text-right text-green-700 dark:text-green-400">{{ satir.gelir|floatformat:"2g" }} ₺</td>
+          <td class="whitespace-nowrap py-2 text-right text-red-600 dark:text-red-400">{{ satir.gider|floatformat:"2g" }} ₺</td>
+        </tr>
+        {% endfor %}
+        <tr class="border-t-2 border-base-200 font-semibold dark:border-base-700">
+          <td class="py-2 pr-4">Toplam</td>
+          <td class="whitespace-nowrap py-2 pr-4 text-right {% if genel.toplam.kar < 0 %}text-red-600{% elif genel.toplam.kar > 0 %}text-green-700 dark:text-green-400{% endif %}">{{ genel.toplam.kar|floatformat:"2g" }} ₺</td>
+          <td class="py-2 pr-4 text-right">{{ genel.toplam.adet }}</td>
+          <td class="whitespace-nowrap py-2 pr-4 text-right text-green-700 dark:text-green-400">{{ genel.toplam.gelir|floatformat:"2g" }} ₺</td>
+          <td class="whitespace-nowrap py-2 text-right text-red-600 dark:text-red-400">{{ genel.toplam.gider|floatformat:"2g" }} ₺</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </section>
 
 {% comment %}
-  eSIM ayrı bölüm: başvuru kalemleriyle karışmaz. Sağlayıcıdan alış (₺,
-  sipariş günkü kurla), bayiye satış, aradaki bizim kârımız. Yalnızca
-  tamamlanmış teslimat ve yüklemeler; iade edilenler girmez.
+  Aktivasyon: başvuruların beş para kalemi. Satış bölümlerinden ayrı, çünkü
+  karşı tarafla para iki yönde akar (alış ve prim) ve bayiye hakediş vardır.
 {% endcomment %}
-<section class="mb-6 rounded-default border border-base-200 bg-white p-5
+<section id="aktivasyon" style="scroll-margin-top:5rem"
+         class="mb-6 rounded-default border border-base-200 bg-white p-5
                 dark:border-base-800 dark:bg-base-900">
   <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
-    eSIM
+    Aktivasyon
   </h2>
   <p class="mb-4 text-sm text-base-500">
-    Aralıkta teslim edilen eSIM'ler ve yüklemeler: sağlayıcıdan alışımız,
-    bayiye satışımız, aradaki kâr. İade edilenler sayılmaz.
+    Aralıkta <b>sonuçlanan</b> başvurular. Henüz sonuçlanmamış işlemler bu tabloda yok,
+    kâr ancak işlem sonuçlanınca kesinleşir.
   </p>
-  <div class="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+  <div class="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
     <div class="rounded-xl border border-base-200 p-4 dark:border-base-800">
-      <p class="text-xs text-base-500">eSIM · yükleme</p>
-      <p class="mt-1 text-xl font-semibold">{{ esim.toplam.adet }} <span class="text-sm font-normal text-base-500">({{ esim.toplam.yukleme_adedi }} yükleme)</span></p>
+      <p class="text-xs text-base-500">Sonuçlanan başvuru</p>
+      <p class="mt-1 text-xl font-semibold">{{ toplam.adet }}</p>
     </div>
     <div class="rounded-xl border border-base-200 p-4 dark:border-base-800">
-      <p class="text-xs text-base-500">Bayiye satış</p>
-      <p class="mt-1 text-xl font-semibold text-green-600">{{ esim.toplam.satis }} ₺</p>
+      <p class="text-xs text-base-500">Gelir</p>
+      <p class="mt-1 text-xl font-semibold text-green-700 dark:text-green-400">{{ toplam.gelir|floatformat:"2g" }} ₺</p>
     </div>
     <div class="rounded-xl border border-base-200 p-4 dark:border-base-800">
-      <p class="text-xs text-base-500">Sağlayıcıdan alış</p>
-      <p class="mt-1 text-xl font-semibold text-red-600">{{ esim.toplam.alis }} ₺</p>
+      <p class="text-xs text-base-500">Gider</p>
+      <p class="mt-1 text-xl font-semibold text-red-600 dark:text-red-400">{{ toplam.gider|floatformat:"2g" }} ₺</p>
     </div>
     <div class="rounded-xl border border-primary-600 bg-primary-50 p-4 dark:bg-base-900">
-      <p class="text-xs text-primary-700 dark:text-primary-400">eSIM kârı</p>
-      <p class="mt-1 text-xl font-bold text-primary-700 dark:text-primary-400">{{ esim.toplam.kar }} ₺</p>
+      <p class="text-xs text-primary-700 dark:text-primary-400">Aktivasyon kârı</p>
+      <p class="mt-1 text-xl font-bold {% if toplam.kar < 0 %}text-red-600{% else %}text-primary-700 dark:text-primary-400{% endif %}">{{ toplam.kar|floatformat:"2g" }} ₺</p>
     </div>
   </div>
-  {% for bolum in esim.kirilimlar %}
-  <h3 class="mb-2 mt-4 font-semibold text-font-important-light dark:text-font-important-dark">{{ bolum.baslik }}</h3>
-  {% if bolum.satirlar %}
+
+  <h3 class="mb-2 font-semibold text-font-important-light dark:text-font-important-dark">Kalemler</h3>
+  <dl class="grid gap-2 text-sm md:grid-cols-2">
+    <div class="flex gap-3">
+      <dt class="text-base-500">Bayiden tahsilat</dt>
+      <dd class="ml-auto whitespace-nowrap font-semibold text-green-700 dark:text-green-400">{{ toplam.tahsilat|floatformat:"2g" }} ₺</dd>
+    </div>
+    <div class="flex gap-3">
+      <dt class="text-base-500">Giriş bedeli</dt>
+      <dd class="ml-auto whitespace-nowrap font-semibold text-green-700 dark:text-green-400">{{ toplam.giris|floatformat:"2g" }} ₺</dd>
+    </div>
+    <div class="flex gap-3">
+      <dt class="text-base-500">Alınan prim</dt>
+      <dd class="ml-auto whitespace-nowrap font-semibold text-green-700 dark:text-green-400">{{ toplam.prim|floatformat:"2g" }} ₺</dd>
+    </div>
+    <div class="flex gap-3">
+      <dt class="text-base-500">Bayiye hakediş</dt>
+      {# Sıfırın başına eksi koymak "−0,00" gibi tuhaf bir rakam üretiyor. #}
+      <dd class="ml-auto whitespace-nowrap font-semibold text-red-600 dark:text-red-400">
+        {% if toplam.hakedis %}−{% endif %}{{ toplam.hakedis|floatformat:"2g" }} ₺
+      </dd>
+    </div>
+    <div class="flex gap-3">
+      <dt class="text-base-500">Maliyet (operatör / tedarikçi)</dt>
+      <dd class="ml-auto whitespace-nowrap font-semibold text-red-600 dark:text-red-400">
+        {% if toplam.maliyet %}−{% endif %}{{ toplam.maliyet|floatformat:"2g" }} ₺
+      </dd>
+    </div>
+  </dl>
+
+  {% comment %} Aktivasyon kırılımları aynı tabloyu paylaşır; biri değişince hepsi değişsin. {% endcomment %}
+  {% for kirilim in kirilimlar %}
+  <h3 class="mb-2 mt-6 font-semibold text-font-important-light dark:text-font-important-dark">{{ kirilim.baslik }}</h3>
+  {% if kirilim.satirlar %}
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
-      <tr class="text-left text-base-500">
-        <th class="py-1 pr-4 font-medium">{{ bolum.sutun }}</th>
-        <th class="py-1 pr-4 text-right font-medium">Adet</th>
-        <th class="py-1 pr-4 text-right font-medium">Satış</th>
-        <th class="py-1 pr-4 text-right font-medium">Alış</th>
-        <th class="py-1 text-right font-medium">Kâr</th>
-      </tr>
-      {% for satir in bolum.satirlar %}
-      <tr class="border-t border-base-100 dark:border-base-800">
-        <td class="py-1.5 pr-4">{{ satir.etiket }}</td>
-        <td class="py-1.5 pr-4 text-right">{{ satir.adet }}</td>
-        <td class="py-1.5 pr-4 text-right text-green-600">{{ satir.satis }} ₺</td>
-        <td class="py-1.5 pr-4 text-right text-red-600">{{ satir.alis }} ₺</td>
-        <td class="py-1.5 text-right font-semibold {% if satir.kar < 0 %}text-red-600{% else %}text-green-600{% endif %}">{{ satir.kar }} ₺</td>
-      </tr>
-      {% endfor %}
+      <thead>
+        <tr class="text-left text-base-500">
+          <th class="py-1 pr-4 font-medium">{{ kirilim.sutun }}</th>
+          <th class="py-1 pr-4 text-right font-medium">Kâr</th>
+          <th class="py-1 pr-4 text-right font-medium">İşlem</th>
+          <th class="py-1 pr-4 text-right font-medium">Gelir</th>
+          <th class="py-1 text-right font-medium">Gider</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for satir in kirilim.satirlar %}
+        <tr class="border-t border-base-100 dark:border-base-800">
+          <td class="py-1.5 pr-4">{{ satir.etiket }}</td>
+          <td class="whitespace-nowrap py-1.5 pr-4 text-right font-semibold {% if satir.kar < 0 %}text-red-600{% elif satir.kar > 0 %}text-green-700 dark:text-green-400{% endif %}">{{ satir.kar|floatformat:"2g" }} ₺</td>
+          <td class="py-1.5 pr-4 text-right">{{ satir.adet }}</td>
+          <td class="whitespace-nowrap py-1.5 pr-4 text-right text-green-700 dark:text-green-400">{{ satir.gelir|floatformat:"2g" }} ₺</td>
+          <td class="whitespace-nowrap py-1.5 text-right text-red-600 dark:text-red-400">{{ satir.gider|floatformat:"2g" }} ₺</td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
   {% else %}
-  <p class="text-sm text-base-500">Bu aralıkta teslim edilen eSIM yok.</p>
+  <p class="text-sm text-base-500">Bu aralıkta sonuçlanan başvuru yok.</p>
   {% endif %}
   {% endfor %}
 </section>
 
-{% comment %} Kırılımlar aynı tabloyu paylaşır; biri değişince hepsi değişsin. {% endcomment %}
-{% for bolum in kirilimlar %}
-<section class="mb-6 rounded-default border border-base-200 bg-white p-5
+{% comment %}
+  Satış bölümleri: kontör, fatura, oyun & pin, eSIM. Hepsinin hesabı aynı:
+  bayiye satış, alışımız, aradaki kâr. Alışı kayıtlı olmayan iş kâra
+  katılmaz, sayısı uyarı renginde yazılır (alış sıfır sayılsaydı satışın
+  tamamı kâr görünürdü).
+{% endcomment %}
+{% for bolum in bolumler %}
+<section id="{{ bolum.kod }}" style="scroll-margin-top:5rem"
+         class="mb-6 rounded-default border border-base-200 bg-white p-5
                 dark:border-base-800 dark:bg-base-900">
-  <h2 class="mb-4 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
-    {{ bolum.baslik }}
+  <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
+    {{ bolum.ad }}
   </h2>
-  {% if bolum.satirlar %}
+  <p class="mb-4 text-sm text-base-500">{{ bolum.aciklama }}</p>
+  <div class="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-xl border border-base-200 p-4 dark:border-base-800">
+      <p class="text-xs text-base-500">İşlem</p>
+      <p class="mt-1 text-xl font-semibold">
+        {{ bolum.toplam.adet }}
+        {% if bolum.adet_eki %}<span class="text-sm font-normal text-base-500">({{ bolum.adet_eki }})</span>{% endif %}
+      </p>
+    </div>
+    <div class="rounded-xl border border-base-200 p-4 dark:border-base-800">
+      <p class="text-xs text-base-500">Bayiye satış</p>
+      <p class="mt-1 text-xl font-semibold text-green-700 dark:text-green-400">{{ bolum.toplam.satis|floatformat:"2g" }} ₺</p>
+    </div>
+    <div class="rounded-xl border border-base-200 p-4 dark:border-base-800">
+      <p class="text-xs text-base-500">Alışımız</p>
+      <p class="mt-1 text-xl font-semibold text-red-600 dark:text-red-400">{{ bolum.toplam.alis|floatformat:"2g" }} ₺</p>
+    </div>
+    <div class="rounded-xl border border-primary-600 bg-primary-50 p-4 dark:bg-base-900">
+      <p class="text-xs text-primary-700 dark:text-primary-400">{{ bolum.ad }} kârı</p>
+      <p class="mt-1 text-xl font-bold {% if bolum.toplam.kar < 0 %}text-red-600{% else %}text-primary-700 dark:text-primary-400{% endif %}">{{ bolum.toplam.kar|floatformat:"2g" }} ₺</p>
+    </div>
+  </div>
+  {% if bolum.toplam.eksik %}
+  <p class="mb-4 text-sm text-orange-700 dark:text-orange-400">
+    {{ bolum.toplam.eksik }} işlemin alışı kayıtlı değil (bayiye satış {{ bolum.toplam.eksik_satis|floatformat:"2g" }}&nbsp;₺).
+    Kârı hesaplanamadığı için satış, alış ve kâra katılmadı.
+  </p>
+  {% endif %}
+
+  {% for kirilim in bolum.kirilimlar %}
+  <h3 class="mb-2 mt-6 font-semibold text-font-important-light dark:text-font-important-dark">{{ kirilim.baslik }}</h3>
+  {% if kirilim.satirlar %}
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
-      <tr class="text-left text-base-500">
-        <th class="py-1 pr-4 font-medium">{{ bolum.sutun }}</th>
-        <th class="py-1 pr-4 text-right font-medium">İşlem</th>
-        <th class="py-1 pr-4 text-right font-medium">Gelir</th>
-        <th class="py-1 pr-4 text-right font-medium">Gider</th>
-        <th class="py-1 text-right font-medium">Kâr</th>
-      </tr>
-      {% for satir in bolum.satirlar %}
-      <tr class="border-t border-base-100 dark:border-base-800">
-        <td class="py-1.5 pr-4">{{ satir.etiket }}</td>
-        <td class="py-1.5 pr-4 text-right">{{ satir.adet }}</td>
-        <td class="py-1.5 pr-4 text-right text-green-600">{{ satir.gelir }} ₺</td>
-        <td class="py-1.5 pr-4 text-right text-red-600">{{ satir.gider }} ₺</td>
-        <td class="py-1.5 text-right font-semibold
-                   {% if satir.kar < 0 %}text-red-600{% else %}text-green-600{% endif %}">
-          {{ satir.kar }} ₺
-        </td>
-      </tr>
-      {% endfor %}
+      <thead>
+        <tr class="text-left text-base-500">
+          <th class="py-1 pr-4 font-medium">{{ kirilim.sutun }}</th>
+          <th class="py-1 pr-4 text-right font-medium">Kâr</th>
+          <th class="py-1 pr-4 text-right font-medium">Adet</th>
+          <th class="py-1 pr-4 text-right font-medium">Satış</th>
+          <th class="py-1 text-right font-medium">Alış</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for satir in kirilim.satirlar %}
+        <tr class="border-t border-base-100 dark:border-base-800">
+          <td class="py-1.5 pr-4">
+            {{ satir.etiket }}
+            {% if satir.eksik %}<span class="block text-xs text-orange-700 dark:text-orange-400">{{ satir.eksik }} işlemin alışı yok</span>{% endif %}
+          </td>
+          <td class="whitespace-nowrap py-1.5 pr-4 text-right font-semibold {% if satir.kar < 0 %}text-red-600{% elif satir.kar > 0 %}text-green-700 dark:text-green-400{% endif %}">{{ satir.kar|floatformat:"2g" }} ₺</td>
+          <td class="py-1.5 pr-4 text-right">{{ satir.adet }}</td>
+          <td class="whitespace-nowrap py-1.5 pr-4 text-right text-green-700 dark:text-green-400">{{ satir.satis|floatformat:"2g" }} ₺</td>
+          <td class="whitespace-nowrap py-1.5 text-right text-red-600 dark:text-red-400">{{ satir.alis|floatformat:"2g" }} ₺</td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
   {% else %}
-  <p class="text-sm text-base-500">Bu aralıkta sonuçlanan işlem yok.</p>
+  <p class="text-sm text-base-500">Bu aralıkta satış yok.</p>
   {% endif %}
+  {% endfor %}
 </section>
 {% endfor %}
+
+{% comment %}
+  Günlük kâr, bölüm sütunlu. O gün işi olmayan bölümün hücresi "—"dir,
+  sıfır değil: sıfır kâr ile hiç satış olmaması ayrı şeydir.
+{% endcomment %}
+<section class="mb-6 rounded-default border border-base-200 bg-white p-5
+                dark:border-base-800 dark:bg-base-900">
+  <h2 class="mb-1 text-lg font-semibold text-font-important-light dark:text-font-important-dark">
+    Günlük kâr
+  </h2>
+  <p class="mb-4 text-sm text-base-500">Her bölümün o günkü kârı ve günün toplamı.</p>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-base-500">
+          <th class="py-1 pr-4 font-medium">Gün</th>
+          <th class="py-1 pr-4 text-right font-medium">Toplam</th>
+          {% for baslik in gunluk.basliklar %}
+          <th class="whitespace-nowrap py-1 pr-4 text-right font-medium">{{ baslik }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for satir in gunluk.satirlar %}
+        <tr class="border-t border-base-100 dark:border-base-800">
+          <td class="whitespace-nowrap py-1.5 pr-4 {% if satir.bos %}text-base-400{% endif %}">{{ satir.gun|date:"j F l" }}</td>
+          {% if satir.bos %}
+          <td class="py-1.5 pr-4 text-right text-base-400">—</td>
+          {% else %}
+          <td class="whitespace-nowrap py-1.5 pr-4 text-right font-semibold {% if satir.kar < 0 %}text-red-600{% elif satir.kar > 0 %}text-green-700 dark:text-green-400{% endif %}">{{ satir.kar|floatformat:"2g" }} ₺</td>
+          {% endif %}
+          {% for kar in satir.karlar %}
+          {% if kar is None %}
+          <td class="py-1.5 pr-4 text-right text-base-400">—</td>
+          {% else %}
+          <td class="whitespace-nowrap py-1.5 pr-4 text-right {% if kar < 0 %}text-red-600{% endif %}">{{ kar|floatformat:"2g" }} ₺</td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 
 {% endblock %}

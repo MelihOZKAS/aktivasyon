@@ -14,6 +14,7 @@ müşteriye başka fiyat verdiyse gerçek kazancı farklıdır.
 from decimal import Decimal
 
 from django.db.models import Count, F, Sum
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from apps.bayi.etiket import etiket_satirdan, etiket_sutunlari
@@ -99,6 +100,21 @@ def esim_raporu(baslangic, bitis):
             },
         ],
     }
+
+
+def esim_gunlugu(baslangic, bitis):
+    """{gün: {"adet", "satis", "alis", "kar"}} — Kârlılık Raporu'nun günlük tablosu için."""
+    teslimatlar, yuklemeler = _tamamlananlar(baslangic, bitis)
+    gunler = {}
+    for sorgu in (teslimatlar, yuklemeler):
+        for ham in (
+            sorgu.annotate(gun=TruncDate("olusturma_tarihi"))
+            .values("gun")
+            .annotate(adet=Count("id"), satis=Sum("siparis__tutar"), alis=Sum("alis_tl"))
+            .order_by()
+        ):
+            gunler.setdefault(ham["gun"], []).append(ham)
+    return {gun: _birlestir(*parcalar) for gun, parcalar in gunler.items()}
 
 
 def bayi_aylik_ozet(bayi):

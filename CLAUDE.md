@@ -1497,6 +1497,20 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   saf tarih gece yarısı demek). Para kalemleri tek yerde durur
   (`rapor.KALEMLER`); toplam da kırılımlar da oradan üretilir, biri
   güncellenip diğeri unutulmaz. Yeni bir para kalemi eklersen o sözlüğe yaz.
+  **Bütün bölümler raporda:** aktivasyon, kontör, fatura, oyun & pin, eSIM
+  (menü sırası). Üstte hepsinin toplamı ve "Bölümlere göre" tablosu (ad
+  bölümün ayrıntısına gider), her bölümün kendi kırılımı, en altta bölüm
+  sütunlu günlük kâr. Bir süre yalnızca aktivasyon ve eSIM vardı; kontör,
+  oyun ve faturanın kârı hiçbir ekranda toplanmıyordu. Satış bölümlerinin
+  hesabı tektir (`_satis_bolumu`): bayiye satış (`siparis.tutar`) − alışımız.
+  Kontörde alış `Islem.alis_tutari`; faturada sağlayıcının hesabımızdan
+  düştüğü (`Gonderim.dusen`: fatura + işlem bedeli), sağlayıcıya gitmemiş
+  ödemede `Odeme.saglayici_tutari`. Gün satış günüdür (Kazancım ve eSIM'le
+  aynı), yalnızca yüklenen kontör ve ödenen fatura sayılır. **Alışı kayıtlı
+  olmayan iş kâra katılmaz**, sayısı uyarı renginde yazılır: sıfır sayılsaydı
+  satışın tamamı kâr görünürdü. Kâr her tabloda etiketin hemen yanındadır
+  (telefonda tablo kayar, kâr görünür kalır). Yeni bir satış bölümü eklenirse
+  aynı fonksiyondan geçer, `bolumler` listesine menü sırasıyla girer.
 - **Stok ve alacak özeti tek ekranda toplanır** (`apps/ozet.py`,
   `/yonetim/ozet/`). SIM stoğu, bayilerdeki kartlar, beklenen SIM
   karşılıkları, tedarikçi borçları ve işlenen ana hakediş ayrı listelerde
