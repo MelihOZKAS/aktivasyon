@@ -89,8 +89,8 @@ SONUC_ARALIGI = timedelta(minutes=10)
 # kalır — aynı işçi kontör işlemlerini de yürütüyor, onları bekletmesin.
 SORGU_TURU_SURESI = 30
 
-ROBOT_YOK_MESAJI = "Fatura sorgusu şu an yapılamıyor; biraz sonra yeniden dene."
-ZAMAN_ASIMI_MESAJI = "Sorgu yanıt vermedi; yeniden dene."
+ROBOT_YOK_MESAJI = "Fatura sorgusu şu an yapılamıyor. Biraz sonra yeniden dene."
+ZAMAN_ASIMI_MESAJI = "Sorgu yanıt vermedi, yeniden dene."
 
 
 class FaturaHatasi(SiparisVerilemez):
@@ -232,8 +232,8 @@ def kapali_mesaji(ne="Fatura sorgusu", robotlar=None, tur="fatura"):
         if r.cevrimici and r.mesai_icinde(simdi) and any(h.aktif for h in r.hesaplar.all())
     ]
     if hesapli and not any(r.hak_kalan_mi(tur) for r in hesapli):
-        return f"Bugünkü {ne.lower()} hakkı doldu; yarın yeniden açılır."
-    return f"{ne} şu an yapılamıyor; biraz sonra yeniden dene."
+        return f"Bugünkü {ne.lower()} hakkı doldu. Yarın yeniden açılır."
+    return f"{ne} şu an yapılamıyor. Biraz sonra yeniden dene."
 
 
 def _numara(kurum, numara):
@@ -255,7 +255,7 @@ def sorgu_baslat(bayi, kurum, numara):
     kez yormasın).
     """
     if not kurum.sorgulu:
-        raise FaturaHatasi("Bu kurumda sorgu yok; tutarı seçip doğrudan ödenir.")
+        raise FaturaHatasi("Bu kurumda sorgu yok. Tutarı seçip doğrudan ödenir.")
     if not Kurum.objects.bayiye_acik(fiyat_grubu(bayi)).filter(pk=kurum.pk).exists():
         raise FaturaHatasi("Bu kurum şu an kapalı.")
     numara = _numara(kurum, numara)
@@ -489,7 +489,7 @@ def sonuc_yaz(robot, talep_id, *, veri=None, hata=""):
             # Robotun iç hatası (oturum düştü, zaman aşımı) bayiye ham
             # gösterilmez; yönetim sonuçta görür.
             sorgu.durum = SorguDurumu.HATA
-            sorgu.mesaj = "Sorgu şu an yapılamadı; biraz sonra yeniden dene."
+            sorgu.mesaj = "Sorgu şu an yapılamadı. Biraz sonra yeniden dene."
             sorgu.sonuc = {"robot_hatasi": str(hata or "sonuç yok")[:500]}
         else:
             # Sayım gönderim anında yapıldı (hesap_sec_ve_say); burada sayılmaz.
@@ -501,7 +501,7 @@ def sonuc_yaz(robot, talep_id, *, veri=None, hata=""):
                 # hesaba/robota düşsün).
                 saglayici_limiti_doldu(sorgu.hesap_id, "fatura")
                 sorgu.durum = SorguDurumu.HATA
-                sorgu.mesaj = "Sorgu şu an yapılamadı; biraz sonra yeniden dene."
+                sorgu.mesaj = "Sorgu şu an yapılamadı. Biraz sonra yeniden dene."
                 sorgu.save()
                 return sorgu
             if temiz["durum"] == "hata":
@@ -690,7 +690,7 @@ def odeme_baslat(bayi, sorgu, secilen, *, anahtar=None):
         if sorgu.durum != SorguDurumu.TAMAM or not sorgu.faturalar:
             raise FaturaHatasi("Bu sorguda ödenecek fatura yok.")
         if not sorgu.sonuc_tarihi or timezone.now() - sorgu.sonuc_tarihi > ODEME_SURESI:
-            raise FaturaHatasi("Sorgu eskidi; tutar değişmiş olabilir. Yeniden sorgula.")
+            raise FaturaHatasi("Sorgu eskidi, tutar değişmiş olabilir. Yeniden sorgula.")
         kurum = sorgu.kurum
         grup = fiyat_grubu(bayi)
         hizmet = hizmet_bedeli(kurum, grup)
@@ -769,7 +769,7 @@ def sepeti_ode(bayi, kalemler, *, anahtar=None):
         for referans, nolar in gruplar.items():
             sorgu = Sorgu.objects.select_related("kurum").filter(bayi=bayi, referans_no=referans).first()
             if sorgu is None:
-                raise FaturaHatasi("Sepetteki bir sorgu bulunamadı; sepeti yenile.")
+                raise FaturaHatasi("Sepetteki bir sorgu bulunamadı. Sepeti yenile.")
             try:
                 odemeler.append(
                     odeme_baslat(bayi, sorgu, nolar, anahtar=f"{anahtar}:{referans}" if anahtar else None)

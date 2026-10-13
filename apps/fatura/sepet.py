@@ -53,7 +53,7 @@ def ekle(request, sorgu, secilen):
     if sorgu.durum != SorguDurumu.TAMAM or not sorgu.faturalar:
         raise FaturaHatasi("Bu sorguda ödenecek fatura yok.")
     if not sorgu.sonuc_tarihi or timezone.now() - sorgu.sonuc_tarihi > ODEME_SURESI:
-        raise FaturaHatasi("Sorgu eskidi; tutar değişmiş olabilir. Yeniden sorgula.")
+        raise FaturaHatasi("Sorgu eskidi, tutar değişmiş olabilir. Yeniden sorgula.")
     nolar = {f["fatura_no"] for f in sorgu.faturalar}
     if any(no not in nolar for no in secilen):
         raise FaturaHatasi("Seçilen fatura bu sorguda yok.")
@@ -71,7 +71,7 @@ def ekle(request, sorgu, secilen):
             yeni.append((sorgu.referans_no, no))
             eklenen += 1
     if len(yeni) > SINIR:
-        raise FaturaHatasi(f"Sepete en çok {SINIR} fatura girer; önce sepettekileri öde.")
+        raise FaturaHatasi(f"Sepete en çok {SINIR} fatura girer. Önce sepettekileri öde.")
     _yaz(request, yeni)
     return eklenen
 
@@ -128,7 +128,7 @@ def ozet(bayi, liste):
         elif sorgu.kurum_id not in acik or hizmet is None:
             satir["sorun"] = "Kurum şu an satışta değil."
         elif not sorgu.sonuc_tarihi or simdi - sorgu.sonuc_tarihi > ODEME_SURESI:
-            satir["sorun"] = "Sorgu eskidi; yeniden sorgula."
+            satir["sorun"] = "Sorgu eskidi, yeniden sorgula."
         else:
             anahtar = (sorgu.kurum_id, sorgu.numara)
             if anahtar not in odenmisler:

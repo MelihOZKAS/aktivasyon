@@ -262,6 +262,76 @@ class Duyuru(ZamanDamgali):
         return self.baslik
 
 
+class PopupDuyuru(ZamanDamgali):
+    """Bayinin ekranında ortada açılan duyuru, panel duyurusundan ayrıdır.
+
+    Panel duyurusu (`Duyuru`) panelde durur ve bayi bakınca görür. Popup ise
+    her bayiye bir kez açılır, altında tek düğme "Okudum" vardır. Bayi
+    Okudum deyince kayıt düşer (`PopupDuyuruOkuma`) ve ona bir daha
+    açılmaz. Aktif kapatılınca kimseye açılmaz.
+    """
+
+    baslik = models.CharField("Başlık", max_length=200)
+    icerik = models.TextField("İçerik")
+    aktif = models.BooleanField(
+        "Aktif",
+        default=True,
+        help_text="Açıkken Okudum demeyen her bayiye açılır. Kapatınca kimseye açılmaz.",
+    )
+
+    class Meta:
+        verbose_name = "Popup Duyuru"
+        verbose_name_plural = "Popup Duyurular"
+        ordering = ["-olusturma_tarihi"]
+
+    def __str__(self):
+        return self.baslik
+
+    @classmethod
+    def okunmamis(cls, kullanici):
+        """Kullanıcının henüz Okudum demediği ilk popup (yoksa None).
+
+        Birden çok varsa en eskisi önce: bayi yayınlandıkları sırayla okusun.
+        """
+        return (
+            cls.objects.filter(aktif=True)
+            .exclude(okumalar__kullanici=kullanici)
+            .order_by("olusturma_tarihi", "pk")
+            .first()
+        )
+
+
+class PopupDuyuruOkuma(models.Model):
+    """Bayinin popup duyuruya Okudum dediği an.
+
+    Kayıt varsa popup o bayiye bir daha açılmaz. Pencereyi Okudum demeden
+    kapatan (Esc) bayi onu sonraki sayfada yeniden görür: amaç okunduğunu
+    bilmek, kapatıldığını değil.
+    """
+
+    duyuru = models.ForeignKey(
+        PopupDuyuru, on_delete=models.CASCADE, related_name="okumalar", verbose_name="Duyuru"
+    )
+    kullanici = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="popup_okumalari",
+        verbose_name="Kullanıcı",
+    )
+    tarih = models.DateTimeField("Okuduğu An", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Popup Okuması"
+        verbose_name_plural = "Popup Okumaları"
+        ordering = ["-tarih"]
+        constraints = [
+            models.UniqueConstraint(fields=["duyuru", "kullanici"], name="popup_okuma_tekil"),
+        ]
+
+    def __str__(self):
+        return f"{self.duyuru} · {self.kullanici}"
+
+
 class GenelAyarlar(ZamanDamgali):
     """Sitenin kamuya açık iletişim bilgileri — tek kayıt.
 

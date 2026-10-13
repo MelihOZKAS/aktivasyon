@@ -41,7 +41,7 @@ def sim_bozuk_bildir(basvuru, kart, *, bildiren, aciklama="", hedef_durum=None):
     """
     if basvuru.sonuclandi_mi:
         raise SimDegisimiHatasi(
-            "Bu işlem sonuçlandı; SIM değişimi yalnızca aktivasyon tamamlanmadan yapılır."
+            "Bu işlem sonuçlandı. SIM değişimi yalnızca aktivasyon tamamlanmadan yapılır."
         )
     if kart.basvuru_id != basvuru.pk or kart.durum != SimKartDurumu.KULLANILDI:
         raise SimDegisimiHatasi(f"{kart.imei} bu başvuruda takılı bir kart değil.")
@@ -58,7 +58,7 @@ def sim_bozuk_bildir(basvuru, kart, *, bildiren, aciklama="", hedef_durum=None):
         if basvuru.durum_id != hedef.pk:
             basvuru.durum = hedef
             basvuru._degistiren = bildiren
-            not_ = f"SIM kart bozuk çıktı ({kart.imei}); bayi stoğundan yeni kart seçecek."
+            not_ = f"SIM kart bozuk çıktı ({kart.imei}). Bayi stoğundan yeni kart seçecek."
             if aciklama:
                 not_ = f"{not_} {aciklama}"
             basvuru._aciklama = not_[:255]

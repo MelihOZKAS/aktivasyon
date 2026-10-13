@@ -17,4 +17,5 @@ urlpatterns = [
     path("kazanc/", views.kazanc_gorunumu, name="kazanc"),
     path("cuzdan/", views.cuzdan_gorunumu, name="cuzdan"),
     path("cuzdan/odeme-bildirimi/", views.odeme_bildirimi, name="odeme-bildirimi"),
+    path("popup/okudum/", views.popup_okudum, name="popup-okudum"),
 ]

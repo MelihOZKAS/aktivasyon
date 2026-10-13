@@ -6,7 +6,8 @@ from django.contrib import admin, messages
 from django.contrib.auth.admin import GroupAdmin as TemelGrupAdmin
 from django.contrib.auth.admin import UserAdmin as TemelKullaniciAdmin
 from django.contrib.auth.models import Group, User
-from django.db.models import Q
+from django.db.models import Count, Q
+from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, StackedInline, TabularInline
 from unfold.decorators import action as unfold_islem
@@ -31,6 +32,7 @@ from apps.bayi.models import (
     BayiProfili,
     Duyuru,
     GenelAyarlar,
+    PopupDuyuru,
     SimKart,
     SimKartDurumu,
 )
@@ -866,6 +868,41 @@ class DuyuruAdmin(ModelAdmin):
     list_filter = ("aktif", "onemli")
     search_fields = ("baslik", "icerik")
     date_hierarchy = "olusturma_tarihi"
+
+
+@admin.register(PopupDuyuru)
+class PopupDuyuruAdmin(ModelAdmin):
+    """Kaç bayinin Okudum dediği listede, kimin dediği popup'ın sayfasında."""
+
+    list_display = ("baslik", "okuyan_sayisi", "aktif", "olusturma_tarihi")
+    list_editable = ("aktif",)
+    list_filter = ("aktif",)
+    search_fields = ("baslik", "icerik")
+    fields = ("baslik", "icerik", "aktif", "okuyanlar")
+    readonly_fields = ("okuyanlar",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_okuyan=Count("okumalar"))
+
+    @admin.display(description="Okudum diyen", ordering="_okuyan")
+    def okuyan_sayisi(self, obj):
+        return f"{obj._okuyan} bayi"
+
+    @admin.display(description="Okudum diyenler")
+    def okuyanlar(self, obj):
+        if not obj or not obj.pk:
+            return "Kaydettikten sonra burada görünür."
+        okumalar = list(obj.okumalar.select_related("kullanici__bayi_profili"))
+        if not okumalar:
+            return "Henüz kimse Okudum demedi."
+        return format_html_join(
+            "",
+            '<div style="margin-bottom:.35rem">{} <span style="color:#6F7B8F">{}</span></div>',
+            (
+                (kullanici_etiketi(o.kullanici), timezone.localtime(o.tarih).strftime("%d.%m.%Y %H:%M"))
+                for o in okumalar
+            ),
+        )
 
 
 @admin.register(GenelAyarlar)

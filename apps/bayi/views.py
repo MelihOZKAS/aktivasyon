@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 
 from apps.basvurular.models import Basvuru, BasvuruDurumu
 from apps.bayi.forms import BayiBasvuruFormu, GirisFormu, ParolaDegistirmeFormu
-from apps.bayi.models import Duyuru
+from apps.bayi.models import Duyuru, PopupDuyuru, PopupDuyuruOkuma
 from apps.bayi.yetki import bayi_gerekli, baslangic_sayfasi, tedarikci_gerekli
 from apps.bildirim.telegram import bayi_basvurusu_bildir, odeme_bildirimi_bildir
 from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
@@ -67,7 +67,7 @@ OZELLIKLER = [
     {
         "baslik": "Bakiye ve borç takibi",
         "metin": "Her bayinin bakiyesi ve borcu ayrı tutulur. Bakiye yetmezse "
-                 "işlem durmaz, kalan tutar borca yazılır; tezgâh başında iş kesilmez.",
+                 "işlem durmaz, kalan tutar borca yazılır. Tezgâh başında iş kesilmez.",
     },
     {
         "baslik": "Değişmez defter",
@@ -147,6 +147,32 @@ def yonetim_girisi(request):
 def cikis(request):
     logout(request)
     return redirect("bayi:giris")
+
+
+@login_required
+@require_POST
+def popup_okudum(request):
+    """Popup duyuruya Okudum: bir daha bu bayiye açılmaz.
+
+    HTMX ile gelirse sıradaki popup (ya da boş yer tutucu) döner; betiksiz
+    tarayıcı geldiği sayfaya geri yönlenir. Adreste id yok, duyuru formdan
+    gelir.
+    """
+    numara = request.POST.get("duyuru", "")
+    if numara.isdigit():
+        duyuru = PopupDuyuru.objects.filter(pk=numara, aktif=True).first()
+        if duyuru:
+            PopupDuyuruOkuma.objects.get_or_create(duyuru=duyuru, kullanici=request.user)
+    if request.headers.get("HX-Request"):
+        return render(
+            request, "bayi/parca_popup.html", {"duyuru": PopupDuyuru.okunmamis(request.user)}
+        )
+    hedef = request.POST.get("next", "")
+    if not url_has_allowed_host_and_scheme(
+        hedef, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        hedef = baslangic_sayfasi(request.user)
+    return redirect(hedef)
 
 
 @login_required
@@ -369,7 +395,7 @@ def odeme_bildirimi(request):
         messages.success(
             request,
             "Ödeme bildirimin alındı. Yönetici havaleyi gördüğünde bakiyene "
-            "işlenecek; bu sayfadan durumunu takip edebilirsin.",
+            "işlenecek. Durumunu bu sayfadan takip edebilirsin.",
         )
         return redirect("bayi:cuzdan")
 

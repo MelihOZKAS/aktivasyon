@@ -335,6 +335,11 @@ UNFOLD = {
                     {"title": "SIM Stoğu", "icon": "sim_card", "link": "/yonetim/bayi/simkart/"},
                     {"title": "Duyurular", "icon": "notifications", "link": "/yonetim/bayi/duyuru/"},
                     {
+                        "title": "Popup Duyurular",
+                        "icon": "campaign",
+                        "link": "/yonetim/bayi/popupduyuru/",
+                    },
+                    {
                         "title": "Destek Talepleri",
                         "icon": "forum",
                         "link": "/yonetim/destek/destektalebi/",

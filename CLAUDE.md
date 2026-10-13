@@ -820,7 +820,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   beklenmez — sağlayıcıya işi yolladığımız an hak eksilir. **Fatura ve kontör
   ayrı sayılır.** Hesapların hakkı dolunca o robot o türde iş almaz
   (`Robot.hak_kalan_mi`, `cevrimici_robotlar`); bir hesap dolsa da öbürü
-  sürer. Hiç hesabı kalmayan robot yoksa bayi "Bugünkü … hakkı doldu; yarın
+  sürer. Hiç hesabı kalmayan robot yoksa bayi "Bugünkü … hakkı doldu. Yarın
   yeniden açılır" görür (`kapali_mesaji`, yalnızca **hesabı olup** hepsi dolu
   robotlarda; hesapsız robot ayar sorunudur, genel mesaj verilir).
   · **Sağlayıcı "Sorgu limitinizi doldurdunuz" derse o hesap bugünlük
@@ -1393,6 +1393,19 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   doğrudan kaydedilseydi talep yanıtlandığı hâlde rozette beklemeye devam
   ederdi. Talep Telegram'a **bildirilmez** (aşağıda *Bildirimler*): açık
   talep zaten rozetle sayılıyor.
+- **Popup duyuru panel duyurusundan ayrıdır** (`PopupDuyuru`, menüde Popup
+  Duyurular). Panel duyurusu (`Duyuru`) panelde durur, bayi bakınca görür.
+  Popup her bayiye bir kez ekranın ortasında açılır, tek düğmesi
+  **Okudum**'dur. Okudum `PopupDuyuruOkuma` yazar (duyuru + kullanıcı
+  tekil) ve popup o bayiye bir daha açılmaz. Esc ile kapatan sonraki
+  sayfada yeniden görür: amaç okunduğunu bilmek. Aktif kapalıysa kimseye
+  açılmaz. Birden çoksa en eskisi önce gelir, Okudum sıradakini HTMX ile
+  aynı yere getirir. Yalnızca bayi rolüne açılır (tedarikçiye değil).
+  Sorgu bağlam işlemcisinde değil `base.html`'deki `{% popup_duyuru %}`
+  etiketindedir: işlemci her şablonda çalışıyor. Önce aynı modele bir
+  "açılır" anahtarı konmuştu, yönetim "ikisi farklı olsun" dedi. Listede
+  kaç bayinin Okudum dediği, popup'ın sayfasında kimin ne zaman dediği
+  görünür.
 - **Bayi menüsünün sırası bilinçlidir ve üç başlıktadır** (`parcalar/kenar.html`):
   Panel; **Aktivasyon** — Tarifeler, Yeni başvuru, Başvurularım,
   Hakedişler; **Satış** — Kontör, Fatura, Oyun & Pin, eSIM, Kazancım;

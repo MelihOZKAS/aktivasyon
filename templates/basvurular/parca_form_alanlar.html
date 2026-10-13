@@ -27,7 +27,7 @@
           {% else %}
             <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5 block">
               {{ alan.label }}{% if not alan.field.required %}
-              <span class="font-normal text-soluk">— zorunlu değil</span>{% endif %}
+              <span class="font-normal text-soluk">(zorunlu değil)</span>{% endif %}
             </label>
             {{ alan }}
           {% endif %}
@@ -60,7 +60,7 @@
         <div data-alan-kutusu{% if tanim.tarife_kodlari %} data-tarifeler="{{ tanim.tarife_kodlari }}"{% endif %}>
           <label for="{{ alan.id_for_label }}" class="alan-etiketi mb-1.5 block">
             {{ alan.label }}{% if not alan.field.required %}
-            <span class="font-normal text-soluk">— {% if mevcut %}yüklü, değiştirmek istersen{% else %}zorunlu değil{% endif %}</span>{% endif %}
+            <span class="font-normal text-soluk">({% if mevcut %}yüklü, değiştirmek istersen seç{% else %}zorunlu değil{% endif %})</span>{% endif %}
           </label>
           {% if mevcut %}
           {# Düzeltmede eskisi görünür; yeni dosya seçilmezse olduğu gibi kalır. #}

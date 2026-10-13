@@ -23,17 +23,17 @@
   <div class="yuzey sim mb-7 rounded-kart border-uyari p-5 sm:p-6" style="--sim-kenar: var(--color-uyari)">
     <h3 class="baslik font-semibold text-uyari">Ne düzeltilecek?</h3>
     <p class="mt-1.5 text-sm leading-relaxed">
-      {% if yonetim_notu %}{{ yonetim_notu }}{% else %}Yönetim not bırakmamış; eksik gördüğün yeri düzeltip yeniden gönder.{% endif %}
+      {% if yonetim_notu %}{{ yonetim_notu }}{% else %}Yönetim not bırakmamış. Eksik gördüğün yeri düzeltip yeniden gönder.{% endif %}
     </p>
     {% if form.bozuk_simler %}
     <p class="mt-2 text-sm leading-relaxed text-soluk">
       Bozuk kart{% for kart in form.bozuk_simler %} <span class="referans">{{ kart.imei }}</span>{% endfor %}
-      listede yok; SIM kutusundan stoğundaki başka bir kartı seç. Bozuk kartı
+      listede yok. SIM kutusundan stoğundaki başka bir kartı seç. Bozuk kartı
       yönetime teslim et, yerine yenisi verilecek.
     </p>
     {% endif %}
     <p class="mt-2 text-sm leading-relaxed text-soluk">
-      Gönderince başvuru kaldığı yerden devam eder; ödediğin ücret değişmez.
+      Gönderince başvuru kaldığı yerden devam eder. Ödediğin ücret değişmez.
     </p>
   </div>
 
@@ -55,7 +55,7 @@
     {% endcomment %}
     <section class="yuzey rounded-kart p-5 sm:p-6">
       <h2 class="baslik font-semibold">Hat bilgileri</h2>
-      <p class="mt-1 text-sm text-soluk">Operatör ve tarife düzeltmede değişmez; yanlışsa yönetime yaz.</p>
+      <p class="mt-1 text-sm text-soluk">Operatör ve tarife düzeltmede değişmez. Yanlışsa yönetime yaz.</p>
       <input type="hidden" id="id_operator" value="{{ basvuru.operator_id|default:'' }}">
       <input type="hidden" id="id_tarife" value="{{ basvuru.tarife_id|default:'' }}">
       <dl class="mt-4 grid gap-x-8 gap-y-3.5 text-sm sm:grid-cols-2">

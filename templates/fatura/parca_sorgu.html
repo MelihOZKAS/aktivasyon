@@ -27,7 +27,7 @@
       <span class="gonderim-sinyali" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
       Fatura sorgulanıyor…
     </p>
-    <p class="mt-1 text-sm text-soluk">Birkaç saniye sürer; bu sayfada bekle.</p>
+    <p class="mt-1 text-sm text-soluk">Birkaç saniye sürer, bu sayfada bekle.</p>
   </div>
 
   {% elif sorgu.durum == "hata" %}
@@ -40,7 +40,7 @@
   {% elif not satista %}
   <div class="sim yuzey rounded-kart border border-cizgi p-5">
     <p class="baslik text-lg font-bold">Bu kurum şu an satışta değil</p>
-    <p class="mt-1 text-sm text-soluk">Faturayı buradan ödeyemezsin; yöneticine sor.</p>
+    <p class="mt-1 text-sm text-soluk">Faturayı buradan ödeyemezsin. Yöneticine sor.</p>
   </div>
 
   {% elif not satirlar %}
@@ -56,7 +56,7 @@
       <span class="text-soluk">Abone</span>
       <b class="text-right">{{ sorgu.abone_adi|default:"—" }}</b>
     </div>
-    <p class="mt-1 text-xs text-soluk">Müşteriye adını teyit ettir; farklıysa numarayı kontrol et.</p>
+    <p class="mt-1 text-xs text-soluk">Müşteriye adını teyit ettir. Farklıysa numarayı kontrol et.</p>
   </div>
 
   {% if eski %}

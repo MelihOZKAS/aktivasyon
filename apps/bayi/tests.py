@@ -2926,3 +2926,93 @@ class DostSiteBaglantisi(TestCase):
         self.client.force_login(bayi)
         for ad in BAYI_SAYFALARI:
             self.assertNotIn(self.ADRES, self.client.get(reverse(ad)).content.decode(), ad)
+
+
+class PopupDuyuruTestleri(TestCase):
+    """Popup her bayiye bir kez açılır, Okudum deyince bir daha açılmaz.
+    Panel duyurusundan ayrıdır."""
+
+    def setUp(self):
+        from apps.bayi.models import PopupDuyuru
+
+        self.bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=self.bayi)
+        self.client.force_login(self.bayi)
+        self.ilk = PopupDuyuru.objects.create(baslik="Bayram mesaisi", icerik="Arife günü 13:00'e kadar.")
+        self.ikinci = PopupDuyuru.objects.create(baslik="Yeni tarife", icerik="Ekim tarifeleri yüklendi.")
+
+    def _panel(self):
+        return self.client.get(reverse("bayi:panel")).content.decode()
+
+    def test_once_en_eski_acilir_okudum_deyince_siradaki(self):
+        self.assertIn("Bayram mesaisi", self._panel())
+        yanit = self.client.post(
+            reverse("bayi:popup-okudum"), {"duyuru": self.ilk.pk}, HTTP_HX_REQUEST="true"
+        )
+        self.assertContains(yanit, "Yeni tarife")
+        icerik = self._panel()
+        self.assertNotIn("Bayram mesaisi", icerik)
+        self.assertIn("Yeni tarife", icerik)
+
+    def test_hepsi_okununca_popup_cikmaz(self):
+        for duyuru in (self.ilk, self.ikinci):
+            self.client.post(reverse("bayi:popup-okudum"), {"duyuru": duyuru.pk})
+        self.assertNotIn('id="popup-duyuru-baslik"', self._panel())
+        # İkinci Okudum yeni kayıt açmaz.
+        self.client.post(reverse("bayi:popup-okudum"), {"duyuru": self.ilk.pk})
+        self.assertEqual(self.ilk.okumalar.count(), 1)
+
+    def test_pasif_popup_acilmaz(self):
+        self.ilk.aktif = False
+        self.ilk.save()
+        self.assertNotIn("Bayram mesaisi", self._panel())
+
+    def test_baska_bayi_okudu_diye_kapanmaz(self):
+        self.client.post(reverse("bayi:popup-okudum"), {"duyuru": self.ilk.pk})
+        diger = User.objects.create_user("diger", password="parola12345")
+        Cuzdan.objects.create(bayi=diger)
+        self.client.force_login(diger)
+        self.assertIn("Bayram mesaisi", self._panel())
+
+    def test_panel_duyurusu_popup_olmaz(self):
+        from apps.bayi.models import Duyuru, PopupDuyuru
+
+        PopupDuyuru.objects.all().delete()
+        Duyuru.objects.create(baslik="Panel notu", icerik="Panelde durur.")
+        icerik = self._panel()
+        self.assertIn("Panel notu", icerik)
+        self.assertNotIn('id="popup-duyuru-baslik"', icerik)
+
+    def test_tedarikciye_acilmaz(self):
+        from apps.bayi.models import BayiProfili
+
+        tedarikci = User.objects.create_user("tedarikci", password="parola12345")
+        Cuzdan.objects.create(bayi=tedarikci)
+        BayiProfili.objects.create(kullanici=tedarikci, unvan="T", bayi_mi=False, tedarikci_mi=True)
+        self.client.force_login(tedarikci)
+        icerik = self.client.get(reverse("bayi:tedarikci-panel")).content.decode()
+        self.assertNotIn("Bayram mesaisi", icerik)
+
+    def test_betiksiz_okudum_geri_doner_dis_adrese_gitmez(self):
+        yanit = self.client.post(
+            reverse("bayi:popup-okudum"), {"duyuru": self.ilk.pk, "next": "/kontor/"}
+        )
+        self.assertRedirects(yanit, "/kontor/", fetch_redirect_response=False)
+        yanit = self.client.post(
+            reverse("bayi:popup-okudum"), {"duyuru": self.ikinci.pk, "next": "https://kotu.example/"}
+        )
+        self.assertRedirects(yanit, reverse("bayi:panel"), fetch_redirect_response=False)
+
+    def test_bozuk_numara_bir_sey_yazmaz(self):
+        self.client.post(reverse("bayi:popup-okudum"), {"duyuru": "abc"})
+        self.assertFalse(self.ilk.okumalar.exists())
+
+    def test_yonetim_kimin_okudugunu_gorur(self):
+        self.bayi.first_name, self.bayi.last_name = "Fadil", "Yiğit"
+        self.bayi.save()
+        self.client.post(reverse("bayi:popup-okudum"), {"duyuru": self.ilk.pk})
+        yonetici = User.objects.create_superuser("yonetici", "y@ornek.com", "parola12345")
+        self.client.force_login(yonetici)
+        self.assertContains(self.client.get(reverse("admin:bayi_popupduyuru_changelist")), "1 bayi")
+        sayfa = self.client.get(reverse("admin:bayi_popupduyuru_change", args=[self.ilk.pk]))
+        self.assertContains(sayfa, "Fadil Yiğit")

@@ -341,7 +341,7 @@ def durum_bildir(request, referans):
     if basvuru.sonuclandi_mi:
         messages.error(
             request,
-            "Bu işlem sonuçlandı; durumunu artık yalnızca yönetim değiştirebilir.",
+            "Bu işlem sonuçlandı. Durumunu artık yalnızca yönetim değiştirebilir.",
         )
         return redirect("basvurular:detay", referans=referans)
 
@@ -397,7 +397,7 @@ def sim_bozuk(request, referans):
     else:
         messages.success(
             request,
-            f"{kart.imei} arızalı işaretlendi; bayi yeni kart seçince başvuru sana geri döner.",
+            f"{kart.imei} arızalı işaretlendi. Bayi yeni kart seçince başvuru sana geri döner.",
         )
     return redirect("basvurular:detay", referans=referans)
 
@@ -436,7 +436,7 @@ def duzelt(request, referans):
             else:
                 messages.success(
                     request,
-                    f"Düzeltmen alındı; başvuru “{basvuru.durum.ad}” durumunda işleme geri döndü.",
+                    f"Düzeltmen alındı. Başvuru “{basvuru.durum.ad}” durumunda işleme geri döndü.",
                 )
                 return redirect("basvurular:detay", referans=referans)
     else:

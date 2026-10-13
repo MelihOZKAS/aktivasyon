@@ -1,4 +1,4 @@
-{% load static panel %}<!doctype html>
+{% load static panel duyuru %}<!doctype html>
 <html lang="tr">
 <head>
   <meta charset="utf-8">
@@ -85,6 +85,7 @@
     });
   })();
 </script>
+{% if bayi_mi %}{% popup_duyuru %}{% endif %}
 {% block betik %}{% endblock %}
 </body>
 </html>

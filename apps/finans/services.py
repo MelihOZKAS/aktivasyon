@@ -928,7 +928,7 @@ def siparis_odemesini_isle(siparis, *, olusturan=None):
             )
         if cuzdan.bakiye < kilitli.tutar:
             raise SiparisVerilemez(
-                f"Bakiyen {cuzdan.bakiye} ₺; bu sipariş {kilitli.tutar} ₺. "
+                f"Bakiyen {cuzdan.bakiye} ₺, bu sipariş {kilitli.tutar} ₺. "
                 "Ürün bakiyeden alınır, borca yazılmaz."
             )
 

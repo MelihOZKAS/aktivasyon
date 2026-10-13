@@ -65,7 +65,7 @@ def araligi_coz(baslangic, bitis, bugun=None):
         raise AralikHatasi("Bitiş tarihi başlangıçtan önce olamaz.")
     gun = (bit - bas).days + 1
     if gun > EN_UZUN_ARALIK:
-        raise AralikHatasi(f"Aralık en fazla {EN_UZUN_ARALIK} gün olabilir; {gun} gün seçtin.")
+        raise AralikHatasi(f"Aralık en fazla {EN_UZUN_ARALIK} gün olabilir, sen {gun} gün seçtin.")
     return bas, bit
 
 

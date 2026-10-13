@@ -41,7 +41,7 @@ def mesaj_ekle(talep, gonderen, icerik, *, personelden=False):
 
     if not personelden and talep.durum == TalepDurumu.KAPALI:
         raise TalepKapali(
-            f"{talep.referans_no} kapalı; yeni mesaj için yeni talep açılmalı."
+            f"{talep.referans_no} kapalı. Yeni mesaj için yeni talep açılmalı."
         )
 
     with transaction.atomic():

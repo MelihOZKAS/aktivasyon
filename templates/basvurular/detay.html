@@ -93,10 +93,10 @@
   <div class="yuzey sim rounded-kart border-uyari p-6" style="--sim-kenar: var(--color-uyari)">
     <h3 class="baslik font-semibold text-uyari">Düzeltme bekleniyor</h3>
     <p class="mt-1.5 text-sm leading-relaxed">
-      {% if yonetim_notu %}{{ yonetim_notu }}{% else %}Bu başvuruda eksik ya da hatalı bir şey var; düzeltip yeniden gönder.{% endif %}
+      {% if yonetim_notu %}{{ yonetim_notu }}{% else %}Bu başvuruda eksik ya da hatalı bir şey var. Düzeltip yeniden gönder.{% endif %}
     </p>
     <p class="mt-1.5 text-sm leading-relaxed text-soluk">
-      Gönderince başvuru kaldığı yerden devam eder; ödediğin ücret değişmez.
+      Gönderince başvuru kaldığı yerden devam eder. Ödediğin ücret değişmez.
     </p>
     <a href="{% url 'basvurular:duzelt' basvuru.referans_no %}" class="dugme dugme-birincil mt-4 w-full sm:w-auto">
       Düzelt ve yeniden gönder
@@ -175,7 +175,7 @@
     <h3 class="baslik font-semibold">Belgeler</h3>
     <p class="mt-2 text-sm leading-relaxed text-soluk">
       Bu başvurunun işi tamamlandı. Kimlik görüntüleri kişisel veri olduğu için
-      silindi; başvuru kaydı ve hakediş geçmişi yerinde duruyor.
+      silindi. Başvuru kaydı ve hakediş geçmişi yerinde duruyor.
     </p>
   </div>
   {% elif belgeler_gorunur and basvuru.belgeler.all %}
@@ -211,7 +211,7 @@
     <h3 class="baslik font-semibold">İşlemin sonucunu bildir</h3>
     <p class="mt-1.5 text-sm leading-relaxed text-soluk">
       Aktivasyonu tamamladığında ya da bir sorun çıktığında durumu buradan
-      güncelle; başvuruyu getiren bayi anında görür.
+      güncelle. Başvuruyu getiren bayi anında görür.
     </p>
 
     <form method="post" action="{% url 'basvurular:durum-bildir' basvuru.referans_no %}"
@@ -227,7 +227,7 @@
       </select>
 
       <input type="text" name="aciklama" class="girdi" maxlength="255"
-             placeholder="Not — bayi ve yönetim görür (isteğe bağlı)">
+             placeholder="Not (bayi ve yönetim görür, isteğe bağlı)">
 
       <button type="submit" class="dugme dugme-birincil w-full sm:w-auto">Durumu güncelle</button>
     </form>
@@ -236,8 +236,8 @@
   <div class="yuzey rounded-kart p-6">
     <h3 class="baslik font-semibold">İşlem sonuçlandı</h3>
     <p class="mt-1.5 text-sm leading-relaxed text-soluk">
-      Bu başvurunun parası işlendi. Bir yanlışlık varsa yönetime bildir;
-      sonuçlanmış işlemin durumu buradan değiştirilmez.
+      Bu başvurunun parası işlendi. Bir yanlışlık varsa yönetime bildir.
+      Sonuçlanmış işlemin durumu buradan değiştirilmez.
     </p>
   </div>
   {% endif %}
@@ -270,7 +270,7 @@
       </select>
       {% endif %}
       <input type="text" name="aciklama" class="girdi" maxlength="200"
-             placeholder="Not — bayi ve yönetim görür (isteğe bağlı)">
+             placeholder="Not (bayi ve yönetim görür, isteğe bağlı)">
       <button type="submit" class="dugme dugme-sessiz w-full text-olumsuz sm:w-auto">
         SIM kart bozuk çıktı
       </button>
@@ -288,8 +288,9 @@
         <div class="min-w-0">
           <p class="text-sm font-medium">{{ kayit.yeni_durum.ad }}</p>
           <p class="mt-0.5 text-xs text-soluk">
-            {{ kayit.tarih|date:"j F Y, H:i" }}{% if kayit.aciklama %} — {{ kayit.aciklama }}{% endif %}
+            {{ kayit.tarih|date:"j F Y, H:i" }}
           </p>
+          {% if kayit.aciklama %}<p class="mt-0.5 text-sm text-murekkep-yumusak">{{ kayit.aciklama }}</p>{% endif %}
         </div>
       </li>
       {% endfor %}

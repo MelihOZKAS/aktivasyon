@@ -26,7 +26,7 @@
     <div class="yuzey sim rounded-kart p-5">
       <h3 class="baslik font-semibold text-soluk">{{ kategori.ad }}</h3>
       <p class="mt-1.5 text-sm text-uyari">
-        Bakiye yetersiz — bakiyen {{ bakiye|para }} ₺.
+        Bakiye yetersiz. Bakiyen {{ bakiye|para }} ₺.
         Bakiye yüklemek için yöneticinle iletişime geç.
       </p>
       {% include "basvurular/parca_bedeller.html" with bedeller=kategori.bedeller %}

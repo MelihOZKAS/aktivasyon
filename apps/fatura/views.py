@@ -335,7 +335,7 @@ def sepet_ode(request):
         return redirect("fatura:sepet")
     ozet = fatura_sepeti.ozet(request.user, kalemler)
     if ozet["sorunlu"]:
-        messages.error(request, "Sepette ödenemeyecek fatura var; işaretli satırları çıkar ya da yeniden sorgula.")
+        messages.error(request, "Sepette ödenemeyecek fatura var. İşaretli satırları çıkar ya da yeniden sorgula.")
         return redirect("fatura:sepet")
     try:
         odemeler = sepeti_ode(request.user, kalemler, anahtar=anahtar or None)

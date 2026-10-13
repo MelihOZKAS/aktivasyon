@@ -104,7 +104,7 @@ def satin_al(request, slug):
     messages.success(
         request,
         f"Siparişin alındı ({siparis.referans_no}). {siparis.tutar} ₺ "
-        "bakiyenden düşüldü; ürün elden teslim edilecek.",
+        "bakiyenden düşüldü. Ürün elden teslim edilecek.",
     )
     return redirect("magaza:siparislerim")
 

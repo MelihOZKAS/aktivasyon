@@ -72,7 +72,7 @@ def detay(request, referans):
         if not talep.acik_mi:
             messages.error(
                 request,
-                "Bu talep kapatıldı; üzerine yazılamaz. "
+                "Bu talep kapatıldı, üzerine yazılamaz. "
                 "Konu devam ediyorsa yeni bir talep aç.",
             )
             return redirect("destek:detay", referans=referans)

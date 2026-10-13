@@ -548,7 +548,7 @@ def yukleme_baslat(bayi, paket, hedef, *, kanal=Kanal.PANEL, bayi_ref="", anahta
             if ayni.filter(durum__in=ACIK_DURUMLAR).exists():
                 raise YuklemeYapilamaz(
                     "Bu numaraya aynı paket şu an yükleniyor. Sonucu Yüklemelerim'de "
-                    "görürsün; ikinci kez gönderme."
+                    "görürsün. İkinci kez gönderme."
                 )
             if ayni.filter(
                 olusturma_tarihi__gte=timezone.now() - TEKRAR_KORUMASI

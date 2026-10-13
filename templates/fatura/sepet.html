@@ -120,7 +120,7 @@
 
   {% if sorunlu %}
   <p class="sim mb-3 rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-3 text-sm font-semibold text-olumsuz">
-    Kırmızı satırlar ödenemez. Sepetten çıkar ya da yeniden sorgulayıp ekle; sonra hepsini öde.
+    Kırmızı satırlar ödenemez. Sepetten çıkar ya da yeniden sorgulayıp ekle, sonra hepsini öde.
   </p>
   {% elif yetmiyor %}
   <p class="sim mb-3 rounded-kart border border-uyari/40 bg-uyari/5 p-3 text-sm font-semibold text-uyari">
@@ -134,7 +134,7 @@
     <button type="submit" class="dugme dugme-birincil w-full" data-gonder {% if sorunlu or yetmiyor %}disabled{% endif %}>
       Hepsini öde ({{ adet }} fatura)
     </button>
-    <p class="mt-2 text-center text-xs text-soluk">Hepsi birlikte ödenir; biri açılamazsa hiçbiri açılmaz. Ödenemeyen fatura kendiliğinden bakiyene döner.</p>
+    <p class="mt-2 text-center text-xs text-soluk">Hepsi birlikte ödenir. Biri açılamazsa hiçbiri açılmaz. Ödenemeyen fatura kendiliğinden bakiyene döner.</p>
   </form>
   {% endif %}
 </div>

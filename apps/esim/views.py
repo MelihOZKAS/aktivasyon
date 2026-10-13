@@ -55,7 +55,7 @@ def _kur_ya_da_kapali(request):
     try:
         return kur_getir(), None
     except KurTanimsiz:
-        return None, _kapali(request, "eSIM fiyatları şu an hesaplanamıyor; kısa süre sonra yeniden dene.")
+        return None, _kapali(request, "eSIM fiyatları şu an hesaplanamıyor. Kısa süre sonra yeniden dene.")
 
 
 # Ülke listesinin altındaki "son eSIM'lerin" kutusu; tamamı ayrı sayfada.
@@ -230,7 +230,7 @@ def satin_al(request, kod, pk):
     if teslimat.durum == "hata":
         messages.error(
             request,
-            "Sağlayıcı siparişi kabul etmedi; tutar bakiyene geri yazıldı. "
+            "Sipariş kabul edilmedi, tutar bakiyene geri yazıldı. "
             f"Sebep: {teslimat.hata}",
         )
     return redirect("esim:siparis", referans=teslimat.siparis.referans_no)
@@ -332,12 +332,12 @@ def yukle(request, referans):
         if yukleme.durum == "hata":
             messages.error(
                 request,
-                f"Sağlayıcı yüklemeyi kabul etmedi; tutar bakiyene geri yazıldı. Sebep: {yukleme.hata}",
+                f"Yükleme kabul edilmedi, tutar bakiyene geri yazıldı. Sebep: {yukleme.hata}",
             )
         else:
             messages.success(
                 request,
-                f"{yukleme.paket_adi} yüklendi; {yukleme.siparis.tutar} ₺ bakiyenden düşüldü.",
+                f"{yukleme.paket_adi} yüklendi. {yukleme.siparis.tutar} ₺ bakiyenden düşüldü.",
             )
         return redirect("esim:siparis", referans=referans)
 
@@ -368,12 +368,12 @@ def kurulum(request, referans):
     if request.method == "POST":
         teslimat = durumu_sorgula(teslimat)
         if teslimat.hatta_baglandi:
-            messages.success(request, "Telefona kuruldu ve hat bağlandı; paket kullanımda.")
+            messages.success(request, "Telefona kuruldu ve hat bağlandı. Paket kullanımda.")
         elif teslimat.telefona_kuruldu:
             messages.warning(
                 request,
                 "Profil telefona kuruldu ama hat henüz ağa bağlanmadı. Telefonda hat açık ve "
-                "Veri Dolaşımı açık olmalı; 1–2 dakika bekleyip uçak modunu aç-kapa.",
+                "Veri Dolaşımı açık olmalı. 1–2 dakika bekleyip uçak modunu aç-kapa.",
             )
         else:
             messages.info(request, "QR henüz bir telefona okutulmamış.")

@@ -101,7 +101,7 @@ def _sim_kullanildi_mesaji(kart):
     if kart.basvuru_id and kart.basvuru.bayi_id == kart.bayi_id:
         return (
             f"Bu SIM kart {kart.basvuru.referans_no} numaralı başvurunda "
-            "kullanıldı. Başvurun alınmış; Başvurularım'dan bakabilirsin."
+            "kullanıldı. Başvurun alınmış, Başvurularım'dan bakabilirsin."
         )
     return f"Bu SIM kart kullanılamaz: {kart.get_durum_display()}."
 
@@ -365,8 +365,8 @@ class BasvuruFormu(forms.Form):
             secilen = self._secili_operator(self.cleaned_data)
             self.add_error(
                 anahtar,
-                f"Bu SIM kart {kart.operator.ad} kartı; "
-                f"{secilen.ad if secilen else 'seçtiğiniz operatör'} "
+                f"Bu SIM kart {kart.operator.ad} kartı. "
+                f"{secilen.ad if secilen else 'Seçtiğiniz operatör'} "
                 "aktivasyonunda kullanılamaz.",
             )
         else:
