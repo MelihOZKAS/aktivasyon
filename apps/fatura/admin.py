@@ -770,6 +770,11 @@ class OdemeAdmin(ModelAdmin):
                 "suren": any(g.suruyor for g in son.values()),
                 "odenen": any(g.durum == GonderimDurumu.ODENDI for g in son.values()),
                 "belirsiz": any(g.durum == GonderimDurumu.BELIRSIZ for g in son.values()),
+                # Sağlayıcı açıklamayla iptal etti: kendiliğinden iade edilmez
+                # (`services._sonuclandir`), metin iade sebebine hazır yazılır.
+                "iptal_aciklamasi": " · ".join(dict.fromkeys(
+                    g.mesaj for g in son.values() if g.durum == GonderimDurumu.IPTAL and g.mesaj
+                )) if son and all(g.durum == GonderimDurumu.IPTAL for g in son.values()) else "",
                 "sorulabilir": any(
                     g.durum in (GonderimDurumu.ISLEMDE, GonderimDurumu.BELIRSIZ) for g in son.values()
                 ),

@@ -385,10 +385,6 @@ def fatura_gonderim_coz(ham):
 
 
 _FATURA_SONUCU = re.compile(r"(\d+)\s*(?:[|:](.*))?", re.S)
-# Açıklamada bunlar geçen cevap işlemin değil isteğin hatasıdır (şifre, IP
-# izni). "3" iptal sayılsaydı sağlayıcıda ödenmiş faturanın parası bayiye
-# iade edilirdi; hata sayılır, gönderim olduğu gibi kalır.
-_ISTEK_HATASI = ("şifre", "sifre", "yetkisiz", "ip izni", "ip adresi", "hatalı giriş")
 
 
 def fatura_sorgu_coz(ham):
@@ -399,9 +395,11 @@ def fatura_sorgu_coz(ham):
     "bekliyor" sayıldı, sağlayıcının onayladığı da iptal ettiği de bizde
     "Ödeniyor"da kaldı. İki nokta da okunur.
 
-    Başka her cevap (boş, tanınmayan kod, şifre hatası) `SaglayiciHatasi`'dır:
-    gönderim olduğu gibi kalır, cevap "Sorgu hatası" diye yazılır — sessizce
-    "bekliyor" sayılmaz.
+    `3`ün açıklaması olduğu gibi döner, boşsa boş: kendiliğinden iade yalnızca
+    açıklamasız `3|`te yapılır (`fatura.services._sonuclandir`), çünkü `3|…`
+    bir hata metni de olabilir (şifre, kayıt bulunamadı). Başka her cevap
+    (boş, tanınmayan kod) `SaglayiciHatasi`'dır: gönderim olduğu gibi kalır,
+    cevap "Sorgu hatası" diye yazılır — sessizce "bekliyor" sayılmaz.
     """
     metin = unquote_plus(ham or "").strip()
     eslesme = _FATURA_SONUCU.fullmatch(metin)
@@ -411,9 +409,7 @@ def fatura_sorgu_coz(ham):
     if kod == "2":
         return SorguSonucu(Sorgu.BASARILI, mesaj=aciklama, ham=ham)
     if kod == "3":
-        if any(k in aciklama.lower() for k in _ISTEK_HATASI):
-            raise SaglayiciHatasi(f"Fatura sonucu sorulamadı: {aciklama[:200]}")
-        return SorguSonucu(Sorgu.IPTAL, mesaj=aciklama or "Sağlayıcı ödemeyi iptal etti.", ham=ham)
+        return SorguSonucu(Sorgu.IPTAL, mesaj=aciklama, ham=ham)
     return SorguSonucu(Sorgu.ISLEMDE, mesaj=aciklama, ham=ham)
 
 

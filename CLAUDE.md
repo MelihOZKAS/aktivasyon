@@ -908,8 +908,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   saniyeler içinde ödenmiyor, erken sorgu hep "bekliyor" döner; Karar
   ekranındaki "Sonucu sorgula" bu süreye bağlı değil):
   hepsi **ödendi** → ödeme kendiliğinden "Ödendi"; sağlayıcı kabul edip
-  hepsini **iptal** etti → kendiliğinden "İptal + iade", sebep sağlayıcının
-  açıklaması (bayi görür, sağlayıcı adı yazılmaz).
+  hepsini **açıklamasız iptal** etti (`3|`) → kendiliğinden "İptal + iade"
+  ("Kurum ödemeyi kabul etmedi."; sağlayıcı adı yazılmaz).
+  **Açıklamalı iptal (`3|…`) kendiliğinden iade edilmez, yönetime kalır**
+  (rozet, kırmızı Karar; ekran metni gösterir, iade sebebine hazır yazar).
+  Aynı kod bir hata metni de olabilir (şifre, kayıt bulunamadı); iptal
+  sayılsaydı sağlayıcıda ödenmiş faturanın parası bayiye dönerdi. Bir süre
+  şifre/IP gibi kelimelerin listesiyle ayrılıyordu — listede olmayan hata
+  metni iade ettiriyordu. Para kaybı olan yön kendiliğinden yapılmaz.
   **Sonuç `fatura_kontrol` ile gönderim başına tek tek sorulur; cevap
   `durum|açıklama`dır:** canlıda `2|vodafone pos ()` ödendi, `3|` iptal,
   `1|…` bekliyor (`znet.fatura_sorgu_coz`). Bir süre iki nokta (`2:…`)
@@ -919,8 +925,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   doğrulanmadı, "bekleyen yazılmaz" kuralıyla boş ya da tanınmayan cevap
   sessizce "hepsi bekliyor" okunuyordu — kaldırıldı. Okunamayan cevap
   artık hatadır, gönderim yerinde kalır ve karar ekranında "Sorgu hatası:
-  …" yazar. Açıklamasında şifre/IP izni geçen `3` iptal değil hatadır:
-  iptal sayılsaydı ödenmiş faturanın parası bayiye dönerdi. Bir tur en çok
+  …" yazar. Bir tur en çok
   `SORGU_TURU_SURESI` (30 sn) sorar, kalan sonraki tura kalır — işçi
   kontörü de yürütüyor.
   **Kontörün tek gönderim ilkesi aynen geçerlidir:** gönderim ağa çıkmadan

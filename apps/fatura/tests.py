@@ -1113,10 +1113,35 @@ class SaglayiciGonderimTestleri(Temel):
         odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
         self.assertEqual(self.bakiye(), TL("605.00"))
         self.sorulabilir_yap()
-        self.isle(SahteSite(fatura_kontrol="3|Fatura kurumda ödenmiş görünüyor"))
+        self.isle(SahteSite(fatura_kontrol="3|"))   # canlıda görülen iptal: açıklamasız
         odeme.refresh_from_db()
         self.assertEqual(odeme.durum, OdemeDurumu.IPTAL)
-        self.assertEqual(odeme.sonuc_notu, "Fatura kurumda ödenmiş görünüyor")
+        self.assertEqual(odeme.sonuc_notu, "Kurum ödemeyi kabul etmedi.")
+        self.assertEqual(self.bakiye(), TL("1000.00"))
+
+    def test_aciklamali_iptal_kendiliginden_iade_edilmez_yonetime_kalir(self):
+        # "3|…" bir hata metni de olabilir (şifre, kayıt bulunamadı); iptal
+        # sayılsaydı sağlayıcıda ödenmiş faturanın parası bayiye dönerdi.
+        from apps.fatura.services import yonetim_bekleyenler
+
+        odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
+        self.sorulabilir_yap()
+        self.isle(SahteSite(fatura_kontrol="3|Kayıt bulunamadı"))
+        odeme.refresh_from_db()
+        gonderim = odeme.gonderimler.get()
+        self.assertEqual((gonderim.durum, gonderim.mesaj), ("iptal", "Kayıt bulunamadı"))
+        self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
+        self.assertEqual(self.bakiye(), TL("605.00"))
+        self.assertEqual(list(yonetim_bekleyenler()), [odeme])
+        # Yönetici metni görür; iade sebebi hazır yazılı, tek tıkla iade eder.
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        adres = reverse("admin:fatura_odeme_karar", args=[odeme.pk])
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "Sağlayıcı iptal dedi")
+        self.assertContains(yanit, 'value="Kayıt bulunamadı"')
+        self.client.post(adres, {"karar": "iptal", "sebep": "Kayıt bulunamadı"})
+        odeme.refresh_from_db()
+        self.assertEqual(odeme.durum, OdemeDurumu.IPTAL)
         self.assertEqual(self.bakiye(), TL("1000.00"))
 
     def test_sonuc_cevabi_canlidaki_bicimle_okunur(self):
@@ -1128,16 +1153,17 @@ class SaglayiciGonderimTestleri(Temel):
 
         for ham, durum, mesaj in (
             ("2|vodafone pos ()", Sorgu.BASARILI, "vodafone pos ()"),
-            ("3|", Sorgu.IPTAL, "Sağlayıcı ödemeyi iptal etti."),
+            ("3|", Sorgu.IPTAL, ""),
             ("3|Fatura daha önce ödenmiş", Sorgu.IPTAL, "Fatura daha önce ödenmiş"),
+            ("3|Hatalı şifre", Sorgu.IPTAL, "Hatalı şifre"),   # iadeye yönetim karar verir
             ("1|", Sorgu.ISLEMDE, ""),
             ("2:ONAYLI", Sorgu.BASARILI, "ONAYLI"),
             ("2%7Cvodafone+pos+%28%29", Sorgu.BASARILI, "vodafone pos ()"),
         ):
             sonuc = fatura_sorgu_coz(ham)
             self.assertEqual((sonuc.durum, sonuc.mesaj), (durum, mesaj), ham)
-        # Okunamayan cevap sessizce "bekliyor" sayılmaz; şifre hatası iptal değildir.
-        for ham in ("", "OK", "9|x", "bekleyin", "3|Hatalı şifre", "3|IP izni yok"):
+        # Okunamayan cevap sessizce "bekliyor" sayılmaz.
+        for ham in ("", "OK", "9|x", "bekleyin"):
             with self.assertRaises(SaglayiciHatasi, msg=ham):
                 fatura_sorgu_coz(ham)
 
@@ -1236,7 +1262,7 @@ class SaglayiciGonderimTestleri(Temel):
         with mock.patch("urllib.request.urlopen", side_effect=SahteSite(fatura_ekle="OK|0.30|1000.00|390.30")):
             odemeyi_gonder(odeme.pk, elle=True)
         self.sorulabilir_yap()
-        self.isle(SahteSite(fatura_kontrol="3|Fatura daha önce ödenmiş"))
+        self.isle(SahteSite(fatura_kontrol="3|"))
         odeme.refresh_from_db()
         self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
         self.assertEqual(self.bakiye(), TL("605.00"))

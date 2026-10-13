@@ -1046,8 +1046,9 @@ def _sonucu_yaz(gonderim, sonuc, istek, simdi):
     if yeni == gonderim.durum:
         Gonderim.objects.filter(pk=gonderim.pk).update(**alanlar)
         return False
-    if sonuc.mesaj:
-        alanlar["mesaj"] = sonuc.mesaj[:255]
+    # Boşsa da yazılır: açıklamasız iptal ile açıklamalı iptal ayrı işlenir
+    # (`_sonuclandir`), önceki bir cevabın açıklaması üstünde kalmasın.
+    alanlar["mesaj"] = sonuc.mesaj[:255]
     return bool(
         Gonderim.objects.filter(pk=gonderim.pk, durum=gonderim.durum).update(durum=yeni, **alanlar)
     )
@@ -1089,9 +1090,14 @@ def _sonuclari_sor(gonderimler, simdi, *, sure=None):
 def _sonuclandir(odeme_pk):
     """Faturaların son gönderimlerine bakıp ödemeyi kendiliğinden kapatır.
 
-    Hepsi ödendiyse "Ödendi"; sağlayıcı hepsini kabul edip iptal ettiyse
-    "İptal + iade" (sebep sağlayıcının açıklaması, bayi görür). Gerisinde
-    dokunulmaz: ret ve belirsiz cevapta sorun çoğu zaman bizim taraftadır
+    Hepsi ödendiyse "Ödendi"; sağlayıcı hepsini kabul edip **açıklamasız**
+    iptal ettiyse (`3|`, canlıda görülen biçim) "İptal + iade". Açıklamalı
+    `3|…` yönetime kalır: aynı kod bir hata metni de olabilir (şifre, kayıt
+    bulunamadı) ve iptal sayılsaydı sağlayıcıda ödenmiş faturanın parası
+    bayiye dönerdi — para kaybı olan yön kendiliğinden yapılmaz. Bir süre
+    şifre/IP gibi kelimelerin listesiyle ayrılıyordu; listede olmayan hata
+    metni iade ettiriyordu. Yönetici karar ekranında metni görür, tek tıkla
+    iade eder. Gerisinde dokunulmaz: ret ve belirsiz cevapta sorun çoğu zaman bizim taraftadır
     (kurum numarası, sağlayıcı bakiyesi) — kontördeki gibi her ödemeyi iade
     etmek yerine yönetim düzeltip yeniden gönderir; karışık sonuçta (biri
     ödendi, biri iptal) kısmi iade yönetimin kararıdır.
@@ -1119,9 +1125,12 @@ def _sonuclandir(odeme_pk):
     try:
         if durumlar == {GonderimDurumu.ODENDI}:
             odendi_isaretle(odeme)
-        elif durumlar == {GonderimDurumu.IPTAL} and not odenmis_olabilir:
-            sebepler = dict.fromkeys(son[no].mesaj for no in odeme.fatura_nolari if son[no].mesaj)
-            iptal_et(odeme, sebep=" · ".join(sebepler) or "Kurum ödemeyi kabul etmedi.")
+        elif (
+            durumlar == {GonderimDurumu.IPTAL}
+            and not odenmis_olabilir
+            and not any(son[no].mesaj for no in odeme.fatura_nolari)
+        ):
+            iptal_et(odeme, sebep="Kurum ödemeyi kabul etmedi.")
     except KararVerilemez:
         pass  # aynı anda başka yoldan sonuçlandı
 

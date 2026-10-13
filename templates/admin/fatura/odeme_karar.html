@@ -107,6 +107,12 @@
     <b>Fatura sağlayıcıda.</b> Sonucu kendiliğinden sorulur; ödenince ödeme kapanır, sağlayıcı iptal ederse
     tutar bayiye döner. Bir şey yapman gerekmiyor.
   </div>
+  {% elif iptal_aciklamasi %}
+  <div class="mb-4 rounded-default p-4 text-sm leading-relaxed" style="border:1px solid #D42046;background:#FCEAEE">
+    <b>Sağlayıcı iptal dedi, açıklamasıyla:</b> “{{ iptal_aciklamasi }}”. Para kendiliğinden iade edilmedi:
+    bu cevap bir hata metni de olabilir (şifre, kayıt bulunamadı) ve fatura sağlayıcıda ödenmiş olabilir.
+    Gerçekten iptalse aşağıdan <b>İptal + iade</b> de; emin değilsen sağlayıcının panelinden bak.
+  </div>
   {% elif belirsiz %}
   <div class="mb-4 rounded-default p-4 text-sm leading-relaxed" style="border:1px solid #D42046;background:#FCEAEE">
     <b>Bir gönderimin cevabı anlaşılamadı:</b> fatura sağlayıcıda <b>ödenmiş de olabilir, ödenmemiş de.</b>
@@ -164,7 +170,7 @@
       <p class="mb-2 font-semibold" style="color:#D42046">İptal + iade</p>
       <p class="mb-3 text-xs text-base-500"><b>{{ odeme.siparis.tutar }} ₺</b> bayinin bakiyesine geri yazılır. Sebebi bayi görür.
         {% if suren %}<b style="color:#D42046">Fatura sağlayıcıda sürüyor:</b> sonra ödenirse iade bizden çıkar.{% endif %}</p>
-      <input type="text" name="sebep" maxlength="200" required placeholder="Sebep (bayi görecek)"
+      <input type="text" name="sebep" maxlength="200" required placeholder="Sebep (bayi görecek)" value="{{ iptal_aciklamasi }}"
              class="mb-3 w-full rounded-md border border-base-200 px-3 py-2 text-sm dark:border-base-700 dark:bg-base-900">
       <button type="submit" class="rounded-md px-4 py-2 font-medium text-white" style="background:#D42046">İptal et ve iade et</button>
     </form>
