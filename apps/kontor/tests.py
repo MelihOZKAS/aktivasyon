@@ -866,7 +866,10 @@ class EkranTestleri(Temel):
         Islem.objects.update(son_sorgu=None)
         islem = isle(islem.pk)
         self.assertEqual(islem.durum, IslemDurumu.BASARILI)
-        self.assertContains(self.client.get(islem.get_absolute_url()), adres)
+        sayfa = self.client.get(islem.get_absolute_url())
+        self.assertContains(sayfa, adres)
+        # Yüklenmiş paketi yeniden yükleme düğmesi yok; yerinde dekont durur.
+        self.assertNotContains(sayfa, "yeniden yükle")
         yanit = self.client.get(adres)
         for metin in (
             "Ege İletişim", "Atatürk Cd. 5 İzmir", "0532 444 55 66", "YÜKLEME DEKONTU", "Kolay Paket 15",

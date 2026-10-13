@@ -20,16 +20,18 @@
       kopyalayıp gönderir.
     {% endcomment %}
     <p class="rakam mt-2 break-all rounded-lg border border-cizgi bg-yuzey p-3 text-base font-semibold">{{ islem.sonuc_mesaji }}</p>
+    <button type="button" class="dugme dugme-sessiz mt-3 text-sm" data-kopyala="{{ islem.sonuc_mesaji }}">Kopyala</button>
     {% endif %}
-    <div class="mt-3 flex flex-wrap gap-2">
-      {% if islem.sonuc_mesaji %}
-      <button type="button" class="dugme dugme-sessiz text-sm" data-kopyala="{{ islem.sonuc_mesaji }}">Kopyala</button>
-      {% endif %}
-      <a href="{% url 'kontor:dekont' islem.siparis.referans_no %}" class="dugme dugme-sessiz text-sm">
-        <span class="ikon" aria-hidden="true">print</span> Dekont yazdır
-      </a>
-    </div>
   </div>
+  {% comment %}
+    Yüklenince bayinin yapacağı iş müşteriye fişini vermektir; düğme kutunun
+    altında tam genişliktedir. Burada bir süre "Aynı paketi yeniden yükle"
+    duruyordu — yüklenmiş paketi yeniden yüklemenin anlamı yok, yönetim
+    "direk dekont yazdırma gelsin" dedi.
+  {% endcomment %}
+  <a href="{% url 'kontor:dekont' islem.siparis.referans_no %}" class="dugme dugme-birincil mt-4 w-full">
+    <span class="ikon" aria-hidden="true">print</span> Dekont yazdır
+  </a>
 
   {% elif islem.durum == "iptal" %}
   <div class="sim rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-5">

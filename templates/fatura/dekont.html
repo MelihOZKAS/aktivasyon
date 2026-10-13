@@ -9,30 +9,36 @@
   Her ödeme bir blok: kurum, abone, faturalar, hizmet bedeli. Sepette
   (birden çok ödeme) her blok kendi ara toplamını yazar, en altta tek
   toplam durur. Rakamlar müşteriye dönüktür (`services.dekont_ozeti`).
+  Her bilgi iki satırdır, etiket üstte değer altında (`dekont/sayfa.html`).
 {% endcomment %}
 {% for blok in bloklar %}
 {% with odeme=blok.odeme %}
 <section class="dk-blok">
-  <div class="dk-satir"><b>{{ odeme.kurum_adi }}</b><span>{{ odeme.get_durum_display }}</span></div>
-  <div class="dk-satir dk-kucuk"><span>{{ odeme.referans_no }}</span><span>{{ odeme.karar_tarihi|default:odeme.olusturma_tarihi|date:"d.m.Y H:i" }}</span></div>
-  <div class="dk-satir"><span>{{ odeme.kurum.alan_etiketi|default:"Abone no" }}</span><span>{{ odeme.numara }}</span></div>
-  {% if odeme.abone_adi %}<div class="dk-satir"><span>Abone</span><span>{{ odeme.abone_adi }}</span></div>{% endif %}
+  <p class="dk-kurum">{{ odeme.kurum_adi }}</p>
+  <div class="dk-alan"><span>Durum</span><b>{{ odeme.get_durum_display }}</b></div>
+  <div class="dk-alan"><span>İşlem no</span><b>{{ odeme.referans_no }}</b></div>
+  <div class="dk-alan"><span>Tarih</span><b>{{ odeme.karar_tarihi|default:odeme.olusturma_tarihi|date:"d.m.Y H:i" }}</b></div>
+  <div class="dk-alan"><span>{{ odeme.kurum.alan_etiketi|default:"Abone no" }}</span><b>{{ odeme.numara }}</b></div>
+  {% if odeme.abone_adi %}<div class="dk-alan"><span>Abone</span><b>{{ odeme.abone_adi }}</b></div>{% endif %}
   {% for f in blok.satirlar %}
-  <div class="dk-satir"><span>{{ f.fatura_no }}</span><span>{{ f.tutar|para }}</span></div>
-  {% if f.son_odeme %}<p class="dk-kucuk">Son ödeme {{ f.son_odeme }}</p>{% endif %}
+  <div class="dk-fatura">
+    <div class="dk-alan"><span>Fatura no</span><b>{{ f.fatura_no }}</b></div>
+    {% if f.son_odeme %}<div class="dk-alan"><span>Son ödeme</span><b>{{ f.son_odeme }}</b></div>{% endif %}
+    <div class="dk-alan"><span>Fatura tutarı</span><b>{{ f.tutar|para }} ₺</b></div>
+  </div>
   {% endfor %}
-  {% if blok.hizmet %}<div class="dk-satir"><span>Hizmet bedeli</span><span>{{ blok.hizmet|para }}</span></div>{% endif %}
+  {% if blok.hizmet %}<div class="dk-alan"><span>Hizmet bedeli</span><b>{{ blok.hizmet|para }} ₺</b></div>{% endif %}
   {% if bloklar|length > 1 or not blok.satirlar %}
-  <div class="dk-satir"><span>{% if blok.satirlar %}Ara toplam{% else %}Tutar{% endif %}</span><span>{{ blok.toplam|para }}</span></div>
+  <div class="dk-alan"><span>{% if blok.satirlar %}Ara toplam{% else %}Tutar{% endif %}</span><b>{{ blok.toplam|para }} ₺</b></div>
   {% endif %}
 </section>
 {% endwith %}
 {% endfor %}
 <hr class="dk-cizgi">
-<div class="dk-satir dk-toplam"><span>TOPLAM</span><span>{{ toplam|para }} ₺</span></div>
+<div class="dk-alan dk-toplam"><span>TOPLAM</span><b>{{ toplam|para }} ₺</b></div>
 {% if alinan is not None %}
 {# Sepetten gelince: müşteriden alınan ve para üstü (kayda girmez, yalnızca fiş). #}
-<div class="dk-satir"><span>Alınan</span><span>{{ alinan|para }} ₺</span></div>
-<div class="dk-satir"><span>Para üstü</span><span>{{ para_ustu|para }} ₺</span></div>
+<div class="dk-alan"><span>Alınan</span><b>{{ alinan|para }} ₺</b></div>
+<div class="dk-alan"><span>Para üstü</span><b>{{ para_ustu|para }} ₺</b></div>
 {% endif %}
 {% endblock %}

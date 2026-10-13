@@ -5,20 +5,20 @@
 {% block dekont_basligi %}{% if pin %}PİN SATIŞ DEKONTU{% else %}YÜKLEME DEKONTU{% endif %}{% endblock %}
 
 {% block dekont %}
-<div class="dk-satir"><span>Tarih</span><span>{{ islem.sonuc_tarihi|default:islem.olusturma_tarihi|date:"d.m.Y H:i" }}</span></div>
-<div class="dk-satir"><span>İşlem no</span><span>{{ islem.siparis.referans_no }}</span></div>
-{% if islem.kategori %}<div class="dk-satir"><span>Ürün grubu</span><span>{{ islem.kategori.ad }}</span></div>{% endif %}
-<div class="dk-satir"><span>Ürün</span><span>{{ islem.paket_adi }}</span></div>
+<div class="dk-alan"><span>Tarih</span><b>{{ islem.sonuc_tarihi|default:islem.olusturma_tarihi|date:"d.m.Y H:i" }}</b></div>
+<div class="dk-alan"><span>İşlem no</span><b>{{ islem.siparis.referans_no }}</b></div>
+{% if islem.kategori %}<div class="dk-alan"><span>Ürün grubu</span><b>{{ islem.kategori.ad }}</b></div>{% endif %}
+<div class="dk-alan"><span>Ürün</span><b>{{ islem.paket_adi }}</b></div>
 {% if islem.hedef %}
-<div class="dk-satir">
+<div class="dk-alan">
   <span>{{ islem.kategori.hedef_basligi|default:"Numara" }}</span>
-  <span>{% if islem.kategori.hedef == "telefon" %}{{ islem.hedef|telefon }}{% else %}{{ islem.hedef }}{% endif %}</span>
+  <b>{% if islem.kategori.hedef == "telefon" %}{{ islem.hedef|telefon }}{% else %}{{ islem.hedef }}{% endif %}</b>
 </div>
 {% endif %}
 {% if pin and islem.sonuc_mesaji %}
 <p class="dk-pin">{{ islem.sonuc_mesaji }}</p>
 {% endif %}
+<div class="dk-alan"><span>Durum</span><b>{% if pin %}Teslim edildi{% else %}Yüklendi{% endif %}</b></div>
 <hr class="dk-cizgi">
-<div class="dk-satir dk-toplam"><span>TUTAR</span><span>{{ tutar|para }} ₺</span></div>
-<div class="dk-satir"><span>Durum</span><span>{% if pin %}Teslim edildi{% else %}Yüklendi{% endif %}</span></div>
+<div class="dk-alan dk-toplam"><span>TUTAR</span><b>{{ tutar|para }} ₺</b></div>
 {% endblock %}

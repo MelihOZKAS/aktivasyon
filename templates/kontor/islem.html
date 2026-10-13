@@ -38,9 +38,5 @@
 
   {% include "kontor/parca_durum.html" %}
 
-  {% if islem.paket and islem.kategori.aktif and islem.durum != "askida" %}
-  <a href="{{ islem.paket.get_absolute_url }}{% if islem.hedef %}?hedef={{ islem.hedef|urlencode }}{% endif %}"
-     class="dugme dugme-sessiz mt-4 w-full text-sm">Aynı paketi yeniden yükle</a>
-  {% endif %}
 </div>
 {% endblock %}

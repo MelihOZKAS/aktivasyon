@@ -973,6 +973,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   "yüklendi" kağıdıyla yüklenmemiş hatla kalabilirdi. **Faturada ödeme
   sürerken de verilir**, durum "Ödeniyor" yazar: ödemeyi yönetim elle
   yapar, sürebilir, müşteri tezgâhta bekliyor. İptal edilende hiç yok.
+  Kontör işlem sayfasında yüklenince yeşil kutunun altında tam genişlikte
+  **Dekont yazdır** durur (`parca_durum.html`, HTMX ile gelir). Orada bir
+  süre "Aynı paketi yeniden yükle" vardı; yönetim "buna gerek yok, direk
+  dekont yazdırma gelsin" dedi — yüklenmiş paketi yeniden yüklemek
+  istenen bir iş değil, fiş istenen iştir.
+  · **Her bilgi iki satırdır:** etiket üstte, değer altında, tam genişlikte
+  ve kalın (`.dk-alan`: `<div class="dk-alan"><span>Abone No</span><b>…</b></div>`).
+  Etiketle değer bir süre yan yanaydı: 48 mm'de değere yer kalmıyor,
+  "Ödeniyor" "Ödeniyo / r", "2.200,00" "2.200,0 / 0" diye bölünüyor, yazı
+  da küçük kalıyordu ("her şeye bir satır ekleyelim, alt alta yazsın").
+  Yazı 58 mm'de 12,5 px, 80 mm'de 14 px; toplam en büyük rakamdır.
+  Dekonta yeni bir bilgi eklersen aynı kalıpla ekle, yan yana dizme.
   · **Biçim cihaza aittir** (yazıcı o cihaza bağlı): seçim `localStorage`'da
   durur, sunucuya gitmez. **"Bu cihazda dekont açılınca hemen yazdır"** da
   öyle (`dekont-hemen-yazdir`): işaretliyse dekont açılır açılmaz (yazı tipi

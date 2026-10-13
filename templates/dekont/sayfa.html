@@ -18,6 +18,11 @@
     durur. Rulo sayfası içeriğin boyu kadar kurulur (@page boyu betikten):
     sabit bir boy verilseydi yazıcı fişin altına boş kağıt sürerdi.
 
+    Her bilgi iki satırdır (`.dk-alan`): etiket üstte, değer altında, tam
+    genişlikte ve kalın. Etiketle değer bir süre yan yanaydı; 48 mm'de değere
+    yer kalmıyor, "Ödeniyor" "Ödeniyo / r", "2.200,00" "2.200,0 / 0" diye
+    bölünüyor, yazı da küçük kalıyordu.
+
     Termal kafa gri basamaz: dekontta yalnızca siyah ve düz çizgi var. Biçim
     cihaza aittir (yazıcı o cihaza bağlı), localStorage'da durur. "Açılınca
     yazdır" da cihaza aittir: işaretliyse dekont açılır açılmaz yazdırma
@@ -26,9 +31,9 @@
     seçilen yazıcıyı kendisi hatırlar.
   {% endcomment %}
   <style>
-    html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 10.5px; }
-    html[data-bicim="80"] { --dk-genislik: 72mm; --dk-yazi: 12px; }
-    html[data-bicim="a5"] { --dk-genislik: 124mm; --dk-yazi: 13.5px; }
+    html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 12.5px; }
+    html[data-bicim="80"] { --dk-genislik: 72mm; --dk-yazi: 14px; }
+    html[data-bicim="a5"] { --dk-genislik: 124mm; --dk-yazi: 15px; }
 
     .dekont-kagit {
       max-width: 100%;
@@ -59,14 +64,18 @@
       font-weight: 800;
       letter-spacing: 0.04em;
     }
-    .dk-cizgi { margin: 0.5em 0; border: 0; border-top: 1px dashed #000; }
-    .dk-satir { display: flex; justify-content: space-between; gap: 0.8em; padding: 0.1em 0; }
-    .dk-satir > * { min-width: 0; }
-    .dk-satir > :last-child { text-align: right; font-weight: 700; }
+    .dk-cizgi { margin: 0.6em 0; border: 0; border-top: 1px dashed #000; }
+    /* Etiket üstte, değer altında: <div class="dk-alan"><span>Etiket</span><b>Değer</b></div> */
+    .dk-alan { padding: 0.3em 0; }
+    .dk-alan > * { display: block; }
+    .dk-alan > :first-child { font-weight: 500; }
+    .dk-alan > :last-child { font-size: 1.2em; font-weight: 800; line-height: 1.25; }
+    .dk-kurum { margin-bottom: 0.15em; font-size: 1.25em; font-weight: 800; line-height: 1.2; }
     .dk-kucuk { font-size: 0.85em; }
-    .dk-blok + .dk-blok { margin-top: 0.6em; padding-top: 0.6em; border-top: 1px dashed #000; }
-    .dk-toplam { font-size: 1.3em; font-weight: 800; }
-    .dk-toplam > :last-child { font-weight: 800; }
+    .dk-blok + .dk-blok { margin-top: 0.7em; padding-top: 0.7em; border-top: 1px dashed #000; }
+    .dk-fatura + .dk-fatura { margin-top: 0.3em; padding-top: 0.3em; border-top: 1px dotted #000; }
+    .dk-toplam > :first-child { font-weight: 800; letter-spacing: 0.04em; }
+    .dk-toplam > :last-child { font-size: 1.75em; }
     .dk-pin {
       margin: 0.5em 0;
       padding: 0.4em;
