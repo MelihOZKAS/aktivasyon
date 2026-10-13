@@ -6,8 +6,11 @@ gerçek sayfayı sürerek. Django bekleyen sorguyu kuyruğa koyar, robot
 "bana iş ver" der, sonucu geri yazar. Sözleşme: znetfaturasorgu/DJANGO_API.md.
 
 Para kontördeki gibi `magaza.Siparis` üzerinden yürür: ödeme açılınca tutar
-bakiyeden düşer, borca yazılmaz, iptalde ters kayıtla döner. Ödemeyi
-sağlayıcıda **yönetim elle yapar** ve "Ödendi" der; robot ödeme yapmaz.
+bakiyeden düşer, borca yazılmaz, iptalde ters kayıtla döner. Robot ödeme
+yapmaz. Ödemeyi sağlayıcının fatura API'si yapar (`Gonderim`: her fatura
+kurumun sağlayıcıdaki numarasıyla `fatura_ekle`'ye gider, sonucu sorulur);
+sağlayıcı ya da kurumun numarası tanımlı değilse **yönetim elle öder** ve
+"Ödendi" der.
 """
 
 import hashlib
@@ -178,6 +181,16 @@ class Kurum(ZamanDamgali):
     alis_fiyati = models.DecimalField(
         "Alışımız", max_digits=10, decimal_places=2, null=True, blank=True,
         help_text="Sorgusuz kurumda sağlayıcıya ödediğimiz; yalnızca kâr hesabı için.",
+    )
+    uzak_id = models.CharField(
+        "Sağlayıcıdaki Kurum No",
+        max_length=20,
+        blank=True,
+        help_text=(
+            "Sağlayıcının (Kontorbizde) kurum numarası: Turkcell 8, Vodafone 9… Fatura ödemesi "
+            "bununla gönderilir. Robotun kataloğundan ve Kurumlar listesindeki “Sağlayıcıdan "
+            "eşleştir” düğmesinden kendiliğinden dolar. Boşsa bu kurumun faturasını yönetim elle öder."
+        ),
     )
     sira = models.PositiveIntegerField("Sıra", default=0)
     aktif = models.BooleanField("Aktif", default=True)
@@ -613,6 +626,11 @@ class Odeme(ZamanDamgali):
         help_text="Bayinin o gün gördüğü tavsiye; oran sonra değişse de kayıtta kalır.",
     )
     durum = models.CharField("Durum", max_length=20, choices=OdemeDurumu.choices, default=OdemeDurumu.BEKLIYOR)
+    # Açılışta fatura sağlayıcısı ve kurumun numarası vardı: faturalar
+    # kendiliğinden gönderilir. Kapalıysa yönetim elle öder. Bu özellikten
+    # önce açılmış ödemeler kapalıdır — yönetim onları elle ödüyor olabilir,
+    # işçi onları sağlayıcıya göndermez.
+    otomatik = models.BooleanField("Sağlayıcıya Gönderilir", default=False, editable=False)
     sonuc_notu = models.CharField(
         "Yönetim Notu", max_length=255, blank=True,
         help_text="Bayi görür: iptal sebebi, dekont no…",
@@ -653,3 +671,87 @@ class Odeme(ZamanDamgali):
     @property
     def fatura_nolari(self):
         return [f.get("fatura_no") for f in self.faturalar if f.get("fatura_no")]
+
+    def son_gonderimler(self):
+        """{fatura no: o faturanın son gönderimi} — yeniden gönderim eskisinin yerine geçer.
+
+        `gonderimler` önceden getirildiyse ek sorgu atmaz.
+        """
+        son = {}
+        for gonderim in sorted(self.gonderimler.all(), key=lambda g: g.pk):
+            son[gonderim.fatura_no] = gonderim
+        return son
+
+    @property
+    def saglayicida(self):
+        """Bir faturası sağlayıcıda sürüyor (gönderiliyor ya da sonucu bekleniyor)."""
+        return any(g.suruyor for g in self.son_gonderimler().values())
+
+
+class GonderimDurumu(models.TextChoices):
+    GONDERILIYOR = "gonderiliyor", "Gönderiliyor"
+    ISLEMDE = "islemde", "Sağlayıcıda"
+    ODENDI = "odendi", "Ödendi"
+    REDDEDILDI = "reddedildi", "Gönderilemedi"
+    IPTAL = "iptal", "Sağlayıcı iptal etti"
+    BELIRSIZ = "belirsiz", "Cevap belirsiz"
+
+
+SUREN_GONDERIM = (GonderimDurumu.GONDERILIYOR, GonderimDurumu.ISLEMDE)
+
+
+class Gonderim(models.Model):
+    """Bir faturanın sağlayıcıya ödenmek üzere bir kez gönderilişi.
+
+    Kontördeki `Deneme`nin aynısı: **ağa çıkmadan önce yazılır**; süreç
+    gönderim sırasında düşerse kayıt "Gönderiliyor"da kalır ve belirsize
+    düşer, yeniden gönderilmez. `ref` sağlayıcıya giden tekil numaradır
+    (`tahsilat_api_islem_id`, `Saglayici.ref_sayaci`'ndan). Faturanın son
+    gönderimi geçerlidir; yönetimin elle gönderimi (`elle`) öncekinin yerine geçer.
+    """
+
+    odeme = models.ForeignKey(Odeme, verbose_name="Ödeme", related_name="gonderimler", on_delete=models.CASCADE)
+    saglayici = models.ForeignKey(
+        "kontor.Saglayici", verbose_name="Sağlayıcı", related_name="fatura_gonderimleri", on_delete=models.PROTECT
+    )
+    fatura_no = models.CharField("Fatura No", max_length=60)
+    ref = models.CharField("Bizim Referans", max_length=40)
+    tutar = models.DecimalField("Gönderilen Tutar", max_digits=12, decimal_places=2)
+    durum = models.CharField(
+        "Durum", max_length=15, choices=GonderimDurumu.choices, default=GonderimDurumu.GONDERILIYOR
+    )
+    elle = models.BooleanField("Elle Gönderildi", default=False)
+    mesaj = models.CharField("Sağlayıcının Açıklaması", max_length=255, blank=True)
+    maliyet = models.DecimalField("Sağlayıcı Bedeli", max_digits=12, decimal_places=2, null=True, blank=True)
+    dusen = models.DecimalField(
+        "Sağlayıcıdan Düşen", max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Fatura + sağlayıcının bedeli + varsa gecikme faizi.",
+    )
+    gonderim_istegi = models.TextField("Gönderim İsteği", blank=True, help_text="Şifre gizlenir.")
+    gonderim_cevabi = models.TextField("Gönderim Cevabı", blank=True)
+    sonuc_istegi = models.TextField("Son Sorgu İsteği", blank=True)
+    sonuc_cevabi = models.TextField("Son Sorgu Cevabı", blank=True)
+    son_sorgu = models.DateTimeField("Son Sorgu", null=True, blank=True)
+    olusturma_tarihi = models.DateTimeField("Gönderildi", auto_now_add=True)
+    guncelleme_tarihi = models.DateTimeField("Güncellendi", auto_now=True)
+
+    class Meta:
+        verbose_name = "Fatura Gönderimi"
+        verbose_name_plural = "Fatura Gönderimleri"
+        ordering = ["olusturma_tarihi", "pk"]
+        indexes = [models.Index(fields=["durum", "son_sorgu"])]
+        constraints = [
+            models.UniqueConstraint(fields=["saglayici", "ref"], name="fatura_gonderim_ref"),
+            # Kendiliğinden gönderim her faturaya bir kez: iki süreç (açılıştaki
+            # iş parçacığı ve işçi) aynı faturayı aynı anda gönderemez.
+            models.UniqueConstraint(
+                fields=["odeme", "fatura_no"], condition=models.Q(elle=False), name="fatura_gonderim_otomatik_tekil"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.saglayici} · {self.ref} · {self.fatura_no}"
+
+    @property
+    def suruyor(self):
+        return self.durum in SUREN_GONDERIM

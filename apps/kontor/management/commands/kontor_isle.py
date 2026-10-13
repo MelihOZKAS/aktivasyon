@@ -1,9 +1,10 @@
-"""Kontör işçisi: işlemdekilerin sonucunu sorar, takılanları yürütür.
+"""Kontör ve fatura işçisi: sağlayıcıdaki işlerin sonucunu sorar, takılanları yürütür.
 
 İşlem açıldığı anda arka planda gönderilir; sonucu bayinin sayfası ve bayi
 programının sorgusu da yürütür. İşçi, kimse bakmazken de işin bitmesini
 sağlar: bayi sayfayı kapatsa bile yüklenen işlem kapanır, yüklenemeyen
-iade edilir.
+iade edilir. Fatura ödemelerinin sağlayıcıdaki sonucu da buradan sorulur
+(`apps.fatura.services.bekleyenleri_isle`): aynı sağlayıcı, aynı döngü.
 
     manage.py kontor_isle            bir tur
     manage.py kontor_isle --dongu    sürekli (docker-compose'daki kontor_isci)
@@ -23,6 +24,7 @@ from django.core.management.base import BaseCommand
 from django.db import DEFAULT_DB_ALIAS, close_old_connections, connections
 from django.db.migrations.executor import MigrationExecutor
 
+from apps.fatura.services import bekleyenleri_isle as faturalari_isle
 from apps.kontor.services import bekleyenleri_isle
 
 logger = logging.getLogger(__name__)
@@ -51,7 +53,8 @@ class Command(BaseCommand):
     def handle(self, *args, dongu=False, aralik=3, **options):
         if not dongu:
             adet = bekleyenleri_isle()
-            self.stdout.write(f"{adet} işleme bakıldı.")
+            fatura = faturalari_isle()
+            self.stdout.write(f"{adet} kontör işlemine, {fatura} fatura gönderimine bakıldı.")
             return
 
         while _migration_bekliyor():
@@ -63,11 +66,14 @@ class Command(BaseCommand):
         bekleme = aralik
         while True:
             close_old_connections()
-            try:
-                bekleyenleri_isle()
-                bekleme = aralik
-            except Exception:
-                # Veritabanı kısa süre gitse de işçi ölmesin; bir sonraki tur dener.
-                logger.exception("Kontör işçisi turu başarısız; %s sn sonra yeniden.", bekleme)
-                bekleme = min(bekleme * 2, EN_UZUN_BEKLEME)
+            basarisiz = False
+            # Biri hata verse de öbürü yürüsün: kontör takılınca faturalar beklemesin.
+            for ad, tur in (("Kontör", bekleyenleri_isle), ("Fatura", faturalari_isle)):
+                try:
+                    tur()
+                except Exception:
+                    # Veritabanı kısa süre gitse de işçi ölmesin; bir sonraki tur dener.
+                    logger.exception("%s turu başarısız; %s sn sonra yeniden.", ad, bekleme)
+                    basarisiz = True
+            bekleme = min(bekleme * 2, EN_UZUN_BEKLEME) if basarisiz else aralik
             time.sleep(bekleme)

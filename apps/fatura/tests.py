@@ -969,3 +969,322 @@ class RobotYetkiTestleri(Temel):
         self.hesap.refresh_from_db()
         self.assertEqual(is_.durum, RobotSorgusuDurumu.SORGULANIYOR)
         self.assertFalse(self.hesap.saglayici_doldu_mu("paket"))
+
+
+# -- Sağlayıcıya gönderim ---------------------------------------------------
+
+
+class _Yanit:
+    def __init__(self, govde):
+        self.govde = govde.encode()
+        from unittest import mock
+
+        self.headers = mock.Mock(get_content_charset=lambda: "utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self.govde
+
+
+class SahteSite:
+    """`urlopen` yerine: servisin adına (`fatura_ekle`, `fatura_top_kontrol`…) göre cevap.
+
+    Listede birden çok cevap varsa sırayla verilir, sonuncusu tekrarlanır.
+    """
+
+    def __init__(self, **cevaplar):
+        self.cevaplar = {ad: list(c) if isinstance(c, list) else [c] for ad, c in cevaplar.items()}
+        self.istekler = []
+
+    def __call__(self, istek, timeout=None):
+        adres = istek.full_url
+        self.istekler.append(adres)
+        servis = adres.split("/servis/")[1].split(".php")[0]
+        liste = self.cevaplar[servis]
+        return _Yanit(liste.pop(0) if len(liste) > 1 else liste[0])
+
+    def servis(self, ad):
+        return [a for a in self.istekler if f"/servis/{ad}.php" in a]
+
+
+@__import__("django.test").test.override_settings(FATURA_ARKA_PLAN=False, FATURA_ATOMIK_DENETIMI=False)
+class SaglayiciGonderimTestleri(Temel):
+    """Ödeme açılınca faturalar sağlayıcının fatura API'sine gider, sonucu sorulur."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.kontor.models import Saglayici
+
+        self.saglayici = Saglayici.objects.create(
+            ad="Kontorbizde", tur="znet", adres="https://bayi.kb.test", kullanici_adi="5458301536",
+            sifre="gizli-sifre", fatura_odemesi=True, ref_sayaci=5000,
+        )
+        self.vodafone.uzak_id = "9"
+        self.vodafone.save()
+
+    def ode(self, site, faturalar=("FD60950NCB9D53",)):
+        from unittest import mock
+
+        with mock.patch("urllib.request.urlopen", side_effect=site), self.captureOnCommitCallbacks(execute=True):
+            odeme = odeme_baslat(self.bayi, self.tamam_sorgu(), list(faturalar))
+        odeme.refresh_from_db()
+        return odeme
+
+    def isle(self, site):
+        from unittest import mock
+
+        from apps.fatura.services import bekleyenleri_isle
+
+        with mock.patch("urllib.request.urlopen", side_effect=site):
+            bekleyenleri_isle()
+
+    def sorulabilir_yap(self):
+        from apps.fatura.models import Gonderim
+
+        Gonderim.objects.update(son_sorgu=timezone.now() - timedelta(minutes=1))
+
+    def test_fatura_kurum_numarasiyla_gider_odenince_kapanir(self):
+        site = SahteSite(fatura_ekle=["OK|0.30|2644.78|390.30", "OK|0.30|2464.48|180.30"])
+        odeme = self.ode(site, faturalar=["FD60950NCB9D53", "FD00000000002"])
+        self.assertTrue(odeme.otomatik)
+        self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
+        birinci, ikinci = odeme.gonderimler.order_by("pk")
+        self.assertEqual((birinci.durum, birinci.dusen, birinci.maliyet), ("islemde", TL("390.30"), TL("0.30")))
+        self.assertEqual(ikinci.fatura_no, "FD00000000002")
+        istek = site.servis("fatura_ekle")[0]
+        for parca in ("kod=5458301536", "kurum_id=9", f"tahsilat_api_islem_id={birinci.ref}",
+                      "fatura_no=FD60950NCB9D53", "fatura_tutari=390.00", "son_odeme_tarihi=2026-10-14",
+                      "tesisat_no=5332590138"):
+            self.assertIn(parca, istek)
+        # Şifre kayıtta gizli, istekte var.
+        self.assertIn("sifre=***", birinci.gonderim_istegi)
+        self.assertNotIn("gizli-sifre", birinci.gonderim_istegi)
+        # Sağlayıcıda süren ödeme yönetimin elinde değil: rozet saymaz.
+        from apps.fatura.services import yonetim_bekleyenler
+
+        self.assertFalse(yonetim_bekleyenler().exists())
+
+        # Toplu sorgu: biri ödendi, öbürü bekliyor (bekleyen yazılmaz) → ödeme sürer.
+        self.sorulabilir_yap()
+        self.isle(SahteSite(fatura_top_kontrol=f"{birinci.ref}|2||##"))
+        odeme.refresh_from_db()
+        self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
+        self.sorulabilir_yap()
+        site = SahteSite(fatura_top_kontrol=f"{ikinci.ref}|2||##", fatura_kontrol="2:ONAYLI")
+        self.isle(site)
+        odeme.refresh_from_db()
+        self.assertEqual(odeme.durum, OdemeDurumu.ODENDI)
+        self.assertEqual(odeme.siparis.durum, SiparisDurumu.TESLIM)
+        self.assertEqual(self.bakiye(), TL("420.00"))  # 390 + 5 ve 180 + 5 düştü, iade yok
+
+    def test_sonuc_25_saniyeden_sik_sorulmaz(self):
+        site = SahteSite(fatura_ekle="OK|0.30|1000.00|390.30")
+        self.ode(site)
+        sorgu = SahteSite(fatura_kontrol="1:BEKLIYOR")
+        self.isle(sorgu)
+        self.isle(sorgu)
+        self.assertEqual(len(sorgu.servis("fatura_kontrol")), 1)
+
+    def test_saglayici_iptal_ederse_tutar_iade_edilir_sebep_bayiye(self):
+        odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
+        self.assertEqual(self.bakiye(), TL("605.00"))
+        self.isle(SahteSite(fatura_kontrol="3:Fatura kurumda ödenmiş görünüyor"))
+        odeme.refresh_from_db()
+        self.assertEqual(odeme.durum, OdemeDurumu.IPTAL)
+        self.assertEqual(odeme.sonuc_notu, "Fatura kurumda ödenmiş görünüyor")
+        self.assertEqual(self.bakiye(), TL("1000.00"))
+
+    def test_gonderilemeyen_iade_edilmez_yonetimde_kalir_elle_gonderilir(self):
+        from apps.fatura.models import Gonderim
+        from apps.fatura.services import yonetim_bekleyenler
+
+        odeme = self.ode(SahteSite(fatura_ekle="3|Bakiyeniz yetersiz"))
+        gonderim = odeme.gonderimler.get()
+        self.assertEqual((gonderim.durum, gonderim.mesaj), ("reddedildi", "Bakiyeniz yetersiz"))
+        odeme.refresh_from_db()
+        self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
+        self.assertEqual(self.bakiye(), TL("605.00"))
+        self.assertEqual(list(yonetim_bekleyenler()), [odeme])
+        # İşçi reddedilmiş faturayı kendiliğinden yeniden göndermez.
+        site = SahteSite(fatura_ekle="OK|0.30|1000.00|390.30")
+        self.isle(site)
+        self.assertEqual(site.servis("fatura_ekle"), [])
+
+        # Yönetim bakiyeyi düzeltip Karar ekranından yeniden gönderir.
+        from unittest import mock
+
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        adres = reverse("admin:fatura_odeme_karar", args=[odeme.pk])
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "3|Bakiyeniz yetersiz")
+        self.assertContains(yanit, "Sağlayıcıya gönder")
+        with mock.patch("urllib.request.urlopen", side_effect=site):
+            self.client.post(adres, {"karar": "gonder"})
+        yeni = Gonderim.objects.order_by("pk").last()
+        self.assertEqual((yeni.elle, yeni.durum), (True, "islemde"))
+        self.assertNotEqual(yeni.ref, gonderim.ref)
+        self.assertFalse(yonetim_bekleyenler().exists())
+        # Sağlayıcıda sürerken ikinci kez gönderilmez.
+        with mock.patch("urllib.request.urlopen", side_effect=site):
+            self.client.post(adres, {"karar": "gonder"})
+        self.assertEqual(Gonderim.objects.count(), 2)
+
+    def test_belirsiz_cevap_yeniden_gonderilmez_sorgulaninca_surer(self):
+        from unittest import mock
+
+        odeme = self.ode(SahteSite(fatura_ekle="4|Daha Önce Gönderilmiş (166189)"))
+        gonderim = odeme.gonderimler.get()
+        self.assertEqual(gonderim.durum, "belirsiz")
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        adres = reverse("admin:fatura_odeme_karar", args=[odeme.pk])
+        self.assertContains(self.client.get(adres), "ödenmiş de olabilir")
+        with mock.patch("urllib.request.urlopen", side_effect=SahteSite(fatura_kontrol="1:BEKLIYOR")):
+            self.client.post(adres, {"karar": "sorgula"})
+        gonderim.refresh_from_db()
+        self.assertEqual((gonderim.durum, gonderim.sonuc_cevabi), ("islemde", "1:BEKLIYOR"))
+
+    def test_zaman_asiminda_belirsiz_baglanti_kurulamazsa_gonderilemedi(self):
+        import socket
+        import urllib.error
+        from unittest import mock
+
+        with mock.patch("urllib.request.urlopen", side_effect=socket.timeout()), \
+                self.captureOnCommitCallbacks(execute=True):
+            odeme = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD60950NCB9D53"])
+        self.assertEqual(odeme.gonderimler.get().durum, "belirsiz")
+        hata = urllib.error.URLError(ConnectionRefusedError())
+        with mock.patch("urllib.request.urlopen", side_effect=hata), self.captureOnCommitCallbacks(execute=True):
+            odeme = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD00000000002"])
+        self.assertEqual(odeme.gonderimler.get().durum, "reddedildi")
+
+    def test_kurum_numarasi_ya_da_saglayici_yoksa_yonetim_elle_oder(self):
+        from apps.fatura.services import yonetim_bekleyenler
+
+        self.vodafone.uzak_id = ""
+        self.vodafone.save()
+        site = SahteSite(fatura_ekle="OK|0.30|1000.00|390.30")
+        odeme = self.ode(site)
+        self.assertFalse(odeme.otomatik)
+        self.assertEqual(site.istekler, [])
+        self.assertEqual(list(yonetim_bekleyenler()), [odeme])
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        yanit = self.client.get(reverse("admin:fatura_odeme_karar", args=[odeme.pk]))
+        self.assertContains(yanit, "sağlayıcıdaki numarası boş")
+
+        self.vodafone.uzak_id = "9"
+        self.vodafone.save()
+        self.saglayici.fatura_odemesi = False
+        self.saglayici.save()
+        self.assertFalse(self.ode(site, faturalar=["FD00000000002"]).otomatik)
+        self.assertEqual(site.istekler, [])
+
+    def test_iscinin_devraldigi_ve_eskiyen_odeme(self):
+        from unittest import mock
+
+        from apps.fatura.services import OTOMATIK_GONDERIM_SURESI
+
+        # Açılıştaki iş parçacığı ölmüş: gönderim yok. İşçi 10 sn sonra devralır.
+        with mock.patch("apps.fatura.services.arka_planda_gonder"), self.captureOnCommitCallbacks(execute=True):
+            odeme = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD60950NCB9D53"])
+        site = SahteSite(fatura_ekle="OK|0.30|1000.00|390.30", fatura_kontrol="1:BEKLIYOR")
+        self.isle(site)
+        self.assertEqual(site.servis("fatura_ekle"), [])  # henüz iş parçacığının süresi
+        Odeme.objects.filter(pk=odeme.pk).update(olusturma_tarihi=timezone.now() - timedelta(seconds=20))
+        self.isle(site)
+        self.assertEqual(len(site.servis("fatura_ekle")), 1)
+        self.isle(site)
+        self.assertEqual(len(site.servis("fatura_ekle")), 1)  # bir kez
+
+        # Beş dakikadan eskisi yönetimindir: elle ödüyor olabilir.
+        with mock.patch("apps.fatura.services.arka_planda_gonder"), self.captureOnCommitCallbacks(execute=True):
+            eski = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD00000000002"])
+        Odeme.objects.filter(pk=eski.pk).update(
+            olusturma_tarihi=timezone.now() - OTOMATIK_GONDERIM_SURESI - timedelta(seconds=1)
+        )
+        self.isle(site)
+        self.assertEqual(len(site.servis("fatura_ekle")), 1)
+
+    def test_yarida_kalan_gonderim_belirsize_duser(self):
+        from apps.fatura.models import Gonderim
+
+        odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
+        Gonderim.objects.update(durum="gonderiliyor", olusturma_tarihi=timezone.now() - timedelta(minutes=3))
+        self.isle(SahteSite(fatura_kontrol="1:BEKLIYOR"))
+        self.assertEqual(odeme.gonderimler.get().durum, "belirsiz")
+
+    def test_yonetim_listesi_ve_rozet(self):
+        from apps.rozetler import bekleyen_fatura_odemeleri
+
+        self.ode(SahteSite(fatura_ekle="3|Kurum kapalı"))
+        self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|180.30"), faturalar=["FD00000000002"])
+        self.assertEqual(str(bekleyen_fatura_odemeleri(None)), "1")
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        yanit = self.client.get(reverse("admin:fatura_odeme_changelist"))
+        self.assertContains(yanit, "Gönderilemedi")
+        self.assertContains(yanit, "Sağlayıcıda")
+        yanit = self.client.get(reverse("admin:fatura_odeme_changelist") + "?karar=bekliyor")
+        self.assertContains(yanit, "Gönderilemedi")
+        self.assertNotContains(yanit, "Sağlayıcıda</span>")
+
+
+class KurumNumarasiTestleri(Temel):
+    """Kurumun sağlayıcıdaki numarası: robotun token'ından ve sağlayıcının listesinden."""
+
+    def test_robot_katalogu_token_icindeki_numarayi_yazar(self):
+        import base64
+
+        token = base64.b64encode("&id=120&kurum_adi=TTNET Mobil&api_durum=a&api_adi=92".encode()).decode()
+        katalog_yaz([{"id": "ttnet-mobil", "kurum_adi": "TTNET Mobil", "token": token}])
+        self.assertEqual(Kurum.objects.get(kod="ttnet-mobil").uzak_id, "120")
+        # Kurulumun tohumu var olana dokunmaz ama boş numarayı doldurur.
+        self.assertEqual(self.vodafone.uzak_id, "")
+        katalog_yaz([{"id": "vodafone", "kurum_adi": "Vodafone", "uzak_id": "9", "min_hane": 7}],
+                    var_olani_guncelle=False)
+        self.vodafone.refresh_from_db()
+        self.assertEqual((self.vodafone.uzak_id, self.vodafone.min_hane), ("9", 10))
+
+    def test_kurulum_tohumunda_numaralar_var(self):
+        call_command("fatura_kurumlari", stdout=StringIO())
+        self.assertEqual(Kurum.objects.get(kod="turkcell").uzak_id, "8")
+        self.assertFalse(Kurum.objects.filter(uzak_id="").exclude(kod__in=["vodafone", "100-tl-yukle-plaka"]).exists())
+
+    def test_saglayicidan_eslestir(self):
+        from unittest import mock
+
+        from apps.fatura.services import kurumlari_eslestir
+        from apps.kontor.models import Saglayici
+
+        with self.assertRaisesMessage(FaturaHatasi, "Fatura sağlayıcısı seçili değil"):
+            kurumlari_eslestir()
+        Saglayici.objects.create(ad="KB", tur="znet", adres="kb.test", kullanici_adi="u", sifre="s", fatura_odemesi=True)
+        Kurum.objects.create(kod="bag-kur", ad="Bağ-kur")
+        liste = "8,2,Turkcell,0.30,#9,3,Vodafone,0.30,#103,90,Bağ-kur,3.00,#200,90,Bağ-kur,3.00,#"
+        with mock.patch("urllib.request.urlopen", side_effect=SahteSite(kurum_listesi=liste)):
+            adet, guncellenen, eslesmeyen = kurumlari_eslestir()
+        self.assertEqual((adet, guncellenen), (4, 1))
+        self.vodafone.refresh_from_db()
+        self.assertEqual(self.vodafone.uzak_id, "9")
+        # Aynı adda iki kayıt: hangisi olduğu bilinmez, eşleştirilmez.
+        self.assertIn("Bağ-kur", eslesmeyen)
+
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        self.assertContains(self.client.get(reverse("admin:fatura_kurum_changelist")), "Sağlayıcıdan eşleştir")
+
+    def test_fatura_saglayicisi_tektir_ve_fatura_alan_yazilim_olmali(self):
+        from apps.kontor.models import Saglayici
+
+        bir = Saglayici.objects.create(ad="KB", tur="znet", adres="kb.test", kullanici_adi="u", sifre="s", fatura_odemesi=True)
+        iki = Saglayici(ad="KB2", tur="znet", adres="kb2.test", kullanici_adi="u", sifre="s", fatura_odemesi=True)
+        with self.assertRaisesMessage(ValidationError, "“KB” sağlayıcısına gidiyor"):
+            iki.full_clean()
+        bir.fatura_odemesi = False
+        bir.save()
+        iki.full_clean()
+        iki.tur = "grafi"
+        with self.assertRaisesMessage(ValidationError, "fatura ödemesi almıyor"):
+            iki.full_clean()

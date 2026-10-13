@@ -37,6 +37,7 @@
     {
       "id": "avea",
       "kurum_adi": "Avea",
+      "uzak_id": "7",
       "kategori": "GSM",
       "operator": "Türk Telekom",
       "alan_etiketi": "Telefon Numarası",
@@ -49,6 +50,7 @@
     {
       "id": "online-avea-cep",
       "kurum_adi": "ONLİNE AVEA CEP",
+      "uzak_id": "314",
       "kategori": "GSM",
       "operator": "Türk Telekom",
       "alan_etiketi": "Telefon Numarası",
@@ -61,6 +63,7 @@
     {
       "id": "pttcell",
       "kurum_adi": "PTTCELL",
+      "uzak_id": "318",
       "kategori": "GSM",
       "operator": "",
       "alan_etiketi": "Telefon Numarası",
@@ -73,6 +76,7 @@
     {
       "id": "ttnet-mobil",
       "kurum_adi": "TTNET Mobil",
+      "uzak_id": "120",
       "kategori": "GSM",
       "operator": "Türk Telekom",
       "alan_etiketi": "Telefon Numarası",
@@ -85,6 +89,7 @@
     {
       "id": "turkcell",
       "kurum_adi": "Turkcell",
+      "uzak_id": "8",
       "kategori": "GSM",
       "operator": "Turkcell",
       "alan_etiketi": "Telefon Numarası",
@@ -97,6 +102,7 @@
     {
       "id": "turk-telekom",
       "kurum_adi": "Türk Telekom",
+      "uzak_id": "6",
       "kategori": "GSM",
       "operator": "Türk Telekom",
       "alan_etiketi": "Telefon Numarası",
@@ -109,6 +115,7 @@
     {
       "id": "vodafone",
       "kurum_adi": "Vodafone",
+      "uzak_id": "9",
       "kategori": "GSM",
       "operator": "Vodafone",
       "alan_etiketi": "Telefon Numarası",
@@ -121,6 +128,7 @@
     {
       "id": "d-smart-internet",
       "kurum_adi": "D-SMART İNTERNET",
+      "uzak_id": "109",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -133,6 +141,7 @@
     {
       "id": "doping-millenicom",
       "kurum_adi": "Doping Millenicom",
+      "uzak_id": "87",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Müşteri Kodu",
@@ -145,6 +154,7 @@
     {
       "id": "goknet",
       "kurum_adi": "GÖKNET",
+      "uzak_id": "214",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Hesap No",
@@ -157,6 +167,7 @@
     {
       "id": "hurnet-telekom",
       "kurum_adi": "HÜRNET TELEKOM",
+      "uzak_id": "33",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -169,6 +180,7 @@
     {
       "id": "hiperonline",
       "kurum_adi": "HİPERONLİNE",
+      "uzak_id": "317",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -181,6 +193,7 @@
     {
       "id": "net-gsm",
       "kurum_adi": "NET GSM",
+      "uzak_id": "40",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -193,6 +206,7 @@
     {
       "id": "oris-telekom",
       "kurum_adi": "ORİS TELEKOM",
+      "uzak_id": "42",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -205,6 +219,7 @@
     {
       "id": "superonline",
       "kurum_adi": "Superonline",
+      "uzak_id": "10",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -217,6 +232,7 @@
     {
       "id": "ttnet-adsl",
       "kurum_adi": "TTNET Adsl",
+      "uzak_id": "11",
       "kategori": "İnternet",
       "operator": "Türk Telekom",
       "alan_etiketi": "Hesap No",
@@ -229,6 +245,7 @@
     {
       "id": "turuncu-net",
       "kurum_adi": "TURUNCU NET",
+      "uzak_id": "308",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -241,6 +258,7 @@
     {
       "id": "ttnet-tc-tel-no",
       "kurum_adi": "Ttnet Tc-Tel No",
+      "uzak_id": "309",
       "kategori": "İnternet",
       "operator": "Türk Telekom",
       "alan_etiketi": "TC-Telefon No",
@@ -253,6 +271,7 @@
     {
       "id": "turknet",
       "kurum_adi": "Turknet",
+      "uzak_id": "31",
       "kategori": "İnternet",
       "operator": "",
       "alan_etiketi": "Müşteri No",
@@ -265,6 +284,7 @@
     {
       "id": "vodafone-net",
       "kurum_adi": "VODAFONE Net",
+      "uzak_id": "36",
       "kategori": "İnternet",
       "operator": "Vodafone",
       "alan_etiketi": "Abone Numarası",
@@ -277,6 +297,7 @@
     {
       "id": "d-smart-faturasi",
       "kurum_adi": "D-Smart Faturası",
+      "uzak_id": "108",
       "kategori": "TV",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -289,6 +310,7 @@
     {
       "id": "digiturk-faturasi",
       "kurum_adi": "Digiturk Faturası",
+      "uzak_id": "30",
       "kategori": "TV",
       "operator": "",
       "alan_etiketi": "Abone Numarası",
@@ -301,6 +323,7 @@
     {
       "id": "turksat-faturasi",
       "kurum_adi": "Turksat Faturası",
+      "uzak_id": "12",
       "kategori": "TV",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -313,6 +336,7 @@
     {
       "id": "toroslar-elektrik",
       "kurum_adi": "TOROSLAR ELEKTRİK",
+      "uzak_id": "140",
       "kategori": "Elektrik",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -325,6 +349,7 @@
     {
       "id": "hatay-su",
       "kurum_adi": "HATAY SU",
+      "uzak_id": "162",
       "kategori": "Su",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -337,6 +362,7 @@
     {
       "id": "aksa-gaz-adana-mersin-osmaniye-hatay",
       "kurum_adi": "AKSA GAZ-adana-mersin-osmaniye-hatay",
+      "uzak_id": "276",
       "kategori": "Doğalgaz",
       "operator": "",
       "alan_etiketi": "Abone No",
@@ -349,6 +375,7 @@
     {
       "id": "100-tl-tc-ile-yukle",
       "kurum_adi": "100 TL TC İle Yükle",
+      "uzak_id": "301",
       "kategori": "HGS",
       "operator": "",
       "alan_etiketi": "Tc No",
@@ -361,6 +388,7 @@
     {
       "id": "100-tl-yukle-plaka",
       "kurum_adi": "100 TL Yükle Plaka",
+      "uzak_id": "300",
       "kategori": "HGS",
       "operator": "",
       "alan_etiketi": "Plaka",
@@ -373,6 +401,7 @@
     {
       "id": "250-tl-tc-ile-yukle",
       "kurum_adi": "250 TL TC İle Yükle",
+      "uzak_id": "299",
       "kategori": "HGS",
       "operator": "",
       "alan_etiketi": "Plaka",
@@ -385,6 +414,7 @@
     {
       "id": "250-tl-yukle-plaka",
       "kurum_adi": "250 TL Yükle Plaka",
+      "uzak_id": "311",
       "kategori": "HGS",
       "operator": "",
       "alan_etiketi": "Plaka",
@@ -397,6 +427,7 @@
     {
       "id": "500-tl-tc-ile-yukle",
       "kurum_adi": "500 TL TC İle Yükle",
+      "uzak_id": "312",
       "kategori": "HGS",
       "operator": "",
       "alan_etiketi": "Tc No",
@@ -409,6 +440,7 @@
     {
       "id": "500-tl-yukle-plaka",
       "kurum_adi": "500 TL Yükle Plaka",
+      "uzak_id": "313",
       "kategori": "HGS",
       "operator": "",
       "alan_etiketi": "Plaka",
@@ -421,6 +453,7 @@
     {
       "id": "avon",
       "kurum_adi": "AVON",
+      "uzak_id": "310",
       "kategori": "Diğer",
       "operator": "",
       "alan_etiketi": "Abone Numarası",

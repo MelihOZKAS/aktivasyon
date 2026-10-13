@@ -930,10 +930,10 @@ def _gonder(islem, saglayici, kod, operator, tip, *, elle=False, paket=None):
     islem.save(update_fields=["saglayici", "guncelleme_tarihi"])
 
     son_istek_sifirla()
+    adaptor = saglayici.adaptor()
+    gonder = adaptor.oyun_gonder if _oyun_mu(islem) else adaptor.gonder
     try:
-        sonuc = saglayici.adaptor().gonder(
-            ref=deneme.ref, hedef=islem.hedef, uzak_kod=kod, uzak_operator=operator, uzak_tip=tip
-        )
+        sonuc = gonder(ref=deneme.ref, hedef=islem.hedef, uzak_kod=kod, uzak_operator=operator, uzak_tip=tip)
     except SaglayiciHatasi as hata:
         deneme.gonderim_istegi = son_istek()
         deneme.gonderim_cevabi = str(hata)
@@ -1014,11 +1014,23 @@ def _sonucu_sor(islem, *, zorla=False):
     _siradakine_gonder(islem, son_ret=_ret_metni(deneme))
 
 
+def _oyun_mu(islem):
+    """Oyun / e-pin işlemi mi: sağlayıcının pin servisine gider (`Adaptor.oyun_gonder`).
+
+    Kategorinin "Oyun / E-pin" işaretinden okunur — vitrini ayıran anahtar
+    sağlayıcıdaki kapıyı da seçer. Ayrı pin servisi olmayan yazılımda iki
+    kapı aynıdır.
+    """
+    return bool(islem.kategori_id and islem.kategori.oyun)
+
+
 def _sor(deneme):
     """Sağlayıcıya sorar, cevabı denemeye yazar. Ağ hatasında `None`."""
     son_istek_sifirla()
+    adaptor = deneme.saglayici.adaptor()
+    sorgula = adaptor.oyun_sorgula if _oyun_mu(deneme.islem) else adaptor.sorgula
     try:
-        sonuc = deneme.saglayici.adaptor().sorgula(ref=deneme.ref, uzak_ref=deneme.uzak_ref)
+        sonuc = sorgula(ref=deneme.ref, uzak_ref=deneme.uzak_ref)
     except SaglayiciHatasi as hata:
         logger.warning("Kontör sonucu sorulamadı (%s): %s", deneme.ref, hata)
         deneme.sonuc_istegi = son_istek()

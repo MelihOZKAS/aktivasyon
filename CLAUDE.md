@@ -33,7 +33,7 @@ Bu ilkeyi bozan bir çözüm önerme.
 | Mağaza | `apps/magaza` | Bayinin hakedişiyle aldığı ürünler |
 | eSIM | `apps/esim` | Sağlayıcı API'lerinden çekilen yurt dışı internet paketleri, kur ve kâr oranıyla satış, QR teslimi |
 | Kontör | `apps/kontor` | TL, paket ve oyun pini yükleme; sağlayıcı sırası, askı ve iade; bayi programları için Znet uyumlu API |
-| Fatura | `apps/fatura` | Fatura sorgu ve ödeme; sorguyu laptoptaki robot yapar (`znetfaturasorgu/`), ödemeyi yönetim elle yapar |
+| Fatura | `apps/fatura` | Fatura sorgu ve ödeme; sorguyu laptoptaki robot yapar (`znetfaturasorgu/`), ödemeyi sağlayıcının fatura API'si yapar (tanımlı değilse yönetim elle) |
 
 ## Kurulum sırası
 
@@ -529,6 +529,28 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   eski arama bin kartı çizip gizliyordu. Kategori ekranı bayiye fiyatı
   olmayan kategoriyi hiç listelemez (`kategori_listesi(bayi=…)`) — içi boş
   açılmasın. Yeni bir paket listesi yazarsan sayfala.
+  · **Oyun pini Znet'te kontörün değil pin servisinin kapısından gider**
+  (`pin_ekle.php` / `pin_kontrol.php`, sağlayıcının `api.pdf`'i). Kapıyı
+  kategorinin **Oyun / E-pin** işareti seçer (`services._oyun_mu` →
+  `Adaptor.oyun_gonder`/`oyun_sorgula`); ayrı pin servisi olmayan yazılımda
+  ikisi aynı kapıdır. Gönderim, sorgu, askı ve iade kuralları kontörle
+  aynıdır. Pin servisi ürünü oyun + kupürle arar, bu yüzden **karşı site
+  kodu "oyun-kupür"dür** (`1-325`; oyun numarası rakam olmalı, değilse —
+  karşı kod boş bırakılıp bizim `pubg-325` gidecekken — istek hiç gitmez,
+  işlem sebebiyle askıya düşer). Pin `OK|2|PİN|…` ile gelir ve bayiye
+  sonuç mesajı olarak yazılır (dekonttaki pin); oyuncu ID'li oyunda hedef
+  `oyuncu_bilgi` olarak gider. Kabul `OK|maliyet|kalan` üç alandır —
+  kontörün `OK|3|…` biçimi kabul sayılmaz. **Eşleştirme:** **Fiyat
+  listesini çek** kontör listesiyle birlikte `pin_listesi.php`'yi de çeker
+  (biri alınamazsa öbürü yine gelir — Kontorbizde kontör listesi vermiyor);
+  pinler `SaglayiciPaketi` olarak `oyun_id-kupur` koduyla, `tip="pin"`
+  durur, kodu tutan rotanın alışı güncellenir. Sağlayıcının sayfasındaki
+  Paketler tablosunda operatör kutusunda **Oyun & Pin** seçilir (oyun
+  kategorilerinin operatörü yok); karşı site kodu kutusu pin listesini
+  öneri olarak gösterir, seçilen kodun alışı boşsa listedeki fiyatla dolar.
+  `api.pdf` `oyun` için hem `oyun_id`'yi hem `oyun_bilgi_id`'yi anıyor ve
+  örnekte ikisi de 1; liste `oyun_id`'yi yazar, sağlayıcı başkasını isterse
+  kod satırdan değiştirilir — kod değişikliği gerekmez.
   · **Bayi programları Znet protokolüyle bağlanır** (`/servis/tl_servis.php`,
   `/servis/tl_kontrol.php`, `apps/kontor/api.py`). Şifre hesap parolası
   değildir: `ApiErisimi`'nde üretilir, bir kez gösterilir, SHA-256 özeti
@@ -706,8 +728,8 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   her satır bir sorgudur.
 - **Fatura ödeme ayrı bir bölümdür** (`apps/fatura`, `/fatura/…`, menüde
   Oyun & Pin'in altında). Akış: kurum seç → numara → sorgu → fatura seç →
-  öde. Sağlayıcının (Kontorbizde) fatura API'si **yok**; sorguyu laptopta
-  çalışan robot yapar (`znetfaturasorgu/`, Django'dan ayrı klasör, kendi
+  öde. Sağlayıcının (Kontorbizde) fatura **sorgu** API'si yok (ödeme API'si
+  var, aşağıda); sorguyu laptopta çalışan robot yapar (`znetfaturasorgu/`, Django'dan ayrı klasör, kendi
   `BENIOKU.txt`'si): gerçek Chromium'da, yöneticinin bir kez elle girdiği
   oturumla gerçek sorgu sayfasını sürer. Sayfanın jetonları (`znet_token`,
   Turnstile) taklit edilmez, sayfa kendisi üretir; giriş ekranındaki resim
@@ -869,12 +891,60 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Ders: "aynı yapı" aynı **düzen** demek, aynı sayfa değil — her bölüm kendi
   menüsünden kendi sayfasını açar; kontörde çözülmüş bir şey yeniden icat
   edilmez, aynı parçalarla kurulur.
-  · **Ödemeyi yönetim sağlayıcıda elle yapar**, robot ödeme yapmaz (ödeme
-  token'ı yine de saklanır). Karar Ödemeler'deki **Karar** ekranından
-  (GET onay, POST): "Ödendi" (sipariş teslim, para yerinde) ya da "İptal +
-  iade" (sebep zorunlu, bayi görür). Tek kapı `services.odendi_isaretle` /
-  `iptal_et`; sonuçlanmış ödemeye ikinci karar verilmez. Bekleyenler yan
-  menüde rozetle sayılır ve çın sesiyle haber verilir.
+  · **Ödemeyi sağlayıcının fatura API'si yapar** (`fatura_ekle.php`,
+  sağlayıcının `api.pdf`'i; robot ödeme yapmaz). Ödeme açılınca her fatura
+  ayrı bir `Gonderim`dir: kurumun **sağlayıcıdaki numarası**
+  (`Kurum.uzak_id`, KURUM ID: Turkcell 8, Vodafone 9), faturanın bedeli
+  (`fatura_tutari`, sağlayıcının toplamı değil), son ödeme günü
+  (`YYYY-AA-GG`'ye çevrilir), sorgunun tesisat no'su ve tekil numara
+  (`tahsilat_api_islem_id`, kontörle ortak `Saglayici.ref_sayaci`). Hangi
+  sağlayıcıya gideceği veridir: sağlayıcının sayfasında **Fatura ödemeleri
+  buraya** (tek sağlayıcıda açık olur, fatura almayan yazılımda
+  kaydedilmez). Gönderim bayinin isteğinde değil, commit'ten sonra iş
+  parçacığında yapılır; ölürse işçi 10 sn sonra devralır. Sonuç işçide
+  (`kontor_isle` döngüsü, `fatura.services.bekleyenleri_isle`) 25 sn'de bir
+  toplu sorulur (`fatura_top_kontrol`, 100'lük; bekleyen yazılmaz):
+  hepsi **ödendi** → ödeme kendiliğinden "Ödendi"; sağlayıcı kabul edip
+  hepsini **iptal** etti → kendiliğinden "İptal + iade", sebep sağlayıcının
+  açıklaması (bayi görür, sağlayıcı adı yazılmaz).
+  **Kontörün tek gönderim ilkesi aynen geçerlidir:** gönderim ağa çıkmadan
+  yazılır (`odemeyi_gonder` transaction içinden çağrılırsa `RuntimeError`,
+  Karar ekranı `non_atomic_requests`); kendiliğinden gönderim her faturaya
+  bir kez (`fatura_gonderim_otomatik_tekil`); "Gönderiliyor"da 2 dk kalan
+  belirsize düşer. **Ret iade değildir:** sağlayıcı gönderimi reddederse
+  (`3|…`: bakiyemiz, kurum numarası, gece kapalı) ya da cevap anlaşılmazsa
+  (zaman aşımı, `4|Daha Önce Gönderilmiş` — numara başka işlemde kullanılmış,
+  sonucunu sormak başka faturanın sonucunu okumak olurdu) ödeme **yönetimin
+  eline** düşer; kontördeki gibi her ödemeyi iade etmek yanlış eşleşmiş tek
+  kurumda her satışı iptal ederdi. Karışık sonuç (biri ödendi biri iptal)
+  da yönetimindir: kısmi iade bir karardır.
+  **Kendiliğinden gönderilen ödeme** `Odeme.otomatik`'tir, açılış anında
+  sağlayıcı ve kurumun numarası varsa açılır. Bu özellikten önceki ve
+  numarasız kurumun ödemeleri kapalıdır; işçi 5 dk'dan eski ödemeyi de
+  göndermez — yönetim o arada elle ödüyor olabilir, ikinci kez ödetmesin.
+  Sorgusuz kalem (HGS 100 TL) gönderilmez, elle yüklenir.
+  **Yönetimin elindekiler** (`services.yonetim_bekleyenler`: sonuçlanmamış
+  ve sağlayıcıda sürmeyen) rozetle sayılır, listede **Karar: Yönetimin
+  elinde** süzgeci ve kırmızı Karar düğmesiyle görünür. Karar ekranı (GET
+  onay, POST) her gönderimin giden isteğini ve gelen cevabını kısaltmadan
+  gösterir (şifre `***`) ve dört şey yapar: **Sonucu sorgula** (salt
+  okuma, tekil `fatura_kontrol`; belirsiz gönderim sağlayıcıda bulunursa o
+  duruma geçer), **Sağlayıcıya gönder** (tek bilinçli yeniden gönderim;
+  ödenmemiş ve sürmeyen faturalar, `elle` gönderim öncekinin yerine
+  geçer), **Ödendi** (elle ödedi) ve **İptal + iade** (sebep zorunlu).
+  Tek kapı `services.odendi_isaretle` / `iptal_et`; sonuçlanmış ödemeye
+  ikinci karar verilmez. Sağlayıcı tanımlı değilse ya da kurumun numarası
+  boşsa akış eskisi gibidir: yönetim Kontorbizde'de elle öder, "Ödendi" der.
+  · **Kurumun sağlayıcıdaki numarası kendiliğinden dolar.** Robotun
+  kataloğundaki her kurum token'ı sağlayıcının kurum kaydıdır (base64
+  `&id=120&…&api_adi=92`): `id` fatura API'sinin KURUM ID'si, `api_adi`
+  tekil olmayan sorgu kodu (`kurum_listesi.php`'de "120,92,TTNET Mobil").
+  `katalog_yaz` token'dan okur (`uzak_id_coz`); tohum dosyası
+  (`veri/kurumlar.json`) numaralarla gelir ve kurulum **yalnızca boş
+  numarayı** doldurur. Kurumlar listesindeki **Sağlayıcıdan eşleştir**
+  sağlayıcının listesini çekip adla eşleştirir (`kurumlari_eslestir`): aynı
+  adda iki kayıt (Bağ-kur) eşleştirilmez, dolu ve listede bulunan numaraya
+  dokunulmaz; eşleşmeyen satırdan elle yazılır (Sağlayıcı No sütunu).
 - **Dekont müşteriye verilir: 58 mm, 80 mm termal ve A5** (`apps/bayi/dekont.py`,
   `templates/dekont/sayfa.html`). Kontörde işlem sayfasından
   (`/kontor/islem/<ref>/dekont/`), faturada ödeme sayfasından
@@ -1666,8 +1736,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - Hangi durumların bildireceğini admin seçer (`BasvuruDurumu.bildirim_gonder`);
   varsayılan hiçbiri.
 - **Yönetim panelinde beş şey "çın" diye çalar:** yeni başvuru, bayi
-  başvurusu, ödeme bildirimi, kontör siparişi, fatura ödemesi (yönetimin
-  elle ödeyeceği iş) (`static/yonetim-ses.js`,
+  başvurusu, ödeme bildirimi, kontör siparişi, fatura ödemesi — yalnızca
+  yönetimin işi: sağlayıcıya gitmeyen ödeme (`otomatik=False`) ve
+  gönderilemeyen ya da cevabı belirsiz fatura gönderimi; sağlayıcıda
+  kendiliğinden ödenen çalmaz (`static/yonetim-ses.js`,
   `UNFOLD["SCRIPTS"]`). Rozetler ancak sayfa yenilenince değişiyordu;
   panel açık duran yönetici başka sekmedeyken de duysun. Panel 15 sn'de bir
   `/yonetim/yeni-kayitlar/`'ı sorar (`apps/bildirim/ses.py`): her türün
@@ -1680,7 +1752,8 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   sonra açar; hiç dokunulmamış sekmede çalmayabilir. Personel olmayana ve
   oturumu düşene 403 döner (yönlendirme değil), betik sormayı bırakır.
   Listeyi büyütmeden önce Telegram'daki dersi hatırla: her şeyde çalan ses
-  hiçbir şeyde çalmamakla aynıdır. Yeni tür `ses.KAYNAKLAR`'a yazılır.
+  hiçbir şeyde çalmamakla aynıdır. Yeni tür `ses.KAYNAKLAR`'a yazılır;
+  yalnızca bir kısmı çalacaksa `(model, Q(...))` verilir.
 
 ## Yönetim paneli
 

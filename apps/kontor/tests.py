@@ -2359,3 +2359,151 @@ class RobotPaketSorgusuTestleri(Temel):
         self.assertContains(self.client.get(reverse("admin:kontor_gorulenpaket_change", args=[gorulen.pk])), "Haftalık 5GB")
         yanit = self.client.post(reverse("admin:kontor_gorulenpaket_ekle", args=[gorulen.pk]), follow=True)
         self.assertContains(yanit, "kataloğa eklendi")
+
+
+# -- Oyun pini: Znet'in pin servisi ------------------------------------------
+
+
+class _PinYaniti:
+    def __init__(self, govde):
+        from unittest import mock
+
+        self.govde = govde.encode()
+        self.headers = mock.Mock(get_content_charset=lambda: "utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self.govde
+
+
+class PinSitesi:
+    """`urlopen` yerine: servis adına göre cevap (`pin_ekle`, `pin_kontrol`, `pin_listesi`…)."""
+
+    def __init__(self, **cevaplar):
+        self.cevaplar = cevaplar
+        self.istekler = []
+
+    def __call__(self, istek, timeout=None):
+        adres = istek.full_url
+        self.istekler.append(adres)
+        if "/ClientWebService" in adres:
+            cevap = self.cevaplar.get("ClientWebService", "")
+        else:
+            cevap = self.cevaplar[adres.split("/servis/")[1].split(".php")[0]]
+        if isinstance(cevap, Exception):
+            raise cevap
+        return _PinYaniti(cevap)
+
+
+@override_settings(KONTOR_ARKA_PLAN=False, KONTOR_ATOMIK_DENETIMI=False, CACHES=TEST_ONBELLEK)
+class OyunPiniTestleri(TestCase):
+    """Oyun kategorisi Znet'te kontörün değil pin servisinin kapısından gider."""
+
+    def setUp(self):
+        self.znet = Saglayici.objects.create(
+            ad="Kontorbizde", tur="znet", adres="https://bayi.kb.test", kullanici_adi="5458301536", sifre="gizli",
+        )
+        self.kategori = Kategori.objects.create(ad="PUBG Mobile", oyun=True, hedef=Hedef.YOK)
+        self.paket = Paket.objects.create(kategori=self.kategori, kod="pubg-325", ad="325 UC", satis_fiyati=TL("40.00"))
+        self.rota = Rota.objects.create(paket=self.paket, saglayici=self.znet, sira=1, uzak_kod="1-325")
+        self.bayi = User.objects.create_user("5321112233", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=TL("100.00"))
+
+    def yukle(self, site, hedef=""):
+        from unittest import mock
+
+        with mock.patch("urllib.request.urlopen", side_effect=site), self.captureOnCommitCallbacks(execute=True):
+            islem = yukleme_baslat(self.bayi, self.paket, hedef)
+        islem.refresh_from_db()
+        return islem
+
+    def test_pin_ekle_ile_gider_pin_kontrolden_pin_bayiye(self):
+        from unittest import mock
+
+        site = PinSitesi(pin_ekle="OK|35.00|965.00", pin_kontrol="OK|2|AB12-CD34-EF56|Teslim edildi")
+        islem = self.yukle(site)
+        self.assertEqual(islem.durum, IslemDurumu.ISLEMDE)
+        deneme = islem.denemeler.get()
+        gonderim = site.istekler[0]
+        self.assertIn("/servis/pin_ekle.php?kod=5458301536&sifre=gizli&oyun=1&kupur=325", gonderim)
+        self.assertIn(f"referans={deneme.ref}", gonderim)
+        self.assertNotIn("tl_servis", gonderim)
+        self.assertIn("sifre=***", deneme.gonderim_istegi)
+        self.assertEqual(deneme.alis, TL("35.00"))
+
+        with mock.patch("urllib.request.urlopen", side_effect=site):
+            isle(islem.pk, zorla=True)
+        islem.refresh_from_db()
+        self.assertEqual(islem.durum, IslemDurumu.BASARILI)
+        self.assertEqual(islem.sonuc_mesaji, "AB12-CD34-EF56")
+        self.assertEqual(islem.alis_tutari, TL("35.00"))
+        self.assertIn(f"pin_kontrol.php?kod=5458301536&sifre=gizli&tahsilat_api_islem_id={deneme.ref}", site.istekler[-1])
+
+    def test_oyuncu_id_ile_yukleme_ve_iptal(self):
+        from unittest import mock
+
+        self.kategori.hedef = Hedef.HESAP
+        self.kategori.save()
+        site = PinSitesi(pin_ekle="OK|35.00|965.00", pin_kontrol="OK|3| |Oyuncu bulunamadı")
+        islem = self.yukle(site, hedef="512345678")
+        self.assertIn("oyuncu_bilgi=512345678", site.istekler[0])
+        with mock.patch("urllib.request.urlopen", side_effect=site):
+            isle(islem.pk, zorla=True)
+        islem.refresh_from_db()
+        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, TL("100.00"))
+
+    def test_ret_ve_yanlis_kod_iptal_degil_askida(self):
+        islem = self.yukle(PinSitesi(pin_ekle="3|Stokta pin yok"))
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        self.assertIn("3|Stokta pin yok", islem.sonuc_mesaji)
+        # Karşı site kodu "oyun-kupür" değilse istek hiç gitmez, sebep yazılır.
+        self.rota.uzak_kod = ""
+        self.rota.save()
+        site = PinSitesi(pin_ekle="OK|35.00|965.00")
+        islem = self.yukle(site)
+        self.assertEqual(site.istekler, [])
+        self.assertEqual(islem.durum, IslemDurumu.ASKIDA)
+        self.assertIn("oyun-kupür", islem.sonuc_mesaji)
+
+    def test_kontor_kategorisi_tl_servise_gider(self):
+        self.kategori.oyun = False
+        self.kategori.hedef = Hedef.TELEFON
+        self.kategori.save()
+        site = PinSitesi(tl_servis="OK|1|Alındı|35.00")
+        self.yukle(site, hedef="5329998877")
+        self.assertIn("/servis/tl_servis.php", site.istekler[0])
+
+    def test_fiyat_listesi_pinleri_de_getirir_alis_rotaya_yazilir(self):
+        from unittest import mock
+
+        liste = json.dumps({"success": True, "error": None, "result": [
+            {"id": "2", "adi": "PUBG Mobile 325 UC", "oyun_id": "1", "oyun_adi": "PUBG", "fiyat": "34.50",
+             "kupur": "325", "oyun_bilgi_id": "1"},
+            {"id": "3", "adi": "PUBG Mobile 60 UC", "oyun_id": "1", "oyun_adi": "PUBG", "fiyat": "7.30",
+             "kupur": "60", "oyun_bilgi_id": "1"},
+        ]})
+        # Kontör listesini vermeyen site (Kontorbizde) yine de pinleri getirir.
+        site = PinSitesi(ClientWebService="<html>yok</html>", pin_listesi=liste)
+        with mock.patch("urllib.request.urlopen", side_effect=site):
+            adet, guncellenen = fiyat_listesini_cek(self.znet)
+        self.assertEqual((adet, guncellenen), (2, 1))
+        self.rota.refresh_from_db()
+        self.assertEqual(self.rota.alis_fiyati, TL("34.50"))
+        self.assertEqual(
+            sorted(SaglayiciPaketi.objects.values_list("kod", "tip")), [("1-325", "pin"), ("1-60", "pin")]
+        )
+
+        # Sağlayıcının sayfasında "Oyun & Pin": kodlar öneri olarak gelir.
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        yanit = self.client.get(reverse("admin:kontor_saglayici_change", args=[self.znet.pk]) + "?operator=oyun")
+        self.assertContains(yanit, '<option value="oyun" selected>')
+        self.assertContains(yanit, 'list="saglayici-pinleri"')
+        self.assertContains(yanit, 'value="1-60" data-fiyat="7.30"')
+        self.assertContains(yanit, "325 UC")

@@ -50,6 +50,7 @@ from apps.kontor.models import (
     RobotSorgusuDurumu,
     Rota,
     Saglayici,
+    SaglayiciPaketi,
 )
 from apps.kontor.saglayicilar import SaglayiciHatasi
 from apps.kontor.services import (
@@ -148,7 +149,9 @@ class SaglayiciAdmin(ModelAdmin):
     form = SaglayiciFormu
     # Formun altında, formun dışında: paketlerin karşı sitedeki kodu ve alışı.
     change_form_outer_after_template = "admin/kontor/saglayici_paketleri.html"
-    list_display = ("ad", "tur_gosterimi", "aktif", "adres", "rota_sayisi", "son_24_saat", "islem_dugmeleri")
+    list_display = (
+        "ad", "tur_gosterimi", "aktif", "fatura_odemesi", "adres", "rota_sayisi", "son_24_saat", "islem_dugmeleri",
+    )
     list_filter = ("aktif", "tur")
     readonly_fields = ("son_liste_cekme",)
     fieldsets = (
@@ -171,6 +174,18 @@ class SaglayiciAdmin(ModelAdmin):
             },
         ),
         ("Referans", {"fields": ("ref_sayaci",)}),
+        (
+            "Fatura",
+            {
+                "fields": ("fatura_odemesi",),
+                "description": (
+                    "Bayinin ödediği fatura bu sağlayıcının fatura servisine gönderilir; kurumların "
+                    "buradaki numarası Fatura → Kurumlar'daki <b>Sağlayıcı No</b>'dur (robotun "
+                    "kataloğundan ve “Sağlayıcıdan eşleştir” düğmesinden dolar). Referans sayacı "
+                    "kontörle ortaktır."
+                ),
+            },
+        ),
         ("Fiyat listesi", {"fields": ("son_liste_cekme",)}),
     )
 
@@ -240,28 +255,42 @@ class SaglayiciAdmin(ModelAdmin):
 
     def _paket_tablosu(self, request, saglayici):
         operator_id = request.GET.get("operator", "")
+        # Oyun kategorilerinin operatörü yok; "Oyun & Pin" ayrı bir seçenektir.
+        oyun = operator_id == "oyun"
         kategori_id = request.GET.get("kategori", "")
         ara = request.GET.get("q", "").strip()[:60]
         operatorler = list(
             Operator.objects.filter(kontor_kategorileri__isnull=False).distinct().order_by("sira", "ad")
         )
+        if oyun:
+            kategoriler = Kategori.objects.filter(oyun=True)
+        elif operator_id.isdigit():
+            kategoriler = Kategori.objects.filter(operator_id=operator_id)
+        else:
+            kategoriler = Kategori.objects.none()
         tablo = {
             "operatorler": operatorler,
-            "kategoriler": list(
-                Kategori.objects.filter(operator_id=operator_id).order_by("sira", "ad") if operator_id.isdigit() else []
-            ),
+            "oyun_var": Kategori.objects.filter(oyun=True).exists(),
+            "kategoriler": list(kategoriler.order_by("sira", "ad")),
             "secili_operator": operator_id,
             "secili_kategori": kategori_id,
             "ara": ara,
             "satirlar": None,
+            "liste": [],
         }
-        if not operator_id.isdigit():
+        if not (oyun or operator_id.isdigit()):
             return tablo
         paketler = (
-            Paket.objects.filter(kategori__operator_id=operator_id)
+            Paket.objects.filter(**({"kategori__oyun": True} if oyun else {"kategori__operator_id": operator_id}))
             .select_related("kategori")
             .order_by("kategori__sira", "kategori__ad", "sira", "ad")
         )
+        if oyun:
+            # Eşleştirme yardımı: sağlayıcının pin listesi (Fiyat listesini çek)
+            # karşı site kodu kutusunda öneri olarak çıkar, seçilince alış dolar.
+            tablo["liste"] = list(
+                SaglayiciPaketi.objects.filter(saglayici=saglayici, tip="pin").order_by("operator", "ad")
+            )
         if kategori_id.isdigit():
             paketler = paketler.filter(kategori_id=kategori_id)
         for kelime in ara.split():

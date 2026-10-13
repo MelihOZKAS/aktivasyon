@@ -1,24 +1,42 @@
-"""Fatura iş kuralları: sorgu kuyruğu, robot sözleşmesi, ödeme ve karar.
+"""Fatura iş kuralları: sorgu kuyruğu, robot sözleşmesi, ödeme, sağlayıcıya gönderim ve karar.
 
 Para yalnızca `finans.services` üzerinden hareket eder (`siparis_odemesini_isle`
 / `siparis_odemesini_geri_al`); burada bakiyeye doğrudan dokunulmaz.
+
+**Sağlayıcıya gönderimde kontörün tek gönderim ilkesi geçerlidir.** Her
+fatura sağlayıcının bakiyesinden ödenir; aynı fatura kendiliğinden ikinci
+kez gönderilmez. Gönderim ağa çıkmadan `Gonderim` olarak yazılır; cevap
+anlaşılamazsa ya da sağlayıcı gönderimi reddederse ödeme yönetime kalır
+(Karar ekranı). Yalnızca sağlayıcı kabul edip sonra "iptal" derse tutar
+kendiliğinden iade edilir.
 """
 
+import base64
+import binascii
+import logging
+import threading
+from collections import defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from functools import partial
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, connection, transaction
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
 from apps.fatura.models import (
     CEVRIMICI_SURESI,
+    Gonderim,
+    GonderimDurumu,
     GrupFiyati,
     Kurum,
     Odeme,
     OdemeDurumu,
     Robot,
     RobotHesabi,
+    SUREN_GONDERIM,
     Sorgu,
     SorguDurumu,
 )
@@ -28,7 +46,14 @@ from apps.finans.services import (
     siparis_odemesini_geri_al,
     siparis_odemesini_isle,
 )
+from apps.kontor.models import Saglayici
+from apps.kontor.saglayicilar import Gonderim as Cevap
+from apps.kontor.saglayicilar import SaglayiciHatasi
+from apps.kontor.saglayicilar import Sorgu as Sonuc
+from apps.kontor.saglayicilar.http import son_istek, son_istek_sifirla
 from apps.magaza.models import Siparis, SiparisDurumu
+
+logger = logging.getLogger(__name__)
 
 # Robotun almadığı sorgu bu süreden sonra kapanır: kuyrukta kimse yokken
 # bayi sonsuza dek "sorgulanıyor" görmesin.
@@ -43,6 +68,18 @@ ODEME_SURESI = timedelta(minutes=30)
 TEKRAR_KORUMASI = timedelta(minutes=2)
 # Aynı numaranın sorgusu kısa süre içinde tekrar istenirse yenisi açılmaz.
 SORGU_TEKRARI = timedelta(seconds=60)
+# Ödeme açıldığı anda arka planda gönderilir; işçi bu kadar bekleyip
+# gönderilmemiş kalanı devralır (iş parçacığı ölmüş demektir).
+GONDERIM_BEKLEMESI = timedelta(seconds=10)
+# Kendiliğinden gönderim yalnızca bu kadar yeni ödemede yapılır. Daha eskisi
+# (işçi uzun süre kapalı kaldı, sağlayıcı sonradan tanımlandı) yönetimindir:
+# o arada elle ödemiş olabilir, işçi ikinci kez ödetmesin.
+OTOMATIK_GONDERIM_SURESI = timedelta(minutes=5)
+# Gönderimin cevabı en çok ~20 sn sürer (`http.ZAMAN_ASIMI`); bundan uzun
+# "Gönderiliyor"da kalan kayıt yarıda ölmüş süreçtir, belirsize düşer.
+YARIM_GONDERIM = timedelta(minutes=2)
+# Sağlayıcıya "ödendi mi?" bu aralıktan sık sorulmaz (kontördeki gibi 25 sn).
+SONUC_ARALIGI = timedelta(seconds=25)
 
 ROBOT_YOK_MESAJI = "Fatura sorgusu şu an yapılamıyor; biraz sonra yeniden dene."
 ZAMAN_ASIMI_MESAJI = "Sorgu yanıt vermedi; yeniden dene."
@@ -520,16 +557,42 @@ def _alan_kurali(veri):
     }
 
 
+def uzak_id_coz(veri):
+    """Kurumun sağlayıcıdaki numarası: verilmişse o, yoksa robotun token'ından.
+
+    Robotun kataloğundaki token sağlayıcının kendi kurum bilgisidir (base64,
+    `&id=120&…&api_adi=92&…`); `id` fatura API'sinin KURUM ID'sidir
+    (`kurum_listesi.php`'de "120,92,TTNET Mobil"), `api_adi` tekil olmayan
+    sorgu kodu.
+    """
+    deger = str(veri.get("uzak_id") or "").strip()
+    if deger.isdigit():
+        return deger
+    token = str(veri.get("token") or "").strip()
+    if not token:
+        return ""
+    try:
+        ham = base64.b64decode(token).decode("utf-8", "replace")
+    except (ValueError, binascii.Error):
+        return ""
+    for parca in ham.lstrip("&").split("&"):
+        anahtar, _, deger = parca.partition("=")
+        if anahtar == "id" and deger.strip().isdigit():
+            return deger.strip()
+    return ""
+
+
 def katalog_yaz(kurumlar, *, yeni_aktif=False, var_olani_guncelle=True, kategoriler=None, operatorler=None):
     """Kurum listesini kod anahtarıyla işler. Dönüş: (eklenen, güncellenen).
 
-    Sağlayıcının verisi (numara kuralı) güncellenir, yönetimin kararı (ad,
-    kategori, fiyat, aktif, sorgulu) **korunur** — eSIM eşitlemesindeki
-    kuralın aynısı. Robotun getirdiği yeni kurum kapalı açılır
-    (`yeni_aktif=False`): yönetim bakmadan bayiye çıkmasın.
-    `kategoriler`/`operatorler` yalnızca yeni kayıtta kullanılır: kod → kayıt.
-    Kurulumun tohumu `var_olani_guncelle=False` verir: her açılışta çalışır
-    ve panelde düzeltilmiş bir kuralı geri almamalı.
+    Sağlayıcının verisi (numara kuralı, sağlayıcıdaki kurum numarası)
+    güncellenir, yönetimin kararı (ad, kategori, fiyat, aktif, sorgulu)
+    **korunur** — eSIM eşitlemesindeki kuralın aynısı. Robotun getirdiği
+    yeni kurum kapalı açılır (`yeni_aktif=False`): yönetim bakmadan bayiye
+    çıkmasın. `kategoriler`/`operatorler` yalnızca yeni kayıtta kullanılır:
+    kod → kayıt. Kurulumun tohumu `var_olani_guncelle=False` verir: her
+    açılışta çalışır ve panelde düzeltilmiş bir kuralı geri almamalı; yalnızca
+    boş kurum numarasını doldurur.
     """
     eklenen = guncellenen = 0
     for veri in kurumlar or []:
@@ -540,6 +603,7 @@ def katalog_yaz(kurumlar, *, yeni_aktif=False, var_olani_guncelle=True, kategori
         if not kod or not ad:
             continue
         kural = {k: v for k, v in _alan_kurali(veri).items() if v not in (None, "")}
+        uzak_id = uzak_id_coz(veri)[:20]
         kurum = Kurum.objects.filter(kod=kod).first()
         if kurum is None:
             Kurum.objects.create(
@@ -550,12 +614,19 @@ def katalog_yaz(kurumlar, *, yeni_aktif=False, var_olani_guncelle=True, kategori
                 sorgulu=not veri.get("tahmini_sorgusuz", tahmini_sorgusuz(ad)),
                 aciklama=str(veri.get("aciklama") or "").strip()[:255],
                 aktif=yeni_aktif and bool(veri.get("aktif", True)),
+                uzak_id=uzak_id,
                 **kural,
             )
             eklenen += 1
             continue
         if not var_olani_guncelle:
+            if uzak_id and not kurum.uzak_id:
+                kurum.uzak_id = uzak_id
+                kurum.save(update_fields=["uzak_id", "guncelleme_tarihi"])
+                guncellenen += 1
             continue
+        if uzak_id:
+            kural["uzak_id"] = uzak_id
         degisen = [alan for alan, deger in kural.items() if getattr(kurum, alan) != deger]
         if degisen:
             for alan in degisen:
@@ -659,8 +730,11 @@ def odeme_baslat(bayi, sorgu, secilen, *, anahtar=None):
             saglayici_tutari=saglayici,
             hizmet_bedeli=bayi_toplam - saglayici,
             tavsiye_fiyati=musteri,
+            otomatik=bool(kurum.uzak_id) and Saglayici.fatura_saglayicisi() is not None,
         )
         siparis_odemesini_isle(siparis, olusturan=bayi)
+        if odeme.otomatik:
+            transaction.on_commit(partial(arka_planda_gonder, odeme.pk))
     return odeme
 
 
@@ -755,3 +829,354 @@ def iptal_et(odeme, *, olusturan=None, sebep=""):
         siparis.save(update_fields=["durum", "yonetim_notu", "guncelleme_tarihi"])
         siparis_odemesini_geri_al(siparis, olusturan=olusturan)
     return kilitli
+
+
+# -- Sağlayıcıya gönderim -------------------------------------------------
+#
+# Ödeme açılınca her fatura kurumun sağlayıcıdaki numarasıyla
+# (`Kurum.uzak_id`) fatura sağlayıcısına (`Saglayici.fatura_odemesi`)
+# gönderilir; sonucu toplu sorguyla sorulur. Bütün faturalar ödendiyse ödeme
+# kendiliğinden "Ödendi"ye, sağlayıcı hepsini iptal ettiyse "İptal + iade"ye
+# geçer. Gerisi (ret, belirsiz cevap, karışık sonuç) yönetimin kararıdır.
+
+
+SAGLAYICI_YOK = "Fatura sağlayıcısı seçili değil (Kontör → Sağlayıcılar → “Fatura ödemeleri buraya”)."
+
+
+def gonderim_engeli(odeme, saglayici=None):
+    """Bu ödeme sağlayıcıya neden gönderilemez; gönderilebiliyorsa boş."""
+    saglayici = saglayici if saglayici is not None else Saglayici.fatura_saglayicisi()
+    if saglayici is None:
+        return SAGLAYICI_YOK
+    if not odeme.faturalar:
+        return "Sabit tutarlı kalem sağlayıcıya gönderilmez; sağlayıcıda elle yüklenir."
+    if odeme.kurum is None or not odeme.kurum.uzak_id:
+        return f"{odeme.kurum_adi} kurumunun sağlayıcıdaki numarası boş (Fatura → Kurumlar)."
+    return ""
+
+
+def arka_planda_gonder(pk):
+    """Ödemeyi ayrı iş parçacığında gönderir; bayi sağlayıcının cevabını beklemez.
+
+    İş parçacığı ölürse işçi (`kontor_isle`) `GONDERIM_BEKLEMESI` sonra
+    devralır. Testler `FATURA_ARKA_PLAN = False` ile aynı iş parçacığında çalıştırır.
+    """
+    if not getattr(settings, "FATURA_ARKA_PLAN", True):
+        odemeyi_gonder(pk)
+        return
+    threading.Thread(target=_is_parcacigi, args=(pk,), daemon=True).start()
+
+
+def _is_parcacigi(pk):
+    try:
+        odemeyi_gonder(pk)
+    except Exception:
+        logger.exception("Fatura ödemesi arka planda gönderilemedi (%s)", pk)
+    finally:
+        connection.close()
+
+
+def odemeyi_gonder(pk, *, elle=False):
+    """Ödemenin faturalarını sağlayıcıya gönderir; açılan gönderimleri döndürür.
+
+    Kendiliğinden gönderimde her fatura **bir kez** gider (kısıt:
+    `fatura_gonderim_otomatik_tekil`). `elle` yönetimin bilinçli yeniden
+    gönderimidir: sonucu sürmeyen ve ödenmemiş faturalar yeniden gider,
+    gönderilemiyorsa sebebi `KararVerilemez` ile söylenir.
+
+    Gönderimler önce kısa bir transaction'da yazılır (commit), sonra ağa
+    çıkılır: süreç düşerse kayıt "Gönderiliyor"da kalır, yeniden gönderilmez.
+    """
+    if connection.in_atomic_block and getattr(settings, "FATURA_ATOMIK_DENETIMI", True):
+        # Açık transaction'da gönderim kaydı commit edilmez; süreç düşerse
+        # kaybolur ve fatura ikinci kez ödenirdi. Çağıran görünüm
+        # `non_atomic_requests` olmalı.
+        raise RuntimeError("Fatura gönderimi transaction içinden yapılamaz.")
+    saglayici = Saglayici.fatura_saglayicisi()
+    try:
+        with transaction.atomic():
+            odeme = (
+                Odeme.objects.select_for_update(of=("self",))
+                .select_related("kurum", "sorgu")
+                .filter(pk=pk)
+                .first()
+            )
+            if odeme is None or odeme.durum != OdemeDurumu.BEKLIYOR:
+                if elle:
+                    raise KararVerilemez("Bu ödeme zaten sonuçlanmış.")
+                return []
+            engel = gonderim_engeli(odeme, saglayici)
+            if engel:
+                if elle:
+                    raise KararVerilemez(engel)
+                return []
+            if not elle and not odeme.otomatik:
+                return []
+            son = odeme.son_gonderimler()
+            yeni = []
+            for fatura in odeme.faturalar:
+                onceki = son.get(fatura["fatura_no"])
+                if elle:
+                    if onceki is not None and (onceki.suruyor or onceki.durum == GonderimDurumu.ODENDI):
+                        continue
+                elif onceki is not None:
+                    continue
+                yeni.append(
+                    Gonderim.objects.create(
+                        odeme=odeme,
+                        saglayici=saglayici,
+                        fatura_no=fatura["fatura_no"],
+                        ref=saglayici.yeni_ref(),
+                        tutar=fatura_tutari(fatura),
+                        elle=elle,
+                    )
+                )
+            if elle and not yeni:
+                raise KararVerilemez("Gönderilecek fatura yok: hepsi ödendi ya da sağlayıcıda sürüyor.")
+    except IntegrityError:
+        # Başka süreç aynı faturayı aynı anda aldı; o gönderiyor.
+        return []
+
+    faturalar = {f["fatura_no"]: f for f in odeme.faturalar}
+    # Sağlayıcının sorgu sayfasında gördüğü tesisat no; yoksa bayinin yazdığı numara.
+    sonuc = (odeme.sorgu.sonuc if odeme.sorgu else None) or {}
+    tesisat = str(sonuc.get("tesisat_no") or "").strip() or odeme.numara
+    for gonderim in yeni:
+        _fatura_gonder(gonderim, odeme, faturalar[gonderim.fatura_no], tesisat)
+    _sonuclandir(odeme.pk)
+    return yeni
+
+
+def _fatura_gonder(gonderim, odeme, fatura, tesisat):
+    son_istek_sifirla()
+    try:
+        sonuc = gonderim.saglayici.adaptor().fatura_gonder(
+            ref=gonderim.ref,
+            kurum_id=odeme.kurum.uzak_id,
+            abone_adi=odeme.abone_adi,
+            son_odeme_tarihi=fatura.get("son_odeme_tarihi", ""),
+            tesisat_no=tesisat,
+            fatura_no=gonderim.fatura_no,
+            tutar=gonderim.tutar,
+        )
+    except SaglayiciHatasi as hata:
+        gonderim.gonderim_istegi = son_istek()
+        gonderim.gonderim_cevabi = str(hata)
+        # Bağlantı hiç kurulmadıysa sağlayıcıda açılmadı; zaman aşımında açılmış olabilir.
+        gonderim.durum = GonderimDurumu.REDDEDILDI if hata.kesin_gitmedi else GonderimDurumu.BELIRSIZ
+        gonderim.save()
+        return
+    except Exception as hata:  # adaptör hatası: istek gitmiş olabilir
+        logger.exception("Fatura gönderiminde beklenmeyen hata (%s)", gonderim.ref)
+        gonderim.gonderim_istegi = son_istek()
+        gonderim.gonderim_cevabi = f"Beklenmeyen hata: {hata}"
+        gonderim.durum = GonderimDurumu.BELIRSIZ
+        gonderim.save()
+        return
+    gonderim.gonderim_istegi = son_istek()
+    gonderim.gonderim_cevabi = sonuc.ham[:2000] or sonuc.mesaj
+    if sonuc.durum == Cevap.KABUL:
+        gonderim.durum = GonderimDurumu.ISLEMDE
+        gonderim.maliyet = sonuc.maliyet
+        gonderim.dusen = sonuc.alis
+    elif sonuc.durum == Cevap.RED:
+        gonderim.durum = GonderimDurumu.REDDEDILDI
+        gonderim.mesaj = sonuc.mesaj[:255]
+    else:
+        gonderim.durum = GonderimDurumu.BELIRSIZ
+    gonderim.save()
+
+
+def _sonucu_yaz(gonderim, sonuc, istek, simdi):
+    """Sorgu cevabını gönderime yazar; durum değiştiyse `True`.
+
+    Durum geçişi koşullu güncellemedir: işçi ve yöneticinin "Sonucu sorgula"sı
+    aynı anda yazarsa biri öbürünün sonucunu ezmesin.
+    """
+    alanlar = {"son_sorgu": simdi, "sonuc_istegi": istek, "guncelleme_tarihi": simdi}
+    if sonuc is None:
+        alanlar["sonuc_cevabi"] = "— (bekliyor: toplu sorgu sonuçlanmamış işlemi yazmıyor)"
+        Gonderim.objects.filter(pk=gonderim.pk).update(**alanlar)
+        return False
+    alanlar["sonuc_cevabi"] = (sonuc.ham or sonuc.mesaj)[:2000]
+    yeni = {
+        Sonuc.BASARILI: GonderimDurumu.ODENDI,
+        Sonuc.IPTAL: GonderimDurumu.IPTAL,
+        Sonuc.ISLEMDE: GonderimDurumu.ISLEMDE,
+    }[sonuc.durum]
+    if yeni == gonderim.durum:
+        Gonderim.objects.filter(pk=gonderim.pk).update(**alanlar)
+        return False
+    if sonuc.mesaj:
+        alanlar["mesaj"] = sonuc.mesaj[:255]
+    return bool(
+        Gonderim.objects.filter(pk=gonderim.pk, durum=gonderim.durum).update(durum=yeni, **alanlar)
+    )
+
+
+def _sonuclari_sor(gonderimler, simdi):
+    """Gönderimlerin sonucunu sağlayıcı başına (en çok 100'lük) toplu sorar.
+
+    Dönüş: durumu değişen ödemelerin numaraları. Ağ hatasında gönderim
+    olduğu gibi kalır, sonraki tur yeniden sorar; hata cevaba yazılır.
+    """
+    gruplar = defaultdict(list)
+    for gonderim in gonderimler:
+        gruplar[gonderim.saglayici_id].append(gonderim)
+    degisen = set()
+    for liste in gruplar.values():
+        saglayici = liste[0].saglayici
+        for i in range(0, len(liste), 100):
+            parca = liste[i:i + 100]
+            son_istek_sifirla()
+            try:
+                sonuclar = saglayici.adaptor().fatura_sorgula([g.ref for g in parca])
+            except SaglayiciHatasi as hata:
+                logger.warning("Fatura sonucu sorulamadı (%s): %s", saglayici, hata)
+                Gonderim.objects.filter(pk__in=[g.pk for g in parca]).update(
+                    son_sorgu=simdi, sonuc_istegi=son_istek(), sonuc_cevabi=f"Sorgu hatası: {hata}",
+                    guncelleme_tarihi=simdi,
+                )
+                continue
+            istek = son_istek()
+            for gonderim in parca:
+                if _sonucu_yaz(gonderim, sonuclar.get(gonderim.ref), istek, simdi):
+                    degisen.add(gonderim.odeme_id)
+    return degisen
+
+
+def _sonuclandir(odeme_pk):
+    """Faturaların son gönderimlerine bakıp ödemeyi kendiliğinden kapatır.
+
+    Hepsi ödendiyse "Ödendi"; sağlayıcı hepsini kabul edip iptal ettiyse
+    "İptal + iade" (sebep sağlayıcının açıklaması, bayi görür). Gerisinde
+    dokunulmaz: ret ve belirsiz cevapta sorun çoğu zaman bizim taraftadır
+    (kurum numarası, sağlayıcı bakiyesi) — kontördeki gibi her ödemeyi iade
+    etmek yerine yönetim düzeltip yeniden gönderir; karışık sonuçta (biri
+    ödendi, biri iptal) kısmi iade yönetimin kararıdır.
+    """
+    odeme = Odeme.objects.prefetch_related("gonderimler").filter(pk=odeme_pk).first()
+    if odeme is None or odeme.durum != OdemeDurumu.BEKLIYOR or not odeme.fatura_nolari:
+        return
+    son = odeme.son_gonderimler()
+    if any(no not in son for no in odeme.fatura_nolari):
+        return
+    durumlar = {son[no].durum for no in odeme.fatura_nolari}
+    try:
+        if durumlar == {GonderimDurumu.ODENDI}:
+            odendi_isaretle(odeme)
+        elif durumlar == {GonderimDurumu.IPTAL}:
+            sebepler = dict.fromkeys(son[no].mesaj for no in odeme.fatura_nolari if son[no].mesaj)
+            iptal_et(odeme, sebep=" · ".join(sebepler) or "Kurum ödemeyi kabul etmedi.")
+    except KararVerilemez:
+        pass  # aynı anda başka yoldan sonuçlandı
+
+
+def bekleyenleri_isle():
+    """İşçinin fatura turu: takılanı gönderir, yarım kalanı belirsize alır, sonucu sorar.
+
+    Dönüş: dokunulan gönderim/ödeme sayısı.
+    """
+    simdi = timezone.now()
+    Gonderim.objects.filter(
+        durum=GonderimDurumu.GONDERILIYOR, olusturma_tarihi__lt=simdi - YARIM_GONDERIM
+    ).update(
+        durum=GonderimDurumu.BELIRSIZ,
+        gonderim_cevabi="Gönderim sırasında süreç kesildi; sağlayıcının cevabı alınamadı.",
+        guncelleme_tarihi=simdi,
+    )
+
+    gonderilmemis = list(
+        Odeme.objects.filter(
+            otomatik=True,
+            durum=OdemeDurumu.BEKLIYOR,
+            olusturma_tarihi__lt=simdi - GONDERIM_BEKLEMESI,
+            olusturma_tarihi__gte=simdi - OTOMATIK_GONDERIM_SURESI,
+        )
+        .exclude(Exists(Gonderim.objects.filter(odeme=OuterRef("pk"), elle=False)))
+        .values_list("pk", flat=True)[:50]
+    )
+    for pk in gonderilmemis:
+        try:
+            odemeyi_gonder(pk)
+        except Exception:
+            logger.exception("Fatura ödemesi gönderilemedi (%s)", pk)
+
+    sorulacak = list(
+        Gonderim.objects.filter(durum=GonderimDurumu.ISLEMDE)
+        .filter(Q(son_sorgu__isnull=True) | Q(son_sorgu__lt=simdi - SONUC_ARALIGI))
+        .select_related("saglayici")
+        .order_by("son_sorgu", "pk")[:500]
+    )
+    for pk in _sonuclari_sor(sorulacak, simdi):
+        _sonuclandir(pk)
+    return len(gonderilmemis) + len(sorulacak)
+
+
+def sonucu_sorgula(odeme):
+    """Yönetimin "Sonucu sorgula"sı: süren ve belirsiz gönderimleri sağlayıcıya sorar.
+
+    Salt okumadır, hiçbir şey göndermez. Belirsiz gönderim sağlayıcıda
+    bulunursa (bekliyor/ödendi/iptal) o duruma geçer. Dönüş: sorulan sayısı.
+    """
+    son = Odeme.objects.prefetch_related("gonderimler__saglayici").get(pk=odeme.pk).son_gonderimler()
+    sorulacak = [
+        g for g in son.values() if g.durum in (GonderimDurumu.ISLEMDE, GonderimDurumu.BELIRSIZ)
+    ]
+    if not sorulacak:
+        raise KararVerilemez("Sorulacak gönderim yok: sağlayıcıda süren ya da cevabı belirsiz fatura bulunmuyor.")
+    simdi = timezone.now()
+    # Tek tek sorulur: tekil sorgu bekleyeni de açıkça yazar ("1:…"), yönetim görsün.
+    for gonderim in sorulacak:
+        _sonuclari_sor([gonderim], simdi)
+    _sonuclandir(odeme.pk)
+    return len(sorulacak)
+
+
+def yonetim_bekleyenler(qs=None):
+    """Yönetimin elinde olan ödemeler: sonuçlanmamış ve sağlayıcıda sürmeyen.
+
+    Elle ödenecekler (sağlayıcıya gitmeyen) ile gönderilemeyen, cevabı
+    belirsiz ya da karışık sonuçlananlar. Rozet ve liste süzgeci bunu sayar.
+    """
+    qs = Odeme.objects.all() if qs is None else qs
+    return qs.filter(durum=OdemeDurumu.BEKLIYOR).exclude(
+        Exists(Gonderim.objects.filter(odeme=OuterRef("pk"), durum__in=SUREN_GONDERIM))
+    )
+
+
+def kurumlari_eslestir():
+    """Sağlayıcının kurum listesini çekip kurumların sağlayıcıdaki numarasını doldurur.
+
+    Eşleşme addandır: kurumun kodu robotun gördüğü kurum adından türetilir
+    (`turkce_slug`), API'nin listesindeki ad da aynı sitenin adıdır. Aynı
+    adda birden çok kayıt varsa (Bağ-kur iki kez) eşleştirilmez. Dolu ve
+    listede bulunan numaraya dokunulmaz — robotun kataloğundan gelen numara
+    kesindir; yalnızca boş ya da listede artık olmayan numara yazılır.
+    Dönüş: (listedeki kurum, güncellenen, eşleşmeyen kurum adları).
+    """
+    from apps.katalog.utils import turkce_slug
+
+    saglayici = Saglayici.fatura_saglayicisi()
+    if saglayici is None:
+        raise FaturaHatasi(SAGLAYICI_YOK)
+    try:
+        liste = saglayici.adaptor().fatura_kurumlari()
+    except SaglayiciHatasi as hata:
+        raise FaturaHatasi(f"{saglayici}: {hata}") from hata
+    adla = defaultdict(set)
+    for kayit in liste:
+        adla[turkce_slug(kayit.ad)].add(kayit.kod)
+    gecerli = {kayit.kod for kayit in liste}
+    guncellenen, eslesmeyen = 0, []
+    for kurum in Kurum.objects.order_by("sira", "ad"):
+        if kurum.uzak_id and kurum.uzak_id in gecerli:
+            continue
+        adaylar = adla.get(kurum.kod) or adla.get(turkce_slug(kurum.ad)) or set()
+        if len(adaylar) != 1:
+            eslesmeyen.append(kurum.ad)
+            continue
+        kurum.uzak_id = next(iter(adaylar))
+        kurum.save(update_fields=["uzak_id", "guncelleme_tarihi"])
+        guncellenen += 1
+    return len(liste), guncellenen, eslesmeyen

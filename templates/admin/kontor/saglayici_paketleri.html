@@ -5,6 +5,10 @@
   seçilmeden liste gelmez, sayfa başı 50 paket (bir operatörde bin paket
   olabilir). Karşı kod boşsa bizim kod gider.
 
+  Oyun kategorilerinin operatörü yok: "Oyun & Pin" ayrı seçenektir. Orada
+  sağlayıcının pin listesi (Fiyat listesini çek) kod kutusunda öneri olarak
+  çıkar; kod "oyun-kupür"dür (1-325), seçilince boş alış listedeki fiyatla dolar.
+
   Sınıflar unfold'un derlenmiş CSS'inden; bizim app.css yönetimde yüklü
   değil, kutular satır içi stille. Girdiler 16px (iOS yakınlaştırmasın).
 {% endcomment %}
@@ -22,7 +26,7 @@
 <div id="paketler" class="mt-8 space-y-3">
   <h2 class="text-lg font-semibold">Paketler — bu sitedeki kodu ve alışı</h2>
   <p class="text-sm text-base-500" style="max-width:56rem">
-    Operatörü seç; paketlerin <b>karşı sitedeki kodunu</b> ve <b>alışını</b> yaz. Bizim kod değişmez.
+    Operatörü (oyunlarda <b>Oyun &amp; Pin</b>'i) seç; paketlerin <b>karşı sitedeki kodunu</b> ve <b>alışını</b> yaz. Bizim kod değişmez.
     Karşı kod boşsa bizim kod gider. Bağlı olmayan pakete kod ya da alış yazarsan paket bu sağlayıcıya da
     bağlanır (sıranın sonuna); <b>Gönder</b> kutusunu kaldırırsan bu sağlayıcıya gitmez.
   </p>
@@ -32,6 +36,7 @@
       <select name="operator" class="sp-girdi" onchange="this.form.kategori && (this.form.kategori.value=''); this.form.submit()">
         <option value="">— Seç —</option>
         {% for o in t.operatorler %}<option value="{{ o.pk }}" {% if t.secili_operator == o.pk|stringformat:"s" %}selected{% endif %}>{{ o.ad }}</option>{% endfor %}
+        {% if t.oyun_var %}<option value="oyun" {% if t.secili_operator == "oyun" %}selected{% endif %}>Oyun &amp; Pin</option>{% endif %}
       </select>
     </label>
     {% if t.kategoriler %}
@@ -53,6 +58,20 @@
   {% if t.satirlar is None %}
   <p class="text-sm text-base-500">Paketleri görmek için operatör seç.</p>
   {% else %}
+  {% if t.secili_operator == "oyun" %}
+  <p class="text-sm text-base-500" style="max-width:56rem">
+    {% if t.liste %}
+    Karşı site kodu kutusuna oyunun adını yaz: sağlayıcının pin listesindeki {{ t.liste|length }} ürün öneri olarak
+    çıkar. Kod <b>oyun-kupür</b> biçimindedir (1-325); seçince boş alış listedeki fiyatla dolar.
+    {% else %}
+    Sağlayıcının pin listesi henüz çekilmedi: listede <b>Fiyat listesini çek</b>'e bas, kodlar öneri olarak gelsin.
+    Kod <b>oyun-kupür</b> biçimindedir (1-325).
+    {% endif %}
+  </p>
+  <datalist id="saglayici-pinleri">
+    {% for l in t.liste %}<option value="{{ l.kod }}" data-fiyat="{{ l.fiyat|stringformat:'s' }}">{{ l.operator }} · {{ l.ad }} · {{ l.fiyat }} ₺</option>{% endfor %}
+  </datalist>
+  {% endif %}
   <form method="post" action="{{ t.kaydet_url }}">
     {% csrf_token %}
     <div class="overflow-x-auto rounded-default border border-base-200 bg-white">
@@ -73,8 +92,9 @@
               <span class="font-medium">{{ s.paket.ad }}</span>{% if not s.paket.aktif %} <span class="sp-soluk">(pasif)</span>{% endif %}<br>
               <span class="sp-soluk">{{ s.paket.kategori.ad }} · <b class="font-mono">{{ s.paket.kod }}</b></span>
             </td>
-            <td><input name="kod_{{ s.paket.pk }}" value="{{ s.rota.uzak_kod|default:'' }}" class="sp-girdi sp-alan" style="width:6.5rem"
-                       placeholder="{{ s.paket.kod }}" autocomplete="off" aria-label="{{ s.paket.ad }} karşı site kodu"></td>
+            <td><input name="kod_{{ s.paket.pk }}" value="{{ s.rota.uzak_kod|default:'' }}" class="sp-girdi sp-alan sp-kod" style="width:6.5rem"
+                       placeholder="{{ s.paket.kod }}" autocomplete="off" aria-label="{{ s.paket.ad }} karşı site kodu"
+                       {% if t.liste %}list="saglayici-pinleri"{% endif %}></td>
             <td><input name="alis_{{ s.paket.pk }}" value="{% if s.rota.alis_fiyati is not None %}{{ s.rota.alis_fiyati }}{% endif %}" class="sp-girdi sp-alan"
                        style="width:5.5rem" inputmode="decimal" placeholder="—" aria-label="{{ s.paket.ad }} karşı site alış"></td>
             <td><input type="checkbox" name="gonder_{{ s.paket.pk }}" value="1" class="sp-gonder" {% if s.rota and s.rota.aktif %}checked{% endif %}
@@ -109,6 +129,16 @@
     });
     document.querySelectorAll("#paketler .sp-gonder").forEach(function (kutu) {
       kutu.addEventListener("change", function () { kutu.dataset.dokunuldu = "1"; });
+    });
+    // Pin listesinden seçilen kodun alışı, alış kutusu boşsa listedeki fiyatla dolar.
+    var fiyatlar = {};
+    document.querySelectorAll("#saglayici-pinleri option").forEach(function (o) { fiyatlar[o.value] = o.dataset.fiyat; });
+    document.querySelectorAll("#paketler .sp-kod").forEach(function (girdi) {
+      girdi.addEventListener("change", function () {
+        var alis = girdi.closest("tr").querySelector("[name^=alis_]");
+        var fiyat = fiyatlar[girdi.value.trim()];
+        if (fiyat && !alis.value.trim()) alis.value = fiyat;
+      });
     });
   </script>
   {% endif %}

@@ -121,7 +121,7 @@ veritabanını bekler → `manage.py kurulum` (migration + başlangıç verisi) 
 `collectstatic --noinput --clear` (eski tasarımın dosyaları silinir).
 
 Aynı komut **kontör işçisini** (`kontor_isci_fadil`) de açar: işlemdekilerin
-sonucunu sağlayıcılardan sorar. Açılış betiğini atlar — kurulumu yalnızca
+ve sağlayıcıya gönderilen fatura ödemelerinin sonucunu sağlayıcılardan sorar. Açılış betiğini atlar — kurulumu yalnızca
 `app_fadil` yapar. Çalıştığını görmek için:
 
 ```bash
@@ -229,7 +229,8 @@ kalan dördü panelden girilir — **sıra önemli**, her adım öncekine dayan�
 | + | SIM Stoğu | Kartları tek tek gir, bayilere zimmetle |
 | + | eSIM → Sağlayıcılar | eSIM Access hesabının erişim kodu ve gizli anahtarı, varsayılan kâr oranı. Kaydedince satırdaki **Eşitle** kataloğu çeker |
 | + | eSIM → Paketler | Üstteki **Kuru güncelle** TCMB'den USD kurunu alır — kur girilmeden eSIM satışı kapalıdır. İstenmeyen ülke/paket kapatılır, kâr oranı toplu işlemle değiştirilir |
-| + | Kontör → Sağlayıcılar | Her kontör sitesi: yazılımı (Znet/Gencan, Teknografi, kntryeni), adres, kullanıcı adı, şifre. **Sıradaki Referans No**'yu eski sistemde o hesapla kullanılan sayının üstünde başlat — sağlayıcı aynı numarayı ikinci kez kabul etmez |
+| + | Kontör → Sağlayıcılar | Her kontör sitesi: yazılımı (Znet/Gencan, Teknografi, kntryeni), adres, kullanıcı adı, şifre. **Sıradaki Referans No**'yu eski sistemde o hesapla kullanılan sayının üstünde başlat — sağlayıcı aynı numarayı ikinci kez kabul etmez. Faturalar da buradan ödenecekse (Kontorbizde) **Fatura ödemeleri buraya**'yı aç; sağlayıcıda hesaba API yetkisi ve sunucunun sabit IP'si tanımlı olmalı (yoksa cevap boş gelir). Satırdaki **Fiyat listesini çek** oyun pinlerini de getirir |
+| + | Fatura → Kurumlar | **Sağlayıcı No** sütunu kurulumla dolar; boş kalan için listenin üstündeki **Sağlayıcıdan eşleştir**, eşleşmeyeni satırdan yaz. Numarası boş kurumun faturasını yönetim elle öder |
 | + | Kontör → Kategoriler | Vodafone TL, Turkcell Paket, PUBG UC… Operatör/tip kodu (vodafone / ses): bayi programları kategoriyi bununla ister |
 | + | Kontör → Paketler | Kupür kodu, ad, içerik, bayiye satış. Sayfanın altındaki **Sağlayıcı sırası**: hangi siteye hangi sırayla gideceği. Listedeki toplu işlemler: *sağlayıcı sırasına ekle*, *fiyat uygula (alış + %)* |
 | + | Kontör → Bayi API Erişimleri | Kendi programından yükleyen bayi için: bayiyi seç, kaydet, **Yeni şifre**. Ekrandaki adres/bayi kodu/şifreyi bayiye ver |
@@ -269,6 +270,16 @@ yan menüdeki Kontör → İşlemler rozeti sayar. Satırdaki **Karar**:
 önce *Sonucu sorgula* (hiçbir şey göndermez), olmazsa sağlayıcının
 panelinden numaraya bak; yüklendiyse *Yüklendi say*, yüklenmediyse
 *Sağlayıcıya gönder* ya da *İptal et ve iade et*.
+
+### Fatura: yönetimin elindeki ödeme
+
+Fatura ödemeleri sağlayıcıya kendiliğinden gönderilir, ödenince kapanır,
+sağlayıcı iptal ederse iade edilir. Gönderilemeyen (sağlayıcı reddetti:
+bakiye, kurum numarası, gece kapalı), cevabı belirsiz ya da sağlayıcıya hiç
+gitmeyen ödeme yan menüdeki Fatura → Ödemeler rozetine düşer, düğmesi
+kırmızıdır. **Karar** ekranında giden istek ve gelen cevap durur: önce
+*Sonucu sorgula*, sorunu düzelttiysen *Sağlayıcıya gönder*; elle ödediysen
+*Ödendi*, ödenemiyorsa *İptal + iade*.
 
 ---
 

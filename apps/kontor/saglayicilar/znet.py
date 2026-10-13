@@ -17,22 +17,45 @@ Sonuç — `servis/tl_kontrol.php`:
 Eski sistemde `OK|8` gibi tanınmayan kodlar da askıya alınıyordu; burada
 da aynı: yalnızca `1` kabul, yalnızca `3` ret sayılır, gerisi belirsizdir.
 Cevaplar URL kodlu gelebiliyor ("Y%C3%BCklendi+-ONAYLANDI"); çözülür.
+
+Aynı yazılımın oyun pini ve fatura servisleri de var (sağlayıcının
+`api.pdf`'i); kimliği `kod` + `sifre` ile ister, kontördeki `bayi_kodu`
+değil. Oyun pini — `servis/pin_ekle.php`, sonucu `pin_kontrol.php`:
+    ?oyun=1&kupur=325&referans=…&musteri_tel=&oyuncu_bilgi=…
+    OK|10.12|980.88                       kabul; maliyet, kalan bakiye
+    3|Açıklama                            ret
+    OK|2|AB12-CD34|Açıklama               yüklendi; üçüncü alan pin
+    OK|1| |Açıklama  /  OK|3| |Açıklama   sürüyor / iptal
+Fatura — `servis/fatura_ekle.php`, sonucu `fatura_top_kontrol.php`:
+    ?kurum_id=8&tahsilat_api_islem_id=…&fatura_no=…&fatura_tutari=110.15…
+    OK|0.30|2644.78|110.45                kabul; maliyet, kalan, toplam düşen
+    4|Daha Önce Gönderilmiş (166189)      aynı numara kullanılmış: belirsiz
+    3|Açıklama                            ret
+    123456|2||##123457|3||##              toplu sonuç; bekleyen yazılmaz
 """
 
 import json
-from urllib.parse import unquote_plus
+from datetime import datetime
+from urllib.parse import unquote, unquote_plus
 
 from apps.kontor.saglayicilar import (
     Adaptor,
     Gonderim,
     GonderimSonucu,
     SaglayiciHatasi,
+    SaglayiciKurumu,
     SaglayiciPaketVerisi,
     Sorgu,
     SorguSonucu,
     tutar_coz,
 )
 from apps.kontor.saglayicilar.http import metin_istek
+
+# Pin ürününün karşı site kodu: "<oyun>-<kupür>" (pin listesinden "1-325").
+# Sağlayıcı ürünü bu ikisiyle arıyor; tek kod alanına ikisi birden yazılır.
+PIN_AYRACI = "-"
+# Toplu fatura sorgusu en çok bu kadar işlem alıyor.
+TOPLU_SORGU_SINIRI = 100
 
 
 def gonderim_coz(ham):
@@ -72,9 +95,14 @@ class Znet(Adaptor):
     ad = "Znet / Gencan (tl_servis)"
     varsayilan_sema = "http"
     paket_listesi_var = True
+    fatura_var = True
 
     def _kimlik(self):
         return {"bayi_kodu": self.saglayici.kullanici_adi, "sifre": self.saglayici.sifre}
+
+    def _servis_kimligi(self):
+        # Pin ve fatura servisleri aynı hesabı `kod` adıyla ister.
+        return {"kod": self.saglayici.kullanici_adi, "sifre": self.saglayici.sifre}
 
     def gonder(self, *, ref, hedef, uzak_kod, uzak_operator, uzak_tip):
         ham = metin_istek(
@@ -100,6 +128,23 @@ class Znet(Adaptor):
         return sorgu_coz(ham)
 
     def paketleri_getir(self):
+        """Kontör fiyat listesi ve oyun pini listesi birlikte.
+
+        Biri alınamazsa öbürü yine döner: pin servisi olmayan sitede kontör
+        listesi, kontör listesini vermeyen sitede (Kontorbizde) pinler.
+        İkisi de alınamazsa hata.
+        """
+        sonuc, hatalar = [], []
+        for getir in (self._kontor_listesi, self._pin_listesi):
+            try:
+                sonuc.extend(getir())
+            except SaglayiciHatasi as hata:
+                hatalar.append(str(hata))
+        if not sonuc and hatalar:
+            raise SaglayiciHatasi(" · ".join(hatalar))
+        return sonuc
+
+    def _kontor_listesi(self):
         ham = metin_istek(
             f"{self.taban()}/ClientWebService",
             form={
@@ -111,6 +156,89 @@ class Znet(Adaptor):
             saglayici_adi=self.saglayici.ad,
         )
         return paket_listesi_coz(ham)
+
+    def _pin_listesi(self):
+        ham = metin_istek(
+            f"{self.taban()}/servis/pin_listesi.php",
+            parametreler=self._servis_kimligi(),
+            saglayici_adi=self.saglayici.ad,
+        )
+        return pin_listesi_coz(ham)
+
+    # -- Oyun / e-pin -----------------------------------------------------
+
+    def oyun_gonder(self, *, ref, hedef, uzak_kod, uzak_operator, uzak_tip):
+        oyun, kupur = pin_kodu_coz(uzak_kod)
+        ham = metin_istek(
+            f"{self.taban()}/servis/pin_ekle.php",
+            parametreler={
+                **self._servis_kimligi(),
+                "oyun": oyun,
+                "kupur": kupur,
+                "referans": ref,
+                "musteri_tel": "",
+                # Oyuncu ID ile yüklenen oyunda hesap; pin satışında boş.
+                "oyuncu_bilgi": hedef or "",
+            },
+            saglayici_adi=self.saglayici.ad,
+        )
+        return pin_gonderim_coz(ham)
+
+    def oyun_sorgula(self, *, ref, uzak_ref):
+        ham = metin_istek(
+            f"{self.taban()}/servis/pin_kontrol.php",
+            parametreler={**self._servis_kimligi(), "tahsilat_api_islem_id": ref},
+            saglayici_adi=self.saglayici.ad,
+        )
+        return pin_sorgu_coz(ham)
+
+    # -- Fatura -----------------------------------------------------------
+
+    def fatura_gonder(self, *, ref, kurum_id, abone_adi, son_odeme_tarihi, tesisat_no, fatura_no, tutar):
+        ham = metin_istek(
+            f"{self.taban()}/servis/fatura_ekle.php",
+            parametreler={
+                **self._servis_kimligi(),
+                "kurum_id": kurum_id,
+                "tahsilat_api_islem_id": ref,
+                "abone_adi": abone_adi,
+                "son_odeme_tarihi": tarih_bicimi(son_odeme_tarihi),
+                "tesisat_no": tesisat_no,
+                # Yalnızca iki alanlı kurumlar (Tedaş) için; bizde tek alan var.
+                "kurum_kodu": "",
+                "fatura_no": fatura_no,
+                "fatura_tutari": f"{tutar:.2f}",
+            },
+            saglayici_adi=self.saglayici.ad,
+        )
+        return fatura_gonderim_coz(ham)
+
+    def fatura_sorgula(self, refler):
+        refler = [str(r) for r in refler][:TOPLU_SORGU_SINIRI]
+        if not refler:
+            return {}
+        if len(refler) == 1:
+            # Tek işlemde açık cevap: "1:bekliyor" de yazılır, yönetim görsün.
+            ham = metin_istek(
+                f"{self.taban()}/servis/fatura_kontrol.php",
+                parametreler={**self._servis_kimligi(), "tahsilat_api_islem_id": refler[0]},
+                saglayici_adi=self.saglayici.ad,
+            )
+            return {refler[0]: fatura_sorgu_coz(ham)}
+        ham = metin_istek(
+            f"{self.taban()}/servis/fatura_top_kontrol.php",
+            parametreler={**self._servis_kimligi(), "tahsilat_api_islem_id": ",".join(refler)},
+            saglayici_adi=self.saglayici.ad,
+        )
+        return fatura_toplu_coz(ham, refler)
+
+    def fatura_kurumlari(self):
+        ham = metin_istek(
+            f"{self.taban()}/servis/kurum_listesi.php",
+            parametreler=self._servis_kimligi(),
+            saglayici_adi=self.saglayici.ad,
+        )
+        return kurum_listesi_coz(ham)
 
 
 def paket_listesi_coz(ham):
@@ -134,4 +262,191 @@ def paket_listesi_coz(ham):
                 tip=str(paket.get("Type") or "").strip(),
             )
         )
+    return sonuc
+
+
+# -- Oyun / e-pin -----------------------------------------------------------
+
+
+def pin_listesi_coz(ham):
+    """`pin_listesi.php` (JSON) → paket verisi; kod "<oyun_id>-<kupur>"."""
+    try:
+        veri = json.loads(ham)
+    except (TypeError, ValueError):
+        raise SaglayiciHatasi(f"Pin listesi okunamadı: {(ham or '')[:200]}")
+    if not isinstance(veri, dict) or not veri.get("success"):
+        hata = veri.get("error") if isinstance(veri, dict) else ""
+        raise SaglayiciHatasi(f"Pin listesi alınamadı: {hata or (ham or '')[:200]}")
+    sonuc = []
+    for urun in veri.get("result") or []:
+        if not isinstance(urun, dict):
+            continue
+        oyun = str(urun.get("oyun_id") or "").strip()
+        kupur = str(urun.get("kupur") or "").strip()
+        fiyat = tutar_coz(urun.get("fiyat"))
+        if not oyun or not kupur or fiyat is None:
+            continue
+        sonuc.append(
+            SaglayiciPaketVerisi(
+                kod=f"{oyun}{PIN_AYRACI}{kupur}",
+                ad=str(urun.get("adi") or "").strip() or f"{oyun}{PIN_AYRACI}{kupur}",
+                fiyat=fiyat,
+                operator=str(urun.get("oyun_adi") or "").strip(),
+                tip="pin",
+            )
+        )
+    return sonuc
+
+
+def pin_kodu_coz(kod):
+    """"1-325" → ("1", "325"). Biçime uymayan kod gönderilmez: sağlayıcı ürünü bulamaz.
+
+    Oyun numarası sağlayıcının `oyun_id`'sidir, rakamdır. Karşı site kodu
+    girilmemiş pakette bizim kod ("pubg-325") gider; o da burada durur.
+    """
+    oyun, ayrac, kupur = str(kod or "").strip().partition(PIN_AYRACI)
+    if not ayrac or not oyun.strip().isdigit() or not kupur.strip():
+        raise SaglayiciHatasi(
+            f"Pin kodu “oyun-kupür” biçiminde olmalı (pin listesinden, ör. 1-325); giden kod: {kod or '—'}",
+            kesin_gitmedi=True,
+        )
+    return oyun.strip(), kupur.strip()
+
+
+def _parcalar(ham):
+    parcalar = [p.strip() for p in unquote_plus(ham or "").strip().split("|")]
+    while len(parcalar) > 1 and parcalar[-1] == "":
+        parcalar.pop()
+    return parcalar
+
+
+def pin_gonderim_coz(ham):
+    """`OK|maliyet|kalan` kabul, `3|Açıklama` ret, gerisi belirsiz.
+
+    Kontörün `OK|3|…` biçimi burada kabul sayılmaz: üç alan da tutar
+    olmalı, yoksa "3" maliyet diye okunurdu.
+    """
+    parcalar = _parcalar(ham)
+    if parcalar[0].upper() == "OK" and len(parcalar) == 3:
+        alis, kalan = tutar_coz(parcalar[1]), tutar_coz(parcalar[2])
+        if alis is not None and kalan is not None:
+            return GonderimSonucu(Gonderim.KABUL, alis=alis, maliyet=alis, ham=ham)
+    if parcalar[0] == "3":
+        mesaj = "|".join(parcalar[1:]) or "Sağlayıcı reddetti."
+        return GonderimSonucu(Gonderim.RED, mesaj=mesaj, ham=ham)
+    return GonderimSonucu(Gonderim.BELIRSIZ, mesaj=(ham or "")[:200], ham=ham)
+
+
+def pin_sorgu_coz(ham):
+    """`OK|2|PİN|Açıklama` yüklendi (mesaj pin), `OK|3` iptal, gerisi sürüyor.
+
+    Pin `+` taşıyabilir; boşluğa çevrilmesin diye yalnızca %-kodları çözülür.
+    `3|Açıklama` (OK'siz) sorgunun kendi hatasıdır, işlemin iptali değil:
+    sorulmaya devam edilir, yönetim cevabı karar ekranında görür.
+    """
+    parcalar = [p.strip() for p in (ham or "").strip().split("|")]
+    if parcalar[0].upper() == "OK" and len(parcalar) > 1:
+        kod = parcalar[1]
+        pin = unquote(parcalar[2]).strip() if len(parcalar) > 2 else ""
+        aciklama = unquote_plus("|".join(parcalar[3:])).strip(" |")
+        if kod == "2":
+            return SorguSonucu(Sorgu.BASARILI, mesaj=pin or aciklama, ham=ham)
+        if kod == "3":
+            return SorguSonucu(Sorgu.IPTAL, mesaj=aciklama or "Sağlayıcı iptal etti.", ham=ham)
+        return SorguSonucu(Sorgu.ISLEMDE, mesaj=aciklama, ham=ham)
+    return SorguSonucu(Sorgu.ISLEMDE, mesaj=unquote_plus(ham or "")[:200], ham=ham)
+
+
+# -- Fatura -----------------------------------------------------------------
+
+
+def tarih_bicimi(metin):
+    """Sorgu sayfasının "14.10.2026"sı → API'nin "2026-10-14"ü; okunamazsa olduğu gibi."""
+    ilk = str(metin or "").strip().split(" ")[0]
+    for bicim in ("%d.%m.%Y", "%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(ilk, bicim).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return str(metin or "").strip()
+
+
+def fatura_gonderim_coz(ham):
+    """`OK|maliyet|kalan|toplam` kabul (alış = toplam düşen), `3|…` ret.
+
+    `4|Daha Önce Gönderilmiş` belirsizdir: numarayı biz bir kez gönderiyoruz,
+    çakışma o numaranın başka bir işlemde (eski sistem) kullanıldığını
+    gösterir — sonucunu sormak başka bir faturanın sonucunu okumak olurdu.
+    """
+    parcalar = _parcalar(ham)
+    if parcalar[0].upper() == "OK" and len(parcalar) >= 4:
+        toplam = tutar_coz(parcalar[3])
+        if toplam is not None:
+            return GonderimSonucu(
+                Gonderim.KABUL, alis=toplam, maliyet=tutar_coz(parcalar[1]), ham=ham
+            )
+    if parcalar[0] == "3":
+        mesaj = "|".join(parcalar[1:]) or "Sağlayıcı reddetti."
+        return GonderimSonucu(Gonderim.RED, mesaj=mesaj, ham=ham)
+    return GonderimSonucu(Gonderim.BELIRSIZ, mesaj=(ham or "")[:200], ham=ham)
+
+
+def _fatura_durumu(kod, aciklama, ham):
+    if kod == "2":
+        return SorguSonucu(Sorgu.BASARILI, mesaj=aciklama, ham=ham)
+    if kod == "3":
+        return SorguSonucu(Sorgu.IPTAL, mesaj=aciklama or "Sağlayıcı ödemeyi iptal etti.", ham=ham)
+    return SorguSonucu(Sorgu.ISLEMDE, mesaj=aciklama, ham=ham)
+
+
+def fatura_sorgu_coz(ham):
+    """Tek işlem: `1:…` bekliyor, `2:…` ödendi, `3:…` iptal.
+
+    `3|Açıklama` (iki nokta değil dikey çizgi) sorgunun hatasıdır; işlem
+    iptal sayılmaz, sorulmaya devam edilir.
+    """
+    kod, ayrac, aciklama = unquote_plus(ham or "").strip().partition(":")
+    if not ayrac:
+        return SorguSonucu(Sorgu.ISLEMDE, mesaj=(ham or "")[:200], ham=ham)
+    return _fatura_durumu(kod.strip(), aciklama.strip(), ham)
+
+
+def fatura_toplu_coz(ham, refler):
+    """`ref|durum|açıklama##…` → {ref: SorguSonucu}. Bekleyenler listede yazılmaz.
+
+    Hiçbir satırı okunamayan dolu cevap (şifre yanlış, IP izni yok) hatadır:
+    "hepsi bekliyor" diye okunsaydı yönetim sorunu hiç görmezdi.
+    """
+    metin = unquote_plus(ham or "").strip()
+    istenen = {str(r) for r in refler}
+    sonuc, okunan = {}, False
+    for blok in metin.split("##"):
+        parcalar = [p.strip() for p in blok.strip().split("|")]
+        # Satır "ref|durum|açıklama"dır; "3|şifre geçersiz" bir hata cevabıdır.
+        if len(parcalar) < 3 or not parcalar[0].isdigit() or not parcalar[1].isdigit():
+            continue
+        okunan = True
+        if parcalar[0] in istenen:
+            aciklama = "|".join(parcalar[2:]).strip(" |")
+            sonuc[parcalar[0]] = _fatura_durumu(parcalar[1], aciklama, blok.strip())
+    if metin and not okunan:
+        raise SaglayiciHatasi(f"Toplu fatura sorgusunun cevabı okunamadı: {metin[:200]}")
+    return sonuc
+
+
+def kurum_listesi_coz(ham):
+    """`ID,SORGU KODU,ADI,MALİYET,ÖZEL#…` → kurumlar. Ad virgül taşıyabilir."""
+    sonuc = []
+    for blok in unquote_plus(ham or "").split("#"):
+        parcalar = [p.strip() for p in blok.strip().split(",")]
+        if len(parcalar) < 5 or not parcalar[0].isdigit():
+            continue
+        ad = ",".join(parcalar[2:-2]).strip()
+        if not ad:
+            continue
+        sonuc.append(
+            SaglayiciKurumu(kod=parcalar[0], ad=ad, sorgu_kodu=parcalar[1], maliyet=tutar_coz(parcalar[-2]))
+        )
+    if not sonuc:
+        raise SaglayiciHatasi(f"Kurum listesi alınamadı: {(ham or '')[:200] or 'boş cevap'}")
     return sonuc

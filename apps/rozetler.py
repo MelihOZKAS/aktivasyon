@@ -140,11 +140,12 @@ def bekleyen_siparisler(request):
 
 
 def bekleyen_fatura_odemeleri(request):
-    """Bayinin ödediği, yönetimin sağlayıcıda henüz ödemediği faturalar.
+    """Bayinin ödediği, yönetimin elindeki faturalar.
 
-    Para bayiden düşmüş, fatura hâlâ ödenmemiş: müşteri bekliyor. Yönetim
-    Kontorbizde'de ödeyip "Ödendi" deyince sayıdan düşer.
+    Para bayiden düşmüş, fatura hâlâ ödenmemiş: müşteri bekliyor. Sağlayıcıda
+    süren ödeme sayılmaz — kendiliğinden kapanır; sayılan elle ödenecek,
+    gönderilemeyen ya da cevabı belirsiz olandır (`yonetim_bekleyenler`).
     """
-    from apps.fatura.models import Odeme, OdemeDurumu
+    from apps.fatura.services import yonetim_bekleyenler
 
-    return _sayi(Odeme.objects.filter(durum=OdemeDurumu.BEKLIYOR))
+    return _sayi(yonetim_bekleyenler())

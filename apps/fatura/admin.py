@@ -9,6 +9,7 @@ from django.db.models import Count, Prefetch
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
+from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import display
@@ -18,6 +19,7 @@ from apps.bayi.etiket import kullanici_etiketi_html
 from apps.fatura import fiyat as fatura_fiyat
 from apps.fatura.models import (
     FaturaFiyatGrubu,
+    GonderimDurumu,
     GrupFiyati,
     Kategori,
     Kurum,
@@ -28,8 +30,19 @@ from apps.fatura.models import (
     Sorgu,
     SorguDurumu,
 )
-from apps.fatura.services import fiyat_grubu
-from apps.fatura.services import KararVerilemez, iptal_et, odendi_isaretle
+from apps.fatura.services import (
+    OTOMATIK_GONDERIM_SURESI,
+    FaturaHatasi,
+    KararVerilemez,
+    fiyat_grubu,
+    gonderim_engeli,
+    iptal_et,
+    kurumlari_eslestir,
+    odemeyi_gonder,
+    odendi_isaretle,
+    sonucu_sorgula,
+    yonetim_bekleyenler,
+)
 from apps.filtreler import GunAraligiFiltresi
 
 GRI = "#6F7B8F"
@@ -54,6 +67,19 @@ def _dugme(adres, metin, renk="#0D1320"):
 
 def _soluk(metin):
     return format_html('<span style="color:{}">{}</span>', GRI, metin)
+
+
+def _atomik_degil(gorunum):
+    """Sağlayıcıyla konuşan yönetim ekranı istek transaction'ının dışında.
+
+    `ATOMIC_REQUESTS` açık; gönderim kaydı ağa çıkmadan commit edilmezse
+    süreç düştüğünde kaybolur ve fatura ikinci kez ödenirdi (kontördeki gibi).
+    """
+
+    def sarmalayici(*args, **kwargs):
+        return gorunum(*args, **kwargs)
+
+    return transaction.non_atomic_requests(sarmalayici)
 
 
 # -- Katalog -------------------------------------------------------------
@@ -85,11 +111,15 @@ class KurumAdmin(ModelAdmin):
     satırdan düzenlenir ve gruba göre değişmez.
     """
 
-    list_display = ("ad", "kod", "kategori", "sorgulu", "kural", "tavsiye", "grup_fiyatlari_gosterimi", "sira", "aktif")
-    list_editable = ("kategori", "sorgulu", "tavsiye", "sira", "aktif")
-    list_filter = ("aktif", "sorgulu", "kategori")
-    search_fields = ("ad", "kod")
+    list_display = (
+        "ad", "kod", "uzak_id", "kategori", "sorgulu", "kural", "tavsiye", "grup_fiyatlari_gosterimi", "sira", "aktif",
+    )
+    list_editable = ("uzak_id", "kategori", "sorgulu", "tavsiye", "sira", "aktif")
+    list_filter = ("aktif", "sorgulu", "kategori", ("uzak_id", admin.EmptyFieldListFilter))
+    search_fields = ("ad", "kod", "uzak_id")
     list_per_page = 50
+    # Listenin üstünde "Sağlayıcıdan eşleştir": kurum numaralarını API'nin listesinden doldurur.
+    change_list_template = "admin/fatura/kurum/change_list.html"
 
     def get_fieldsets(self, request, obj=None):
         fiyat = ["tavsiye", "grup_fiyatlari_gosterimi", "alis_fiyati"]
@@ -105,7 +135,7 @@ class KurumAdmin(ModelAdmin):
         if fiyat_grubu(None) is None:
             fiyat += ["hizmet_bedeli", "bayi_fiyati"]
         return (
-            (None, {"fields": ("ad", "kod", "kategori", "operator", "sira", "aktif", "sorgulu")}),
+            (None, {"fields": ("ad", "kod", "uzak_id", "kategori", "operator", "sira", "aktif", "sorgulu")}),
             (
                 "Numara kuralı",
                 {
@@ -130,6 +160,41 @@ class KurumAdmin(ModelAdmin):
             .select_related("kategori")
             .prefetch_related(Prefetch("grup_fiyatlari", queryset=GrupFiyati.objects.select_related("grup")))
         )
+
+    def get_urls(self):
+        return [
+            path(
+                "eslestir/",
+                self.admin_site.admin_view(_atomik_degil(self.eslestir)),
+                name="fatura_kurum_eslestir",
+            ),
+            *super().get_urls(),
+        ]
+
+    def eslestir(self, request):
+        """Sağlayıcının kurum listesinden kurum numaralarını doldurur. Yalnızca POST."""
+        if request.method != "POST":
+            return redirect("admin:fatura_kurum_changelist")
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+        try:
+            adet, guncellenen, eslesmeyen = kurumlari_eslestir()
+        except FaturaHatasi as hata:
+            self.message_user(request, str(hata), messages.ERROR)
+            return redirect("admin:fatura_kurum_changelist")
+        self.message_user(
+            request,
+            f"Sağlayıcının listesinde {adet} kurum; {guncellenen} kurumun numarası yazıldı.",
+            messages.SUCCESS,
+        )
+        if eslesmeyen:
+            self.message_user(
+                request,
+                f"Adıyla eşleşmeyen {len(eslesmeyen)} kurum (numarayı listeden elle yaz): {', '.join(eslesmeyen[:20])}"
+                + (" …" if len(eslesmeyen) > 20 else ""),
+                messages.WARNING,
+            )
+        return redirect("admin:fatura_kurum_changelist")
 
     @display(description="Numara")
     def kural(self, obj):
@@ -510,9 +575,42 @@ ODEME_RENKLERI = {
 }
 
 
+GONDERIM_RENKLERI = {
+    GonderimDurumu.GONDERILIYOR: GRI,
+    GonderimDurumu.ISLEMDE: "#B45309",
+    GonderimDurumu.ODENDI: "#0F8A4D",
+    GonderimDurumu.REDDEDILDI: "#D42046",
+    GonderimDurumu.IPTAL: "#D42046",
+    GonderimDurumu.BELIRSIZ: "#D42046",
+}
+
+
+class KararFiltresi(admin.SimpleListFilter):
+    """Yönetimin elindeki ödemeler (`services.yonetim_bekleyenler`), rozetin saydığı."""
+
+    title = "Karar"
+    parameter_name = "karar"
+
+    def lookups(self, request, model_admin):
+        return (("bekliyor", "Yönetimin elinde"), ("saglayicida", "Sağlayıcıda sürüyor"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "bekliyor":
+            return yonetim_bekleyenler(queryset)
+        if self.value() == "saglayicida":
+            return queryset.filter(durum=OdemeDurumu.BEKLIYOR).exclude(pk__in=yonetim_bekleyenler().values("pk"))
+        return queryset
+
+
 @admin.register(Odeme)
 class OdemeAdmin(ModelAdmin):
-    """Bayinin ödediği faturalar. Günlük iş: sağlayıcıda öde → "Ödendi".
+    """Bayinin ödediği faturalar. Faturaları sağlayıcı öder; yönetim istisnaya bakar.
+
+    Fatura sağlayıcısı ve kurumun sağlayıcıdaki numarası varsa ödeme
+    kendiliğinden gönderilir, sonucu sorulur, "Ödendi" ya da "İptal + iade"
+    kendiliğinden olur. Gönderilemeyen, cevabı belirsiz olan ve sağlayıcıya
+    hiç gitmeyen (elle ödenecek) ödemeler yönetimin elindedir: süzgeç ve
+    rozet onları sayar, düğme kırmızıdır.
 
     Durum alanı formda salt okunurdur; karar yalnızca satırdaki düğmeden
     (onay ekranı, POST) verilir ve `services` üzerinden geçer. İptal para
@@ -521,9 +619,9 @@ class OdemeAdmin(ModelAdmin):
 
     list_display = (
         "olusturma_tarihi", "referans", "bayi_gosterimi", "kurum_adi", "numara",
-        "fatura_ozeti", "tutar_gosterimi", "durum_gosterimi", "karar_dugmesi",
+        "fatura_ozeti", "tutar_gosterimi", "durum_gosterimi", "saglayici_gosterimi", "karar_dugmesi",
     )
-    list_filter = ("durum", "kurum", ("olusturma_tarihi", GunAraligiFiltresi))
+    list_filter = (KararFiltresi, "durum", "kurum", ("olusturma_tarihi", GunAraligiFiltresi))
     search_fields = (
         "siparis__referans_no", "numara", "abone_adi",
         "bayi__username", "bayi__first_name", "bayi__last_name", "bayi__bayi_profili__unvan",
@@ -538,7 +636,12 @@ class OdemeAdmin(ModelAdmin):
         return False
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("siparis", "bayi", "bayi__bayi_profili")
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("siparis", "bayi", "bayi__bayi_profili")
+            .prefetch_related("gonderimler")
+        )
 
     @display(description="Referans", ordering="siparis__referans_no")
     def referans(self, obj):
@@ -574,17 +677,34 @@ class OdemeAdmin(ModelAdmin):
             return format_html('{}<br><span style="color:{};font-size:.7rem">{}</span>', rozet, GRI, obj.sonuc_notu)
         return rozet
 
+    @display(description="Sağlayıcı")
+    def saglayici_gosterimi(self, obj):
+        """Faturaların sağlayıcıdaki son durumu; hiç gitmediyse elle ödenecektir."""
+        son = obj.son_gonderimler()
+        if not son:
+            if not obj.bekliyor:
+                return "—"
+            yeni = timezone.now() - obj.olusturma_tarihi < OTOMATIK_GONDERIM_SURESI
+            return _soluk("gönderiliyor" if obj.otomatik and yeni else "elle ödenecek")
+        return format_html_join(
+            format_html("<br>"),
+            "{}",
+            ((_rozet(g.get_durum_display(), GONDERIM_RENKLERI.get(g.durum, GRI)),) for g in son.values()),
+        )
+
     @display(description="")
     def karar_dugmesi(self, obj):
         if not obj.bekliyor:
             return ""
-        return _dugme(reverse("admin:fatura_odeme_karar", args=[obj.pk]), "Karar")
+        # Sağlayıcıda süren ödeme kendiliğinden kapanır; yönetimin elindeki kırmızı.
+        renk = "#0D1320" if obj.saglayicida else "#D42046"
+        return _dugme(reverse("admin:fatura_odeme_karar", args=[obj.pk]), "Karar", renk)
 
     def get_urls(self):
         return [
             path(
                 "<int:object_id>/karar/",
-                self.admin_site.admin_view(self.karar),
+                self.admin_site.admin_view(_atomik_degil(self.karar)),
                 name="fatura_odeme_karar",
             ),
             *super().get_urls(),
@@ -601,6 +721,23 @@ class OdemeAdmin(ModelAdmin):
         if request.method == "POST":
             karar = request.POST.get("karar")
             try:
+                if karar == "sorgula":
+                    adet = sonucu_sorgula(odeme)
+                    odeme.refresh_from_db()
+                    durum = {
+                        OdemeDurumu.ODENDI: ("Sağlayıcı ödendi dedi; ödeme kapandı.", messages.SUCCESS),
+                        OdemeDurumu.IPTAL: ("Sağlayıcı iptal etti; tutar bayiye iade edildi.", messages.WARNING),
+                    }.get(odeme.durum, (f"{adet} gönderim soruldu; cevaplar aşağıda.", messages.INFO))
+                    messages.add_message(request, durum[1], durum[0])
+                    return redirect("admin:fatura_odeme_karar", odeme.pk)
+                if karar == "gonder":
+                    yeni = odemeyi_gonder(odeme.pk, elle=True)
+                    messages.info(
+                        request,
+                        " · ".join(f"{g.fatura_no}: {g.get_durum_display()}" for g in yeni)
+                        or "Gönderilecek fatura yok.",
+                    )
+                    return redirect("admin:fatura_odeme_karar", odeme.pk)
                 if karar == "odendi":
                     odendi_isaretle(odeme, olusturan=request.user, not_=request.POST.get("not", ""))
                     messages.success(request, f"{odeme.referans_no} ödendi olarak kapandı.")
@@ -616,7 +753,10 @@ class OdemeAdmin(ModelAdmin):
                     return redirect("admin:fatura_odeme_karar", odeme.pk)
             except KararVerilemez as hata:
                 messages.error(request, str(hata))
+                return redirect("admin:fatura_odeme_karar", odeme.pk)
             return redirect("admin:fatura_odeme_changelist")
+        gonderimler = list(odeme.gonderimler.select_related("saglayici"))
+        son = odeme.son_gonderimler()
         return render(
             request,
             "admin/fatura/odeme_karar.html",
@@ -625,5 +765,18 @@ class OdemeAdmin(ModelAdmin):
                 "title": f"Fatura ödemesi · {odeme.referans_no}",
                 "opts": self.model._meta,
                 "odeme": odeme,
+                "gonderimler": gonderimler,
+                "engel": gonderim_engeli(odeme) if odeme.bekliyor else "",
+                "suren": any(g.suruyor for g in son.values()),
+                "odenen": any(g.durum == GonderimDurumu.ODENDI for g in son.values()),
+                "belirsiz": any(g.durum == GonderimDurumu.BELIRSIZ for g in son.values()),
+                "sorulabilir": any(
+                    g.durum in (GonderimDurumu.ISLEMDE, GonderimDurumu.BELIRSIZ) for g in son.values()
+                ),
+                "gonderilebilir": [
+                    f["fatura_no"] for f in odeme.faturalar
+                    if f["fatura_no"] not in son
+                    or not (son[f["fatura_no"]].suruyor or son[f["fatura_no"]].durum == GonderimDurumu.ODENDI)
+                ],
             },
         )

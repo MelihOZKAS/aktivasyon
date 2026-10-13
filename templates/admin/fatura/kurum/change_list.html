@@ -1,0 +1,25 @@
+{% extends "admin/change_list.html" %}
+
+{% comment %}
+  Kurum listesinin üstünde "Sağlayıcıdan eşleştir": fatura sağlayıcısının
+  kurum listesini (kurum_listesi.php) çekip boş "Sağlayıcı No"ları adla
+  doldurur. Kaydı değiştirdiği için POST formudur. Numara robotun
+  kataloğundan da kendiliğinden gelir; eşleşmeyeni yönetici satırdan yazar.
+
+  Sınıflar unfold'un derlenmiş CSS'inden; static/app.css burada yüklü değil.
+{% endcomment %}
+
+{% block object-tools-items %}
+    <div class="flex flex-row flex-wrap items-center gap-2">
+        <form method="post" action="{% url 'admin:fatura_kurum_eslestir' %}">
+            {% csrf_token %}
+            <button type="submit"
+                    class="flex flex-row items-center gap-1 h-[38px] -my-1 rounded-full border border-base-200 bg-white text-sm font-medium whitespace-nowrap hover:text-primary-600 dark:bg-base-900 dark:border-base-700 dark:hover:text-primary-500"
+                    style="padding-inline:.9rem" title="Fatura sağlayıcısının kurum listesinden kurum numaralarını doldur">
+                <span class="material-symbols-outlined md-18">link</span>
+                Sağlayıcıdan eşleştir
+            </button>
+        </form>
+        {{ block.super }}
+    </div>
+{% endblock %}

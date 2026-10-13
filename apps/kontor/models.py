@@ -80,14 +80,55 @@ class Saglayici(ZamanDamgali):
     son_liste_cekme = models.DateTimeField(
         "Fiyat Listesi Çekildi", null=True, blank=True, editable=False
     )
+    fatura_odemesi = models.BooleanField(
+        "Fatura ödemeleri buraya",
+        default=False,
+        help_text=(
+            "Açıksa bayinin ödediği faturalar bu sağlayıcıya kendiliğinden gönderilir (kurumun "
+            "sağlayıcıdaki numarasıyla) ve sonucu buradan sorulur. Yalnızca bir sağlayıcıda "
+            "açık olabilir. Kapalıysa ya da kurumun numarası boşsa faturayı yönetim elle öder."
+        ),
+    )
 
     class Meta:
         verbose_name = "Kontör Sağlayıcısı"
         verbose_name_plural = "Kontör Sağlayıcıları"
         ordering = ["ad"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fatura_odemesi"], condition=Q(fatura_odemesi=True), name="kontor_saglayici_tek_fatura"
+            )
+        ]
 
     def __str__(self):
         return self.ad
+
+    @classmethod
+    def fatura_saglayicisi(cls):
+        """Faturaların gönderildiği açık sağlayıcı; yoksa `None` (ödeme elle yapılır)."""
+        return cls.objects.filter(fatura_odemesi=True, aktif=True).first()
+
+    def clean(self):
+        super().clean()
+        if self.fatura_odemesi and self.tur:
+            try:
+                fatura_var = saglayici_sinifi(self.tur).fatura_var
+            except Exception:
+                fatura_var = False
+            if not fatura_var:
+                raise ValidationError(
+                    {"fatura_odemesi": f"{self.get_tur_display()} yazılımı fatura ödemesi almıyor."}
+                )
+
+    def validate_constraints(self, exclude=None):
+        # Ham kısıt adı yöneticiye bir şey anlatmıyor; hangi sağlayıcıda açık olduğunu söyle.
+        if self.fatura_odemesi:
+            diger = Saglayici.objects.filter(fatura_odemesi=True).exclude(pk=self.pk).first()
+            if diger is not None:
+                raise ValidationError(
+                    {"fatura_odemesi": f"Fatura ödemeleri “{diger}” sağlayıcısına gidiyor; önce orada kapatın."}
+                )
+        super().validate_constraints(exclude=(exclude or set()) | {"fatura_odemesi"})
 
     def adaptor(self):
         return saglayici_sinifi(self.tur)(self)

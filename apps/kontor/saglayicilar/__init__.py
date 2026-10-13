@@ -52,6 +52,7 @@ class GonderimSonucu:
     uzak_ref: str = ""  # sağlayıcının kendi işlem numarası (Grafi, kntryeni)
     alis: Decimal = None  # sağlayıcının bu işlem için düştüğü tutar
     ham: str = ""
+    maliyet: Decimal = None  # faturada sağlayıcının kendi bedeli (alış = fatura + bu + faiz)
 
 
 class Sorgu:
@@ -79,6 +80,16 @@ class SaglayiciPaketVerisi:
     fiyat: Decimal
     operator: str = ""
     tip: str = ""
+
+
+@dataclass
+class SaglayiciKurumu:
+    """Sağlayıcının fatura kurum listesindeki bir satır (`kurum_listesi.php`)."""
+
+    kod: str  # KURUM ID: fatura bununla gönderilir
+    ad: str
+    sorgu_kodu: str = ""  # tekil değil; aynı kurumun birden çok kaydında aynı gelir
+    maliyet: Decimal = None  # sağlayıcının fatura başına bedeli
 
 
 def tutar_coz(metin):
@@ -147,6 +158,40 @@ class Adaptor:
     def paketleri_getir(self):
         """Sağlayıcının fiyat listesi: `list[SaglayiciPaketVerisi]`."""
         raise SaglayiciHatasi(f"{self.ad} fiyat listesi vermiyor; alış fiyatları elle girilir.")
+
+    # -- Oyun / e-pin -----------------------------------------------------
+    #
+    # Ayrı bir pin servisi olan yazılım (Znet: `pin_ekle.php`) bunları ezer.
+    # Olmayanda oyun da kontörün kapısından gider: kategori ve paket kodları
+    # o sağlayıcının kontör protokolüne göre yazılır.
+
+    def oyun_gonder(self, *, ref, hedef, uzak_kod, uzak_operator, uzak_tip):
+        return self.gonder(ref=ref, hedef=hedef, uzak_kod=uzak_kod, uzak_operator=uzak_operator, uzak_tip=uzak_tip)
+
+    def oyun_sorgula(self, *, ref, uzak_ref):
+        return self.sorgula(ref=ref, uzak_ref=uzak_ref)
+
+    # -- Fatura -----------------------------------------------------------
+    #
+    # Faturayı sağlayıcı öder; biz kurum numarasıyla gönderir, sonucunu
+    # sorarız (`apps.fatura.services`). Kontördeki üç sonuç burada da
+    # geçerlidir: kabul (`alis` = sağlayıcıdan düşen toplam), ret (orada
+    # açılmadı), belirsiz (açılmış olabilir — yönetim karar verir).
+
+    fatura_var = False
+
+    def fatura_gonder(self, *, ref, kurum_id, abone_adi, son_odeme_tarihi, tesisat_no, fatura_no, tutar):
+        """Tek faturayı ödemeye gönderir: `GonderimSonucu`."""
+        raise SaglayiciHatasi(f"{self.ad} fatura ödemesi almıyor.", kesin_gitmedi=True)
+
+    def fatura_sorgula(self, refler):
+        """{ref: SorguSonucu}. Listede olmayan ref sürüyor demektir (toplu
+        sorguda sağlayıcı bekleyenleri yazmıyor)."""
+        raise SaglayiciHatasi(f"{self.ad} fatura sonucu vermiyor.")
+
+    def fatura_kurumlari(self):
+        """Sağlayıcının fatura kurumları: `list[SaglayiciKurumu]`."""
+        raise SaglayiciHatasi(f"{self.ad} fatura kurum listesi vermiyor.")
 
 
 def _kayit():

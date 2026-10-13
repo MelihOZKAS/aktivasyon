@@ -123,13 +123,16 @@ class CinSesiTestleri(TestCase):
 
         self.adres = reverse("yeni-kayitlar")
 
-    def test_personel_dort_kaynagin_son_numarasini_alir(self):
+    def test_personel_kaynaklarin_son_numarasini_alir(self):
         from apps.bayi.models import BayiBasvurusu
 
         yonetici = User.objects.create_user("yonetici", password="parola12345", is_staff=True)
         self.client.force_login(yonetici)
         veri = self.client.get(self.adres).json()
-        self.assertEqual(veri, {"basvuru": 0, "bayi_basvurusu": 0, "odeme": 0, "kontor": 0, "fatura": 0})
+        self.assertEqual(
+            veri,
+            {"basvuru": 0, "bayi_basvurusu": 0, "odeme": 0, "kontor": 0, "fatura": 0, "fatura_gonderimi": 0},
+        )
         basvuru = BayiBasvurusu.objects.create(isim="Ali", soyisim="Veli", irtibat="5320000000")
         self.assertEqual(self.client.get(self.adres).json()["bayi_basvurusu"], basvuru.pk)
 
