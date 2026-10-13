@@ -848,7 +848,7 @@ class EkranTestleri(Temel):
         self.client.force_login(baska)
         self.assertEqual(self.client.get(islem.get_absolute_url()).status_code, 404)
 
-    def test_dekont_yalniz_yuklenmis_islemde_musteri_fiyatiyla(self):
+    def test_dekont_surerken_de_verilir_musteri_fiyatiyla(self):
         from apps.bayi.models import BayiProfili
 
         BayiProfili.objects.create(
@@ -858,9 +858,17 @@ class EkranTestleri(Temel):
         self.paket.save()
         islem = self.yukle()
         adres = reverse("kontor:dekont", args=[islem.siparis.referans_no])
-        # Sürerken dekont yok: müşteri elinde "yüklendi" kağıdıyla yüklenmemiş hatla kalmasın.
-        self.assertEqual(self.client.get(adres).status_code, 404)
-        self.assertNotContains(self.client.get(islem.get_absolute_url()), adres)
+        # Sürerken de verilir (müşteri tezgâhta bekliyor); kağıt "Yükleniyor" der, "Yüklendi" değil.
+        self.assertTrue(islem.acik)
+        self.assertContains(self.client.get(islem.get_absolute_url()), adres)
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "Yükleniyor")
+        self.assertNotContains(yanit, "Yüklendi")
+        # Askıda da "Yükleniyor": müşteriye iç durum yazılmaz.
+        Islem.objects.filter(pk=islem.pk).update(durum=IslemDurumu.ASKIDA)
+        self.assertContains(self.client.get(islem.get_absolute_url()), adres)
+        self.assertContains(self.client.get(adres), "Yükleniyor")
+        Islem.objects.filter(pk=islem.pk).update(durum=IslemDurumu.ISLEMDE)
 
         _ayar("Bir", sorgu="basarili")
         Islem.objects.update(son_sorgu=None)
@@ -873,9 +881,10 @@ class EkranTestleri(Temel):
         yanit = self.client.get(adres)
         for metin in (
             "Ege İletişim", "Atatürk Cd. 5 İzmir", "0532 444 55 66", "YÜKLEME DEKONTU", "Kolay Paket 15",
-            "0532 999 88 77", "150,00 ₺", islem.siparis.referans_no, "58 mm", "80 mm", "A5",
+            "0532 999 88 77", "150,00 ₺", islem.siparis.referans_no, "58 mm", "80 mm", "A5", "Yüklendi",
         ):
             self.assertContains(yanit, metin)
+        self.assertNotContains(yanit, "Yükleniyor")
         # Bayinin ödediği müşterinin fişine girmez.
         self.assertNotContains(yanit, "110,00")
         # Tavsiye yoksa bilinen tek rakam bayinin ödediğidir.
@@ -885,6 +894,17 @@ class EkranTestleri(Temel):
         baska = User.objects.create_user("5320000000", password="x")
         self.client.force_login(baska)
         self.assertEqual(self.client.get(adres).status_code, 404)
+
+    def test_iptal_edilen_islemin_dekontu_yok(self):
+        Rota.objects.filter(saglayici=self.iki).delete()
+        _ayar("Bir", sorgu="iptal")
+        islem = self.yukle()
+        Islem.objects.update(son_sorgu=None)
+        islem = isle(islem.pk)
+        self.assertEqual(islem.durum, IslemDurumu.IPTAL)
+        adres = reverse("kontor:dekont", args=[islem.siparis.referans_no])
+        self.assertEqual(self.client.get(adres).status_code, 404)
+        self.assertNotContains(self.client.get(islem.get_absolute_url()), adres)
 
     def test_kontor_siparisi_magaza_listesinde_gorunmez(self):
         self.yukle()

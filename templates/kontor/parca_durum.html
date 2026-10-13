@@ -23,15 +23,6 @@
     <button type="button" class="dugme dugme-sessiz mt-3 text-sm" data-kopyala="{{ islem.sonuc_mesaji }}">Kopyala</button>
     {% endif %}
   </div>
-  {% comment %}
-    Yüklenince bayinin yapacağı iş müşteriye fişini vermektir; düğme kutunun
-    altında tam genişliktedir. Burada bir süre "Aynı paketi yeniden yükle"
-    duruyordu — yüklenmiş paketi yeniden yüklemenin anlamı yok, yönetim
-    "direk dekont yazdırma gelsin" dedi.
-  {% endcomment %}
-  <a href="{% url 'kontor:dekont' islem.siparis.referans_no %}" class="dugme dugme-birincil mt-4 w-full">
-    <span class="ikon" aria-hidden="true">print</span> Dekont yazdır
-  </a>
 
   {% elif islem.durum == "iptal" %}
   <div class="sim rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-5">
@@ -67,6 +58,19 @@
       <a href="{% url 'kontor:islemler' %}" class="font-medium text-vurgu underline">yüklemelerinde</a> görünür.
     </p>
   </div>
+  {% endif %}
+
+  {% comment %}
+    Bayinin yapacağı iş müşteriye fişini vermektir; düğme kutunun altında tam
+    genişliktedir. İşlem sürerken de durur (dekontta durum "Yükleniyor"
+    yazar): müşteri tezgâhta bekliyor, yönetim "onay almadan dekont
+    yazdıramıyoruz" dedi. İptal edilende yok. Burada bir süre "Aynı paketi
+    yeniden yükle" duruyordu — yönetim "direk dekont yazdırma gelsin" dedi.
+  {% endcomment %}
+  {% if islem.durum != "iptal" %}
+  <a href="{% url 'kontor:dekont' islem.siparis.referans_no %}" class="dugme dugme-birincil mt-4 w-full">
+    <span class="ikon" aria-hidden="true">print</span> Dekont yazdır
+  </a>
   {% endif %}
 </div>
 

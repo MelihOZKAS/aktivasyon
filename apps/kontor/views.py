@@ -242,16 +242,17 @@ def islem_durum(request, referans):
 @login_required
 @bayi_gerekli
 def dekont(request, referans):
-    """Müşteriye verilen dekont (58 mm, 80 mm, A5). Yalnızca yüklenmiş işlemde.
+    """Müşteriye verilen dekont (58 mm, 80 mm, A5). İptal edilende yok.
 
-    Kontörün sonucu saniyeler içinde gelir; sürerken ya da askıdayken fiş
-    verilseydi müşteri elinde "yüklendi" kağıdıyla, yüklenmemiş bir hatla
-    kalabilirdi. Tutar müşteriye dönüktür: tavsiye satış, yoksa bayinin
-    ödediği (`apps/bayi/dekont.py`).
+    İşlem sürerken de verilir, durum "Yükleniyor" yazar — faturadaki
+    "Ödeniyor"un aynısı: müşteri tezgâhta bekliyor, bayi onayı beklemeden
+    fişini versin. Kağıt "yüklendi" demediği için müşteri yüklenmemiş hatla
+    "yüklendi" fişiyle kalmaz. Tutar müşteriye dönüktür: tavsiye satış, yoksa
+    bayinin ödediği (`apps/bayi/dekont.py`).
     """
     islem_kaydi = _islem(request, referans)
-    if islem_kaydi.durum != IslemDurumu.BASARILI:
-        raise Http404("Dekont yalnızca yüklenmiş işlemde verilir.")
+    if islem_kaydi.durum == IslemDurumu.IPTAL:
+        raise Http404("İptal edilen işlemin dekontu verilmez.")
     return render(
         request,
         "kontor/dekont.html",

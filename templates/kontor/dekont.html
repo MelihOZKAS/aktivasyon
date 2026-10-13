@@ -18,7 +18,11 @@
 {% if pin and islem.sonuc_mesaji %}
 <p class="dk-pin">{{ islem.sonuc_mesaji }}</p>
 {% endif %}
-<div class="dk-alan"><span>Durum</span><b>{% if pin %}Teslim edildi{% else %}Yüklendi{% endif %}</b></div>
+{% comment %}
+  Sürerken de verilir; durum o anki hâli yazar (askıdaki işlem müşteriye
+  "Yükleniyor"dur, bayinin ekranındaki "kontrol ediliyor" gibi).
+{% endcomment %}
+<div class="dk-alan"><span>Durum</span><b>{% if islem.durum == "basarili" %}{% if pin %}Teslim edildi{% else %}Yüklendi{% endif %}{% elif pin %}Hazırlanıyor{% else %}Yükleniyor{% endif %}</b></div>
 <hr class="dk-cizgi">
 <div class="dk-alan dk-toplam"><span>TUTAR</span><b>{{ tutar|para }} ₺</b></div>
 {% endblock %}

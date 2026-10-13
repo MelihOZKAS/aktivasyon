@@ -989,16 +989,19 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   bedelleri + hizmet bedeli satırı; `fatura.services.dekont_ozeti`). Bayinin
   alışı yazılmaz; tavsiye kaydı yoksa bilinen tek rakam olan bayinin ödediği
   yazılır. "Mali değeri yoktur" yazar.
-  · **Kontörde yalnızca yüklenmiş işlemde** (pin satışında pin kodu
-  dekontta): sonuç saniyeler içinde gelir, sürerken fiş verilseydi müşteri
-  "yüklendi" kağıdıyla yüklenmemiş hatla kalabilirdi. **Faturada ödeme
-  sürerken de verilir**, durum "Ödeniyor" yazar: ödemeyi yönetim elle
-  yapar, sürebilir, müşteri tezgâhta bekliyor. İptal edilende hiç yok.
-  Kontör işlem sayfasında yüklenince yeşil kutunun altında tam genişlikte
-  **Dekont yazdır** durur (`parca_durum.html`, HTMX ile gelir). Orada bir
-  süre "Aynı paketi yeniden yükle" vardı; yönetim "buna gerek yok, direk
-  dekont yazdırma gelsin" dedi — yüklenmiş paketi yeniden yüklemek
-  istenen bir iş değil, fiş istenen iştir.
+  · **İşlem sürerken de verilir, iptal edilende hiç yok.** Dekontun
+  "Durum"u o anki hâli yazar: kontörde "Yükleniyor" (pinde
+  "Hazırlanıyor"; askıdaki işlem de müşteriye "Yükleniyor"dur), yüklenince
+  "Yüklendi" / "Teslim edildi" — pin kodu ancak o zaman dekonta girer;
+  faturada "Ödeniyor". Müşteri tezgâhta bekliyor. Kontörde dekont bir süre
+  yalnızca yüklenmiş işlemde veriliyordu (sürerken fiş verilirse müşteri
+  "yüklendi" kağıdıyla yüklenmemiş hatla kalır diye); yönetim "paketler
+  hâlâ onay almadan dekont yazdıramıyoruz" dedi. Kağıt "yüklendi" demediği
+  için o kaygı kalkar. Kontör işlem sayfasında **Dekont yazdır** durum
+  kutusunun altında tam genişliktedir, sürerken de (`parca_durum.html`,
+  HTMX ile gelir). Orada bir süre "Aynı paketi yeniden yükle" vardı;
+  yönetim "buna gerek yok, direk dekont yazdırma gelsin" dedi — yüklenmiş
+  paketi yeniden yüklemek istenen bir iş değil, fiş istenen iştir.
   · **Her bilgi iki satırdır:** etiket üstte, değer altında, tam genişlikte,
   kalın ve ortalı (`.dk-alan`: `<div class="dk-alan"><span>Abone No</span><b>…</b></div>`).
   Etiketle değer bir süre yan yanaydı: 48 mm'de değere yer kalmıyor,
