@@ -50,20 +50,21 @@
   </div>
   {% elif kategoriler %}
   {% comment %}
-    Kategori kartı operatörün marka rengini sol şeritte taşır: renk burada
-    "hangi operatör" bilgisidir. Operatörsüz kategoride şerit gri.
+    Kartın zemini operatörün marka rengidir (`.kart-marka`): renk burada
+    "hangi operatör" bilgisidir, bayi Turkcell'i Vodafone'dan adı okumadan
+    ayırır. Bir süre yalnızca sol şeritteydi; kartlar beyaz ve birbirine
+    benziyordu. Operatörsüz kategori koyu gri.
   {% endcomment %}
   <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
     {% for kategori in kategoriler %}
     <a href="{{ kategori.get_absolute_url }}"
-       class="kart-secim sim yuzey flex min-h-14 items-center gap-3 border border-cizgi px-4 py-3 transition">
-      <span class="h-8 w-1.5 shrink-0 rounded-full"
-            style="background: {% if kategori.operator %}{{ kategori.operator.renk|okunur_renk }}{% else %}var(--color-silik){% endif %}"></span>
+       class="kart-marka sim sim-cizgisiz flex min-h-14 items-center gap-3 px-4 py-3"
+       {% if kategori.operator %}style="--marka: {{ kategori.operator.renk|okunur_renk }}"{% endif %}>
       <span class="min-w-0 flex-1">
-        <span class="block truncate font-medium">{{ kategori.ad }}</span>
-        {% if kategori.operator %}<span class="block truncate text-xs text-soluk">{{ kategori.operator.ad }}</span>{% endif %}
+        <span class="block truncate font-semibold">{{ kategori.ad }}</span>
+        {% if kategori.operator %}<span class="block truncate text-xs">{{ kategori.operator.ad }}</span>{% endif %}
       </span>
-      <span class="text-soluk" aria-hidden="true">→</span>
+      <span aria-hidden="true">→</span>
     </a>
     {% endfor %}
   </div>

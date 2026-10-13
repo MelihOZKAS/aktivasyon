@@ -172,6 +172,27 @@
     background: var(--color-vurgu-acik);
   }
 
+  /* Marka zeminli seçim kartı (kontör kategorileri): zemin operatörün
+     rengidir, --marka satır içinden gelir ve okunur_renk'ten geçmiştir —
+     beyazda okunur olan renk üstündeki beyaz yazı da okunur (≥ 4,5:1).
+     Dolu zeminde pahlı köşenin çizgisi gerekmez: .sim-cizgisiz ile. Renk
+     dekor değil "hangi operatör" bilgisidir; bayi Turkcell'i Vodafone'dan
+     adı okumadan ayırsın diye şeritten bütün karta taşındı. */
+  .kart-marka {
+    background: var(--marka, var(--color-murekkep-yumusak));
+    color: #fff;
+    transition: background-color 0.12s;
+  }
+
+  .kart-marka:hover {
+    background: color-mix(in srgb, var(--marka, var(--color-murekkep-yumusak)) 82%, #000);
+  }
+
+  .kart-marka:focus-visible {
+    outline: 3px solid var(--color-murekkep);
+    outline-offset: 2px;
+  }
+
   /* Yüzeyler uçmaz: ayrımı kenarlık yapar, gölge yapmaz. */
   .yuzey {
     background: var(--color-yuzey);

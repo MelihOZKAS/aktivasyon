@@ -529,6 +529,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   eski arama bin kartı çizip gizliyordu. Kategori ekranı bayiye fiyatı
   olmayan kategoriyi hiç listelemez (`kategori_listesi(bayi=…)`) — içi boş
   açılmasın. Yeni bir paket listesi yazarsan sayfala.
+  Kategori kartının zemini operatörün rengidir (`.kart-marka`;
+  `okunur_renk`'ten geçmiş renk üstünde beyaz yazı da ≥ 4,5:1 okunur): bir
+  süre yalnızca sol şeritteydi, beyaz kartlar birbirine benziyordu ve
+  yönetim "rahat ayırsınlar" dedi.
   · **Oyun pini Znet'te kontörün değil pin servisinin kapısından gider**
   (`pin_ekle.php` / `pin_kontrol.php`, sağlayıcının `api.pdf`'i). Kapıyı
   kategorinin **Oyun / E-pin** işareti seçer (`services._oyun_mu` →
