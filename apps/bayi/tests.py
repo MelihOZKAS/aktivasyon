@@ -2876,3 +2876,32 @@ class KazancTestleri(TestCase):
         self.assertContains(ters, "başlangıçtan önce olamaz")
         bos = self.client.get(adres, {"bas": "2020-01-01", "bit": "2020-01-02"})
         self.assertContains(bos, "yüklenmiş kontör ya da ödenmiş fatura yok")
+
+
+class MenuSirasiTestleri(TestCase):
+    """Bayinin kenar menüsü: Aktivasyon, sonra satış (kontör, fatura, oyun-pin, eSIM), sonra hesabı."""
+
+    def test_menu_sirasi(self):
+        bayi = User.objects.create_user("5321112233", password="parola12345")
+        Cuzdan.objects.create(bayi=bayi)
+        self.client.force_login(bayi)
+        menu = self.client.get(reverse("bayi:panel")).content.decode()
+        menu = menu[menu.index('id="kenar-menu"'):]
+        sira = ["Aktivasyon", "Yeni başvuru", "Satış", "Kontör", "Fatura", "Oyun &amp; Pin", "eSIM", "Kazancım",
+                "Hesabım", "Cüzdan", "Mağaza", "Destek"]
+        konumlar = [menu.index(f"\n        {ad}\n") if ad not in ("Aktivasyon", "Satış", "Hesabım") else menu.index(f">{ad}</p>")
+                    for ad in sira]
+        self.assertEqual(konumlar, sorted(konumlar))
+
+
+class ListeBasligiTestleri(TestCase):
+    """Yönetim listelerinin başlığı `column-ad` taşımaz: reklam engelleyici (EasyList) gizliyordu."""
+
+    def test_ad_sutunu_reklam_engelleyiciye_takilmaz(self):
+        from apps.kontor.models import Saglayici
+
+        Saglayici.objects.create(ad="Kontorbizde", tur="znet", adres="kb.test", kullanici_adi="u", sifre="s")
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        yanit = self.client.get(reverse("admin:kontor_saglayici_changelist"))
+        self.assertContains(yanit, "Kontorbizde")
+        self.assertNotContains(yanit, "column-ad")

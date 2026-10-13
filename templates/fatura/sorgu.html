@@ -7,6 +7,7 @@
 {% block icerik %}
 <div class="mx-auto max-w-xl">
   <a href="{{ kurum.get_absolute_url }}?numara={{ sorgu.numara|urlencode }}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← {{ kurum.ad }}</a>
+  {% include "fatura/parca_sepet_cubugu.html" %}
 
   <div class="mb-4">
     <p class="text-sm font-medium"
@@ -39,6 +40,8 @@
       var yetmiyor = bayi > bakiye + 0.001;
       form.querySelector("[data-yetmiyor]").hidden = !yetmiyor;
       form.querySelector("[data-gonder]").disabled = secili.length === 0 || yetmiyor || form.dataset.gonderildi === "1";
+      // Sepete eklemek bakiye istemez: ödeme sepette, hepsi birlikte yapılır.
+      form.querySelector("[data-sepete]").disabled = secili.length === 0 || form.dataset.gonderildi === "1";
       var hepsi = form.querySelector("[data-hepsi]");
       if (hepsi) {
         var tumu = form.querySelectorAll("[data-fatura-sec]:not(:disabled)");
@@ -58,8 +61,12 @@
       if (form.id !== "odeme-formu") return;
       if (form.dataset.gonderildi) { olay.preventDefault(); return; }
       form.dataset.gonderildi = "1";
-      var dugme = form.querySelector("[data-gonder]");
-      requestAnimationFrame(function () { dugme.disabled = true; dugme.textContent = "Ödeniyor…"; });
+      var sepete = olay.submitter && olay.submitter.hasAttribute("data-sepete");
+      var dugme = sepete ? form.querySelector("[data-sepete]") : form.querySelector("[data-gonder]");
+      requestAnimationFrame(function () {
+        form.querySelectorAll("[data-gonder], [data-sepete]").forEach(function (d) { d.disabled = true; });
+        dugme.textContent = sepete ? "Ekleniyor…" : "Ödeniyor…";
+      });
     });
     document.addEventListener("htmx:afterSwap", hesapla);
     document.addEventListener("DOMContentLoaded", hesapla);

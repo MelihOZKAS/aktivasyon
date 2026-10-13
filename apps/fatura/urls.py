@@ -16,6 +16,11 @@ urlpatterns = [
     path("fatura/sorgu/<str:referans>/", views.sorgu, name="sorgu"),
     path("fatura/sorgu/<str:referans>/durum/", views.sorgu_durum, name="sorgu-durum"),
     path("fatura/sorgu/<str:referans>/ode/", views.sorgu_ode, name="sorgu-ode"),
+    path("fatura/sorgu/<str:referans>/sepete-ekle/", views.sepete_ekle, name="sepete-ekle"),
+    path("fatura/sepet/", views.sepet, name="sepet"),
+    path("fatura/sepet/cikar/", views.sepetten_cikar, name="sepetten-cikar"),
+    path("fatura/sepet/ode/", views.sepet_ode, name="sepet-ode"),
+    path("fatura/sepet/tamam/", views.sepet_tamam, name="sepet-tamam"),
     # Sorgu robotunun kapısı (znetfaturasorgu/DJANGO_API.md).
     path("fatura/robot/is/", api.is_, name="robot-is"),
     path("fatura/robot/sonuc/", api.sonuc, name="robot-sonuc"),

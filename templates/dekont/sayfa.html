@@ -19,7 +19,11 @@
     sabit bir boy verilseydi yazıcı fişin altına boş kağıt sürerdi.
 
     Termal kafa gri basamaz: dekontta yalnızca siyah ve düz çizgi var. Biçim
-    cihaza aittir (yazıcı o cihaza bağlı), localStorage'da durur.
+    cihaza aittir (yazıcı o cihaza bağlı), localStorage'da durur. "Açılınca
+    yazdır" da cihaza aittir: işaretliyse dekont açılır açılmaz yazdırma
+    penceresi gelir, bayi her fişte Yazdır'a basmaz. Yazdırma penceresini
+    (yazıcı seçimi) tarayıcı açar; sayfa onu atlayamaz — tarayıcı son
+    seçilen yazıcıyı kendisi hatırlar.
   {% endcomment %}
   <style>
     html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 10.5px; }
@@ -104,6 +108,10 @@
         <button type="button" class="dugme dugme-sessiz dk-bicim flex-1" data-bicim="80" aria-pressed="true">80 mm</button>
         <button type="button" class="dugme dugme-sessiz dk-bicim flex-1" data-bicim="a5" aria-pressed="false">A5</button>
       </div>
+      <label class="flex min-h-11 basis-full cursor-pointer items-center gap-2 text-sm">
+        <input type="checkbox" data-hemen-yazdir class="size-5 shrink-0 accent-murekkep">
+        Bu cihazda dekont açılınca hemen yazdır
+      </label>
     </div>
   </header>
 
@@ -140,6 +148,9 @@
       function sakla(bicim) {
         try { localStorage.setItem("dekont-bicimi", bicim); } catch (e) { /* gizli pencere */ }
       }
+      function hemenMi() {
+        try { return localStorage.getItem("dekont-hemen-yazdir") === "1"; } catch (e) { return false; }
+      }
 
       // Rulo sayfası içeriğin boyu kadar: CSS mm'si 96 dpi'dir, ekrandaki
       // ölçü baskıdakiyle aynı genişlikte ve aynı yazıyla alınır.
@@ -174,9 +185,23 @@
       });
       window.addEventListener("beforeprint", sayfayiKur);
 
+      var hemen = document.querySelector("[data-hemen-yazdir]");
+      hemen.checked = hemenMi();
+      hemen.addEventListener("change", function () {
+        try {
+          if (hemen.checked) localStorage.setItem("dekont-hemen-yazdir", "1");
+          else localStorage.removeItem("dekont-hemen-yazdir");
+        } catch (e) { /* gizli pencere: bu açılışta geçerli */ }
+      });
+
       sec(oku() || "80");
-      // Yazı tipi gelince satırlar kayabilir; boy yeniden ölçülür.
-      if (document.fonts && document.fonts.ready) document.fonts.ready.then(sayfayiKur);
+      // Yazı tipi gelince satırlar kayabilir; boy yeniden ölçülür. Açılınca
+      // yazdırılacaksa pencere de o zaman açılır: yarım ölçülmüş fiş basılmasın.
+      var hazir = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+      hazir.then(function () {
+        sayfayiKur();
+        if (hemen.checked) window.print();
+      });
     })();
   </script>
 </body>

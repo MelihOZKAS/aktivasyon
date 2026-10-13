@@ -1340,3 +1340,113 @@ class KurumNumarasiTestleri(Temel):
         iki.tur = "grafi"
         with self.assertRaisesMessage(ValidationError, "fatura ödemesi almıyor"):
             iki.full_clean()
+
+
+class SepetTestleri(Temel):
+    """Müşterinin birkaç kurumdaki faturası sepete atılır, hepsi birlikte ödenir."""
+
+    def setUp(self):
+        super().setUp()
+        # Müşteri eki olmayan ikinci kurum: müşteriye bayinin ödediği söylenir.
+        self.turkcell = Kurum.objects.create(
+            kod="turkcell", ad="Turkcell", sorgulu=True, alan_etiketi="Telefon", min_hane=10, max_hane=10,
+            hizmet_bedeli=TL("5.00"),
+        )
+        self.client.force_login(self.bayi)
+
+    def turkcell_sorgusu(self):
+        sorgu = Sorgu.objects.create(bayi=self.bayi, kurum=self.turkcell, numara="5321234567",
+                                     durum=SorguDurumu.SORGULANIYOR)
+        return sonuc_yaz(self.robot, sorgu.pk, veri={"abone_adi": "A*** B***", "faturalar": [
+            {"fatura_no": "TC1", "son_odeme_tarihi": "20.10.2026", "fatura_bedeli_tl": 100.0, "toplam_tutar": 120.0},
+        ]})
+
+    def sepete(self, sorgu, *nolar):
+        return self.client.post(reverse("fatura:sepete-ekle", args=[sorgu.referans_no]), {"fatura": list(nolar)})
+
+    def test_iki_kurum_sepete_girer_hepsi_birlikte_odenir_para_ustu(self):
+        vodafone = self.tamam_sorgu()
+        turkcell = self.turkcell_sorgusu()
+        self.assertRedirects(self.sepete(vodafone, "FD60950NCB9D53", "FD00000000002"), reverse("fatura:index"))
+        self.sepete(turkcell, "TC1")
+        self.assertContains(self.client.get(reverse("fatura:index")), "Sepette 3 fatura")
+
+        yanit = self.client.get(reverse("fatura:sepet"))
+        # Müşteriye: Vodafone 390+10, 180+10 (müşteri eki), Turkcell 100+5 (ek yok: bayinin ödediği) = 695.
+        self.assertEqual(yanit.context["musteri_toplam"], TL("695.00"))
+        self.assertEqual(yanit.context["bayi_toplam"], TL("685.00"))   # 395 + 185 + 105
+        self.assertContains(yanit, "Hepsini öde (3 fatura)")
+        self.assertContains(yanit, "Müşteriden alınan")
+
+        anahtar = "a" * 32
+        yanit = self.client.post(reverse("fatura:sepet-ode"), {"islem_anahtari": anahtar, "alinan": "1.000"})
+        odemeler = list(Odeme.objects.order_by("pk"))
+        self.assertEqual(len(odemeler), 2)  # kurum + numara başına bir ödeme
+        self.assertEqual(self.bakiye(), TL("315.00"))
+        self.assertEqual(self.client.session.get("fatura_sepeti"), None)
+        self.assertEqual(odemeler[1].tavsiye_fiyati, None)  # müşteri eki yok: dekont bayinin ödediğini yazar
+
+        tamam = self.client.get(yanit["Location"])
+        self.assertEqual(tamam.context["musteri_toplam"], TL("695.00"))
+        self.assertEqual(tamam.context["para_ustu"], TL("305.00"))
+        self.assertContains(tamam, "Para üstü")
+        dekont = self.client.get(tamam.context["dekont_url"])
+        self.assertEqual(dekont.context["toplam"], TL("695.00"))
+        self.assertContains(dekont, "Para üstü")
+        self.assertContains(dekont, "305,00")
+
+        # Aynı form ikinci kez gelirse (geri tuşu) ikinci kez ödenmez.
+        tekrar = self.client.post(reverse("fatura:sepet-ode"), {"islem_anahtari": anahtar, "alinan": "1000"})
+        self.assertEqual(Odeme.objects.count(), 2)
+        self.assertIn(odemeler[0].referans_no, tekrar["Location"])
+
+    def test_hepsi_ya_da_hicbiri(self):
+        self.cuzdan.bakiye = TL("500.00")
+        self.cuzdan.save()
+        self.sepete(self.tamam_sorgu(), "FD60950NCB9D53")          # 395
+        self.sepete(self.turkcell_sorgusu(), "TC1")                 # 105 → 500, yeter
+        self.sepete(self.tamam_sorgu(numara="5332590139"), "FD00000000002")  # +185 → yetmez
+        yanit = self.client.get(reverse("fatura:sepet"))
+        self.assertTrue(yanit.context["yetmiyor"])
+        self.client.post(reverse("fatura:sepet-ode"), {"islem_anahtari": "b" * 32})
+        self.assertFalse(Odeme.objects.exists())
+        self.assertEqual(self.bakiye(), TL("500.00"))
+        self.assertEqual(len(self.client.session["fatura_sepeti"]), 3)  # sepet yerinde kalır
+
+    def test_eski_sorgu_ve_odenmis_fatura_odemeyi_durdurur(self):
+        sorgu = self.tamam_sorgu()
+        self.sepete(sorgu, "FD60950NCB9D53")
+        Sorgu.objects.filter(pk=sorgu.pk).update(sonuc_tarihi=timezone.now() - timedelta(hours=1))
+        yanit = self.client.get(reverse("fatura:sepet"))
+        self.assertContains(yanit, "Sorgu eskidi")
+        self.assertTrue(yanit.context["sorunlu"])
+        self.client.post(reverse("fatura:sepet-ode"), {"islem_anahtari": "c" * 32})
+        self.assertFalse(Odeme.objects.exists())
+
+        # Çıkarılınca sepet boşalır; ödenmiş fatura sepete hiç girmez.
+        self.client.post(reverse("fatura:sepetten-cikar"), {"sorgu": sorgu.referans_no, "fatura": "FD60950NCB9D53"})
+        self.assertContains(self.client.get(reverse("fatura:sepet")), "Sepet boş")
+        yeni = self.tamam_sorgu(numara="5332590140")
+        odeme_baslat(self.bayi, yeni, ["FD60950NCB9D53"])
+        self.sepete(yeni, "FD60950NCB9D53")
+        self.assertEqual(self.client.session.get("fatura_sepeti", []), [])
+
+    def test_ayni_numara_yeniden_sorgulaninca_eskisinin_yerine_gecer(self):
+        ilk = self.tamam_sorgu()
+        self.sepete(ilk, "FD60950NCB9D53")
+        Sorgu.objects.filter(pk=ilk.pk).update(olusturma_tarihi=timezone.now() - timedelta(minutes=5))
+        ikinci = self.tamam_sorgu()
+        self.assertNotEqual(ilk.pk, ikinci.pk)
+        self.sepete(ikinci, "FD60950NCB9D53")
+        self.assertEqual(self.client.session["fatura_sepeti"], [[ikinci.referans_no, "FD60950NCB9D53"]])
+
+    def test_sorgu_ekraninda_sepete_ekle_ve_dekontta_hemen_yazdir(self):
+        sorgu = self.tamam_sorgu()
+        yanit = self.client.get(sorgu.get_absolute_url())
+        self.assertContains(yanit, reverse("fatura:sepete-ekle", args=[sorgu.referans_no]))
+        self.sepete(sorgu, "FD60950NCB9D53")
+        self.assertContains(self.client.get(sorgu.get_absolute_url()), "· sepette")
+        odeme = odeme_baslat(self.bayi, self.turkcell_sorgusu(), ["TC1"])
+        dekont = self.client.get(reverse("fatura:odeme-dekont", args=[odeme.referans_no]))
+        self.assertContains(dekont, "data-hemen-yazdir")
+        self.assertNotContains(dekont, "Para üstü")

@@ -732,13 +732,46 @@ def odeme_baslat(bayi, sorgu, secilen, *, anahtar=None):
             faturalar=kalemler,
             saglayici_tutari=saglayici,
             hizmet_bedeli=bayi_toplam - saglayici,
-            tavsiye_fiyati=musteri,
+            # Müşteri eki tanımlı değilse müşteri fiyatı yoktur: dekont ve
+            # Kazancım bayinin ödediğini yazar (sorgu ekranındaki büyük rakam).
+            # Bir süre faturanın çıplak bedeli yazılıyordu; dekont bayinin
+            # ödediğinden az, Kazancım eksi kazanç gösteriyordu.
+            tavsiye_fiyati=musteri if kurum.tavsiye else None,
             otomatik=bool(kurum.uzak_id) and Saglayici.fatura_saglayicisi() is not None,
         )
         siparis_odemesini_isle(siparis, olusturan=bayi)
         if odeme.otomatik:
             transaction.on_commit(partial(arka_planda_gonder, odeme.pk))
     return odeme
+
+
+def sepeti_ode(bayi, kalemler, *, anahtar=None):
+    """Sepetteki faturaları tek seferde öder; açılan ödemeleri döndürür.
+
+    Her sorgu (kurum + numara) ayrı bir ödemedir — iptali, dekontu,
+    sağlayıcıya gönderimi tek ödemeyle aynı — ama **hepsi ya da hiçbiri**:
+    biri açılamazsa (bakiye, eski sorgu, ödenmiş fatura) hiçbiri açılmaz,
+    para düşmez. Ödemelerin anahtarı sepetin anahtarından türetilir: sayfa
+    yenilenince aynı sepet ikinci kez ödenmez.
+    """
+    gruplar = {}
+    for referans, fatura_no in kalemler:
+        gruplar.setdefault(referans, []).append(fatura_no)
+    if not gruplar:
+        raise FaturaHatasi("Sepet boş.")
+    odemeler = []
+    with transaction.atomic():
+        for referans, nolar in gruplar.items():
+            sorgu = Sorgu.objects.select_related("kurum").filter(bayi=bayi, referans_no=referans).first()
+            if sorgu is None:
+                raise FaturaHatasi("Sepetteki bir sorgu bulunamadı; sepeti yenile.")
+            try:
+                odemeler.append(
+                    odeme_baslat(bayi, sorgu, nolar, anahtar=f"{anahtar}:{referans}" if anahtar else None)
+                )
+            except SiparisVerilemez as hata:
+                raise type(hata)(f"{sorgu.kurum.ad} · {sorgu.numara}: {hata}") from hata
+    return odemeler
 
 
 def sabit_odeme_baslat(bayi, kurum, numara, *, anahtar=None):

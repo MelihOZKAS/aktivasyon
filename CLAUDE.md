@@ -974,11 +974,47 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   sürerken de verilir**, durum "Ödeniyor" yazar: ödemeyi yönetim elle
   yapar, sürebilir, müşteri tezgâhta bekliyor. İptal edilende hiç yok.
   · **Biçim cihaza aittir** (yazıcı o cihaza bağlı): seçim `localStorage`'da
-  durur, sunucuya gitmez. Termal yazıcının basılabilir genişliği rulodan
+  durur, sunucuya gitmez. **"Bu cihazda dekont açılınca hemen yazdır"** da
+  öyle (`dekont-hemen-yazdir`): işaretliyse dekont açılır açılmaz (yazı tipi
+  yüklenip fiş ölçüldükten sonra) yazdırma penceresi gelir, bayi her fişte
+  Yazdır'a basmaz. Pencerenin kendisini (yazıcı seçimi) tarayıcı açar,
+  sayfa atlayamaz; son seçilen yazıcıyı tarayıcı hatırlar. Termal yazıcının basılabilir genişliği rulodan
   dardır (58'de 48 mm, 80'de 72 mm); içerik o genişlikte ortalanır.
   **Rulo sayfası içeriğin boyu kadar kurulur** (`@page` boyu baskıdan önce
   betikle ölçülür): sabit boy verilseydi yazıcı fişin altına boş kağıt
   sürerdi. Termal kafa gri basamaz; dekontta yalnızca siyah ve düz çizgi var.
+- **Fatura sepeti: müşterinin bütün faturası tek seferde ödenir**
+  (`apps/fatura/sepet.py`, `/fatura/sepet/`). Müşteri tezgâha Turkcell,
+  doğalgaz, su ve elektrikle geliyor; bayi her kurumu sorgulayıp sorgu
+  ekranındaki **Sepete ekle** ile faturaları toplar, fatura sayfalarının
+  üstündeki çubuk ("Sepette 3 fatura") sepete götürür.
+  · **Sepet oturumdadır**, veritabanında değil: cihaza ait ve kısa ömürlü
+  (sorgu zaten 30 dk geçerli); tablo bayat kalemleri biriktirirdi. Sepet
+  yalnızca (sorgu referansı, fatura no) tutar; **tutar her zaman sorgunun
+  kaydından** okunur. Aynı numara yeniden sorgulanıp eklenirse eskisinin
+  yerine geçer. Sepete giremeyen (sorguda yok, eski, ödenmiş) baştan
+  geri çevrilir; sepette bekleyip bozulan kalem (sorgu eskidi, fatura başka
+  yoldan ödendi, kurum kapandı) kırmızıyla sebebini yazar ve **ödemeyi
+  durdurur** — müşteriye söylenen toplamla ödenen aynı kalsın.
+  · **Hepsi ya da hiçbiri** (`services.sepeti_ode`): her sorgu (kurum +
+  numara) ayrı bir `Odeme`dir — iptali, dekontu, sağlayıcıya gönderimi tek
+  ödemeyle aynı, `odeme_baslat`'tan geçer — ama hepsi tek transaction'da
+  açılır; biri açılamazsa (bakiye, eski sorgu) hiçbiri açılmaz, sepet
+  yerinde kalır. Ödemelerin işlem anahtarı sepetin anahtarından türer
+  (`<anahtar>:<sorgu>`): geri tuşuyla gelen form ikinci kez ödemez, açılmış
+  ödemeleri gösterir.
+  · **Para üstü** sepet ekranında: "Müşteriden alınan" yazılır ya da hazır
+  tutarlardan seçilir (Tam, toplamın üstündeki ilk 50/100/500/1000 katı);
+  eksikse uyarı renginde "Eksik". Kayda girmez; ödeme sonrası ekrana ve
+  tek dekonta (`?alinan=`, "Alınan" / "Para üstü" satırları) adresle
+  taşınır. "1.000" bin liradır (virgülsüz noktalı binlik, `views._para`
+  ve sayfadaki `oku` aynı kural); bir süre 1 ₺ okunuyordu.
+  · **Ekran müşteriye dönüktür:** sepette ve ödeme sonrasında büyük rakam
+  müşterinin ödeyeceğidir, bayinin alışı göz düğmesinde. Müşteri rakamı
+  dekonttakinin aynısıdır (`sepet.musteri_tutari`): kurumun müşteri eki
+  varsa fatura + ek, yoksa bayinin ödediği. **`Odeme.tavsiye_fiyati` müşteri
+  eki yoksa boştur**; bir süre faturanın çıplak bedeli yazılıyordu, dekont
+  bayinin ödediğinden az, Kazancım eksi kazanç gösteriyordu.
 - **Bayi kontör, oyun-pin ve fatura kazancını Kazancım'da görür**
   (`/kazanc/`, `apps/bayi/kazanc.py`): dönem toplamı, bölüm bölüm (Kontör,
   Oyun & Pin, Fatura) ve günlük döküm. Hazır aralıklar (bugün, dün, son 7
@@ -1307,13 +1343,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   doğrudan kaydedilseydi talep yanıtlandığı hâlde rozette beklemeye devam
   ederdi. Talep Telegram'a **bildirilmez** (aşağıda *Bildirimler*): açık
   talep zaten rozetle sayılıyor.
-- **Bayi menüsünün sırası bilinçlidir:** Panel, Tarifeler, Yeni başvuru,
-  Başvurularım, Hakedişler, Destek, Cüzdan, Mağaza, eSIM, Kontör, Oyun &
-  Pin, Fatura, Kazancım. Bayi müşteriyle önce tarifeye bakıyor, sonra başvuruyu giriyor; menü
-  bu sırayı izler. Mağaza cüzdanın hemen ardındadır (önce parayı görür,
-  sonra harcar); sonradan gelen satış bölümleri (eSIM, Kontör, Oyun & Pin,
-  Fatura) alta eklendi, üstteki sıra bozulmasın diye. Kazancım satış
-  bölümlerinin altındadır: önce satar, sonra ne kazandığına bakar.
+- **Bayi menüsünün sırası bilinçlidir ve üç başlıktadır** (`parcalar/kenar.html`):
+  Panel; **Aktivasyon** — Tarifeler, Yeni başvuru, Başvurularım,
+  Hakedişler; **Satış** — Kontör, Fatura, Oyun & Pin, eSIM, Kazancım;
+  **Hesabım** — Cüzdan, Mağaza, Destek. Yönetimin istediği sıra
+  "aktivasyon, kontör, fatura, oyun pini, eSIM"dir; satış bölümleri bir
+  süre eklendikleri sırayla en alttaydı (eSIM, Kontör, Oyun & Pin, Fatura)
+  ve Destek/Cüzdan aradaydı. Aktivasyonun içinde bayi müşteriyle önce
+  tarifeye bakıyor, sonra başvuruyu giriyor; Kazancım satış bölümlerinin
+  altındadır (önce satar, sonra ne kazandığına bakar); Mağaza cüzdanın
+  hemen ardındadır (önce parayı görür, sonra harcar). Başlıklar tıklanmaz,
+  yalnızca bölümü adlandırır; yalnızca tedarikçi olan kullanıcı Hesabım'ı görür.
 - **Rol ekranları karışmaz.** Bayi görünümleri `@bayi_gerekli`, tedarikçi
   görünümleri `@tedarikci_gerekli` ile korunur (`apps/bayi/yetki.py`).
   Yeni bir ekran eklerken hangi role ait olduğunu belirt; profili olmayan
@@ -1820,6 +1860,17 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Tutar kutusu odaktayken sayfayı kaydıran yönetici bayiye yüklediği tutarı
   fark etmeden kuruş kuruş değiştiriyordu. Bu iki dosya unfold'un derlenmiş
   CSS'ine sınıf eklemeden, yalnızca eleman seçicisiyle çalışır.
+- **Liste başlıkları `column-<alan>` sınıfı taşımaz**
+  (`templates/unfold/helpers/change_list_headers.html` ezilmiştir).
+  Reklam engelleyicilerin ortak listesi (EasyList) `##.column-ad` kuralıyla
+  "Ad" alanının başlığını gizliyor, başlıklar bir sütun sola kayıyordu:
+  Sağlayıcılar listesinde "Aktif" sütunu "Fatura ödemeleri buraya"nın
+  altında görünüyor, yönetici iki sağlayıcıda da fatura açık sanıyordu. 18
+  listede "Ad" ilk sütun. Sınıfları ne unfold'un CSS'i ne JS'i kullanıyor;
+  hücrelerin `field-<alan>`'ı kalır. unfold yükseltmesinde şablonu
+  kaynağıyla karşılaştır. Ekranda olmayan bir şeyi "yönetici yanlış
+  görüyor" diye ararken önce reklam engelleyiciyi düşün: Playwright'ta
+  sayfa doğruydu.
 - Ekleme düğmesi `templates/unfold/helpers/add_link.html` ile ezilmiştir:
   unfold'un ikon-only yuvarlak düğmesi ne yaptığını anlatmıyordu. unfold
   yükseltmelerinde bu şablonu gözden geçir.

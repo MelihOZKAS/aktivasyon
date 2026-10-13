@@ -36,6 +36,13 @@
     </div>
 
     <nav class="flex-1 space-y-1 px-3">
+      {% comment %}
+        Sıra bayinin işine göre: önce aktivasyon (tarifeye bakar, başvuruyu
+        girer, sonucunu ve hakedişini izler), sonra satış bölümleri (kontör,
+        fatura, oyun-pin, eSIM; altında ne kazandığı), en altta hesabı
+        (cüzdan, mağaza, destek). Başlıklar yalnızca bölümü adlandırır,
+        tıklanmaz.
+      {% endcomment %}
       {% url 'bayi:tedarikci-panel' as u_tedarikci %}
       {% url 'bayi:panel' as u_panel %}
       {% url 'basvurular:kategori-sec' as u_yeni %}
@@ -45,6 +52,11 @@
       {% url 'bayi:cuzdan' as u_cuzdan %}
       {% url 'magaza:liste' as u_magaza %}
       {% url 'esim:ulkeler' as u_esim %}
+      {% url 'kontor:kategoriler' as u_kontor %}
+      {% url 'kontor:oyunlar' as u_oyun %}
+      {% url 'fatura:index' as u_fatura %}
+      {% url 'bayi:kazanc' as u_kazanc %}
+      {% url 'destek:liste' as u_destek %}
 
       {% if tedarikci_mi %}
       <a href="{{ u_tedarikci }}"
@@ -63,6 +75,7 @@
         Panel
       </a>
 
+      <p class="px-3 pb-1 pt-4 text-xs font-semibold text-soluk">Aktivasyon</p>
       <a href="{{ u_tarifeler }}"
          class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
                 {% if request.path == u_tarifeler %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
@@ -91,51 +104,8 @@
         Hakedişler
       </a>
 
-      {% endif %}
-
-      {% url 'destek:liste' as u_destek %}
-      <a href="{{ u_destek }}"
-         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path == u_destek %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
-        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-        Destek
-      </a>
-
-      <a href="{{ u_cuzdan }}"
-         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path == u_cuzdan %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
-        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h18v11H3zM3 8l2-4h14l2 4M16 13.5h2"/></svg>
-        Cüzdan
-      </a>
-
-      {% comment %}
-        Mağaza cüzdanın hemen ardında: bayi önce elindeki parayı görür,
-        sonra harcayacağı yere geçer. Yalnızca bayi rolüne açık.
-      {% endcomment %}
-      {% if bayi_mi %}
-      <a href="{{ u_magaza }}"
-         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path == u_magaza %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
-        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6h15l-1.5 9h-12zM6 6L5 3H2M9 20a1 1 0 100-2 1 1 0 000 2zM18 20a1 1 0 100-2 1 1 0 000 2z"/></svg>
-        Mağaza
-      </a>
-
-      {% comment %}
-        eSIM mağazadan ayrı: ürün değil, ülke seçilip anında teslim edilen
-        bir hizmet. Altındaki bütün adresler /esim/ ile başlar.
-      {% endcomment %}
-      <a href="{{ u_esim }}"
-         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path|slice:":6" == u_esim %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
-        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
-        eSIM
-      </a>
-
-      {% comment %}
-        Kontör, paket ve oyun pini: numaraya yükleme. Adresleri /kontor/ ile
-        başlar; bölümün her sayfasında madde seçili görünür.
-      {% endcomment %}
-      {% url 'kontor:kategoriler' as u_kontor %}
+      <p class="px-3 pb-1 pt-4 text-xs font-semibold text-soluk">Satış</p>
+      {# Kontör, paket ve oyun pini: numaraya yükleme. Adresleri /kontor/ ile başlar. #}
       <a href="{{ u_kontor }}"
          class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
                 {% if request.path|slice:":8" == u_kontor %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
@@ -143,23 +113,7 @@
         Kontör
       </a>
 
-      {% comment %}
-        Oyun ve e-pin kontörden ayrı vitrin: bayi aradığını kendi bölümünde
-        bulur. Satış ve para kuralları aynıdır (apps/kontor), adresler /oyun/.
-      {% endcomment %}
-      {% url 'kontor:oyunlar' as u_oyun %}
-      <a href="{{ u_oyun }}"
-         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                {% if request.path|slice:":6" == u_oyun %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
-        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 00-3.95 3.4L2 13.5A3 3 0 005 17c1 0 1.7-.5 2.3-1.2L9 14h6l1.7 1.8c.6.7 1.3 1.2 2.3 1.2a3 3 0 003-3.5l-.75-5.1A4 4 0 0017.3 5z"/></svg>
-        Oyun &amp; Pin
-      </a>
-
-      {% comment %}
-        Fatura ödeme: kurum seç, numarayı sorgula, faturayı öde. Sorguyu
-        laptoptaki robot yapar (apps/fatura). Adresler /fatura/.
-      {% endcomment %}
-      {% url 'fatura:index' as u_fatura %}
+      {# Fatura ödeme: kurum seç, numarayı sorgula, faturayı öde (apps/fatura). Adresler /fatura/. #}
       <a href="{{ u_fatura }}"
          class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
                 {% if request.path|slice:":8" == u_fatura %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
@@ -167,11 +121,23 @@
         Fatura
       </a>
 
-      {% comment %}
-        Kontör, oyun-pin ve fatura kazancı (tavsiye fiyatla). Satış
-        bölümlerinin altında: önce satar, sonra ne kazandığına bakar.
-      {% endcomment %}
-      {% url 'bayi:kazanc' as u_kazanc %}
+      {# Oyun ve e-pin kontörden ayrı vitrin; satış ve para kuralları aynı (apps/kontor), adresler /oyun/. #}
+      <a href="{{ u_oyun }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path|slice:":6" == u_oyun %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 00-3.95 3.4L2 13.5A3 3 0 005 17c1 0 1.7-.5 2.3-1.2L9 14h6l1.7 1.8c.6.7 1.3 1.2 2.3 1.2a3 3 0 003-3.5l-.75-5.1A4 4 0 0017.3 5z"/></svg>
+        Oyun &amp; Pin
+      </a>
+
+      {# eSIM: ülke seçilip anında teslim edilen hizmet. Adresler /esim/. #}
+      <a href="{{ u_esim }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path|slice:":6" == u_esim %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+        eSIM
+      </a>
+
+      {# Kontör, oyun-pin ve fatura kazancı (tavsiye fiyatla): önce satar, sonra ne kazandığına bakar. #}
       <a href="{{ u_kazanc }}"
          class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
                 {% if request.path == u_kazanc %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
@@ -179,6 +145,31 @@
         Kazancım
       </a>
       {% endif %}
+
+      <p class="px-3 pb-1 pt-4 text-xs font-semibold text-soluk">Hesabım</p>
+      <a href="{{ u_cuzdan }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path == u_cuzdan %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h18v11H3zM3 8l2-4h14l2 4M16 13.5h2"/></svg>
+        Cüzdan
+      </a>
+
+      {# Mağaza cüzdanın hemen ardında: önce elindeki parayı görür, sonra harcar. Yalnızca bayiye. #}
+      {% if bayi_mi %}
+      <a href="{{ u_magaza }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path == u_magaza %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6h15l-1.5 9h-12zM6 6L5 3H2M9 20a1 1 0 100-2 1 1 0 000 2zM18 20a1 1 0 100-2 1 1 0 000 2z"/></svg>
+        Mağaza
+      </a>
+      {% endif %}
+
+      <a href="{{ u_destek }}"
+         class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                {% if request.path == u_destek %}bg-murekkep text-white{% else %}text-murekkep-yumusak hover:bg-zemin-koyu{% endif %}">
+        <svg width="20" height="20" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Destek
+      </a>
     </nav>
 
     {% if cuzdan %}

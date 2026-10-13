@@ -5,7 +5,8 @@ sorar. Ödeme açılınca tutar bakiyeden düşer; yönetim sağlayıcıda ödey
 "Ödendi" der, bayi sonucu ödeme sayfasında görür.
 """
 
-from decimal import Decimal
+import re
+from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 from uuid import uuid4
 
@@ -22,6 +23,7 @@ from django.views.decorators.http import require_POST
 
 from apps.bayi.dekont import firma
 from apps.bayi.yetki import bayi_gerekli
+from apps.fatura import sepet as fatura_sepeti
 from apps.fatura.models import Kategori, Kurum, Odeme, OdemeDurumu, Sorgu
 from apps.fatura.services import (
     ODEME_SURESI,
@@ -37,6 +39,7 @@ from apps.fatura.services import (
     robot_cevrimici_mi,
     sabit_odeme_baslat,
     satistaki_kurum,
+    sepeti_ode,
     sorgu_baslat,
     suresi_dolanlari_kapat,
     vade_durumu,
@@ -88,6 +91,7 @@ def index(request):
             "bolumler": bolumler,
             "bakiye": _bakiye(request),
             "son_odemeler": Odeme.objects.filter(bayi=request.user).select_related("siparis")[:SON_ODEME_ADEDI],
+            "sepet_adedi": len(fatura_sepeti.kalemler(request)),
         },
     )
 
@@ -111,6 +115,7 @@ def kurum(request, kod):
             "kazanc": (kurum_kaydi.tavsiye - fiyat) if fiyat and kurum_kaydi.tavsiye else None,
             "yeterli": kurum_kaydi.sorgulu or bakiye >= (fiyat or 0),
             "islem_anahtari": uuid4().hex,
+            "sepet_adedi": len(fatura_sepeti.kalemler(request)),
         },
     )
 
@@ -197,6 +202,8 @@ def _sorgu_baglami(request, sorgu):
         "eski": eski,
         "bakiye": _bakiye(request),
         "islem_anahtari": uuid4().hex,
+        "sepet_adedi": len(fatura_sepeti.kalemler(request)),
+        "sepette": {no for ref, no in fatura_sepeti.kalemler(request) if ref == sorgu.referans_no},
     }
 
 
@@ -233,6 +240,148 @@ def sorgu_ode(request, referans):
     return redirect(odeme)
 
 
+# -- Sepet ---------------------------------------------------------------
+#
+# Müşterinin birkaç kurumdaki faturası tek seferde ödenir (`apps/fatura/sepet.py`).
+# Sepet oturumdadır; tutar her zaman sorgunun kaydından okunur.
+
+
+@require_POST
+@login_required
+@bayi_gerekli
+def sepete_ekle(request, referans):
+    sorgu_kaydi = _sorgu(request, referans)
+    try:
+        eklenen = fatura_sepeti.ekle(request, sorgu_kaydi, request.POST.getlist("fatura"))
+    except SiparisVerilemez as hata:
+        messages.error(request, str(hata))
+        return redirect(sorgu_kaydi)
+    adet = len(fatura_sepeti.kalemler(request))
+    messages.success(
+        request,
+        f"{sorgu_kaydi.kurum.ad}: {eklenen} fatura sepete eklendi (sepette {adet}). "
+        "Başka kurumu seç ya da sepete geçip hepsini öde.",
+    )
+    return redirect("fatura:index")
+
+
+def _para(deger):
+    """Formdan gelen tutar ("1.250,50", "1.000", "1250.5") → Decimal; okunamazsa None.
+
+    Virgül varsa noktalar binliktir; virgülsüz "1.000" da binliktir (bayi
+    bin lirayı böyle yazar), "1250.5" ise kuruştur.
+    """
+    metin = str(deger or "").strip().replace(" ", "")
+    if "," in metin or re.fullmatch(r"\d{1,3}(\.\d{3})+", metin):
+        metin = metin.replace(".", "").replace(",", ".")
+    try:
+        tutar = Decimal(metin).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return None
+    return tutar if tutar.is_finite() and tutar >= 0 else None
+
+
+@login_required
+@bayi_gerekli
+def sepet(request):
+    """Sepetteki faturalar, toplam ve para üstü; "Hepsini öde" tek seferde öder."""
+    ozet = fatura_sepeti.ozet(request.user, fatura_sepeti.kalemler(request))
+    bakiye = _bakiye(request)
+    return render(
+        request,
+        "fatura/sepet.html",
+        {
+            **ozet,
+            "bakiye": bakiye,
+            "yetmiyor": ozet["bayi_toplam"] > bakiye,
+            "tavsiye_var": any(g["kurum"].tavsiye for g in ozet["gruplar"]),
+            "islem_anahtari": uuid4().hex,
+        },
+    )
+
+
+@require_POST
+@login_required
+@bayi_gerekli
+def sepetten_cikar(request):
+    fatura_sepeti.cikar(request, request.POST.get("sorgu", ""), request.POST.get("fatura", ""))
+    return redirect("fatura:sepet")
+
+
+def _sepet_sonucuna(odemeler, alinan):
+    sorgu = [("odeme", o.referans_no) for o in odemeler]
+    if alinan is not None:
+        sorgu.append(("alinan", str(alinan)))
+    return redirect(f"{reverse('fatura:sepet-tamam')}?{urlencode(sorgu)}")
+
+
+@require_POST
+@login_required
+@bayi_gerekli
+def sepet_ode(request):
+    """Sepeti öder: hepsi ya da hiçbiri. Aynı form ikinci kez gelirse açılanları gösterir."""
+    anahtar = (request.POST.get("islem_anahtari") or "").strip()[:32]
+    alinan = _para(request.POST.get("alinan"))
+    kalemler = fatura_sepeti.kalemler(request)
+    if not kalemler:
+        # Ödenmiş sepetin formu yeniden geldi (geri tuşu, çift dokunuş).
+        onceki = list(
+            Odeme.objects.filter(bayi=request.user, siparis__islem_anahtari__startswith=f"{anahtar}:")
+            .select_related("siparis")
+        ) if anahtar else []
+        if onceki:
+            return _sepet_sonucuna(onceki, alinan)
+        messages.error(request, "Sepet boş.")
+        return redirect("fatura:sepet")
+    ozet = fatura_sepeti.ozet(request.user, kalemler)
+    if ozet["sorunlu"]:
+        messages.error(request, "Sepette ödenemeyecek fatura var; işaretli satırları çıkar ya da yeniden sorgula.")
+        return redirect("fatura:sepet")
+    try:
+        odemeler = sepeti_ode(request.user, kalemler, anahtar=anahtar or None)
+    except IntegrityError:
+        return redirect("fatura:sepet")
+    except SiparisVerilemez as hata:
+        messages.error(request, str(hata))
+        return redirect("fatura:sepet")
+    fatura_sepeti.bosalt(request)
+    return _sepet_sonucuna(odemeler, alinan)
+
+
+@login_required
+@bayi_gerekli
+def sepet_tamam(request):
+    """Ödenen sepet: ödemelerin durumu, alınan ve para üstü, tek dekont."""
+    referanslar = list(dict.fromkeys(r.strip() for r in request.GET.getlist("odeme") if r.strip()))
+    odemeler = list(
+        Odeme.objects.filter(bayi=request.user, siparis__referans_no__in=referanslar[:SEPET_SINIRI])
+        .select_related("siparis", "kurum")
+        .order_by("olusturma_tarihi", "pk")
+    )
+    if not odemeler:
+        raise Http404("Ödeme bulunamadı.")
+    # Ekran müşteriye dönük: satırlarda ve toplamda dekonttaki rakam, bayinin alışı değil.
+    satirlar = [(o, dekont_ozeti(o)["toplam"]) for o in odemeler]
+    musteri = sum((t for o, t in satirlar if o.durum != OdemeDurumu.IPTAL), Decimal("0"))
+    alinan = _para(request.GET.get("alinan"))
+    dekontlu = [o for o in odemeler if o.durum != OdemeDurumu.IPTAL]
+    sorgu = [("odeme", o.referans_no) for o in dekontlu]
+    if alinan is not None:
+        sorgu.append(("alinan", str(alinan)))
+    return render(
+        request,
+        "fatura/sepet_tamam.html",
+        {
+            "satirlar": satirlar,
+            "musteri_toplam": musteri,
+            "alinan": alinan,
+            "para_ustu": alinan - musteri if alinan is not None and alinan >= musteri else None,
+            "dekont_url": f"{reverse('fatura:dekont')}?{urlencode(sorgu)}" if dekontlu else "",
+            "suruyor": any(o.bekliyor for o in odemeler),
+        },
+    )
+
+
 # -- Ödeme ---------------------------------------------------------------
 
 
@@ -256,12 +405,20 @@ def odeme_durum(request, referans):
 
 def _dekont(request, odemeler, geri):
     bloklar = [dekont_ozeti(odeme) for odeme in odemeler]
+    toplam = sum((b["toplam"] for b in bloklar), Decimal("0"))
+    # Sepetten gelince müşteriden alınan ve para üstü de fişe yazılır;
+    # kayıtta tutulmaz, yalnızca bu baskı içindir.
+    alinan = _para(request.GET.get("alinan"))
+    if alinan is not None and alinan < toplam:
+        alinan = None
     return render(
         request,
         "fatura/dekont.html",
         {
             "bloklar": bloklar,
-            "toplam": sum((b["toplam"] for b in bloklar), Decimal("0")),
+            "toplam": toplam,
+            "alinan": alinan,
+            "para_ustu": alinan - toplam if alinan is not None else None,
             "referans": ", ".join(o.referans_no for o in odemeler),
             "firma": firma(request.user),
             "geri": geri,

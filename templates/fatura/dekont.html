@@ -30,4 +30,9 @@
 {% endfor %}
 <hr class="dk-cizgi">
 <div class="dk-satir dk-toplam"><span>TOPLAM</span><span>{{ toplam|para }} ₺</span></div>
+{% if alinan is not None %}
+{# Sepetten gelince: müşteriden alınan ve para üstü (kayda girmez, yalnızca fiş). #}
+<div class="dk-satir"><span>Alınan</span><span>{{ alinan|para }} ₺</span></div>
+<div class="dk-satir"><span>Para üstü</span><span>{{ para_ustu|para }} ₺</span></div>
+{% endif %}
 {% endblock %}

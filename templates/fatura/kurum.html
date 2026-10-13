@@ -7,6 +7,7 @@
 {% block icerik %}
 <div class="mx-auto max-w-xl">
   <a href="{% url 'fatura:index' %}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← Fatura</a>
+  {% include "fatura/parca_sepet_cubugu.html" %}
 
   <div class="yuzey overflow-hidden rounded-kart border border-cizgi">
     <div class="p-5 sm:p-6">

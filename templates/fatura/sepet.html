@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}Sepet{% endblock %}
+{% block sayfa_basligi %}Fatura{% endblock %}
+
+{% block icerik %}
+{% comment %}
+  Fatura sepeti (apps/fatura/sepet.py): müşterinin birkaç kurumdaki
+  faturası tek seferde ödenir, tek dekont verilir. Ekran müşteriye dönüktür:
+  büyük rakam müşteriden alınacak toplamdır, bayinin alışı göz düğmesiyle
+  açılır. Para üstü yalnızca tezgâhtaki hesaptır, kayda girmez; ödeme
+  sonrası ekrana ve dekonta taşınır.
+
+  Ödenemeyecek kalem (eski sorgu, ödenmiş fatura, kapanan kurum) kırmızıyla
+  sebebini yazar ve ödemeyi durdurur: müşteriye söylenen toplamla ödenen
+  aynı kalsın. Yazdırılan sayılar yalnızca gösterimdir; sunucu tutarı
+  sorgunun kaydından okur.
+{% endcomment %}
+<div class="mx-auto max-w-xl">
+  <a href="{% url 'fatura:index' %}" class="mb-4 inline-flex min-h-11 items-center text-sm font-medium text-soluk">← Fatura</a>
+
+  <div class="mb-4 flex items-center justify-between gap-3">
+    <h2 class="baslik text-2xl font-bold">Sepet</h2>
+    <a href="{% url 'fatura:index' %}" class="dugme dugme-sessiz shrink-0 text-sm">+ Başka kurum</a>
+  </div>
+
+  {% if not gruplar %}
+  <div class="sim yuzey rounded-kart border border-cizgi p-6 text-center">
+    <p class="baslik font-semibold">Sepet boş</p>
+    <p class="mt-1 text-sm text-soluk">Kurumu seç, faturayı sorgula, “Sepete ekle”ye bas. Müşterinin bütün faturalarını toplayıp tek seferde ödersin.</p>
+    <a href="{% url 'fatura:index' %}" class="dugme dugme-birincil mt-4 inline-flex">Kurum seç</a>
+  </div>
+  {% else %}
+
+  <div class="space-y-3">
+    {% for g in gruplar %}
+    <section class="sim yuzey border border-cizgi">
+      <div class="flex items-start justify-between gap-3 border-b border-cizgi px-4 py-3">
+        <div class="min-w-0">
+          <p class="truncate text-sm font-semibold" {% if g.kurum.operator %}style="color: {{ g.kurum.operator.renk|okunur_renk }}"{% endif %}>{{ g.kurum.ad }}</p>
+          <p class="rakam truncate font-medium">{{ g.sorgu.numara }}{% if g.sorgu.abone_adi %} <span class="font-normal text-soluk">· {{ g.sorgu.abone_adi }}</span>{% endif %}</p>
+        </div>
+      </div>
+      {% for s in g.satirlar %}
+      <div class="flex items-center gap-3 border-b border-cizgi px-4 py-2 last:border-b-0">
+        <div class="min-w-0 flex-1">
+          <p class="rakam truncate text-sm font-medium">{{ s.fatura_no }}</p>
+          {% if s.sorun %}
+          <p class="text-xs font-semibold text-olumsuz">{{ s.sorun }}
+            {% if "yeniden sorgula" in s.sorun %}<a href="{{ g.kurum.get_absolute_url }}?numara={{ g.sorgu.numara|urlencode }}" class="underline">Sorgula</a>{% endif %}
+          </p>
+          {% elif s.vade == "gecikmis" %}
+          <p class="text-xs font-semibold text-olumsuz">Son ödeme {{ s.son_odeme_tarihi }} · günü geçti</p>
+          {% elif s.vade == "bugun" %}
+          <p class="text-xs font-semibold text-uyari">Bugün son gün</p>
+          {% elif s.son_odeme_tarihi %}
+          <p class="text-xs text-soluk">Son ödeme {{ s.son_odeme_tarihi }}</p>
+          {% endif %}
+        </div>
+        {% if s.musteri_tutari is not None %}
+        <span class="shrink-0 text-right {% if s.sorun %}text-silik line-through{% endif %}">
+          <span class="rakam block font-semibold">{{ s.musteri_tutari|para }} ₺</span>
+          {% if tavsiye_var and s.bayi_tutari is not None %}<span data-alis hidden class="rakam block text-xs text-soluk">alışın {{ s.bayi_tutari|para }}</span>{% endif %}
+        </span>
+        {% endif %}
+        <form method="post" action="{% url 'fatura:sepetten-cikar' %}" class="shrink-0">
+          {% csrf_token %}
+          <input type="hidden" name="sorgu" value="{{ s.referans }}">
+          <input type="hidden" name="fatura" value="{{ s.fatura_no }}">
+          <button type="submit" class="grid h-11 w-11 place-items-center rounded-lg text-soluk hover:bg-zemin-koyu hover:text-olumsuz"
+                  aria-label="{{ s.fatura_no }} sepetten çıkar" title="Sepetten çıkar">
+            <span class="ikon" aria-hidden="true">close</span>
+          </button>
+        </form>
+      </div>
+      {% endfor %}
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="sim my-4 rounded-kart border border-cizgi bg-zemin p-4">
+    <div class="flex items-center justify-between gap-3">
+      <span class="text-sm text-soluk">{{ adet }} fatura · müşteriden</span>
+      <span class="flex items-center gap-1">
+        <span class="rakam text-2xl font-bold">{{ musteri_toplam|para }} ₺</span>
+        {% if tavsiye_var %}{% include "kontor/parca_goz.html" %}{% endif %}
+      </span>
+    </div>
+    {% if tavsiye_var %}
+    <p data-alis hidden class="mt-1 text-sm text-murekkep-yumusak">
+      Bakiyenden düşecek <b class="rakam">{{ bayi_toplam|para }} ₺</b>
+    </p>
+    {% else %}
+    <p class="mt-1 text-xs text-soluk">Bu tutar bakiyenden düşer.</p>
+    {% endif %}
+  </div>
+
+  {% comment %}
+    Para üstü: müşteriden alınan yazılır ya da hazır tutarlardan biri
+    seçilir (toplamın üstündeki ilk 50, 100, 500, 1000 katı). Toplamdan
+    azsa eksik uyarı renginde yazar. Ödeme formunun alanıdır: ödemeden
+    sonra ekrana ve dekonta taşınır.
+  {% endcomment %}
+  <div class="sim yuzey mb-4 rounded-kart border border-cizgi p-4" data-para-ustu data-toplam="{{ musteri_toplam|stringformat:'f' }}">
+    <label for="alinan" class="text-sm font-semibold">Müşteriden alınan</label>
+    <div class="mt-2 flex items-center gap-2">
+      <input id="alinan" name="alinan" form="sepet-formu" inputmode="decimal" autocomplete="off"
+             class="girdi rakam min-w-0 flex-1 text-lg" placeholder="{{ musteri_toplam|para }}">
+      <span class="text-lg font-semibold">₺</span>
+    </div>
+    <div class="mt-2 flex flex-wrap gap-2" data-oneriler>
+      <button type="button" class="dugme dugme-sessiz min-h-11 px-3 text-sm" data-tutar="{{ musteri_toplam|stringformat:'f' }}">Tam</button>
+    </div>
+    <div class="mt-3 flex items-center justify-between gap-3 border-t border-cizgi pt-3" data-sonuc hidden>
+      <span class="text-sm font-semibold" data-sonuc-yazi>Para üstü</span>
+      <span class="rakam text-2xl font-bold" data-sonuc-tutar></span>
+    </div>
+  </div>
+
+  {% if sorunlu %}
+  <p class="sim mb-3 rounded-kart border border-olumsuz/40 bg-olumsuz/5 p-3 text-sm font-semibold text-olumsuz">
+    Kırmızı satırlar ödenemez. Sepetten çıkar ya da yeniden sorgulayıp ekle; sonra hepsini öde.
+  </p>
+  {% elif yetmiyor %}
+  <p class="sim mb-3 rounded-kart border border-uyari/40 bg-uyari/5 p-3 text-sm font-semibold text-uyari">
+    Bakiyen ({{ bakiye|para }} ₺) sepete yetmiyor. Ödeme bakiyeden yapılır, borca yazılmaz.
+  </p>
+  {% endif %}
+
+  <form method="post" action="{% url 'fatura:sepet-ode' %}" id="sepet-formu">
+    {% csrf_token %}
+    <input type="hidden" name="islem_anahtari" value="{{ islem_anahtari }}">
+    <button type="submit" class="dugme dugme-birincil w-full" data-gonder {% if sorunlu or yetmiyor %}disabled{% endif %}>
+      Hepsini öde ({{ adet }} fatura)
+    </button>
+    <p class="mt-2 text-center text-xs text-soluk">Hepsi birlikte ödenir; biri açılamazsa hiçbiri açılmaz. Ödenemeyen fatura kendiliğinden bakiyene döner.</p>
+  </form>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    var kutu = document.querySelector("[data-para-ustu]");
+    if (!kutu) return;
+    var toplam = parseFloat(kutu.dataset.toplam);
+    var girdi = kutu.querySelector("#alinan");
+    var oneriler = kutu.querySelector("[data-oneriler]");
+    var sonuc = kutu.querySelector("[data-sonuc]");
+    function tl(n) { return n.toLocaleString("tr-TR", {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+    // "1.500", "1.500,50", "1500.5" → sayı; boşsa NaN. Sunucudaki `_para` ile aynı kural.
+    function oku(metin) {
+      metin = (metin || "").replace(/\s/g, "");
+      if (metin.indexOf(",") >= 0 || /^\d{1,3}(\.\d{3})+$/.test(metin)) metin = metin.replace(/\./g, "").replace(",", ".");
+      return metin ? parseFloat(metin) : NaN;
+    }
+    function hesapla() {
+      var alinan = oku(girdi.value);
+      if (isNaN(alinan)) { sonuc.hidden = true; return; }
+      var fark = Math.round((alinan - toplam) * 100) / 100;
+      sonuc.hidden = false;
+      var eksik = fark < 0;
+      kutu.querySelector("[data-sonuc-yazi]").textContent = eksik ? "Eksik" : "Para üstü";
+      var tutar = kutu.querySelector("[data-sonuc-tutar]");
+      tutar.textContent = tl(Math.abs(fark)) + " ₺";
+      tutar.classList.toggle("text-uyari", eksik);
+    }
+    // Hazır tutarlar: toplamın üstündeki ilk 50, 100, 500, 1000 katı.
+    var gorulen = {};
+    [50, 100, 500, 1000].forEach(function (adim) {
+      var tutar = Math.ceil(toplam / adim) * adim;
+      if (tutar <= toplam || gorulen[tutar]) return;
+      gorulen[tutar] = true;
+      var dugme = document.createElement("button");
+      dugme.type = "button";
+      dugme.className = "dugme dugme-sessiz min-h-11 px-3 text-sm rakam";
+      dugme.dataset.tutar = String(tutar);
+      dugme.textContent = tl(tutar).replace(",00", "");
+      oneriler.appendChild(dugme);
+    });
+    oneriler.addEventListener("click", function (olay) {
+      var dugme = olay.target.closest("[data-tutar]");
+      if (!dugme) return;
+      girdi.value = tl(parseFloat(dugme.dataset.tutar));
+      hesapla();
+    });
+    girdi.addEventListener("input", hesapla);
+    hesapla();
+
+    var form = document.getElementById("sepet-formu");
+    form.addEventListener("submit", function (olay) {
+      if (form.dataset.gonderildi) { olay.preventDefault(); return; }
+      form.dataset.gonderildi = "1";
+      var dugme = form.querySelector("[data-gonder]");
+      requestAnimationFrame(function () { dugme.disabled = true; dugme.textContent = "Ödeniyor…"; });
+    });
+  })();
+</script>
+{% include "kontor/parca_goz_betik.html" %}
+{% endblock %}

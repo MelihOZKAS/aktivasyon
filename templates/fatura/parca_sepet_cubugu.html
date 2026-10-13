@@ -1,0 +1,15 @@
+{% comment %}
+  Sepette fatura varken fatura sayfalarının üstünde durur: bayi başka bir
+  kurumu sorgularken sepetin dolu olduğunu ve nereye gideceğini görsün.
+  Dolu zemin (mürekkep), bu yüzden SIM köşesinin çizgisi yok.
+{% endcomment %}
+{% if sepet_adedi %}
+<a href="{% url 'fatura:sepet' %}"
+   class="sim sim-cizgisiz mb-4 flex min-h-12 items-center justify-between gap-3 bg-murekkep px-4 py-3 text-white">
+  <span class="flex items-center gap-2 text-sm font-semibold">
+    <span class="ikon" aria-hidden="true">shopping_cart</span>
+    Sepette {{ sepet_adedi }} fatura
+  </span>
+  <span class="shrink-0 text-sm font-semibold">Sepete git →</span>
+</a>
+{% endif %}

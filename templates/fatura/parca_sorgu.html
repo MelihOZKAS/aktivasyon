@@ -13,6 +13,10 @@
   fatura kırmızı (.fatura-gecikmis), bugün son günü olan uyarı renginde
   (.fatura-son-gun) çizilir; ikisi de yazıyla söylenir, renk tek başına
   bırakılmaz. Hesap `services.vade_durumu`.
+
+  "Sepete ekle" seçilenleri fatura sepetine atar (apps/fatura/sepet.py):
+  müşterinin başka kurumdaki faturaları da sorgulanır, sonunda hepsi tek
+  seferde ödenir. Sepetteki fatura "sepette" diye işaretlidir.
 {% endcomment %}
 <div id="fatura-sorgu"
      {% if sorgu.acik %}hx-get="{% url 'fatura:sorgu-durum' sorgu.referans_no %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
@@ -86,7 +90,8 @@
             {% if s.vade == "gecikmis" %}<span class="whitespace-nowrap font-semibold text-olumsuz">Son ödeme {{ s.son_odeme_tarihi }} · günü geçti</span>
             {% elif s.vade == "bugun" %}<span class="whitespace-nowrap font-semibold text-uyari">Bugün son gün</span>
             {% else %}<span class="whitespace-nowrap">Son ödeme {{ s.son_odeme_tarihi|default:"—" }}</span>{% endif %}{% if s.fatura_bedeli %} · <span class="whitespace-nowrap">fatura {{ s.fatura_bedeli|para }} ₺</span>{% endif %}
-            {% if s.odendi %}<span class="font-semibold text-olumlu"> · ödendi / ödeniyor</span>{% endif %}
+            {% if s.odendi %}<span class="font-semibold text-olumlu"> · ödendi / ödeniyor</span>
+            {% elif s.fatura_no in sepette %}<span class="font-semibold text-murekkep"> · sepette</span>{% endif %}
           </span>
         </span>
         <span class="shrink-0 text-right">
@@ -120,7 +125,14 @@
       </p>
       <p class="mt-1 text-xs text-soluk">Ödenemezse tutar kendiliğinden bakiyene döner.</p>
     </div>
-    <button type="submit" class="dugme dugme-birincil w-full" data-gonder disabled>Seçilenleri öde</button>
+    <div class="grid gap-2">
+      <button type="submit" class="dugme dugme-birincil w-full" data-gonder disabled>Seçilenleri öde</button>
+      <button type="submit" formaction="{% url 'fatura:sepete-ekle' sorgu.referans_no %}"
+              class="dugme dugme-sessiz w-full" data-sepete disabled>
+        <span class="ikon" aria-hidden="true">add_shopping_cart</span> Sepete ekle
+      </button>
+    </div>
+    <p class="mt-2 text-center text-xs text-soluk">Müşterinin başka kurumda da faturası varsa sepete ekle, hepsini birlikte öde.</p>
   </form>
   {% endif %}
   {% endif %}
