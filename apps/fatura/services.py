@@ -15,6 +15,7 @@ import base64
 import binascii
 import logging
 import threading
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -23,7 +24,7 @@ from functools import partial
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Exists, F, OuterRef, Q
 from django.utils import timezone
 
 from apps.fatura.models import (
@@ -83,6 +84,10 @@ YARIM_GONDERIM = timedelta(minutes=2)
 # dedi — fatura saniyeler içinde ödenmiyor, erken sorgu hep "bekliyor" döner.
 # Yönetimin "Sonucu sorgula"sı bu süreye bağlı değildir.
 SONUC_ARALIGI = timedelta(minutes=10)
+# İşçinin bir fatura turunda sonuç sormaya ayırdığı en uzun süre (saniye).
+# Sorgu gönderim başına tektir; sağlayıcı yavaşsa kalanlar sonraki tura
+# kalır — aynı işçi kontör işlemlerini de yürütüyor, onları bekletmesin.
+SORGU_TURU_SURESI = 30
 
 ROBOT_YOK_MESAJI = "Fatura sorgusu şu an yapılamıyor; biraz sonra yeniden dene."
 ZAMAN_ASIMI_MESAJI = "Sorgu yanıt vermedi; yeniden dene."
@@ -871,7 +876,7 @@ def iptal_et(odeme, *, olusturan=None, sebep=""):
 #
 # Ödeme açılınca her fatura kurumun sağlayıcıdaki numarasıyla
 # (`Kurum.uzak_id`) fatura sağlayıcısına (`Saglayici.fatura_odemesi`)
-# gönderilir; sonucu toplu sorguyla sorulur. Bütün faturalar ödendiyse ödeme
+# gönderilir; sonucu tek tek sorulur. Bütün faturalar ödendiyse ödeme
 # kendiliğinden "Ödendi"ye, sağlayıcı hepsini iptal ettiyse "İptal + iade"ye
 # geçer. Gerisi (ret, belirsiz cevap, karışık sonuç) yönetimin kararıdır.
 
@@ -1029,12 +1034,10 @@ def _sonucu_yaz(gonderim, sonuc, istek, simdi):
     Durum geçişi koşullu güncellemedir: işçi ve yöneticinin "Sonucu sorgula"sı
     aynı anda yazarsa biri öbürünün sonucunu ezmesin.
     """
-    alanlar = {"son_sorgu": simdi, "sonuc_istegi": istek, "guncelleme_tarihi": simdi}
-    if sonuc is None:
-        alanlar["sonuc_cevabi"] = "— (bekliyor: toplu sorgu sonuçlanmamış işlemi yazmıyor)"
-        Gonderim.objects.filter(pk=gonderim.pk).update(**alanlar)
-        return False
-    alanlar["sonuc_cevabi"] = (sonuc.ham or sonuc.mesaj)[:2000]
+    alanlar = {
+        "son_sorgu": simdi, "sonuc_istegi": istek, "guncelleme_tarihi": simdi,
+        "sonuc_cevabi": (sonuc.ham or sonuc.mesaj)[:2000],
+    }
     yeni = {
         Sonuc.BASARILI: GonderimDurumu.ODENDI,
         Sonuc.IPTAL: GonderimDurumu.IPTAL,
@@ -1050,34 +1053,36 @@ def _sonucu_yaz(gonderim, sonuc, istek, simdi):
     )
 
 
-def _sonuclari_sor(gonderimler, simdi):
-    """Gönderimlerin sonucunu sağlayıcı başına (en çok 100'lük) toplu sorar.
+def _sonuclari_sor(gonderimler, simdi, *, sure=None):
+    """Gönderimlerin sonucunu sağlayıcıya tek tek sorar (`fatura_kontrol`).
 
-    Dönüş: durumu değişen ödemelerin numaraları. Ağ hatasında gönderim
-    olduğu gibi kalır, sonraki tur yeniden sorar; hata cevaba yazılır.
+    Dönüş: durumu değişen ödemelerin numaraları. Okunamayan cevapta ya da
+    ağ hatasında gönderim olduğu gibi kalır, hata cevaba yazılır, sonraki tur
+    yeniden sorar. `sure` saniye dolunca kalanlar sorulmadan bırakılır.
+
+    **Toplu sorgu (`fatura_top_kontrol`) kullanılmaz.** İki ve daha çok
+    bekleyen gönderimde ona gidiliyordu; biçimi canlıda hiç doğrulanmadı ve
+    "bekleyen yazılmaz" kuralıyla boş ya da tanınmayan bir cevap sessizce
+    "hepsi bekliyor" okunuyordu. Tekli sorgu bekleyeni de açıkça yazar
+    (`1|…`), yönetim karar ekranında her gönderimin son cevabını görür.
     """
-    gruplar = defaultdict(list)
-    for gonderim in gonderimler:
-        gruplar[gonderim.saglayici_id].append(gonderim)
     degisen = set()
-    for liste in gruplar.values():
-        saglayici = liste[0].saglayici
-        for i in range(0, len(liste), 100):
-            parca = liste[i:i + 100]
-            son_istek_sifirla()
-            try:
-                sonuclar = saglayici.adaptor().fatura_sorgula([g.ref for g in parca])
-            except SaglayiciHatasi as hata:
-                logger.warning("Fatura sonucu sorulamadı (%s): %s", saglayici, hata)
-                Gonderim.objects.filter(pk__in=[g.pk for g in parca]).update(
-                    son_sorgu=simdi, sonuc_istegi=son_istek(), sonuc_cevabi=f"Sorgu hatası: {hata}",
-                    guncelleme_tarihi=simdi,
-                )
-                continue
-            istek = son_istek()
-            for gonderim in parca:
-                if _sonucu_yaz(gonderim, sonuclar.get(gonderim.ref), istek, simdi):
-                    degisen.add(gonderim.odeme_id)
+    basla = time.monotonic()
+    for gonderim in gonderimler:
+        if sure is not None and time.monotonic() - basla > sure:
+            break
+        son_istek_sifirla()
+        try:
+            sonuc = gonderim.saglayici.adaptor().fatura_sorgula(gonderim.ref)
+        except SaglayiciHatasi as hata:
+            logger.warning("Fatura sonucu sorulamadı (%s): %s", gonderim.ref, hata)
+            Gonderim.objects.filter(pk=gonderim.pk).update(
+                son_sorgu=simdi, sonuc_istegi=son_istek(), sonuc_cevabi=f"Sorgu hatası: {hata}",
+                guncelleme_tarihi=simdi,
+            )
+            continue
+        if _sonucu_yaz(gonderim, sonuc, son_istek(), simdi):
+            degisen.add(gonderim.odeme_id)
     return degisen
 
 
@@ -1161,9 +1166,10 @@ def bekleyenleri_isle():
             | Q(son_sorgu__lt=simdi - SONUC_ARALIGI)
         )
         .select_related("saglayici")
-        .order_by("son_sorgu", "pk")[:500]
+        # Hiç sorulmamış önce: PostgreSQL boş değeri artan sırada sona koyar.
+        .order_by(F("son_sorgu").asc(nulls_first=True), "pk")[:200]
     )
-    for pk in _sonuclari_sor(sorulacak, simdi):
+    for pk in _sonuclari_sor(sorulacak, simdi, sure=SORGU_TURU_SURESI):
         _sonuclandir(pk)
     return len(gonderilmemis) + len(sorulacak)
 
@@ -1180,10 +1186,7 @@ def sonucu_sorgula(odeme):
     ]
     if not sorulacak:
         raise KararVerilemez("Sorulacak gönderim yok: sağlayıcıda süren ya da cevabı belirsiz fatura bulunmuyor.")
-    simdi = timezone.now()
-    # Tek tek sorulur: tekil sorgu bekleyeni de açıkça yazar ("1:…"), yönetim görsün.
-    for gonderim in sorulacak:
-        _sonuclari_sor([gonderim], simdi)
+    _sonuclari_sor(sorulacak, timezone.now())
     _sonuclandir(odeme.pk)
     return len(sorulacak)
 

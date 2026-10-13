@@ -26,15 +26,19 @@ değil. Oyun pini — `servis/pin_ekle.php`, sonucu `pin_kontrol.php`:
     3|Açıklama                            ret
     OK|2|AB12-CD34|Açıklama               yüklendi; üçüncü alan pin
     OK|1| |Açıklama  /  OK|3| |Açıklama   sürüyor / iptal
-Fatura — `servis/fatura_ekle.php`, sonucu `fatura_top_kontrol.php`:
+Fatura — `servis/fatura_ekle.php`, sonucu `fatura_kontrol.php`:
     ?kurum_id=8&tahsilat_api_islem_id=…&fatura_no=…&fatura_tutari=110.15…
     OK|0.30|2644.78|110.45                kabul; maliyet, kalan, toplam düşen
     4|Daha Önce Gönderilmiş (166189)      numara başka işlemde kullanılmış: ret
     3|Açıklama                            ret
-    123456|2||##123457|3||##              toplu sonuç; bekleyen yazılmaz
+    ?tahsilat_api_islem_id=1032           (sonuç, canlıda görülen cevaplar)
+    2|vodafone pos ()                     ödendi
+    3|                                    iptal
+    1|…                                   bekliyor
 """
 
 import json
+import re
 from datetime import datetime
 from urllib.parse import unquote, unquote_plus
 
@@ -54,8 +58,6 @@ from apps.kontor.saglayicilar.http import metin_istek
 # Pin ürününün karşı site kodu: "<oyun>-<kupür>" (pin listesinden "1-325").
 # Sağlayıcı ürünü bu ikisiyle arıyor; tek kod alanına ikisi birden yazılır.
 PIN_AYRACI = "-"
-# Toplu fatura sorgusu en çok bu kadar işlem alıyor.
-TOPLU_SORGU_SINIRI = 100
 
 
 def gonderim_coz(ham):
@@ -213,24 +215,13 @@ class Znet(Adaptor):
         )
         return fatura_gonderim_coz(ham)
 
-    def fatura_sorgula(self, refler):
-        refler = [str(r) for r in refler][:TOPLU_SORGU_SINIRI]
-        if not refler:
-            return {}
-        if len(refler) == 1:
-            # Tek işlemde açık cevap: "1:bekliyor" de yazılır, yönetim görsün.
-            ham = metin_istek(
-                f"{self.taban()}/servis/fatura_kontrol.php",
-                parametreler={**self._servis_kimligi(), "tahsilat_api_islem_id": refler[0]},
-                saglayici_adi=self.saglayici.ad,
-            )
-            return {refler[0]: fatura_sorgu_coz(ham)}
+    def fatura_sorgula(self, ref):
         ham = metin_istek(
-            f"{self.taban()}/servis/fatura_top_kontrol.php",
-            parametreler={**self._servis_kimligi(), "tahsilat_api_islem_id": ",".join(refler)},
+            f"{self.taban()}/servis/fatura_kontrol.php",
+            parametreler={**self._servis_kimligi(), "tahsilat_api_islem_id": ref},
             saglayici_adi=self.saglayici.ad,
         )
-        return fatura_toplu_coz(ham, refler)
+        return fatura_sorgu_coz(ham)
 
     def fatura_kurumlari(self):
         ham = metin_istek(
@@ -393,47 +384,37 @@ def fatura_gonderim_coz(ham):
     return GonderimSonucu(Gonderim.BELIRSIZ, mesaj=(ham or "")[:200], ham=ham)
 
 
-def _fatura_durumu(kod, aciklama, ham):
-    if kod == "2":
-        return SorguSonucu(Sorgu.BASARILI, mesaj=aciklama, ham=ham)
-    if kod == "3":
-        return SorguSonucu(Sorgu.IPTAL, mesaj=aciklama or "Sağlayıcı ödemeyi iptal etti.", ham=ham)
-    return SorguSonucu(Sorgu.ISLEMDE, mesaj=aciklama, ham=ham)
+_FATURA_SONUCU = re.compile(r"(\d+)\s*(?:[|:](.*))?", re.S)
+# Açıklamada bunlar geçen cevap işlemin değil isteğin hatasıdır (şifre, IP
+# izni). "3" iptal sayılsaydı sağlayıcıda ödenmiş faturanın parası bayiye
+# iade edilirdi; hata sayılır, gönderim olduğu gibi kalır.
+_ISTEK_HATASI = ("şifre", "sifre", "yetkisiz", "ip izni", "ip adresi", "hatalı giriş")
 
 
 def fatura_sorgu_coz(ham):
-    """Tek işlem: `1:…` bekliyor, `2:…` ödendi, `3:…` iptal.
+    """Tek işlem: `1|…` bekliyor, `2|…` ödendi, `3|…` iptal.
 
-    `3|Açıklama` (iki nokta değil dikey çizgi) sorgunun hatasıdır; işlem
-    iptal sayılmaz, sorulmaya devam edilir.
-    """
-    kod, ayrac, aciklama = unquote_plus(ham or "").strip().partition(":")
-    if not ayrac:
-        return SorguSonucu(Sorgu.ISLEMDE, mesaj=(ham or "")[:200], ham=ham)
-    return _fatura_durumu(kod.strip(), aciklama.strip(), ham)
+    Ayraç dikey çizgidir; canlıda `2|vodafone pos ()` (ödendi) ve `3|`
+    (iptal) görüldü. Bir süre iki nokta (`2:…`) beklendi: cevap okunamayınca
+    "bekliyor" sayıldı, sağlayıcının onayladığı da iptal ettiği de bizde
+    "Ödeniyor"da kaldı. İki nokta da okunur.
 
-
-def fatura_toplu_coz(ham, refler):
-    """`ref|durum|açıklama##…` → {ref: SorguSonucu}. Bekleyenler listede yazılmaz.
-
-    Hiçbir satırı okunamayan dolu cevap (şifre yanlış, IP izni yok) hatadır:
-    "hepsi bekliyor" diye okunsaydı yönetim sorunu hiç görmezdi.
+    Başka her cevap (boş, tanınmayan kod, şifre hatası) `SaglayiciHatasi`'dır:
+    gönderim olduğu gibi kalır, cevap "Sorgu hatası" diye yazılır — sessizce
+    "bekliyor" sayılmaz.
     """
     metin = unquote_plus(ham or "").strip()
-    istenen = {str(r) for r in refler}
-    sonuc, okunan = {}, False
-    for blok in metin.split("##"):
-        parcalar = [p.strip() for p in blok.strip().split("|")]
-        # Satır "ref|durum|açıklama"dır; "3|şifre geçersiz" bir hata cevabıdır.
-        if len(parcalar) < 3 or not parcalar[0].isdigit() or not parcalar[1].isdigit():
-            continue
-        okunan = True
-        if parcalar[0] in istenen:
-            aciklama = "|".join(parcalar[2:]).strip(" |")
-            sonuc[parcalar[0]] = _fatura_durumu(parcalar[1], aciklama, blok.strip())
-    if metin and not okunan:
-        raise SaglayiciHatasi(f"Toplu fatura sorgusunun cevabı okunamadı: {metin[:200]}")
-    return sonuc
+    eslesme = _FATURA_SONUCU.fullmatch(metin)
+    if not eslesme or eslesme.group(1) not in ("1", "2", "3"):
+        raise SaglayiciHatasi(f"Fatura sonucu okunamadı: {metin[:200] or 'boş cevap'}")
+    kod, aciklama = eslesme.group(1), (eslesme.group(2) or "").strip(" |:")
+    if kod == "2":
+        return SorguSonucu(Sorgu.BASARILI, mesaj=aciklama, ham=ham)
+    if kod == "3":
+        if any(k in aciklama.lower() for k in _ISTEK_HATASI):
+            raise SaglayiciHatasi(f"Fatura sonucu sorulamadı: {aciklama[:200]}")
+        return SorguSonucu(Sorgu.IPTAL, mesaj=aciklama or "Sağlayıcı ödemeyi iptal etti.", ham=ham)
+    return SorguSonucu(Sorgu.ISLEMDE, mesaj=aciklama, ham=ham)
 
 
 def kurum_listesi_coz(ham):

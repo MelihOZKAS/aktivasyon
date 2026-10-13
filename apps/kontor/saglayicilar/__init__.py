@@ -184,9 +184,8 @@ class Adaptor:
         """Tek faturayı ödemeye gönderir: `GonderimSonucu`."""
         raise SaglayiciHatasi(f"{self.ad} fatura ödemesi almıyor.", kesin_gitmedi=True)
 
-    def fatura_sorgula(self, refler):
-        """{ref: SorguSonucu}. Listede olmayan ref sürüyor demektir (toplu
-        sorguda sağlayıcı bekleyenleri yazmıyor)."""
+    def fatura_sorgula(self, ref):
+        """Tek gönderimin sonucu: `SorguSonucu`. Okunamayan cevap `SaglayiciHatasi`."""
         raise SaglayiciHatasi(f"{self.ad} fatura sonucu vermiyor.")
 
     def fatura_kurumlari(self):

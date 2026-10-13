@@ -992,7 +992,7 @@ class _Yanit:
 
 
 class SahteSite:
-    """`urlopen` yerine: servisin adına (`fatura_ekle`, `fatura_top_kontrol`…) göre cevap.
+    """`urlopen` yerine: servisin adına (`fatura_ekle`, `fatura_kontrol`…) göre cevap.
 
     Listede birden çok cevap varsa sırayla verilir, sonuncusu tekrarlanır.
     """
@@ -1072,13 +1072,16 @@ class SaglayiciGonderimTestleri(Temel):
 
         self.assertFalse(yonetim_bekleyenler().exists())
 
-        # Toplu sorgu: biri ödendi, öbürü bekliyor (bekleyen yazılmaz) → ödeme sürer.
+        # Her gönderim tek tek sorulur: biri ödendi, öbürü bekliyor → ödeme sürer.
         self.sorulabilir_yap()
-        self.isle(SahteSite(fatura_top_kontrol=f"{birinci.ref}|2||##"))
+        site = SahteSite(fatura_kontrol=["2|vodafone pos ()", "1|"])
+        self.isle(site)
+        self.assertEqual(len(site.servis("fatura_kontrol")), 2)
+        self.assertIn(f"tahsilat_api_islem_id={birinci.ref}", site.servis("fatura_kontrol")[0])
         odeme.refresh_from_db()
         self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
         self.sorulabilir_yap()
-        site = SahteSite(fatura_top_kontrol=f"{ikinci.ref}|2||##", fatura_kontrol="2:ONAYLI")
+        site = SahteSite(fatura_kontrol="2|vodafone pos ()")
         self.isle(site)
         odeme.refresh_from_db()
         self.assertEqual(odeme.durum, OdemeDurumu.ODENDI)
@@ -1089,7 +1092,7 @@ class SaglayiciGonderimTestleri(Temel):
         # Yönetim: "10 dakikada bir yeter". Fatura saniyeler içinde ödenmiyor.
         site = SahteSite(fatura_ekle="OK|0.30|1000.00|390.30")
         self.ode(site)
-        sorgu = SahteSite(fatura_kontrol="1:BEKLIYOR")
+        sorgu = SahteSite(fatura_kontrol="1|")
         self.isle(sorgu)
         self.assertEqual(sorgu.servis("fatura_kontrol"), [])  # gönderimden hemen sonra sorulmaz
         self.sorulabilir_yap(timedelta(minutes=9))
@@ -1110,11 +1113,58 @@ class SaglayiciGonderimTestleri(Temel):
         odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
         self.assertEqual(self.bakiye(), TL("605.00"))
         self.sorulabilir_yap()
-        self.isle(SahteSite(fatura_kontrol="3:Fatura kurumda ödenmiş görünüyor"))
+        self.isle(SahteSite(fatura_kontrol="3|Fatura kurumda ödenmiş görünüyor"))
         odeme.refresh_from_db()
         self.assertEqual(odeme.durum, OdemeDurumu.IPTAL)
         self.assertEqual(odeme.sonuc_notu, "Fatura kurumda ödenmiş görünüyor")
         self.assertEqual(self.bakiye(), TL("1000.00"))
+
+    def test_sonuc_cevabi_canlidaki_bicimle_okunur(self):
+        # Canlıda görülen cevaplar: "2|vodafone pos ()" ödendi, "3|" iptal. Bir
+        # süre "2:…" beklendi; okunamayan cevap "bekliyor" sayıldı ve onaylanan
+        # da iptal edilen de "Ödeniyor"da kaldı.
+        from apps.kontor.saglayicilar import SaglayiciHatasi, Sorgu
+        from apps.kontor.saglayicilar.znet import fatura_sorgu_coz
+
+        for ham, durum, mesaj in (
+            ("2|vodafone pos ()", Sorgu.BASARILI, "vodafone pos ()"),
+            ("3|", Sorgu.IPTAL, "Sağlayıcı ödemeyi iptal etti."),
+            ("3|Fatura daha önce ödenmiş", Sorgu.IPTAL, "Fatura daha önce ödenmiş"),
+            ("1|", Sorgu.ISLEMDE, ""),
+            ("2:ONAYLI", Sorgu.BASARILI, "ONAYLI"),
+            ("2%7Cvodafone+pos+%28%29", Sorgu.BASARILI, "vodafone pos ()"),
+        ):
+            sonuc = fatura_sorgu_coz(ham)
+            self.assertEqual((sonuc.durum, sonuc.mesaj), (durum, mesaj), ham)
+        # Okunamayan cevap sessizce "bekliyor" sayılmaz; şifre hatası iptal değildir.
+        for ham in ("", "OK", "9|x", "bekleyin", "3|Hatalı şifre", "3|IP izni yok"):
+            with self.assertRaises(SaglayiciHatasi, msg=ham):
+                fatura_sorgu_coz(ham)
+
+    def test_bekleyen_odemelerin_hepsi_kendi_sonucuyla_kapanir(self):
+        # İki ödeme sağlayıcıda: biri onaylandı, biri iptal edildi. İkisi de
+        # "Ödeniyor"da kalıyordu.
+        from apps.fatura.models import Gonderim
+
+        site = SahteSite(fatura_ekle="OK|7.50|4310.50|397.50")
+        odendi, iptal = (self.ode(site, faturalar=[no]) for no in ("FD60950NCB9D53", "FD00000000002"))
+        self.assertEqual(Gonderim.objects.filter(durum="islemde").count(), 2)
+        self.sorulabilir_yap()
+        self.isle(SahteSite(fatura_kontrol=["2|vodafone pos ()", "3|"]))
+        odendi.refresh_from_db()
+        iptal.refresh_from_db()
+        self.assertEqual(odendi.durum, OdemeDurumu.ODENDI)
+        self.assertEqual(iptal.durum, OdemeDurumu.IPTAL)
+
+    def test_okunamayan_sonuc_gonderimi_yerinde_birakir_hatayi_yazar(self):
+        odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
+        self.sorulabilir_yap()
+        self.isle(SahteSite(fatura_kontrol="Sistem bakımda"))
+        odeme.refresh_from_db()
+        gonderim = odeme.gonderimler.get()
+        self.assertEqual((odeme.durum, gonderim.durum), (OdemeDurumu.BEKLIYOR, "islemde"))
+        self.assertTrue(gonderim.sonuc_cevabi.startswith("Sorgu hatası:"), gonderim.sonuc_cevabi)
+        self.assertIn("Sistem bakımda", gonderim.sonuc_cevabi)
 
     def test_gonderilemeyen_iade_edilmez_yonetimde_kalir_elle_gonderilir(self):
         from apps.fatura.models import Gonderim
@@ -1160,10 +1210,10 @@ class SaglayiciGonderimTestleri(Temel):
         self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
         adres = reverse("admin:fatura_odeme_karar", args=[odeme.pk])
         self.assertContains(self.client.get(adres), "ödenmiş de olabilir")
-        with mock.patch("urllib.request.urlopen", side_effect=SahteSite(fatura_kontrol="1:BEKLIYOR")):
+        with mock.patch("urllib.request.urlopen", side_effect=SahteSite(fatura_kontrol="1|")):
             self.client.post(adres, {"karar": "sorgula"})
         gonderim.refresh_from_db()
-        self.assertEqual((gonderim.durum, gonderim.sonuc_cevabi), ("islemde", "1:BEKLIYOR"))
+        self.assertEqual((gonderim.durum, gonderim.sonuc_cevabi), ("islemde", "1|"))
 
     def test_numara_cakismasi_ret_sayilir_sonucu_sorulmaz(self):
         # "4|Daha Önce Gönderilmiş": numara başka işlemde kullanılmış. Belirsiz
@@ -1186,7 +1236,7 @@ class SaglayiciGonderimTestleri(Temel):
         with mock.patch("urllib.request.urlopen", side_effect=SahteSite(fatura_ekle="OK|0.30|1000.00|390.30")):
             odemeyi_gonder(odeme.pk, elle=True)
         self.sorulabilir_yap()
-        self.isle(SahteSite(fatura_kontrol="3:Fatura daha önce ödenmiş"))
+        self.isle(SahteSite(fatura_kontrol="3|Fatura daha önce ödenmiş"))
         odeme.refresh_from_db()
         self.assertEqual(odeme.durum, OdemeDurumu.BEKLIYOR)
         self.assertEqual(self.bakiye(), TL("605.00"))
@@ -1197,7 +1247,7 @@ class SaglayiciGonderimTestleri(Temel):
         iptal_et(odeme, sebep="Müşteri vazgeçti")
         self.sorulabilir_yap()
         with self.assertLogs("apps.fatura.services", level="ERROR") as kayit:
-            self.isle(SahteSite(fatura_kontrol="2:ONAYLI"))
+            self.isle(SahteSite(fatura_kontrol="2|vodafone pos ()"))
         self.assertIn("İade edilmiş fatura ödemesi sağlayıcıda ödendi", kayit.output[0])
 
     def test_zaman_asiminda_belirsiz_baglanti_kurulamazsa_gonderilemedi(self):
@@ -1243,7 +1293,7 @@ class SaglayiciGonderimTestleri(Temel):
         # Açılıştaki iş parçacığı ölmüş: gönderim yok. İşçi 10 sn sonra devralır.
         with mock.patch("apps.fatura.services.arka_planda_gonder"), self.captureOnCommitCallbacks(execute=True):
             odeme = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD60950NCB9D53"])
-        site = SahteSite(fatura_ekle="OK|0.30|1000.00|390.30", fatura_kontrol="1:BEKLIYOR")
+        site = SahteSite(fatura_ekle="OK|0.30|1000.00|390.30", fatura_kontrol="1|")
         self.isle(site)
         self.assertEqual(site.servis("fatura_ekle"), [])  # henüz iş parçacığının süresi
         Odeme.objects.filter(pk=odeme.pk).update(olusturma_tarihi=timezone.now() - timedelta(seconds=20))
@@ -1266,7 +1316,7 @@ class SaglayiciGonderimTestleri(Temel):
 
         odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
         Gonderim.objects.update(durum="gonderiliyor", olusturma_tarihi=timezone.now() - timedelta(minutes=3))
-        self.isle(SahteSite(fatura_kontrol="1:BEKLIYOR"))
+        self.isle(SahteSite(fatura_kontrol="1|"))
         self.assertEqual(odeme.gonderimler.get().durum, "belirsiz")
 
     def test_yonetim_listesi_ve_rozet(self):

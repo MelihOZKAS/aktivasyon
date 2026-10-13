@@ -19,7 +19,7 @@
     sabit bir boy verilseydi yazıcı fişin altına boş kağıt sürerdi.
 
     Her bilgi iki satırdır (`.dk-alan`): etiket üstte, değer altında, tam
-    genişlikte ve kalın. Etiketle değer bir süre yan yanaydı; 48 mm'de değere
+    genişlikte, kalın ve ortalı. Etiketle değer bir süre yan yanaydı; 48 mm'de değere
     yer kalmıyor, "Ödeniyor" "Ödeniyo / r", "2.200,00" "2.200,0 / 0" diye
     bölünüyor, yazı da küçük kalıyordu.
 
@@ -52,9 +52,9 @@
       font: 500 var(--dk-yazi)/1.35 Manrope, system-ui, sans-serif;
       font-variant-numeric: tabular-nums;
       overflow-wrap: anywhere;
+      text-align: center;
     }
     .dekont p { margin: 0; }
-    .dk-orta { text-align: center; }
     .dk-firma-ad { font-size: 1.25em; font-weight: 800; line-height: 1.2; }
     .dk-baslik {
       margin: 0.7em 0 0.5em;
@@ -127,7 +127,7 @@
   <main class="px-4">
     <div class="dekont-kagit">
       <article class="dekont" id="dekont">
-        <div class="dk-orta">
+        <div>
           <p class="dk-firma-ad">{{ firma.ad }}</p>
           {% if firma.adres %}<p class="dk-kucuk">{{ firma.adres }}</p>{% endif %}
           {% if firma.telefon %}<p class="dk-kucuk">Tel: {{ firma.telefon|telefon }}</p>{% endif %}

@@ -903,14 +903,26 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   kaydedilmez). Gönderim bayinin isteğinde değil, commit'ten sonra iş
   parçacığında yapılır; ölürse işçi 10 sn sonra devralır. Sonuç işçide
   (`kontor_isle` döngüsü, `fatura.services.bekleyenleri_isle`) **10 dk'da
-  bir** toplu sorulur — ilki de gönderimden 10 dk sonra (`SONUC_ARALIGI`;
+  bir** sorulur — ilki de gönderimden 10 dk sonra (`SONUC_ARALIGI`;
   kontördeki gibi 25 sn'ydi, yönetim "10 dakikada bir yeter" dedi: fatura
   saniyeler içinde ödenmiyor, erken sorgu hep "bekliyor" döner; Karar
-  ekranındaki "Sonucu sorgula" bu süreye bağlı değil; `fatura_top_kontrol`,
-  100'lük, bekleyen yazılmaz):
+  ekranındaki "Sonucu sorgula" bu süreye bağlı değil):
   hepsi **ödendi** → ödeme kendiliğinden "Ödendi"; sağlayıcı kabul edip
   hepsini **iptal** etti → kendiliğinden "İptal + iade", sebep sağlayıcının
   açıklaması (bayi görür, sağlayıcı adı yazılmaz).
+  **Sonuç `fatura_kontrol` ile gönderim başına tek tek sorulur; cevap
+  `durum|açıklama`dır:** canlıda `2|vodafone pos ()` ödendi, `3|` iptal,
+  `1|…` bekliyor (`znet.fatura_sorgu_coz`). Bir süre iki nokta (`2:…`)
+  beklendi: cevap okunamayınca "bekliyor" sayıldı ve sağlayıcının onayladığı
+  da iptal ettiği de bizde "Ödeniyor"da kaldı. İşçi iki ve daha çok bekleyen
+  gönderimde toplu sorguya (`fatura_top_kontrol`) gidiyordu; biçimi hiç
+  doğrulanmadı, "bekleyen yazılmaz" kuralıyla boş ya da tanınmayan cevap
+  sessizce "hepsi bekliyor" okunuyordu — kaldırıldı. Okunamayan cevap
+  artık hatadır, gönderim yerinde kalır ve karar ekranında "Sorgu hatası:
+  …" yazar. Açıklamasında şifre/IP izni geçen `3` iptal değil hatadır:
+  iptal sayılsaydı ödenmiş faturanın parası bayiye dönerdi. Bir tur en çok
+  `SORGU_TURU_SURESI` (30 sn) sorar, kalan sonraki tura kalır — işçi
+  kontörü de yürütüyor.
   **Kontörün tek gönderim ilkesi aynen geçerlidir:** gönderim ağa çıkmadan
   yazılır (`odemeyi_gonder` transaction içinden çağrılırsa `RuntimeError`,
   Karar ekranı `non_atomic_requests`); kendiliğinden gönderim her faturaya
@@ -978,8 +990,8 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   süre "Aynı paketi yeniden yükle" vardı; yönetim "buna gerek yok, direk
   dekont yazdırma gelsin" dedi — yüklenmiş paketi yeniden yüklemek
   istenen bir iş değil, fiş istenen iştir.
-  · **Her bilgi iki satırdır:** etiket üstte, değer altında, tam genişlikte
-  ve kalın (`.dk-alan`: `<div class="dk-alan"><span>Abone No</span><b>…</b></div>`).
+  · **Her bilgi iki satırdır:** etiket üstte, değer altında, tam genişlikte,
+  kalın ve ortalı (`.dk-alan`: `<div class="dk-alan"><span>Abone No</span><b>…</b></div>`).
   Etiketle değer bir süre yan yanaydı: 48 mm'de değere yer kalmıyor,
   "Ödeniyor" "Ödeniyo / r", "2.200,00" "2.200,0 / 0" diye bölünüyor, yazı
   da küçük kalıyordu ("her şeye bir satır ekleyelim, alt alta yazsın").
