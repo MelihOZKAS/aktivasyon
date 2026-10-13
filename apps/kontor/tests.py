@@ -2167,6 +2167,19 @@ class OyunBolumuTestleri(Temel):
         self.assertContains(yanit, 'href="/oyun/"')
         self.assertContains(yanit, 'href="/kontor/"')
 
+    def test_operatoru_ogren_yalnizca_kontorde(self):
+        btk = "https://www.turkiye.gov.tr/btk-numara-tasima"
+        self.assertContains(self.client.get(reverse("kontor:kategoriler")), btk)
+        self.assertNotContains(self.client.get(reverse("kontor:oyunlar")), btk)
+
+    def test_numara_kutusu_sifirsiz_ve_sesli(self):
+        """Telefon kutusu 5 ile başlar, boşluklanır ve sesli okunur; pinde yok."""
+        yanit = self.client.get(self.paket.get_absolute_url())
+        self.assertContains(yanit, "data-numara ")
+        self.assertContains(yanit, 'pattern="5[0-9]{2} ?[0-9]{3} ?[0-9]{2} ?[0-9]{2}"')
+        self.assertContains(yanit, 'data-numara-oku="hedef"')
+        self.assertNotContains(self.client.get(self.pin.get_absolute_url()), "data-numara")
+
 
 # -- Robotun aboneye özel paket sorgusu (Turkcell, Türk Telekom) --------------
 

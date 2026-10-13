@@ -1,0 +1,130 @@
+{% comment %}
+  Müşterinin numarası (`data-numara` taşıyan kutu). Bayilerin bir kısmı genç
+  değil; numara iri yazılır, 3-3-2-2 boşluklanır ("501 641 38 20") ve
+  başında 0 olmaz: alışkanlıkla yazılan 0 da yapıştırılan +90 da hemen
+  düşer, kutu 5 ile başlar. Sunucu yine kendisi normalleştirir; bu yalnızca
+  ekrandır.
+
+  "Sesli oku" (`data-numara-oku="<kutunun id'si>"`) numarayı Türkçe gruplar
+  hâlinde okur — bayi müşteriye dönüp teyit ettirir. Rakamlar sözcüğe
+  burada çevrilir: konuşma motoruna "38,20" verilseydi Türkçe ses "otuz
+  sekiz virgül yirmi" derdi, "05" de "beş" olurdu. Tarayıcıda konuşma yoksa
+  düğme gizli kalır. Betik sayfada iki kez yüklense de bir kez çalışır.
+{% endcomment %}
+<script>
+  (function () {
+    if (window.numaraKutusuHazir) return;
+    window.numaraKutusuHazir = true;
+
+    function rakamlar(metin) {
+      var r = metin.replace(/\D/g, "");
+      if (r.length > 10 && r.indexOf("90") === 0) r = r.slice(2);
+      return r.replace(/^0+/, "").slice(0, 10);
+    }
+
+    function bicimle(r) {
+      return [r.slice(0, 3), r.slice(3, 6), r.slice(6, 8), r.slice(8, 10)]
+        .filter(Boolean).join(" ");
+    }
+
+    function duzelt(kutu) {
+      var once = kutu.value;
+      var yeni = bicimle(rakamlar(once));
+      if (yeni === once) return;
+      var imlec = kutu.selectionStart;
+      kutu.value = yeni;
+      if (document.activeElement !== kutu || imlec === null) return;
+      // İmleç aynı rakamın arkasında kalsın: ortadan düzeltirken sona atlamasın.
+      var kalan = rakamlar(once.slice(0, imlec)).length, i = 0;
+      while (i < yeni.length && kalan > 0) {
+        if (/\d/.test(yeni[i])) kalan--;
+        i++;
+      }
+      kutu.setSelectionRange(i, i);
+    }
+
+    var BIRLER = ["sıfır", "bir", "iki", "üç", "dört", "beş", "altı", "yedi", "sekiz", "dokuz"];
+    var ONLAR = ["", "on", "yirmi", "otuz", "kırk", "elli", "altmış", "yetmiş", "seksen", "doksan"];
+
+    function grubuOku(grup) {
+      var sozler = [];
+      while (grup.length > 1 && grup[0] === "0") {
+        sozler.push("sıfır");
+        grup = grup.slice(1);
+      }
+      var n = parseInt(grup, 10);
+      if (n === 0) return sozler.concat("sıfır").join(" ");
+      var yuz = Math.floor(n / 100), on = Math.floor((n % 100) / 10), bir = n % 10;
+      if (yuz) sozler.push(yuz === 1 ? "yüz" : BIRLER[yuz] + " yüz");
+      if (on) sozler.push(ONLAR[on]);
+      if (bir) sozler.push(BIRLER[bir]);
+      return sozler.join(" ");
+    }
+
+    function okunacak(r) {
+      if (r.length === 10) {
+        return [r.slice(0, 3), r.slice(3, 6), r.slice(6, 8), r.slice(8, 10)]
+          .map(grubuOku).join(", ");
+      }
+      // Yarım numara rakam rakam okunur; bayi eksik haneyi duysun.
+      return r.split("").map(function (d) { return BIRLER[+d]; }).join(" ");
+    }
+
+    // Ses cihazındır, bizim değil: Windows Chrome'da robotik "Tolga", Mac'te
+    // sıkıştırılmış "Yelda" gelir. Cihazda daha iyisi varsa o seçilir —
+    // Edge'in "Natural"ı, Apple'ın "Gelişmiş/Premium"u, Android'in Google'ı.
+    var IYI_SES = /natural|neural|online|premium|enhanced|geli[sş]mi[sş]|google/i;
+
+    function turkceSes() {
+      var adaylar = window.speechSynthesis.getVoices().filter(function (v) {
+        return /^tr([-_]|$)/i.test(v.lang);
+      });
+      function puan(v) {
+        return (IYI_SES.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1);
+      }
+      adaylar.sort(function (a, b) { return puan(b) - puan(a); });
+      return adaylar[0];
+    }
+
+    function seslendir(metin) {
+      var konusma = window.speechSynthesis;
+      konusma.cancel();
+      var soz = new SpeechSynthesisUtterance(metin);
+      soz.lang = "tr-TR";
+      // Hız normal: yavaşlatılan sıkıştırılmış ses daha da robotik çıkıyordu.
+      // Gruplar arasındaki virgül duraklamayı zaten veriyor.
+      var ses = turkceSes();
+      if (ses) soz.voice = ses;
+      konusma.speak(soz);
+    }
+
+    function bagla() {
+      document.querySelectorAll("input[data-numara]").forEach(function (kutu) {
+        duzelt(kutu);
+        kutu.addEventListener("input", function () { duzelt(kutu); });
+      });
+      if (!("speechSynthesis" in window)) return;
+      // Sesler bazı tarayıcılarda geç yüklenir; ilk basışta liste boş olmasın.
+      window.speechSynthesis.getVoices();
+      document.querySelectorAll("[data-numara-oku]").forEach(function (dugme) {
+        var kutu = document.getElementById(dugme.dataset.numaraOku);
+        if (!kutu) return;
+        dugme.hidden = false;
+        dugme.addEventListener("click", function () {
+          var r = rakamlar(kutu.value);
+          if (!r) {
+            kutu.focus();
+            return;
+          }
+          seslendir(okunacak(r));
+        });
+      });
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", bagla);
+    } else {
+      bagla();
+    }
+  })();
+</script>

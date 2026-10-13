@@ -26,12 +26,24 @@
   {% comment %}
     Numara sorgusu: sonuç bu formun altına HTMX ile gelir. Salt okumadır;
     cevap gelmese de aşağıdaki liste seçilebilir kalır.
+
+    Numara kendi satırındadır ve iridir (`.girdi-numara`): bayilerin bir
+    kısmı genç değil, düğmeyle yan yana duran küçük kutuda haneyi
+    okumakta zorlanıyordu. Başında 0 olmaz, boşluklanır ve sesli okunur
+    (`parca_numara_betik.html`).
   {% endcomment %}
   <form hx-get="{{ kategori.sorgu_url }}" hx-target="#sorgu-sonucu" hx-swap="outerHTML"
-        hx-disabled-elt="find button" class="mb-3 flex gap-2">
-    <input name="hedef" type="tel" inputmode="numeric" autocomplete="off" required maxlength="17"
-           class="girdi rakam min-w-0 flex-1 text-lg" placeholder="5XX XXX XX XX" aria-label="Numara">
-    <button type="submit" class="dugme dugme-birincil shrink-0">Sorgula</button>
+        hx-disabled-elt="find button[type=submit]" class="mb-4">
+    <div class="mb-1 flex items-end justify-between gap-3">
+      <label for="sorgu-hedef" class="pb-2 text-base font-semibold">{{ kategori.hedef_basligi|default:"Telefon numarası" }}</label>
+      {% include "kontor/parca_numara_oku.html" with kutu="sorgu-hedef" %}
+    </div>
+    <input id="sorgu-hedef" name="hedef" type="tel" inputmode="numeric" autocomplete="off" required maxlength="17"
+           data-numara pattern="5[0-9]{2} ?[0-9]{3} ?[0-9]{2} ?[0-9]{2}"
+           title="Başında 0 olmadan, 5 ile başlayan 10 hane: 5XX XXX XX XX"
+           class="girdi girdi-numara rakam" placeholder="5XX XXX XX XX">
+    <p class="mt-1.5 text-sm text-soluk">Başına 0 yazma; numara 5 ile başlar.</p>
+    <button type="submit" class="dugme dugme-birincil mx-auto mt-3 flex min-h-14 w-full text-lg sm:w-auto sm:min-w-64">Sorgula</button>
   </form>
   <div id="sorgu-sonucu"></div>
   {% endif %}
@@ -85,4 +97,5 @@
   {% endif %}
 </div>
 {% include "kontor/parca_goz_betik.html" %}
+{% if kategori.sorgulanir %}{% include "kontor/parca_numara_betik.html" %}{% endif %}
 {% endblock %}

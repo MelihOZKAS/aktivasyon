@@ -68,6 +68,24 @@
     </a>
     {% endfor %}
   </div>
+
+  {% comment %}
+    Numara taşınmış olabilir: müşteri "Turkcell'liyim" der, hat Vodafone'dadır.
+    BTK'nın sorgusu (e-Devlet, giriş istemez) hattın bugünkü operatörünü
+    söyler; yeni sekmede açılır, bayi bu sayfayı kaybetmez.
+  {% endcomment %}
+  <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <p class="text-sm text-soluk">Numara taşınmış olabilir; hattın bugünkü operatörünü BTK'dan öğren.</p>
+    <a href="https://www.turkiye.gov.tr/btk-numara-tasima" target="_blank" rel="noopener"
+       class="dugme dugme-sessiz shrink-0">
+      Operatörü bilmiyorum
+      <svg width="16" height="16" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>
+      </svg>
+      <span class="sr-only">(yeni sekmede açılır)</span>
+    </a>
+  </div>
   {% else %}
   <div class="yuzey rounded-kart border border-cizgi p-8 text-center">
     <p class="text-sm text-soluk">{% if oyun %}Şu an satışta oyun ya da pin yok.{% else %}Şu an satışta kontör yok.{% endif %}</p>

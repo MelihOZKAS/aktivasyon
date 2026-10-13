@@ -366,6 +366,28 @@
     border-color: var(--color-olumsuz);
   }
 
+  /* Müşterinin numarası: tezgâhta en çok bakılan rakam. Bayilerin bir kısmı
+     genç değil; numara kendi satırında, iri ve aralıklı yazılır ki yanlış
+     hane bakınca görülsün. `.rakam`ın sıkı harf aralığı burada açılır. */
+  .girdi-numara {
+    min-height: 4rem;
+    padding: 0.6rem 1rem;
+    font-size: 1.875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+  }
+
+  .girdi-numara::placeholder {
+    font-weight: 500;
+  }
+
+  @media (min-width: 40rem) {
+    .girdi-numara {
+      min-height: 4.5rem;
+      font-size: 2.25rem;
+    }
+  }
+
   select.girdi {
     appearance: none;
     padding-right: 2.5rem;

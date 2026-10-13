@@ -532,7 +532,21 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Kategori kartının zemini operatörün rengidir (`.kart-marka`;
   `okunur_renk`'ten geçmiş renk üstünde beyaz yazı da ≥ 4,5:1 okunur): bir
   süre yalnızca sol şeritteydi, beyaz kartlar birbirine benziyordu ve
-  yönetim "rahat ayırsınlar" dedi.
+  yönetim "rahat ayırsınlar" dedi. Kartların altında **Operatörü
+  bilmiyorum** BTK'nın numara taşıma sorgusunu yeni sekmede açar (yalnızca
+  kontörde, oyunda yok): müşteri eski operatörünü söylüyor, hat taşınmış.
+  · **Müşterinin numarası iri, kendi satırında ve sıfırsızdır**
+  (`.girdi-numara`, `data-numara`; kategori sayfasındaki sorgu ve paket
+  sayfasındaki yükleme kutusu). Bayilerin bir kısmı genç değil; numara
+  Sorgula düğmesiyle yan yana küçük kutudaydı, hane okunmuyordu. Kutu
+  yazarken 3-3-2-2 boşluklar (`552 414 44 44`), başa yazılan 0'ı ve
+  yapıştırılan +90'ı atar; `pattern` sunucunun kuralıyla aynıdır (5 ile
+  başlayan 10 hane, `hedefi_dogrula`). **Sesli oku** düğmesi numarayı aynı
+  gruplarla Türkçe okur ("beş yüz elli iki, dört yüz on dört, kırk dört,
+  kırk dört"; gruptaki baştaki sıfır "sıfır" diye okunur). Rakam sözcüğe
+  betikte çevrilir (`parca_numara_betik.html`): konuşma motoruna "38,20"
+  verilseydi Türkçe ses "virgül" derdi. Tarayıcı konuşamıyorsa düğme
+  çizilmez.
   · **Oyun pini Znet'te kontörün değil pin servisinin kapısından gider**
   (`pin_ekle.php` / `pin_kontrol.php`, sağlayıcının `api.pdf`'i). Kapıyı
   kategorinin **Oyun / E-pin** işareti seçer (`services._oyun_mu` →
@@ -1719,6 +1733,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   olmayana boş döner). **Boş bırakılan alan hiç gösterilmez** — yarım bir
   iletişim kutusu göstermektense hiç göstermemek yeğdir. Yeni bir site geneli
   ayar gerekirse bu modele alan eklenir, ikinci bir ayar modeli açılmaz.
+  **Dost site bağlantısı** (Çocuk Masalları Oku, `parcalar/referans.html`)
+  yalnızca tanıtım footer'ında ve giriş sayfasındadır; giriş yapmış bayinin
+  panelinde yoktur (tanıtım sayfası girişlisini panele yönlendirir).
+  `nofollow` bilinçli olarak yok: amaç referans vermek.
 - **Bayiye içerik gösteren alanlar admin'den girilir.** Tarife açıklaması
   ile görseli `/tarifeler/` sayfasında görünür; şablona sabit metin yazma.
   Katalogdaki akordiyonlar **kapalı** açılır: ilkini açık getirmek, listeye

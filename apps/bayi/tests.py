@@ -2905,3 +2905,24 @@ class ListeBasligiTestleri(TestCase):
         yanit = self.client.get(reverse("admin:kontor_saglayici_changelist"))
         self.assertContains(yanit, "Kontorbizde")
         self.assertNotContains(yanit, "column-ad")
+
+
+class DostSiteBaglantisi(TestCase):
+    """Çocuk Masalları Oku bağlantısı kamuya açık sayfalardadır: tanıtım
+    sayfasının footer'ı ve bayi girişi. Giriş yapmış bayinin panelinde yoktur.
+    """
+
+    ADRES = "https://www.cocukmasallarioku.com/"
+
+    def test_tanitim_ve_giriste_var(self):
+        for ad in ["bayi:anasayfa", "bayi:giris"]:
+            icerik = self.client.get(reverse(ad)).content.decode()
+            self.assertIn(f'href="{self.ADRES}"', icerik, ad)
+            self.assertNotIn("nofollow", icerik, ad)
+
+    def test_panelde_yok(self):
+        bayi = User.objects.create_user("bayi", password="parola12345")
+        Cuzdan.objects.create(bayi=bayi)
+        self.client.force_login(bayi)
+        for ad in BAYI_SAYFALARI:
+            self.assertNotIn(self.ADRES, self.client.get(reverse(ad)).content.decode(), ad)
