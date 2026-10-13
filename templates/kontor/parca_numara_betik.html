@@ -5,12 +5,16 @@
   düşer, kutu 5 ile başlar. Sunucu yine kendisi normalleştirir; bu yalnızca
   ekrandır.
 
-  "Sesli oku" (`data-numara-oku="<kutunun id'si>"`) numarayı Türkçe gruplar
-  hâlinde okur — bayi müşteriye dönüp teyit ettirir. Rakamlar sözcüğe
-  burada çevrilir: konuşma motoruna "38,20" verilseydi Türkçe ses "otuz
-  sekiz virgül yirmi" derdi, "05" de "beş" olurdu. Tarayıcıda konuşma yoksa
-  düğme gizli kalır. Betik sayfada iki kez yüklense de bir kez çalışır.
+  "Sesli oku" (`data-numara-oku="<kutunun id'si>"`) numarayı 3-3-2-2
+  gruplarla okur, bayi müşteriye dönüp teyit ettirir. Gruplar kayıtlı
+  birimlerden kurulur ("532" = "beş yüz" + "otuz iki", "45" = "kırk beş").
+  Birimler Gemini'nin sesiyle bir kez kaydedildi (`static/ses/rakamlar.mp3`,
+  `manage.py rakam_sesleri`) ve burada dizilerek çalınır. Cihazın kendi sesi
+  kötüydü ("kırk dört" sonunda tıslıyordu), yalnızca kayıt indirilemezse ona
+  düşülür.
+  Betik sayfada iki kez yüklense de bir kez çalışır.
 {% endcomment %}
+{% load static %}
 <script>
   (function () {
     if (window.numaraKutusuHazir) return;
@@ -46,56 +50,163 @@
     var BIRLER = ["sıfır", "bir", "iki", "üç", "dört", "beş", "altı", "yedi", "sekiz", "dokuz"];
     var ONLAR = ["", "on", "yirmi", "otuz", "kırk", "elli", "altmış", "yetmiş", "seksen", "doksan"];
 
-    function grubuOku(grup) {
+    // Kayıttaki birimler: sıfır, 1..99 ("kırk beş") ve yüzlükler ("beş yüz").
+    function ikiHane(n) {
+      var on = Math.floor(n / 10), bir = n % 10;
+      return [on ? ONLAR[on] : "", bir ? BIRLER[bir] : ""].filter(Boolean).join(" ");
+    }
+
+    // "532" → beş yüz + otuz iki. Gruptaki baştaki sıfır okunur: "07" → sıfır + yedi.
+    function grubunSozleri(grup) {
       var sozler = [];
       while (grup.length > 1 && grup[0] === "0") {
         sozler.push("sıfır");
         grup = grup.slice(1);
       }
       var n = parseInt(grup, 10);
-      if (n === 0) return sozler.concat("sıfır").join(" ");
-      var yuz = Math.floor(n / 100), on = Math.floor((n % 100) / 10), bir = n % 10;
+      if (n === 0) return sozler.concat("sıfır");
+      var yuz = Math.floor(n / 100);
       if (yuz) sozler.push(yuz === 1 ? "yüz" : BIRLER[yuz] + " yüz");
-      if (on) sozler.push(ONLAR[on]);
-      if (bir) sozler.push(BIRLER[bir]);
-      return sozler.join(" ");
+      if (n % 100) sozler.push(ikiHane(n % 100));
+      return sozler;
     }
 
-    function okunacak(r) {
+    // Tam numara 3-3-2-2 okunur. Yarım numara rakam rakam okunur, bayi
+    // eksik haneyi duysun.
+    function gruplar(r) {
       if (r.length === 10) {
-        return [r.slice(0, 3), r.slice(3, 6), r.slice(6, 8), r.slice(8, 10)]
-          .map(grubuOku).join(", ");
+        return [r.slice(0, 3), r.slice(3, 6), r.slice(6, 8), r.slice(8, 10)].map(grubunSozleri);
       }
-      // Yarım numara rakam rakam okunur; bayi eksik haneyi duysun.
-      return r.split("").map(function (d) { return BIRLER[+d]; }).join(" ");
+      return r.split("").map(function (d) { return [BIRLER[+d]]; });
     }
 
-    // Ses cihazındır, bizim değil: Windows Chrome'da robotik "Tolga", Mac'te
-    // sıkıştırılmış "Yelda" gelir. Cihazda daha iyisi varsa o seçilir —
-    // Edge'in "Natural"ı, Apple'ın "Gelişmiş/Premium"u, Android'in Google'ı.
+    // Kayıtlı ses: 109 birim tek MP3'te (`manage.py rakam_sesleri`). Bir kez
+    // indirilir, sonra tarayıcı önbelleğindedir.
+    var SES_DOSYASI = "{% static 'ses/rakamlar.mp3' %}";
+    var KONUM_DOSYASI = "{% static 'ses/rakamlar.json' %}";
+    var KELIME_ARASI = 0;
+    var GRUP_ARASI = 0.32;
+    // Her parça birkaç ms'de açılıp kapanır: dalganın ortasında kesilen ses
+    // ek yerinde "zırt" diye tık yapıyordu.
+    var YUMUSAK = 0.006;
+    // Kırpma eşiği düşük, sona pay bırakılır: "beş"teki ş gibi kısık
+    // kelime sonları kesilmesin.
+    var ESIK = 0.003, ON_PAY = 0.005, ARKA_PAY = 0.02;
+    var Baglam = window.AudioContext || window.webkitAudioContext;
+    var baglam = null, veri = null, kayit = null, calanlar = [];
+
+    // Dosyalar kutuya odaklanınca önden iner. Ses bağlamı ise yalnızca
+    // düğmeye dokununca açılır: tarayıcılar dokunuşsuz açılan sesi susturuyor.
+    function indir() {
+      if (!veri) {
+        veri = Promise.all([
+          fetch(KONUM_DOSYASI).then(function (c) {
+            if (!c.ok) throw new Error("konum " + c.status);
+            return c.json();
+          }),
+          fetch(SES_DOSYASI).then(function (c) {
+            if (!c.ok) throw new Error("ses " + c.status);
+            return c.arrayBuffer();
+          }),
+        ]);
+        veri.catch(function () { veri = null; });
+      }
+      return veri;
+    }
+
+    // Her kelimenin penceresinde sesin gerçekten başladığı ve bittiği yer
+    // bulunur: MP3 kodlayıcısı başa birkaç ms ekliyor.
+    function kaydiHazirla() {
+      if (!kayit) {
+        kayit = indir().then(function (sonuc) {
+          return new Promise(function (tamam, hata) {
+            baglam.decodeAudioData(sonuc[1].slice(0), tamam, hata);
+          }).then(function (tampon) {
+            var kanal = tampon.getChannelData(0), oran = tampon.sampleRate;
+            var sozler = {};
+            Object.keys(sonuc[0].sozler).forEach(function (soz) {
+              var pencere = sonuc[0].sozler[soz];
+              var ilk = Math.floor(pencere[0] * oran);
+              var son = Math.min(kanal.length, Math.floor(pencere[1] * oran));
+              var bas = ilk, bit = son;
+              while (bas < bit && Math.abs(kanal[bas]) < ESIK) bas++;
+              while (bit > bas && Math.abs(kanal[bit - 1]) < ESIK) bit--;
+              bas = Math.max(ilk, bas - Math.round(ON_PAY * oran));
+              bit = Math.min(son, bit + Math.round(ARKA_PAY * oran));
+              sozler[soz] = [bas / oran, (bit - bas) / oran];
+            });
+            return { tampon: tampon, sozler: sozler };
+          });
+        });
+        // Olmazsa bir sonraki basışta yeniden denensin.
+        kayit.catch(function () { kayit = null; });
+      }
+      return kayit;
+    }
+
+    function kayittanOku(okunacak, k) {
+      calanlar.forEach(function (c) { try { c.stop(); } catch (e) {} });
+      calanlar = [];
+      var an = baglam.currentTime + 0.05;
+      okunacak.forEach(function (grup, i) {
+        if (i) an += GRUP_ARASI;
+        grup.forEach(function (soz, j) {
+          var parca = k.sozler[soz];
+          if (!parca) return;
+          if (j) an += KELIME_ARASI;
+          var kaynak = baglam.createBufferSource();
+          var kazanc = baglam.createGain();
+          var sure = parca[1];
+          kaynak.buffer = k.tampon;
+          kazanc.gain.setValueAtTime(0, an);
+          kazanc.gain.linearRampToValueAtTime(1, an + YUMUSAK);
+          kazanc.gain.setValueAtTime(1, Math.max(an + YUMUSAK, an + sure - YUMUSAK));
+          kazanc.gain.linearRampToValueAtTime(0, an + sure);
+          kaynak.connect(kazanc);
+          kazanc.connect(baglam.destination);
+          kaynak.start(an, parca[0], sure);
+          calanlar.push(kaynak);
+          an += sure;
+        });
+      });
+    }
+
+    // Kayıt indirilemezse cihazın kendi sesi okur. Ses cihazındır: Windows
+    // Chrome'da robotik "Tolga", Mac'te sıkıştırılmış "Yelda" gelir. Daha
+    // iyisi varsa o seçilir: Edge'in "Natural"ı, Apple'ın "Gelişmiş"i,
+    // Android'in Google'ı.
     var IYI_SES = /natural|neural|online|premium|enhanced|geli[sş]mi[sş]|google/i;
 
-    function turkceSes() {
-      var adaylar = window.speechSynthesis.getVoices().filter(function (v) {
-        return /^tr([-_]|$)/i.test(v.lang);
+    function cihazlaOku(okunacak) {
+      var konusma = window.speechSynthesis;
+      if (!konusma) return;
+      konusma.cancel();
+      var soz = new SpeechSynthesisUtterance(okunacak.map(function (g) { return g.join(" "); }).join(", "));
+      soz.lang = "tr-TR";
+      var adaylar = konusma.getVoices().filter(function (v) { return /^tr([-_]|$)/i.test(v.lang); });
+      adaylar.sort(function (a, b) {
+        var puan = function (v) { return (IYI_SES.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1); };
+        return puan(b) - puan(a);
       });
-      function puan(v) {
-        return (IYI_SES.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1);
-      }
-      adaylar.sort(function (a, b) { return puan(b) - puan(a); });
-      return adaylar[0];
+      if (adaylar[0]) soz.voice = adaylar[0];
+      konusma.speak(soz);
     }
 
-    function seslendir(metin) {
-      var konusma = window.speechSynthesis;
-      konusma.cancel();
-      var soz = new SpeechSynthesisUtterance(metin);
-      soz.lang = "tr-TR";
-      // Hız normal: yavaşlatılan sıkıştırılmış ses daha da robotik çıkıyordu.
-      // Gruplar arasındaki virgül duraklamayı zaten veriyor.
-      var ses = turkceSes();
-      if (ses) soz.voice = ses;
-      konusma.speak(soz);
+    function oku(okunacak) {
+      if (!Baglam) return cihazlaOku(okunacak);
+      // iPhone sessize alınmışken de çalsın (iOS 17+). Desteklemeyen tarayıcı
+      // hata verirse okuma durmasın.
+      try {
+        if (navigator.audioSession) navigator.audioSession.type = "playback";
+      } catch (e) {}
+      if (!baglam) baglam = new Baglam();
+      if (baglam.state !== "running") baglam.resume();
+      kaydiHazirla().then(function (k) {
+        kayittanOku(okunacak, k);
+      }, function (hata) {
+        console.warn("Kayıtlı ses çalınamadı, cihazın sesi okuyor.", hata);
+        cihazlaOku(okunacak);
+      });
     }
 
     function bagla() {
@@ -103,20 +214,21 @@
         duzelt(kutu);
         kutu.addEventListener("input", function () { duzelt(kutu); });
       });
-      if (!("speechSynthesis" in window)) return;
-      // Sesler bazı tarayıcılarda geç yüklenir; ilk basışta liste boş olmasın.
-      window.speechSynthesis.getVoices();
+      if (!Baglam && !window.speechSynthesis) return;
+      if (window.speechSynthesis) window.speechSynthesis.getVoices();
       document.querySelectorAll("[data-numara-oku]").forEach(function (dugme) {
         var kutu = document.getElementById(dugme.dataset.numaraOku);
         if (!kutu) return;
         dugme.hidden = false;
+        // Numara yazılmaya başlanınca kayıt arkadan iner, düğmeye basınca beklenmez.
+        if (Baglam) kutu.addEventListener("focus", function () { indir(); }, { once: true });
         dugme.addEventListener("click", function () {
           var r = rakamlar(kutu.value);
           if (!r) {
             kutu.focus();
             return;
           }
-          seslendir(okunacak(r));
+          oku(gruplar(r));
         });
       });
     }

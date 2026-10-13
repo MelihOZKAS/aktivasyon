@@ -542,11 +542,39 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   yazarken 3-3-2-2 boşluklar (`532 123 45 67`), başa yazılan 0'ı ve
   yapıştırılan +90'ı atar; `pattern` sunucunun kuralıyla aynıdır (5 ile
   başlayan 10 hane, `hedefi_dogrula`). **Sesli oku** düğmesi numarayı aynı
-  gruplarla Türkçe okur ("beş yüz otuz iki, yüz yirmi üç, kırk beş,
-  altmış yedi"; gruptaki baştaki sıfır "sıfır" diye okunur). Rakam sözcüğe
-  betikte çevrilir (`parca_numara_betik.html`): konuşma motoruna "38,20"
-  verilseydi Türkçe ses "virgül" derdi. Tarayıcı konuşamıyorsa düğme
-  çizilmez.
+  gruplarla okur ("beş yüz otuz iki, yüz yirmi üç, kırk beş, altmış yedi";
+  gruptaki baştaki sıfır "sıfır" diye okunur).
+  **Ses kayıtlıdır, cihazın değil.** Gruplar 109 kayıtlı birimden kurulur:
+  sıfır, 1..99 ("kırk beş") ve yüzlükler ("beş yüz"). "532" = "beş yüz" +
+  "otuz iki", "07" = "sıfır" + "yedi". Birimler Gemini'nin sesiyle (Kore)
+  bir kez üretildi ve tek dosyada durur (`static/ses/rakamlar.mp3` +
+  `.json` pencereleri, 459 KB, kutuya odaklanınca bir kez iner). Tarayıcı
+  Web Audio ile parçaları dizer, her parça birkaç ms'de açılıp kapanır
+  (`parca_numara_betik.html`).
+  **Bu ses üç kez yanlış kuruldu.** Önce tarayıcının konuşma sesi
+  kullanıldı: Mac'te sıkıştırılmış "Yelda", Windows Chrome'da "Tolga",
+  "kırk dört" sonunda tıslıyordu ("ses acayip kötü"). Sonra 20 tek kelime
+  kaydedildi ("kırk" + "beş"): her kelime cümle sonu gibi düşen tonla
+  bitiyor, ek yerleri "zırt" diye duyuluyordu. Birimler büyüyünce iki
+  haneli grupta hiç, üç haneli grupta tek ek yeri kaldı. Sonra yüzlükler
+  devam tonu için "Beş yüz…" diye okutuldu, model z'yi uzattı ve "yüz"
+  vızıldadı ("100 kelimesinde cızırtı var"). Virgül de cızırtılı çıktı,
+  nokta temiz. Ücretsiz ve ticari kullanıma açık Türkçe ses yok (Piper'ın
+  tek Türkçe sesi CC BY-NC). Cihaz sesi yalnızca kayıt indirilemezse
+  devreye girer.
+  Üretmek: `GEMINI_API_KEY=… manage.py rakam_sesleri` (bilgisayarda, ffmpeg
+  ister. Anahtar yalnızca ortam değişkeninden okunur, hiçbir yere
+  yazılmaz). Birimler 40'lık partilerle tek kayıtta okutulur ki ton ve
+  seviye aynı kalsın, kayıt sessiz yerlerinden bölünür
+  (`kontor/rakam_sesleri.py`) ve her parça Gemini'ye yeniden dinletilir:
+  hangi birim ve cızırtı var mı. Birimler dökümde sırayla aranır (fazla söz
+  ya da tık atlanır), cızırtılı birim en çok iki kez yeniden okutulur.
+  Modele yönerge yazılmaz, ilk denemede yönergeyi de sesli okudu. Gemini
+  sesi bazen ham PCM, bazen başlıklı WAV gönderir (`ses_coz`): WAV ham
+  okununca başlığı kaydın başında tık oluyordu. Tek birim kötü çıkarsa
+  `--birim "yüz"` yalnız onu yeniden üretir, öbürlerini kayıpsız ana
+  kopyadan (`tmp/rakam_sesleri/`, depoda değil) alır. MP3 açılıp yeniden
+  sıkıştırılmaz, her seferinde ses biraz daha bozulurdu.
   · **Oyun pini Znet'te kontörün değil pin servisinin kapısından gider**
   (`pin_ekle.php` / `pin_kontrol.php`, sağlayıcının `api.pdf`'i). Kapıyı
   kategorinin **Oyun / E-pin** işareti seçer (`services._oyun_mu` →

@@ -14,7 +14,7 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.db import connection
 from django.core.exceptions import ValidationError
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -2561,3 +2561,63 @@ class OyunPiniTestleri(TestCase):
         self.assertContains(yanit, 'list="saglayici-pinleri"')
         self.assertContains(yanit, 'value="1-60" data-fiyat="7.30"')
         self.assertContains(yanit, "325 UC")
+
+
+class RakamSesleriBolme(SimpleTestCase):
+    """Gemini'nin tek kayıtta okuduğu 20 kelime sessiz yerlerinden bölünür."""
+
+    ORAN = 24000
+
+    def _kayit(self, kelime_sayisi=20, ic_durak=True):
+        import math
+        from array import array
+
+        dizi = array("h")
+        sessiz = lambda ms: dizi.extend([0] * (self.ORAN * ms // 1000))
+        ton = lambda ms: dizi.extend(
+            int(9000 * math.sin(2 * math.pi * 220 * i / self.ORAN)) for i in range(self.ORAN * ms // 1000)
+        )
+        sessiz(400)
+        for i in range(kelime_sayisi):
+            ton(150 + (i % 4) * 60)
+            if ic_durak and i % 3 == 0:
+                sessiz(70)  # "altmış"taki t gibi kelime içi durak
+                ton(120)
+            sessiz(800)
+        return dizi
+
+    def test_yirmi_kelime_yirmi_parca(self):
+        from apps.kontor import rakam_sesleri as rs
+
+        parcalar = rs.parcalara_bol(self._kayit(), self.ORAN)
+        self.assertEqual(len(parcalar), 20)
+        self.assertTrue(all(b < s for b, s in parcalar))
+
+    def test_fazla_soz_ve_tik_atlanir_eksik_kelime_hata(self):
+        from apps.kontor import rakam_sesleri as rs
+
+        duyulanlar = ["aşağıdaki kelimeleri oku", ""] + rs.SOZLER[:10] + ["ııı"] + rs.SOZLER[10:] + [""]
+        indisler = rs.eslestir(duyulanlar)
+        self.assertEqual([duyulanlar[i] for i in indisler], rs.SOZLER)
+        with self.assertRaises(ValueError):
+            rs.eslestir(rs.SOZLER[:-1])
+
+    def test_birlestirilen_pencereler_sirali(self):
+        from apps.kontor import rakam_sesleri as rs
+
+        dizi = self._kayit()
+        parcalar = rs.parcalara_bol(dizi, self.ORAN)
+        kelimeler = [(soz, rs.kelime_sesi(dizi, b, s, self.ORAN)) for soz, (b, s) in zip(rs.SOZLER, parcalar)]
+        pcm, konumlar = rs.birlestir(kelimeler, self.ORAN)
+        self.assertEqual(list(konumlar), rs.SOZLER[:20])
+        bitisler = [konumlar[s][1] for s in rs.SOZLER[:20]]
+        self.assertEqual(bitisler, sorted(bitisler))
+        self.assertAlmostEqual(bitisler[-1], len(pcm) / 2 / self.ORAN, places=2)
+
+    def test_wav_basligi_sese_karismaz(self):
+        """Gemini bazen başlıklı WAV gönderir; başlık baytları tık olmasın."""
+        from apps.kontor import rakam_sesleri as rs
+
+        pcm = b"\x01\x00" * 480
+        self.assertEqual(rs.ses_coz(rs.wav(pcm, 24000), "audio/wav"), (pcm, 24000))
+        self.assertEqual(rs.ses_coz(pcm, "audio/L16;codec=pcm;rate=16000"), (pcm, 16000))
