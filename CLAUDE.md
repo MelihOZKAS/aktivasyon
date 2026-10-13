@@ -539,11 +539,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   (`.girdi-numara`, `data-numara`; kategori sayfasındaki sorgu ve paket
   sayfasındaki yükleme kutusu). Bayilerin bir kısmı genç değil; numara
   Sorgula düğmesiyle yan yana küçük kutudaydı, hane okunmuyordu. Kutu
-  yazarken 3-3-2-2 boşluklar (`552 414 44 44`), başa yazılan 0'ı ve
+  yazarken 3-3-2-2 boşluklar (`532 123 45 67`), başa yazılan 0'ı ve
   yapıştırılan +90'ı atar; `pattern` sunucunun kuralıyla aynıdır (5 ile
   başlayan 10 hane, `hedefi_dogrula`). **Sesli oku** düğmesi numarayı aynı
-  gruplarla Türkçe okur ("beş yüz elli iki, dört yüz on dört, kırk dört,
-  kırk dört"; gruptaki baştaki sıfır "sıfır" diye okunur). Rakam sözcüğe
+  gruplarla Türkçe okur ("beş yüz otuz iki, yüz yirmi üç, kırk beş,
+  altmış yedi"; gruptaki baştaki sıfır "sıfır" diye okunur). Rakam sözcüğe
   betikte çevrilir (`parca_numara_betik.html`): konuşma motoruna "38,20"
   verilseydi Türkçe ses "virgül" derdi. Tarayıcı konuşamıyorsa düğme
   çizilmez.
