@@ -12,7 +12,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.fatura.models import Kategori, Kurum, Odeme, OdemeDurumu, Robot, RobotHesabi, Sorgu, SorguDurumu
+from apps.fatura.models import IKONLAR, Kategori, Kurum, Odeme, OdemeDurumu, Robot, RobotHesabi, Sorgu, SorguDurumu
 from apps.fatura.services import (
     FaturaHatasi,
     KararVerilemez,
@@ -386,6 +386,18 @@ class EkranTestleri(Temel):
         self.assertContains(yanit, "Diğer")   # kategorisiz HGS
         self.assertContains(yanit, "100 TL Yükle Plaka")
 
+    def test_bolumun_ikonu_addan_tahmin_edilir(self):
+        # Boş bırakılan ikon addan gelir; yönetimin seçtiği ezilmez.
+        self.assertEqual(self.gsm.ikon, "telefon")
+        for ad, ikon in (("Elektrik", "elektrik"), ("Doğalgaz", "dogalgaz"), ("Su", "su"),
+                         ("HGS", "arac"), ("TV", "tv"), ("Belediye", "belge")):
+            self.assertEqual(Kategori.objects.create(ad=ad).ikon, ikon)
+        self.assertEqual(Kategori.objects.create(ad="Sabit Hat", ikon="internet").ikon, "internet")
+        # Kategorisiz kurum fiş ikonuyla, bölümün rengiyle çizilir.
+        self.assertEqual(self.hgs.ikon, "belge")
+        self.assertEqual(self.vodafone.ikon_rengi, IKONLAR["telefon"][1])
+        self.assertContains(self.client.get(reverse("fatura:index")), IKONLAR["telefon"][1])
+
     def test_kurum_formu_kurali_tasir(self):
         yanit = self.client.get(reverse("fatura:kurum", args=["vodafone"]))
         self.assertContains(yanit, "Telefon Numarası")
@@ -464,14 +476,16 @@ class EkranTestleri(Temel):
     def test_dekont_musteri_fiyatiyla_butun_faturalar(self):
         odeme = odeme_baslat(self.bayi, self.tamam_sorgu(), ["FD60950NCB9D53", "FD00000000002"])
         adres = reverse("fatura:odeme-dekont", args=[odeme.referans_no])
-        # Ödeme sürerken de verilir; durum yazar.
+        # Ödeme sürerken de verilir.
         self.assertContains(self.client.get(odeme.get_absolute_url()), adres)
         yanit = self.client.get(adres)
         # Müşteriye: 390 + 180 fatura, 2 × 10 hizmet bedeli = 590. Bayinin ödediği (580) girmez.
         for metin in ("FATURA ÖDEME DEKONTU", "Vodafone", "5332590138", "M***** A*****", "FD60950NCB9D53",
-                      "FD00000000002", "390,00", "180,00", "Hizmet bedeli", "20,00", "590,00 ₺", "Ödeniyor"):
+                      "FD00000000002", "390,00", "180,00", "590,00 ₺"):
             self.assertContains(yanit, metin)
-        self.assertNotContains(yanit, "580,00")
+        # Hizmet bedeli toplamın içindedir, ayrı satır yazılmaz; durum da yazılmaz.
+        for metin in ("580,00", "Hizmet bedeli", "20,00", "Durum", "Ödeniyor"):
+            self.assertNotContains(yanit, metin)
         self.assertNotContains(yanit, "Ara toplam")   # tek ödeme
 
         iptal_et(odeme, sebep="kurum kapalı")

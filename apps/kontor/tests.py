@@ -1243,6 +1243,14 @@ class SorguTestleri(Temel):
         self.assertNotContains(yanit, "Bizde yok")
         self.assertNotContains(yanit, "satışta olmayan")
 
+    def test_sonuc_gelince_kategorinin_butun_listesi_gizlenir(self):
+        # Sorguda çıkmayan paketler altta ikinci liste olarak durmasın (app.css: #tum-paketler).
+        self.assertContains(self.client.get(self.kategori.get_absolute_url()), 'id="tum-paketler"')
+        self.assertContains(self.client.get(self.adres, {"hedef": "5329998877"}), "data-liste-gizle")
+        # Sorgu hata verirse bayi aşağıdaki listeden seçebilir.
+        SORGU["hata"] = True
+        self.assertNotContains(self.client.get(self.adres, {"hedef": "5329998866"}), "data-liste-gizle")
+
     def _fiyat_degisimi_mesajlari(self, *numaralar):
         from unittest.mock import patch
 

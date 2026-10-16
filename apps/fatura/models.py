@@ -39,6 +39,42 @@ SIFIR = Decimal("0.00")
 CEVRIMICI_SURESI = timedelta(seconds=60)
 
 
+# Bölümün ikonu ve rengi. Bayi elektriği şimşekten, suyu damladan tanır,
+# adı okumadan. Renk "ne faturası" bilgisidir; operatörü olan kurumda
+# operatörün marka rengi öne geçer ("hangi operatör"). Hiçbiri mor değil.
+# Çizimler `templates/fatura/parca_ikon.html`'de, burada yalnızca anahtar.
+IKONLAR = {
+    "telefon": ("Telefon", "#334155"),
+    "internet": ("İnternet", "#1D4ED8"),
+    "tv": ("TV", "#0F766E"),
+    "elektrik": ("Elektrik (şimşek)", "#A16207"),
+    "su": ("Su (damla)", "#0E7490"),
+    "dogalgaz": ("Doğalgaz (alev)", "#C2410C"),
+    "arac": ("Araç (HGS)", "#15803D"),
+    "belge": ("Fiş (diğer)", "#6F7B8F"),
+}
+
+# Ad hangi ikonu çağırıyor: kısa adın parçalarından biri listede geçerse.
+_IKON_TAHMINI = (
+    ("telefon", {"gsm", "telefon", "cep", "mobil", "sabit", "hat"}),
+    ("internet", {"internet", "adsl", "fiber"}),
+    ("tv", {"tv", "televizyon", "uydu"}),
+    ("elektrik", {"elektrik"}),
+    ("su", {"su"}),
+    ("dogalgaz", {"dogalgaz", "gaz"}),
+    ("arac", {"hgs", "ogs", "otoyol", "kopru", "arac"}),
+)
+
+
+def ikon_tahmini(ad):
+    """"Elektrik" → elektrik, "HGS" → arac; bilinmeyen ad fiş ikonu alır."""
+    parcalar = set(turkce_slug(ad or "").split("-"))
+    for ikon, kelimeler in _IKON_TAHMINI:
+        if parcalar & kelimeler:
+            return ikon
+    return "belge"
+
+
 class Kategori(ZamanDamgali):
     """Bayinin fatura ekranındaki bölüm: GSM, İnternet, Elektrik, HGS…
 
@@ -51,6 +87,14 @@ class Kategori(ZamanDamgali):
     slug = models.SlugField("Kısa Ad", max_length=90, unique=True, blank=True)
     sira = models.PositiveIntegerField("Sıra", default=0)
     aktif = models.BooleanField("Aktif", default=True)
+    ikon = models.CharField(
+        "İkon",
+        max_length=20,
+        choices=[(kod, ad) for kod, (ad, _) in IKONLAR.items()],
+        blank=True,
+        help_text="Bayi ekranında bu bölümdeki kurumların ikonu ve rengi. "
+        "Boş bırakılırsa addan tahmin edilir (Elektrik → şimşek).",
+    )
 
     class Meta:
         verbose_name = "Fatura Kategorisi"
@@ -63,7 +107,13 @@ class Kategori(ZamanDamgali):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = turkce_slug(self.ad)
+        if not self.ikon:
+            self.ikon = ikon_tahmini(self.ad)
         super().save(*args, **kwargs)
+
+    @property
+    def renk(self):
+        return IKONLAR.get(self.ikon, IKONLAR["belge"])[1]
 
 
 class KurumSorgusu(models.QuerySet):
@@ -209,6 +259,15 @@ class Kurum(ZamanDamgali):
         super().clean()
         if self.min_hane and self.max_hane and self.min_hane > self.max_hane:
             raise ValidationError({"max_hane": "En çok hane, en az haneden küçük olamaz."})
+
+    @property
+    def ikon(self):
+        return self.kategori.ikon if self.kategori else "belge"
+
+    @property
+    def ikon_rengi(self):
+        """Bölümün rengi. Operatörü olan kurumda şablon marka rengini öne geçirir."""
+        return self.kategori.renk if self.kategori else IKONLAR["belge"][1]
 
     def get_absolute_url(self):
         return reverse("fatura:kurum", args=[self.kod])

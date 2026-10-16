@@ -21,7 +21,9 @@
     Her bilgi iki satırdır (`.dk-alan`): etiket üstte, değer altında, tam
     genişlikte, kalın ve ortalı. Etiketle değer bir süre yan yanaydı; 48 mm'de değere
     yer kalmıyor, "Ödeniyor" "Ödeniyo / r", "2.200,00" "2.200,0 / 0" diye
-    bölünüyor, yazı da küçük kalıyordu.
+    bölünüyor, yazı da küçük kalıyordu. Yazı bir kez daha büyüdü ve kalınlaştı
+    (58 mm 13,5 px, 80 mm 16 px, 600): termal kafa ince çizgiyi soluk basıyor,
+    "okunaklı olsun" dendi.
 
     Termal kafa gri basamaz: dekontta yalnızca siyah ve düz çizgi var. Biçim
     cihaza aittir (yazıcı o cihaza bağlı), localStorage'da durur. "Açılınca
@@ -31,9 +33,9 @@
     seçilen yazıcıyı kendisi hatırlar.
   {% endcomment %}
   <style>
-    html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 12.5px; }
-    html[data-bicim="80"] { --dk-genislik: 72mm; --dk-yazi: 14px; }
-    html[data-bicim="a5"] { --dk-genislik: 124mm; --dk-yazi: 15px; }
+    html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 13.5px; }
+    html[data-bicim="80"] { --dk-genislik: 72mm; --dk-yazi: 16px; }
+    html[data-bicim="a5"] { --dk-genislik: 124mm; --dk-yazi: 17px; }
 
     .dekont-kagit {
       max-width: 100%;
@@ -49,7 +51,7 @@
       max-width: 100%;
       padding: 1mm 0 3mm;
       color: #000;
-      font: 500 var(--dk-yazi)/1.35 Manrope, system-ui, sans-serif;
+      font: 600 var(--dk-yazi)/1.35 Manrope, system-ui, sans-serif;
       font-variant-numeric: tabular-nums;
       overflow-wrap: anywhere;
       text-align: center;
@@ -68,10 +70,10 @@
     /* Etiket üstte, değer altında: <div class="dk-alan"><span>Etiket</span><b>Değer</b></div> */
     .dk-alan { padding: 0.3em 0; }
     .dk-alan > * { display: block; }
-    .dk-alan > :first-child { font-weight: 500; }
+    .dk-alan > :first-child { font-weight: 600; }
     .dk-alan > :last-child { font-size: 1.2em; font-weight: 800; line-height: 1.25; }
     .dk-kurum { margin-bottom: 0.15em; font-size: 1.25em; font-weight: 800; line-height: 1.2; }
-    .dk-kucuk { font-size: 0.85em; }
+    .dk-kucuk { font-size: 0.9em; }
     .dk-blok + .dk-blok { margin-top: 0.7em; padding-top: 0.7em; border-top: 1px dashed #000; }
     .dk-fatura + .dk-fatura { margin-top: 0.3em; padding-top: 0.3em; border-top: 1px dotted #000; }
     .dk-toplam > :first-child { font-weight: 800; letter-spacing: 0.04em; }
@@ -85,7 +87,7 @@
       font-weight: 800;
       letter-spacing: 0.05em;
     }
-    .dk-alt { margin-top: 0.8em; text-align: center; font-size: 0.85em; }
+    .dk-alt { margin-top: 0.8em; text-align: center; font-size: 0.9em; }
 
     .dk-bicim[aria-pressed="true"] {
       background: var(--color-murekkep);

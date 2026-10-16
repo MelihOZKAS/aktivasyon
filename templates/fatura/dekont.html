@@ -6,16 +6,17 @@
 
 {% block dekont %}
 {% comment %}
-  Her ödeme bir blok: kurum, abone, faturalar, hizmet bedeli. Sepette
-  (birden çok ödeme) her blok kendi ara toplamını yazar, en altta tek
-  toplam durur. Rakamlar müşteriye dönüktür (`services.dekont_ozeti`).
+  Her ödeme bir blok: kurum, abone, faturalar. Sepette (birden çok ödeme)
+  her blok kendi ara toplamını yazar, en altta tek toplam durur. Rakamlar
+  müşteriye dönüktür (`services.dekont_ozeti`): toplam müşteri fiyatıdır,
+  hizmet bedeli ayrı satır olarak yazılmaz, toplamın içindedir. Durum da
+  yazılmaz (yönetim istedi): kağıt "ödendi" ya da "ödeniyor" demez.
   Her bilgi iki satırdır, etiket üstte değer altında (`dekont/sayfa.html`).
 {% endcomment %}
 {% for blok in bloklar %}
 {% with odeme=blok.odeme %}
 <section class="dk-blok">
   <p class="dk-kurum">{{ odeme.kurum_adi }}</p>
-  <div class="dk-alan"><span>Durum</span><b>{{ odeme.get_durum_display }}</b></div>
   <div class="dk-alan"><span>İşlem no</span><b>{{ odeme.referans_no }}</b></div>
   <div class="dk-alan"><span>Tarih</span><b>{{ odeme.karar_tarihi|default:odeme.olusturma_tarihi|date:"d.m.Y H:i" }}</b></div>
   <div class="dk-alan"><span>{{ odeme.kurum.alan_etiketi|default:"Abone no" }}</span><b>{{ odeme.numara }}</b></div>
@@ -27,7 +28,6 @@
     <div class="dk-alan"><span>Fatura tutarı</span><b>{{ f.tutar|para }} ₺</b></div>
   </div>
   {% endfor %}
-  {% if blok.hizmet %}<div class="dk-alan"><span>Hizmet bedeli</span><b>{{ blok.hizmet|para }} ₺</b></div>{% endif %}
   {% if bloklar|length > 1 or not blok.satirlar %}
   <div class="dk-alan"><span>{% if blok.satirlar %}Ara toplam{% else %}Tutar{% endif %}</span><b>{{ blok.toplam|para }} ₺</b></div>
   {% endif %}

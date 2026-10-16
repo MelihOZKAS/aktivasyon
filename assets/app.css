@@ -199,6 +199,15 @@
     border: 1px solid var(--color-cizgi);
   }
 
+  /* Kontör kategorisinde numara sorgusu sonuç verince kategorinin bütün
+     paket listesi (arama kutusu, sayfalar dahil) gizlenir; bayi yalnızca
+     numaranın alabildiği paketleri görür. Sorgu sürerken ya da hata
+     verince kutu işareti taşımaz, liste seçilebilir kalır
+     (templates/kontor/parca_sorgu.html). */
+  #sorgu-sonucu[data-liste-gizle] ~ #tum-paketler {
+    display: none;
+  }
+
   /* Fatura kartı son ödeme gününe göre: geçmiş kırmızı, bugün son gün
      uyarı rengi (templates/fatura/parca_sorgu.html). Kart bu sınıfı .yuzey ve
      border-cizgi yerine taşır: utility katmanı bileşeni ezerdi. Pahlı köşenin çizgisi

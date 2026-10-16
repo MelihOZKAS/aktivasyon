@@ -87,10 +87,10 @@ def _atomik_degil(gorunum):
 
 @admin.register(Kategori)
 class KategoriAdmin(ModelAdmin):
-    list_display = ("ad", "kurum_sayisi", "sira", "aktif")
-    list_editable = ("sira", "aktif")
+    list_display = ("ad", "kurum_sayisi", "ikon", "sira", "aktif")
+    list_editable = ("ikon", "sira", "aktif")
     search_fields = ("ad",)
-    fields = ("ad", "slug", "sira", "aktif")
+    fields = ("ad", "slug", "ikon", "sira", "aktif")
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(_kurum=Count("kurumlar"))

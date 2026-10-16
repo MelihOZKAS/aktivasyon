@@ -646,6 +646,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   ile eşleştirir ve **yalnızca bizde satışta olanları** gösterir — kaynağın
   döndürüp bizim satmadığımız paketler bayiye listelenmez (alamayacağı
   paket işine yaramıyordu), yönetim onları Operatörde Görülen'de görür.
+  **Sonuç gelince kategorinin bütün listesi gizlenir** (arama kutusu ve
+  sayfalar dahil; `#tum-paketler`, sonuç kutusundaki `data-liste-gizle`,
+  kural `assets/app.css`'te): sorguda çıkmayan paketler altta ikinci liste
+  olarak duruyordu, bayi numaranın alamayacağını seçebiliyordu. Sorgu
+  sürerken ve hata verince liste yerinde kalır, satış durmaz.
   **"Sorguda her zaman göster"** (`Paket.sorguda_hep_goster`, varsayılan
   kapalı) işaretli paket sorgu döndürmese de listeye girer ve gönderim
   planında numarada var sayılır — gösterilip alınınca "numara alamıyor"
@@ -868,6 +873,16 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   sekmesinde — bölümler bizimdir). Kurulum var olana dokunmaz; robotun
   katalogu numara kuralını günceller, yönetimin kararını (ad, bölüm, fiyat,
   aktif) korur, yeni kurumu **kapalı** açar.
+  · **Bölümün ikonu veridir** (`Kategori.ikon`: telefon, internet, TV,
+  şimşek, damla, alev, araç, fiş; Fatura Kategorileri listesinde satırdan).
+  Kurum kartı bölümün ikonunu taşır, bayi elektriği şimşekten tanır, adı
+  okumadan. Boş bırakılırsa addan tahmin edilir (`ikon_tahmini`: "Elektrik"
+  → şimşek, "HGS" → araç, bilinmeyen → fiş). Renk "ne faturası"
+  bilgisidir (`IKONLAR`, hiçbiri mor değil); operatörü olan kurumda
+  operatörün marka rengi öne geçer. Çizimler `fatura/parca_ikon.html`'de:
+  yeni ikon = oraya bir dal + `IKONLAR`'a bir satır. Kurum adı kartta iki
+  satıra kadar sığar, kesilmez ("AKSA GAZ-adana-mersin-o…" bölgeyi
+  yutuyordu).
   · **Numara kuralı veridir**: `min_hane`/`max_hane`/`sadece_rakam`
   sağlayıcının alan tanımından gelir; kurala uymayan numara robota hiç
   gitmez (`Kurum.numarayi_dogrula`, telefonda baştaki 0 ve +90 atılır).
@@ -1027,15 +1042,19 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   ayrı kayıt, fiş tek.
   · **Dekont bayinin fişidir:** üstte firması (profildeki ünvan, adres,
   telefon), sağlayıcının adı hiç geçmez. **Rakam müşteriye dönüktür** —
-  kontörde `Islem.tavsiye_fiyati`, faturada `Odeme.tavsiye_fiyati` (fatura
-  bedelleri + hizmet bedeli satırı; `fatura.services.dekont_ozeti`). Bayinin
-  alışı yazılmaz; tavsiye kaydı yoksa bilinen tek rakam olan bayinin ödediği
-  yazılır. "Mali değeri yoktur" yazar.
-  · **İşlem sürerken de verilir, iptal edilende hiç yok.** Dekontun
-  "Durum"u o anki hâli yazar: kontörde "Yükleniyor" (pinde
+  kontörde `Islem.tavsiye_fiyati`, faturada `Odeme.tavsiye_fiyati`
+  (`fatura.services.dekont_ozeti`). Bayinin alışı yazılmaz; tavsiye kaydı
+  yoksa bilinen tek rakam olan bayinin ödediği yazılır. "Mali değeri
+  yoktur" yazar. **Fatura dekontunda hizmet bedeli ayrı satır değildir**,
+  toplamın içindedir: fatura satırları faturanın kendi bedelini, toplam
+  müşterinin ödediğini yazar. Bir süre "Hizmet bedeli" satırı vardı,
+  yönetim kaldırttı.
+  · **İşlem sürerken de verilir, iptal edilende hiç yok.** Kontör
+  dekontunun "Durum"u o anki hâli yazar: "Yükleniyor" (pinde
   "Hazırlanıyor"; askıdaki işlem de müşteriye "Yükleniyor"dur), yüklenince
-  "Yüklendi" / "Teslim edildi" — pin kodu ancak o zaman dekonta girer;
-  faturada "Ödeniyor". Müşteri tezgâhta bekliyor. Kontörde dekont bir süre
+  "Yüklendi" / "Teslim edildi" — pin kodu ancak o zaman dekonta girer.
+  **Fatura dekontunda durum satırı yoktur** (yönetim kaldırttı; "Ödeniyor"
+  yazıyordu). Müşteri tezgâhta bekliyor. Kontörde dekont bir süre
   yalnızca yüklenmiş işlemde veriliyordu (sürerken fiş verilirse müşteri
   "yüklendi" kağıdıyla yüklenmemiş hatla kalır diye); yönetim "paketler
   hâlâ onay almadan dekont yazdıramıyoruz" dedi. Kağıt "yüklendi" demediği
@@ -1049,7 +1068,10 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   Etiketle değer bir süre yan yanaydı: 48 mm'de değere yer kalmıyor,
   "Ödeniyor" "Ödeniyo / r", "2.200,00" "2.200,0 / 0" diye bölünüyor, yazı
   da küçük kalıyordu ("her şeye bir satır ekleyelim, alt alta yazsın").
-  Yazı 58 mm'de 12,5 px, 80 mm'de 14 px; toplam en büyük rakamdır.
+  Yazı 58 mm'de 13,5 px, 80 mm'de 16 px, A5'te 17 px, kalınlık 600
+  (12,5 / 14 px ve 500 iken "okunaklı olsun" dendi; termal kafa ince
+  çizgiyi soluk basıyor). 58 mm'de "FATURA ÖDEME DEKONTU" tek satıra
+  sığar, daha büyütülürse bölünür. Toplam en büyük rakamdır.
   Dekonta yeni bir bilgi eklersen aynı kalıpla ekle, yan yana dizme.
   · **Biçim cihaza aittir** (yazıcı o cihaza bağlı): seçim `localStorage`'da
   durur, sunucuya gitmez. **"Bu cihazda dekont açılınca hemen yazdır"** da

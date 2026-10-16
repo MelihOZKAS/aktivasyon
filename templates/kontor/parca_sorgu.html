@@ -6,11 +6,17 @@
   listesi işine yaramıyordu; yönetim onları Operatörde Görülen'de görür.
   Hata satışı durdurmaz: aşağıdaki paket listesi yine seçilebilir.
 
+  Sorgu sonuç verince (ya da numara hiç paket alamaz deyince) kutu
+  `data-liste-gizle` taşır ve kategorinin bütün listesi gizlenir: sorguda
+  çıkmayan paketler altta ikinci liste olarak duruyordu, bayi numaranın
+  alamayacağı paketi seçebiliyordu. Kural CSS'te (`#tum-paketler`).
+
   Kaynak robotsa (aboneye özel paketler) cevap birkaç saniye sürer: kutu
   "sorgulanıyor" der ve 2 sn'de bir kendini yeniler; sonuç gelince hx-
   öznitelikleri düşer, yoklama durur — fatura sorgusundaki kutunun aynısı.
 {% endcomment %}
 <div id="sorgu-sonucu" class="mb-5"
+     {% if not yoklama_adresi and not hata %}data-liste-gizle{% endif %}
      {% if yoklama_adresi %}hx-get="{{ yoklama_adresi }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
   {% if yoklama_adresi %}
   <div class="sim yuzey rounded-kart border border-cizgi p-4">

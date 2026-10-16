@@ -24,27 +24,32 @@
 
   {% if bolumler %}
   {% comment %}
-    Bölümler tek kolonda alt alta: GSM, İnternet, Elektrik… Kurum kartı
-    operatörün marka rengini sol şeritte taşır (renk = hangi operatör);
-    operatörsüz kurumda şerit gri.
+    Bölümler tek kolonda alt alta: GSM, İnternet, Elektrik… Kurum kartının
+    ikonu bölümün ikonudur (telefon, şimşek, damla, alev; panelden seçilir,
+    `fatura.models.IKONLAR`): bayi kurumu adı okumadan bulsun. İkonun rengi
+    operatörün marka rengidir (renk = hangi operatör), operatörsüz kurumda
+    bölümün rengi (renk = ne faturası). Ad iki satıra kadar sığar, kesilmez:
+    "AKSA GAZ-adana-mersin-o…" hangi bölge olduğunu yutuyordu.
   {% endcomment %}
-  <div class="space-y-6">
+  <div class="space-y-7">
     {% for ad, kurumlar in bolumler %}
     <section>
-      <h3 class="baslik mb-2 text-sm font-semibold uppercase tracking-wide text-soluk">{{ ad }}</h3>
-      <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <h3 class="baslik mb-2.5 text-base font-semibold uppercase tracking-wide text-soluk">{{ ad }}</h3>
+      <div class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
         {% for kurum in kurumlar %}
         <a href="{{ kurum.get_absolute_url }}"
-           class="kart-secim sim yuzey flex min-h-14 items-center gap-3 border border-cizgi px-4 py-3 transition">
-          <span class="h-8 w-1.5 shrink-0 rounded-full"
-                style="background: {% if kurum.operator %}{{ kurum.operator.renk|okunur_renk }}{% else %}var(--color-silik){% endif %}"></span>
+           class="kart-secim sim yuzey flex min-h-18 items-center gap-3.5 border border-cizgi px-4 py-3.5 transition">
+          <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+                style="--ikon: {% if kurum.operator %}{{ kurum.operator.renk|okunur_renk }}{% else %}{{ kurum.ikon_rengi }}{% endif %}; color: var(--ikon); background: color-mix(in srgb, var(--ikon) 12%, #fff)">
+            {% include "fatura/parca_ikon.html" with ikon=kurum.ikon %}
+          </span>
           <span class="min-w-0 flex-1">
-            <span class="block truncate font-medium">{{ kurum.ad }}</span>
-            <span class="block truncate text-xs text-soluk">
+            <span class="line-clamp-2 break-words text-[17px] font-semibold leading-snug">{{ kurum.ad }}</span>
+            <span class="mt-0.5 block truncate text-sm text-soluk">
               {% if kurum.sorgulu %}{{ kurum.alan_etiketi }} ile sorgula{% else %}{{ kurum.gosterim_fiyati|para }} ₺ · sorgusuz{% endif %}
             </span>
           </span>
-          <span class="text-soluk" aria-hidden="true">→</span>
+          <span class="text-lg text-soluk" aria-hidden="true">→</span>
         </a>
         {% endfor %}
       </div>

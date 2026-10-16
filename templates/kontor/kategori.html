@@ -24,8 +24,10 @@
 
   {% if kategori.sorgulanir %}
   {% comment %}
-    Numara sorgusu: sonuç bu formun altına HTMX ile gelir. Salt okumadır;
-    cevap gelmese de aşağıdaki liste seçilebilir kalır.
+    Numara sorgusu: sonuç bu formun altına HTMX ile gelir. Salt okumadır.
+    Sonuç gelince aşağıdaki bütün liste gizlenir (`data-liste-gizle`,
+    `#tum-paketler`, app.css): bayi yalnızca numaranın alabildiğini görür.
+    Sorgu sürerken ya da hata verince liste seçilebilir kalır.
 
     Numara kendi satırındadır ve iridir (`.girdi-numara`): bayilerin bir
     kısmı genç değil, düğmeyle yan yana duran küçük kutuda haneyi
@@ -48,6 +50,7 @@
   <div id="sorgu-sonucu"></div>
   {% endif %}
 
+  <div id="tum-paketler">
   {% comment %}
     Arama sunucuda yapılır ve liste sayfa başı 50 pakettir: bir operatörde
     bin paket olabilir, hepsini çizip tarayıcıda süzmek telefonu yoruyordu.
@@ -95,6 +98,7 @@
     <p class="text-sm text-soluk">Bu kategoride şu an satışta paket yok.</p>
   </div>
   {% endif %}
+  </div>
 </div>
 {% include "kontor/parca_goz_betik.html" %}
 {% if kategori.sorgulanir %}{% include "kontor/parca_numara_betik.html" %}{% endif %}
