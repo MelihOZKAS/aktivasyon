@@ -71,7 +71,7 @@
         <tbody>
         {% for g in gonderimler %}
         <tr class="border-t border-base-100 align-top dark:border-base-800">
-          <td class="py-1.5 pr-3 whitespace-nowrap">{{ g.olusturma_tarihi|date:"H:i:s" }}</td>
+          <td class="py-1.5 pr-3 whitespace-nowrap">{{ g.olusturma_tarihi|date:"d.m.Y" }}<br>{{ g.olusturma_tarihi|date:"H:i:s" }}</td>
           <td class="py-1.5 pr-3 font-mono">{{ g.fatura_no }}</td>
           <td class="py-1.5 pr-3 font-mono">{{ g.ref }}{% if g.elle %} <i class="font-sans">(elle)</i>{% endif %}</td>
           <td class="py-1.5 pr-3 text-right">{{ g.tutar }}</td>
@@ -91,6 +91,11 @@
               <div><dt class="inline text-base-500">Sorgu isteği: </dt><dd class="inline">{{ g.sonuc_istegi|default:"—" }}</dd></div>
               <div><dt class="inline text-base-500">Sorgu cevabı: </dt><dd class="inline">{{ g.sonuc_cevabi }}</dd></div>
               {% endif %}
+              {% if g.son_sorgu %}
+              <div><dt class="inline text-base-500">Son sorgu: </dt><dd class="inline">{{ g.son_sorgu|date:"d.m.Y H:i:s" }} ({{ g.son_sorgu|timesince }} önce)</dd></div>
+              {% elif g.durum == "islemde" %}
+              <div><dt class="inline text-base-500">Son sorgu: </dt><dd class="inline">henüz sorulmadı (ilk sorgu gönderimden {{ sonuc_araligi_dk }} dk sonra)</dd></div>
+              {% endif %}
             </dl>
           </td>
         </tr>
@@ -102,10 +107,17 @@
   {% endif %}
 
   {% if odeme.bekliyor %}
-  {% if suren %}
+  {% if suren and sorgu_gecikti %}
+  <div class="mb-4 rounded-default p-4 text-sm leading-relaxed" style="border:1px solid #D42046;background:#FCEAEE">
+    <b>Sonuç {{ sorgu_gecikti|timesince }} sorulmadı.</b> Normalde {{ sonuc_araligi_dk }} dakikada bir sorulur.
+    Kontör işçisi (<code>kontor_isci_fadil</code>) çalışmıyor olabilir. Sunucuda
+    <code>docker compose logs --tail=50 kontor_isci_fadil</code> ile bak. O arada aşağıdaki
+    <b>Sonucu sorgula</b> ile elle sorabilirsin.
+  </div>
+  {% elif suren %}
   <div class="mb-4 rounded-default p-4 text-sm leading-relaxed" style="border:1px solid #B45309;background:#FDF3E7">
-    <b>Fatura sağlayıcıda.</b> Sonucu kendiliğinden sorulur; ödenince ödeme kapanır, sağlayıcı iptal ederse
-    tutar bayiye döner. Bir şey yapman gerekmiyor.
+    <b>Fatura sağlayıcıda.</b> Sonucu {{ sonuc_araligi_dk }} dakikada bir kendiliğinden sorulur. Ödenince ödeme
+    kapanır, sağlayıcı iptal ederse tutar bayiye döner. Bir şey yapman gerekmiyor.
   </div>
   {% elif iptal_aciklamasi %}
   <div class="mb-4 rounded-default p-4 text-sm leading-relaxed" style="border:1px solid #D42046;background:#FCEAEE">

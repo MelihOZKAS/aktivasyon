@@ -989,6 +989,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   …" yazar. Bir tur en çok
   `SORGU_TURU_SURESI` (30 sn) sorar, kalan sonraki tura kalır — işçi
   kontörü de yürütüyor.
+  **Karar ekranı son sorgunun zamanını yazar** (`Gonderim.son_sorgu`,
+  gönderimin tarihiyle). Sağlayıcının panelinde 7 saat önce onaylanmış
+  fatura bizde "Ödeniyor"da duruyordu ve ekran yalnızca son cevabı (`1|`)
+  gösterdiği için işçinin mi sağlayıcının mı beklettiği görünmüyordu.
+  Süren gönderim `SORGU_GECIKMESI`'nden (30 dk) uzun süredir sorulmadıysa
+  "bir şey yapman gerekmiyor" yerine işçinin çalışmıyor olabileceğini ve
+  log komutunu yazar.
   **Kontörün tek gönderim ilkesi aynen geçerlidir:** gönderim ağa çıkmadan
   yazılır (`odemeyi_gonder` transaction içinden çağrılırsa `RuntimeError`,
   Karar ekranı `non_atomic_requests`); kendiliğinden gönderim her faturaya

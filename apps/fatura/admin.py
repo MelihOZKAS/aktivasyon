@@ -32,6 +32,8 @@ from apps.fatura.models import (
 )
 from apps.fatura.services import (
     OTOMATIK_GONDERIM_SURESI,
+    SONUC_ARALIGI,
+    SORGU_GECIKMESI,
     FaturaHatasi,
     KararVerilemez,
     fiyat_grubu,
@@ -757,6 +759,14 @@ class OdemeAdmin(ModelAdmin):
             return redirect("admin:fatura_odeme_changelist")
         gonderimler = list(odeme.gonderimler.select_related("saglayici"))
         son = odeme.son_gonderimler()
+        # Sağlayıcıda süren gönderimin son sorgusu (hiç sorulmadıysa gönderimi)
+        # çok eskiyse işçi soru sormuyordur.
+        simdi = timezone.now()
+        gecikenler = [
+            g.son_sorgu or g.olusturma_tarihi for g in son.values()
+            if g.durum == GonderimDurumu.ISLEMDE
+            and simdi - (g.son_sorgu or g.olusturma_tarihi) > SORGU_GECIKMESI
+        ]
         return render(
             request,
             "admin/fatura/odeme_karar.html",
@@ -768,6 +778,8 @@ class OdemeAdmin(ModelAdmin):
                 "gonderimler": gonderimler,
                 "engel": gonderim_engeli(odeme) if odeme.bekliyor else "",
                 "suren": any(g.suruyor for g in son.values()),
+                "sorgu_gecikti": min(gecikenler, default=None),
+                "sonuc_araligi_dk": int(SONUC_ARALIGI.total_seconds() // 60),
                 "odenen": any(g.durum == GonderimDurumu.ODENDI for g in son.values()),
                 "belirsiz": any(g.durum == GonderimDurumu.BELIRSIZ for g in son.values()),
                 # Sağlayıcı açıklamayla iptal etti: kendiliğinden iade edilmez

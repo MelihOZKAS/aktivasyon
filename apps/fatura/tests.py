@@ -1158,6 +1158,29 @@ class SaglayiciGonderimTestleri(Temel):
         self.assertEqual(odeme.durum, OdemeDurumu.IPTAL)
         self.assertEqual(self.bakiye(), TL("1000.00"))
 
+    def test_karar_ekrani_son_sorguyu_ve_duran_isciyi_gosterir(self):
+        # Sağlayıcıda ödenmiş fatura saatlerce "Ödeniyor"da duruyordu; ekranda
+        # son sorgunun zamanı yoktu, işçi mi sağlayıcı mı bekletiyor görünmüyordu.
+        odeme = self.ode(SahteSite(fatura_ekle="OK|0.30|1000.00|390.30"))
+        self.client.force_login(User.objects.create_superuser("yonetici", password="x"))
+        adres = reverse("admin:fatura_odeme_karar", args=[odeme.pk])
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "henüz sorulmadı (ilk sorgu gönderimden 10 dk sonra)")
+        self.assertContains(yanit, "Bir şey yapman gerekmiyor")
+
+        self.sorulabilir_yap()
+        self.isle(SahteSite(fatura_kontrol="1|"))
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "Son sorgu: </dt>")
+        self.assertNotContains(yanit, "henüz sorulmadı")
+        self.assertNotContains(yanit, "çalışmıyor olabilir")
+
+        # İşçi durdu: son sorgu 10 dakikalık aralığın çok gerisinde kaldı.
+        self.sorulabilir_yap(once=timedelta(hours=7))
+        yanit = self.client.get(adres)
+        self.assertContains(yanit, "çalışmıyor olabilir")
+        self.assertNotContains(yanit, "Bir şey yapman gerekmiyor")
+
     def test_sonuc_cevabi_canlidaki_bicimle_okunur(self):
         # Canlıda görülen cevaplar: "2|vodafone pos ()" ödendi, "3|" iptal. Bir
         # süre "2:…" beklendi; okunamayan cevap "bekliyor" sayıldı ve onaylanan

@@ -84,6 +84,11 @@ YARIM_GONDERIM = timedelta(minutes=2)
 # dedi — fatura saniyeler içinde ödenmiyor, erken sorgu hep "bekliyor" döner.
 # Yönetimin "Sonucu sorgula"sı bu süreye bağlı değildir.
 SONUC_ARALIGI = timedelta(minutes=10)
+# Süren gönderim bundan uzun süredir sorulmadıysa işçi çalışmıyordur: karar
+# ekranı "bir şey yapman gerekmiyor" demez, işçiye bakılmasını söyler. Son
+# sorgunun zamanı ekranda yokken sağlayıcıda ödenmiş fatura saatlerce
+# "Ödeniyor"da duruyor, işçinin mi sağlayıcının mı beklettiği görünmüyordu.
+SORGU_GECIKMESI = SONUC_ARALIGI * 3
 # İşçinin bir fatura turunda sonuç sormaya ayırdığı en uzun süre (saniye).
 # Sorgu gönderim başına tektir; sağlayıcı yavaşsa kalanlar sonraki tura
 # kalır — aynı işçi kontör işlemlerini de yürütüyor, onları bekletmesin.
