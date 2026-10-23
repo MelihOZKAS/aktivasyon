@@ -223,8 +223,10 @@ class CuzdanIslemFormu(forms.Form):
     banka = forms.ModelChoiceField(
         label="Banka",
         queryset=Banka.objects.filter(aktif=True),
+        # Zorunluluk işleme bağlı, clean'de: tahsilatta ve iadede şart,
+        # kredide ve borçta hiç sorulmaz.
         required=False,
-        help_text="Tahsilatta paranın girdiği hesap. Bankanın bakiyesi de artar.",
+        help_text="Paranın girdiği ya da çıktığı hesap. Bankanın bakiyesi de değişir.",
         widget=UnfoldAdminSelectWidget,
     )
     aciklama = forms.CharField(
@@ -240,7 +242,13 @@ class CuzdanIslemFormu(forms.Form):
     islem_anahtari = forms.CharField(widget=forms.HiddenInput)
 
     # Bankalı işlemler: para fiilen bir hesaba giriyor ya da oradan çıkıyor.
-    BANKALI = {CuzdanIslemi.TAHSILAT, CuzdanIslemi.IADE}
+    # İkisinde de banka zorunludur. Tahsilatta bir süre boş geçilebiliyordu:
+    # bayinin bakiyesi artıyor, hiçbir bankanın bakiyesi artmıyordu ve kasa
+    # ile defter ayrışıyordu.
+    BANKALI = {
+        CuzdanIslemi.TAHSILAT: "Tahsilat paranın girdiği hesaba yazılır. Banka seçin.",
+        CuzdanIslemi.IADE: "İade havalenin çıktığı hesaptan düşer. Banka seçin.",
+    }
 
     def __init__(self, *args, cuzdan=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -255,8 +263,8 @@ class CuzdanIslemFormu(forms.Form):
         # Kutu zaten gizleniyor ama kural sunucuda da durur.
         if tip not in self.BANKALI:
             temiz["banka"] = None
-        elif tip == CuzdanIslemi.IADE and not temiz.get("banka"):
-            self.add_error("banka", "İade havalenin çıktığı hesaptan düşer; banka seçin.")
+        elif not temiz.get("banka"):
+            self.add_error("banka", self.BANKALI[tip])
 
         tutar = temiz.get("tutar")
         if (

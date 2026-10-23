@@ -165,7 +165,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   varsa önce o kapanır, artan bakiyeye geçer) ve *bakiye düşür* (bayiye para
   ödendi). İade, bayinin bakiyesi **ve havalenin çıktığı bankanın bakiyesi**
   ile birlikte düşer — tek yerde düşseydi kasa ile defter ayrışırdı; banka bu
-  yüzden zorunludur. Bakiyeden fazlası düşürülemez (olmayan parayı ödemek eksi
+  yüzden zorunludur. **Tahsilatta da banka zorunludur** (para bir hesaba
+  girdi): bir süre boş geçilebiliyordu, bayinin bakiyesi artıyor, hiçbir
+  bankanınki artmıyordu. Kredide ve borç artırımında kasaya para girmediği
+  için banka hiç sorulmaz (`CuzdanIslemFormu.BANKALI`; kutu gizliyken
+  `required` da kalkar). Bakiyeden fazlası düşürülemez (olmayan parayı ödemek eksi
   bakiye demek, borç hanesiyle karışır) ve borca dokunulmaz: bu bir ödeme,
   mahsuplaşma değil. Tek giriş noktası
   `apps.finans.services.cuzdan_islemi`. Ekran hem **Cüzdanlar** hem
@@ -1933,10 +1937,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   **en son `pk`**'sı döner — bekleyen sayısı aynı anda hem artıp hem
   azalabilir, son numara yalnızca yeni kayıtla artar. Sayfa açılışındaki ilk
   cevap başlangıçtır, ses çalmaz; birden çok sekmede aynı kayıt için tek
-  sekme çalar (son çalınan numaralar `localStorage`'da ortak). Ses dosya
-  değil, Web Audio ile üretilen 1 sn'den kısa bir zildir: indirilen bir
-  dosyaya ve lisansına bağlı değil. Tarayıcı sesi sayfayla etkileşimden
-  sonra açar; hiç dokunulmamış sekmede çalmayabilir. Personel olmayana ve
+  sekme çalar (son çalınan numaralar `localStorage`'da ortak). Ses
+  `static/ses/alarm.mp3`'tür (1 sn, yönetimin verdiği dosya); ilk dokunuşta
+  bir kez indirilip Web Audio ile çözülür. Önce burada üretilen yumuşak bir
+  zil çalıyordu, yönetim "çok pasif" dedi. Tarayıcı sesi sayfayla
+  etkileşimden sonra açar; hiç dokunulmamış sekmede çalmayabilir. Personel olmayana ve
   oturumu düşene 403 döner (yönlendirme değil), betik sormayı bırakır.
   Listeyi büyütmeden önce Telegram'daki dersi hatırla: her şeyde çalan ses
   hiçbir şeyde çalmamakla aynıdır. Yeni tür `ses.KAYNAKLAR`'a yazılır;

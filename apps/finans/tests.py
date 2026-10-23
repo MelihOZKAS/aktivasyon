@@ -767,8 +767,13 @@ class CuzdanIslemEkrani(TestCase):
     def setUp(self):
         from django.contrib.auth.models import User
 
+        from apps.finans.models import Banka
+
         self.bayi = User.objects.create_user("5551112233", password="parola12345")
         self.cuzdan = Cuzdan.objects.create(bayi=self.bayi)
+        self.banka = Banka.objects.create(
+            banka_adi="İş Bankası", hesap_sahibi="Firma", iban="TR000000000000000000000003"
+        )
         self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
         self.client.force_login(self.yonetici)
 
@@ -777,10 +782,10 @@ class CuzdanIslemEkrani(TestCase):
 
         return reverse("admin:finans_cuzdan_bakiye_yukle", args=[self.cuzdan.pk])
 
-    def _uygula(self, tip, tutar, anahtar="t1"):
+    def _uygula(self, tip, tutar, anahtar="t1", banka=""):
         return self.client.post(
             self._adres(),
-            {"tip": tip, "tutar": tutar, "banka": "", "aciklama": "",
+            {"tip": tip, "tutar": tutar, "banka": banka, "aciklama": "",
              "islem_anahtari": anahtar},
             follow=True,
         )
@@ -810,7 +815,7 @@ class CuzdanIslemEkrani(TestCase):
         self.cuzdan.borc = TL("600.00")
         self.cuzdan.save(update_fields=["borc"])
 
-        self._uygula(CuzdanIslemi.TAHSILAT, "1000.00")
+        self._uygula(CuzdanIslemi.TAHSILAT, "1000.00", banka=self.banka.pk)
         self.cuzdan.refresh_from_db()
 
         self.assertEqual(self.cuzdan.borc, TL("0.00"))
@@ -823,11 +828,38 @@ class CuzdanIslemEkrani(TestCase):
         self.cuzdan.borc = TL("5000.00")
         self.cuzdan.save(update_fields=["borc"])
 
-        self._uygula(CuzdanIslemi.TAHSILAT, "3000.00")
+        self._uygula(CuzdanIslemi.TAHSILAT, "3000.00", banka=self.banka.pk)
         self.cuzdan.refresh_from_db()
 
         self.assertEqual(self.cuzdan.borc, TL("2000.00"))
         self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+
+    def test_banka_secilmeden_tahsilat_yapilamaz(self):
+        """Tahsilat bir hesaba giren paradır. Bankasız yazılsaydı bayinin
+        bakiyesi artar, hiçbir bankanınki artmazdı: kasa ile defter ayrışır."""
+        from apps.finans.models import CuzdanIslemi
+
+        self.cuzdan.borc = TL("600.00")
+        self.cuzdan.save(update_fields=["borc"])
+
+        yanit = self._uygula(CuzdanIslemi.TAHSILAT, "1000.00")
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.borc, TL("600.00"))
+        self.assertEqual(self.cuzdan.bakiye, TL("0.00"))
+        self.assertFalse(CuzdanHareketi.objects.filter(cuzdan=self.cuzdan).exists())
+        self.assertIn("Banka seçin", yanit.content.decode())
+
+    def test_kredi_ve_borc_bankasiz_yapilir(self):
+        """Kredide ve borç artırımında kasaya para girmiyor, banka sorulmaz."""
+        from apps.finans.models import CuzdanIslemi
+
+        self._uygula(CuzdanIslemi.KREDI, "1000.00", anahtar="k")
+        self._uygula(CuzdanIslemi.BORC, "200.00", anahtar="b")
+        self.cuzdan.refresh_from_db()
+
+        self.assertEqual(self.cuzdan.bakiye, TL("1000.00"))
+        self.assertEqual(self.cuzdan.borc, TL("1200.00"))
 
     def test_islemi_kimin_yaptigi_defterde_durur(self):
         from apps.finans.models import CuzdanIslemi
@@ -1071,7 +1103,7 @@ class BakiyeDusurmeIadesi(TestCase):
 
         self.cuzdan.refresh_from_db()
         self.assertEqual(self.cuzdan.bakiye, TL("10000.00"))
-        self.assertIn("banka seçin", yanit.content.decode())
+        self.assertIn("Banka seçin", yanit.content.decode())
 
     def test_borca_dokunulmaz(self):
         """Bu bir ödeme, mahsuplaşma değil."""

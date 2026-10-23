@@ -91,18 +91,19 @@
         {{ form.tutar }}
       </div>
       {% comment %}
-        Banka yalnızca para giren/çıkan işlemlerde sorulur: kredide ve borç
-        artırımında kasaya dokunulmuyor, hesap sormak yanıltıcı olurdu.
-        Kural sunucuda da duruyor.
+        Banka yalnızca para giren/çıkan işlemlerde sorulur ve orada
+        zorunludur: kredide ve borç artırımında kasaya dokunulmuyor, hesap
+        sormak yanıltıcı olurdu. Kural sunucuda da duruyor
+        (CuzdanIslemFormu.BANKALI).
       {% endcomment %}
       <div id="banka-kutusu">
         <label for="{{ form.banka.id_for_label }}"
                class="mb-2 block text-sm font-semibold text-font-important-light dark:text-font-important-dark">
-          Banka
+          Banka <span style="color:#d42046">*</span>
         </label>
         {{ form.banka }}
         <div class="mt-2 text-xs text-base-500">
-          Paranın girdiği ya da çıktığı hesap; bankanın bakiyesi de değişir.
+          Paranın girdiği ya da çıktığı hesap. Bankanın bakiyesi de değişir.
         </div>
       </div>
     </div>
@@ -148,7 +149,10 @@
       });
       // Banka yalnızca para giren/çıkan işlemlerde sorulur.
       if (bankaKutusu) {
-        bankaKutusu.hidden = !(secilenDeger === "tahsilat" || secilenDeger === "iade");
+        var bankali = secilenDeger === "tahsilat" || secilenDeger === "iade";
+        bankaKutusu.hidden = !bankali;
+        var secim = bankaKutusu.querySelector("select");
+        if (secim) secim.required = bankali;
       }
     }
     kartlar.forEach(function (kart) {

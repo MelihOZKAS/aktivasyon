@@ -2,8 +2,10 @@
 // kontör siparişi. Panel açık duran yönetici başka sekmedeyken de duysun;
 // rozetler ancak sayfa yenilenince değişiyordu.
 //
-// Ses dosya değil, burada üretilen kısa bir zil (Web Audio): dışarıdan
-// indirilen bir dosyaya, lisansına ve yüklenmesine bağlı değil.
+// Ses `static/ses/alarm.mp3`'tür (1 sn). Önce burada üretilen kısa bir zil
+// çalıyordu (Web Audio, osilatör); yönetim "çok pasif" dedi, başka sekmede
+// duyulmuyordu. Dosya ilk dokunuşta bir kez indirilip çözülür, her çalışta
+// aynı tampon kullanılır. Adres sabit: WhiteNoise hash'siz adı da sunar.
 //
 // Sayfa açılınca gelen ilk cevap yalnızca başlangıçtır, ses çalmaz —
 // her sayfa geçişinde birikmiş kayıtlar için çınlamasın. Birden çok sekme
@@ -14,9 +16,12 @@
 
   var ADRES = "/yonetim/yeni-kayitlar/";
   var ARALIK = 15000;
+  var SES = "/static/ses/alarm.mp3";
   var ORTAK = "yonetim-cin";
   var taban = null;
   var baglam = null;
+  var tampon = null;
+  var yukleme = null;
 
   function sesBaglami() {
     var Sinif = window.AudioContext || window.webkitAudioContext;
@@ -26,32 +31,41 @@
     return baglam;
   }
 
+  // Dosya bir kez iner ve çözülür. İnemezse sonraki çalışta yeniden denenir.
+  function sesiHazirla(c) {
+    if (!yukleme) {
+      yukleme = fetch(SES, { credentials: "same-origin" })
+        .then(function (yanit) {
+          if (!yanit.ok) throw new Error(yanit.status);
+          return yanit.arrayBuffer();
+        })
+        .then(function (veri) {
+          // Geri çağırımlı biçim: eski Safari'de decodeAudioData söz vermiyor.
+          return new Promise(function (coz, reddet) { c.decodeAudioData(veri, coz, reddet); });
+        })
+        .then(function (cozulmus) { tampon = cozulmus; })
+        .catch(function () { yukleme = null; });
+    }
+    return yukleme;
+  }
+
   // Tarayıcı sesi sayfayla etkileşimden sonra açar; ilk dokunuşta hazırla.
   ["pointerdown", "keydown"].forEach(function (olay) {
-    document.addEventListener(olay, sesBaglami, { once: true, capture: true });
+    document.addEventListener(olay, function () {
+      var c = sesBaglami();
+      if (c) sesiHazirla(c);
+    }, { once: true, capture: true });
   });
 
-  // Küçük zil: temel ton ve zilin uyumsuz iki üst tonu; üst tonlar daha
-  // çabuk söner, "çın" o. Toplam 1 saniyenin altında.
   function cal() {
     var c = sesBaglami();
     if (!c) return;
-    var t = c.currentTime + 0.02;
-    var cikis = c.createGain();
-    cikis.gain.value = 0.3;
-    cikis.connect(c.destination);
-    [[1568, 1, 0.9], [4327, 0.35, 0.35], [8467, 0.12, 0.15]].forEach(function (ton) {
-      var osilator = c.createOscillator();
-      var kazanc = c.createGain();
-      osilator.type = "sine";
-      osilator.frequency.value = ton[0];
-      kazanc.gain.setValueAtTime(0.0001, t);
-      kazanc.gain.exponentialRampToValueAtTime(ton[1], t + 0.004);
-      kazanc.gain.exponentialRampToValueAtTime(0.0001, t + ton[2]);
-      osilator.connect(kazanc);
-      kazanc.connect(cikis);
-      osilator.start(t);
-      osilator.stop(t + ton[2] + 0.05);
+    sesiHazirla(c).then(function () {
+      if (!tampon) return;
+      var kaynak = c.createBufferSource();
+      kaynak.buffer = tampon;
+      kaynak.connect(c.destination);
+      kaynak.start();
     });
   }
 
