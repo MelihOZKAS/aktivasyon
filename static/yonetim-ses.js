@@ -18,6 +18,7 @@
   var ARALIK = 15000;
   var SES = "/static/ses/alarm.mp3";
   var ORTAK = "yonetim-cin";
+  var KAZANC = 3;
   var taban = null;
   var baglam = null;
   var tampon = null;
@@ -64,7 +65,19 @@
       if (!tampon) return;
       var kaynak = c.createBufferSource();
       kaynak.buffer = tampon;
-      kaynak.connect(c.destination);
+      // Dosya kısık kayıtlı: %100'ün üstüne çıkarıp (x3) sınırlayıcıdan
+      // geçiriyoruz ki yükselen ses patlamasın.
+      var kazanc = c.createGain();
+      kazanc.gain.value = KAZANC;
+      var sinirlayici = c.createDynamicsCompressor();
+      sinirlayici.threshold.value = -6;
+      sinirlayici.knee.value = 0;
+      sinirlayici.ratio.value = 20;
+      sinirlayici.attack.value = 0.001;
+      sinirlayici.release.value = 0.1;
+      kaynak.connect(kazanc);
+      kazanc.connect(sinirlayici);
+      sinirlayici.connect(c.destination);
       kaynak.start();
     });
   }
