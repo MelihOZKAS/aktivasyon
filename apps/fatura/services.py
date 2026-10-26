@@ -399,13 +399,22 @@ def dekont_ozeti(odeme):
     """Dekontta müşteriye dönük rakamlar: fatura bedelleri ve toplam.
 
     Toplam müşteri fiyatıdır (`tavsiye_fiyati`: faturaların bedeli + kurumun
-    müşteriye eki). Hizmet bedeli ayrı satır olarak yazılmaz, toplamın
-    içindedir. Bayinin ödediği dekonta girmez; yalnızca müşteri fiyatı kaydı
+    müşteriye eki). Hizmet bedeli ayrı satır olarak yazılmaz, her fatura
+    satırının içindedir (fatura + ek). Bayinin ödediği dekonta girmez; yalnızca müşteri fiyatı kaydı
     olmayan ödemede o yazılır — başka bilinen rakam yok. Sorgusuz kalemde
     (HGS 100 TL) fatura satırı yoktur.
     """
+    # Fatura satırı müşterinin o fatura için ödediğidir: bedel + kurumun
+    # müşteri eki. Yalnızca bedel yazılınca satırlar toplamı tutmuyordu
+    # (548,25 + 19,68 altında TOPLAM 607,93): bayi "fatura başı toplamı
+    # görmek istiyorum" dedi.
+    ek = odeme.kurum.tavsiye if odeme.tavsiye_fiyati and odeme.kurum_id else None
     satirlar = [
-        {"fatura_no": f.get("fatura_no", ""), "son_odeme": f.get("son_odeme_tarihi", ""), "tutar": fatura_tutari(f)}
+        {
+            "fatura_no": f.get("fatura_no", ""),
+            "son_odeme": f.get("son_odeme_tarihi", ""),
+            "tutar": odeme.kurum.musteri_tutari(fatura_tutari(f)) if ek else fatura_tutari(f),
+        }
         for f in odeme.faturalar
     ]
     return {"odeme": odeme, "satirlar": satirlar, "toplam": odeme.tavsiye_fiyati or odeme.siparis.tutar}

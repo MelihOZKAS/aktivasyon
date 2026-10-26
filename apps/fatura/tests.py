@@ -479,12 +479,12 @@ class EkranTestleri(Temel):
         # Ödeme sürerken de verilir.
         self.assertContains(self.client.get(odeme.get_absolute_url()), adres)
         yanit = self.client.get(adres)
-        # Müşteriye: 390 + 180 fatura, 2 × 10 hizmet bedeli = 590. Bayinin ödediği (580) girmez.
+        # Müşteriye: fatura başına bedel + 10 ek (400 + 190) = 590. Bayinin ödediği (580) girmez.
         for metin in ("FATURA ÖDEME DEKONTU", "Vodafone", "5332590138", "M***** A*****", "FD60950NCB9D53",
-                      "FD00000000002", "390,00", "180,00", "590,00 ₺"):
+                      "FD00000000002", "400,00 ₺", "190,00 ₺", "590,00 ₺"):
             self.assertContains(yanit, metin)
-        # Hizmet bedeli toplamın içindedir, ayrı satır yazılmaz; durum da yazılmaz.
-        for metin in ("580,00", "Hizmet bedeli", "20,00", "Durum", "Ödeniyor"):
+        # Hizmet bedeli fatura satırının içindedir, ayrı satır yazılmaz; durum da yazılmaz.
+        for metin in ("390,00", "180,00", "580,00", "Hizmet bedeli", "20,00", "Durum", "Ödeniyor"):
             self.assertNotContains(yanit, metin)
         self.assertNotContains(yanit, "Ara toplam")   # tek ödeme
 
