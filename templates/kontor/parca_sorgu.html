@@ -18,6 +18,7 @@
 <div id="sorgu-sonucu" class="mb-5"
      {% if not yoklama_adresi and not hata %}data-liste-gizle{% endif %}
      {% if yoklama_adresi %}hx-get="{{ yoklama_adresi }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  {% include "kontor/parca_gecmis.html" %}
   {% if yoklama_adresi %}
   <div class="sim yuzey rounded-kart border border-cizgi p-4">
     <p class="flex items-center gap-2 text-sm font-semibold">

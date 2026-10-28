@@ -1333,6 +1333,57 @@ class SorguTestleri(Temel):
         self.client.get(self.adres, {"hedef": "5329998877"})
         self.assertEqual(SORGU["cagri"], 2)
 
+    def _gecmise_yaz(self, gun_once, *, durum=IslemDurumu.BASARILI, bayi=None, hedef="5329998877"):
+        if bayi is None:
+            islem = self.yukle(hedef)
+        else:
+            with self.captureOnCommitCallbacks(execute=True):
+                islem = yukleme_baslat(bayi, self.paket, hedef)
+        Islem.objects.filter(pk=islem.pk).update(
+            durum=durum, olusturma_tarihi=timezone.now() - timedelta(days=gun_once)
+        )
+        return islem
+
+    def test_numaraya_son_yuklemeler_gorunur(self):
+        Cuzdan.objects.filter(pk=self.cuzdan.pk).update(bakiye=TL("5000"))
+        Islem.objects.filter(pk=self._gecmise_yaz(9).pk).update(paket_adi="Eski Paket")
+        for gun in (8, 7, 6, 5):
+            self._gecmise_yaz(gun)
+        Islem.objects.filter(pk=self._gecmise_yaz(1).pk).update(paket_adi="Dünkü Paket", tavsiye_fiyati=TL("149"))
+        Islem.objects.filter(pk=self._gecmise_yaz(0, durum=IslemDurumu.IPTAL).pk).update(paket_adi="İptal Paket")
+        self._gecmise_yaz(2, hedef="5329990000")
+        diger = User.objects.create_user("5320000000", password="parola12345")
+        Cuzdan.objects.create(bayi=diger, bakiye=TL("500"))
+        Islem.objects.filter(pk=self._gecmise_yaz(3, bayi=diger).pk).update(paket_adi="Başka Bayinin")
+
+        yanit = self.client.get(self.adres, {"hedef": "0532 999 88 77"})
+        self.assertContains(yanit, "Bu numaraya son yüklemelerin")
+        gecmis = yanit.context["gecmis"]
+        # En yeni üstte, en çok beş; iptal, başka numara ve başka bayi girmez.
+        self.assertEqual(len(gecmis), 5)
+        self.assertEqual(gecmis[0].paket_adi, "Dünkü Paket")
+        self.assertEqual({i.hedef for i in gecmis}, {"5329998877"})
+        self.assertEqual({i.bayi_id for i in gecmis}, {self.bayi.pk})
+        self.assertNotContains(yanit, "İptal Paket")
+        self.assertNotContains(yanit, "Başka Bayinin")
+        self.assertNotContains(yanit, "Eski Paket")
+        # Tutar müşteriye dönüktür (tavsiye satış), beşten fazlası Tümü'de.
+        self.assertContains(yanit, "149,00")
+        self.assertContains(yanit, f"{reverse('kontor:islemler')}?q=5329998877")
+
+    def test_gecmis_sorgu_hata_verince_de_gorunur_yoksa_soylenir(self):
+        self._gecmise_yaz(1)
+        SORGU["hata"] = True
+        yanit = self.client.get(self.adres, {"hedef": "5329998877"})
+        self.assertContains(yanit, "Kaynak cevap vermedi.")
+        self.assertContains(yanit, "Bu numaraya son yüklemelerin")
+        self.assertNotContains(yanit, "?q=5329998877")  # beşi geçmedi
+        self.assertContains(self.client.get(self.adres, {"hedef": "5329998866"}), "daha önce yükleme yapmadın")
+        # Geçersiz numarada hiçbiri yazılmaz.
+        yanit = self.client.get(self.adres, {"hedef": "123"})
+        self.assertNotContains(yanit, "son yüklemelerin")
+        self.assertNotContains(yanit, "daha önce yükleme")
+
     def test_hata_satisi_durdurmaz(self):
         SORGU["hata"] = True
         yanit = self.client.get(self.adres, {"hedef": "5329998877"})

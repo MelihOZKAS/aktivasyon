@@ -719,6 +719,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   + kod başına tekildir. `0020` düz `13239` koduyla açılmış eski kayıtları
   temizledi (eşi varsa birleştirdi, yoksa kodu yeni biçime çevirdi).
   Ucuz alternatif (eski `Sorgu.php` akışı) yukarıda: gönderim planı.
+  · **Sorgu sonucunun üstünde numaranın son yüklemeleri durur**
+  (`views._gecmis`, `parca_gecmis.html`): bayi müşterinin daha önce hangi
+  paketi aldığını görür. **Yalnızca bayinin kendi yüklemeleri**: numara
+  başka bayinin müşterisiyse ne aldığı gösterilmez. Kategoriden bağımsız
+  (aynı numaraya TL de paket de gider; kategorinin adı operatör renginde,
+  numara taşınmışsa görünür), en çok `SON_ISLEM_ADEDI` (5), iptal edilen
+  girmez; fazlası varsa "Tümü" Yüklemelerim'i numarayla açar. Sorgu
+  sürerken ve hata verince de görünür, kaynaktan bağımsızdır. Satır
+  bağlantı değildir: eski paket buradan yeniden alınsaydı sorgunun
+  "numaranın alabildiği" süzgeci atlanırdı. Tutar dekonttaki gibi
+  müşteriye dönüktür. Sorgusu olmayan kategoride (tam kontör) numara
+  paket sayfasında yazıldığı için orada çıkmaz.
   · **Turkcell ve Türk Telekom sorgusunu fatura robotu yapar**
   (`sorgu/kontorbizde.py`, `RobotSorgusu`; menüde Sorgu Robotu → Paket
   Sorguları). İkisinin bizim kullanabileceğimiz açık sorgusu yok;

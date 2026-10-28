@@ -1,0 +1,43 @@
+{% load panel %}
+{% comment %}
+  Bayinin bu numaraya son yüklemeleri, numara sorgusunun en üstünde.
+  Bayi müşterinin daha önce hangi paketi aldığını buradan görür.
+  Yalnızca bayinin kendi yüklemeleri, iptal edilenler hariç (`views._gecmis`).
+  Satır bağlantı değildir: sorgu sonucu numaranın alabildiği paketleri
+  gösterir, eski paket buradan yeniden alınsaydı o süzgeç atlanırdı.
+  Tutar dekonttaki gibi müşteriye dönüktür (tavsiye satış, yoksa ödenen).
+  Kategorinin adı operatörün rengindedir: numara taşınmışsa bayi eski
+  yüklemenin başka operatörde olduğunu adı okumadan görür.
+{% endcomment %}
+{% if gecmis %}
+<div class="yuzey mb-3 rounded-kart border border-cizgi px-4 pt-3 pb-1">
+  <div class="flex items-center justify-between gap-3">
+    <p class="text-sm font-semibold">Bu numaraya son yüklemelerin</p>
+    {% if gecmis_devami %}
+    <a href="{% url 'kontor:islemler' %}?q={{ gecmis_numara }}"
+       class="inline-flex min-h-11 shrink-0 items-center text-sm font-medium text-soluk">Tümü →</a>
+    {% endif %}
+  </div>
+  <ul class="divide-y divide-cizgi">
+    {% for islem in gecmis %}
+    <li class="flex items-center gap-3 py-2.5">
+      <span class="min-w-0 flex-1">
+        <span class="line-clamp-2 text-sm font-semibold">{{ islem.paket_adi }}</span>
+        <span class="mt-0.5 block truncate text-xs text-soluk">
+          <span class="rakam">{{ islem.olusturma_tarihi|date:"d.m.Y" }}</span>{% if islem.kategori %} ·
+          <span {% if islem.kategori.operator %}style="color: {{ islem.kategori.operator.renk|okunur_renk }}"{% endif %}>{{ islem.kategori.ad }}</span>{% endif %}
+        </span>
+      </span>
+      <span class="shrink-0 text-right">
+        <span class="rakam block text-sm font-semibold">{{ islem.tavsiye_fiyati|default:islem.siparis.tutar|para }} ₺</span>
+        {% if islem.durum != "basarili" %}
+        <span class="block text-xs font-semibold text-uyari">{% if islem.durum == "askida" %}Kontrol ediliyor{% else %}{{ islem.get_durum_display }}{% endif %}</span>
+        {% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% elif gecmis_numara %}
+<p class="mb-3 text-sm text-soluk">Bu numaraya daha önce yükleme yapmadın.</p>
+{% endif %}

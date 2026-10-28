@@ -28,7 +28,9 @@ from apps.finans.services import SiparisVerilemez
 from apps.kontor.models import Hedef, Islem, IslemDurumu, Kategori, Paket
 from apps.kontor.sorgu import NumaraPaketAlamaz, SorguBekleniyor, SorguHatasi
 from apps.kontor.services import (
+    YuklemeYapilamaz,
     fiyatlandir,
+    hedefi_dogrula,
     numarayi_sorgula,
     isle,
     kategori_listesi,
@@ -137,6 +139,7 @@ def sorgu(request, slug, oyun=False):
     hedef = request.GET.get("hedef", "")[:64]
     yenile = request.GET.get("yenile") == "1"
     baglam = {"kategori": kategori_kaydi, "bakiye": _bakiye(request)}
+    baglam.update(_gecmis(request, kategori_kaydi, hedef))
     try:
         baglam.update(numarayi_sorgula(kategori_kaydi, hedef, request.user, yenile=yenile))
     except SorguBekleniyor:
@@ -147,6 +150,31 @@ def sorgu(request, slug, oyun=False):
     except SorguHatasi as hata:
         baglam["hata"] = str(hata)
     return render(request, "kontor/parca_sorgu.html", baglam)
+
+
+def _gecmis(request, kategori_kaydi, hedef):
+    """Bayinin bu numaraya son yüklemeleri; numara geçersizse hiçbir şey.
+
+    Numara yazılınca bayi müşterinin daha önce hangi paketi aldığını görür.
+    Yalnızca **bayinin kendi** yüklemeleri: başka bayinin müşterisi ve ona
+    ne sattığı gösterilmez. Kategoriden bağımsızdır (TL de paket de aynı
+    numaraya gider). İptal edilen yüklenmediği için listeye girmez. Sorgu
+    kaynağından bağımsızdır: sorgu sürerken ve hata verince de görünür.
+    """
+    try:
+        numara = hedefi_dogrula(kategori_kaydi, hedef)
+    except YuklemeYapilamaz:
+        return {}
+    if not numara:
+        return {}
+    islemler = list(
+        _islemler(request).filter(hedef=numara).exclude(durum=IslemDurumu.IPTAL)[: SON_ISLEM_ADEDI + 1]
+    )
+    return {
+        "gecmis": islemler[:SON_ISLEM_ADEDI],
+        "gecmis_devami": len(islemler) > SON_ISLEM_ADEDI,
+        "gecmis_numara": numara,
+    }
 
 
 def _paket(kategori_kaydi, kod):
