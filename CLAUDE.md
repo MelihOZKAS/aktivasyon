@@ -1482,6 +1482,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
 - **Bayi menüsünün sırası bilinçlidir ve üç başlıktadır** (`parcalar/kenar.html`):
   Panel; **Aktivasyon** — Tarifeler, Yeni başvuru, Başvurularım,
   Hakedişler; **Satış** — Kontör, Fatura, Oyun & Pin, eSIM, Kazancım;
+  **Bayilerim** (yalnızca ana bayide) — Bayi listesi, Bayi hareketleri;
   **Hesabım** — Cüzdan, Mağaza, Destek. Yönetimin istediği sıra
   "aktivasyon, kontör, fatura, oyun pini, eSIM"dir; satış bölümleri bir
   süre eklendikleri sırayla en alttaydı (eSIM, Kontör, Oyun & Pin, Fatura)
@@ -1490,6 +1491,18 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   altındadır (önce satar, sonra ne kazandığına bakar); Mağaza cüzdanın
   hemen ardındadır (önce parayı görür, sonra harcar). Başlıklar tıklanmaz,
   yalnızca bölümü adlandırır; yalnızca tedarikçi olan kullanıcı Hesabım'ı görür.
+- **Ana bayi yalnızca görür** (`BayiProfili.ana_bayi_mi`, bağlantı
+  `BayiProfili.ana_bayi`). Yönetim bir bayiye "Ana bayi" yetkisi verir ve
+  bayileri kullanıcı sayfasındaki **Ana bayisi** kutusundan ona bağlar
+  (kutuda yalnızca ana bayiler çıkar, bayi kendine bağlanamaz). Ana bayi
+  iki ekran görür: **Bayi listesi** (`/bayilerim/`: bakiye, borç, son
+  giriş) ve **Bayi hareketleri** (`/bayilerim/hareketler/`: bağlı
+  bayilerin cüzdan hareketleri, `?bayi=<numara>` ile tek bayiye süzülür;
+  bağlı olmayan numara 404). Bilinçli olarak bu kadar: ana bayi bayi
+  ekleyemez, para işlemez, başvuru ya da satış görmez. Hareket satırı
+  bayinin Cüzdan sayfasıyla ortaktır (`bayi/parca_hareket.html`).
+  Kullanıcılar listesinde "Ana bayi" süzgeci kimin kime bağlı olduğunu
+  gösterir. Kapı `@ana_bayi_gerekli`.
 - **Rol ekranları karışmaz.** Bayi görünümleri `@bayi_gerekli`, tedarikçi
   görünümleri `@tedarikci_gerekli` ile korunur (`apps/bayi/yetki.py`).
   Yeni bir ekran eklerken hangi role ait olduğunu belirt; profili olmayan

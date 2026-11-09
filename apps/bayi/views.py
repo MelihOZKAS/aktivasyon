@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
+from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -16,7 +17,13 @@ from django.views.decorators.http import require_POST
 from apps.basvurular.models import Basvuru, BasvuruDurumu
 from apps.bayi.forms import BayiBasvuruFormu, GirisFormu, ParolaDegistirmeFormu
 from apps.bayi.models import Duyuru, PopupDuyuru, PopupDuyuruOkuma
-from apps.bayi.yetki import bayi_gerekli, baslangic_sayfasi, tedarikci_gerekli
+from apps.bayi.etiket import gorunen_ad
+from apps.bayi.yetki import (
+    ana_bayi_gerekli,
+    bayi_gerekli,
+    baslangic_sayfasi,
+    tedarikci_gerekli,
+)
 from apps.bildirim.telegram import bayi_basvurusu_bildir, odeme_bildirimi_bildir
 from apps.finans.models import Banka, CuzdanHareketi, HareketTipi
 from apps.bayi.kategoriler import acik_kategoriler, kapali_kategori_idleri
@@ -442,6 +449,71 @@ def cuzdan_gorunumu(request, bildirim_formu=None):
                 OdemeBildirimi.objects.filter(bayi=request.user)
                 .select_related("banka")[:5]
             ),
+        },
+    )
+
+
+def _alt_bayiler(ana_bayi):
+    """Yönetimin bu ana bayiye bağladığı hesaplar.
+
+    Adıyla sıralı, adı olmayanlar (yalnızca numara) en sonda. Ad üç yerden
+    gelebildiği için (`etiket.gorunen_ad`) sıralama Python'da yapılır.
+    """
+    from django.contrib.auth.models import User
+
+    bayiler = list(
+        User.objects.filter(bayi_profili__ana_bayi=ana_bayi).select_related(
+            "bayi_profili", "cuzdan"
+        )
+    )
+    for bayi in bayiler:
+        bayi.ad = gorunen_ad(bayi)
+        # Elle açılmış hesapta cüzdan olmayabilir; şablon sıfır yazar.
+        bayi.hesap = getattr(bayi, "cuzdan", None)
+    bayiler.sort(key=lambda b: (not b.ad, b.ad.casefold(), b.username))
+    return bayiler
+
+
+@login_required
+@ana_bayi_gerekli
+def alt_bayiler(request):
+    """Ana bayinin bayileri: bakiye, borç, son giriş. Yalnızca görür."""
+    return render(request, "bayi/alt_bayiler.html", {"bayiler": _alt_bayiler(request.user)})
+
+
+@login_required
+@ana_bayi_gerekli
+def alt_bayi_hareketleri(request):
+    """Ana bayinin bayilerinin cüzdan hareketleri; bayiye göre süzülür.
+
+    Süzgeç kullanıcı adıyla (telefon) gelir, id ile değil. Listede olmayan
+    bir numara (başka ana bayinin bayisi) 404'tür: süzgeç sessizce düşüp
+    bütün hareketleri o bayininmiş gibi göstermesin.
+    """
+    bayiler = _alt_bayiler(request.user)
+    hareketler = CuzdanHareketi.objects.filter(cuzdan__bayi__in=[b.pk for b in bayiler])
+
+    numara = request.GET.get("bayi") or ""
+    secili = None
+    if numara:
+        secili = next((b for b in bayiler if b.username == numara), None)
+        if secili is None:
+            raise Http404("Bu bayi sana bağlı değil.")
+        hareketler = hareketler.filter(cuzdan__bayi=secili)
+
+    hareketler = hareketler.select_related(
+        "cuzdan__bayi__bayi_profili"
+    ).order_by("-tarih", "-id")
+
+    return render(
+        request,
+        "bayi/alt_bayi_hareketleri.html",
+        {
+            "bayiler": bayiler,
+            "secili": secili,
+            # Tek bayiye süzülmüşse her satırda adını tekrar yazmaya gerek yok.
+            "bayi_goster": secili is None,
+            "sayfa": Paginator(hareketler, 30).get_page(request.GET.get("sayfa")),
         },
     )
 

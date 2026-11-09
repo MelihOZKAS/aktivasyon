@@ -31,6 +31,31 @@ class BayiProfili(ZamanDamgali):
         default=False,
         help_text="Kendisine atanan işlemleri satın alır; bedeli hesabından düşülür.",
     )
+    # Ana bayi yalnızca görür: kendisine bağlanan bayilerin listesini
+    # (bakiye, borç, son giriş) ve hesap hareketlerini. Bağlamayı yönetim
+    # yapar, ana bayi kimseyi ekleyemez, hiçbir şeyi değiştiremez.
+    ana_bayi_mi = models.BooleanField(
+        "Ana bayi",
+        default=False,
+        help_text=(
+            "Kendisine bağlanan bayilerin bakiyesini, borcunu, son girişini "
+            "ve hesap hareketlerini görür."
+        ),
+    )
+    ana_bayi = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="Ana bayisi",
+        related_name="alt_bayi_profilleri",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        limit_choices_to={"bayi_profili__ana_bayi_mi": True},
+        help_text=(
+            "Seçilen ana bayi bu bayinin bakiyesini, borcunu, son girişini ve "
+            "hesap hareketlerini görür. Listede yalnızca “Ana bayi” "
+            "işaretli hesaplar çıkar."
+        ),
+    )
     unvan = models.CharField("Firma Ünvanı", max_length=200, blank=True)
     yetkili_adi = models.CharField("Yetkili Adı", max_length=150, blank=True)
     telefon = models.CharField("Telefon", max_length=20, blank=True)
@@ -63,6 +88,12 @@ class BayiProfili(ZamanDamgali):
     def save(self, *args, **kwargs):
         self.telefon = normalize(self.telefon)
         super().save(*args, **kwargs)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        if self.ana_bayi_id and self.ana_bayi_id == self.kullanici_id:
+            raise ValidationError({"ana_bayi": "Bayi kendi ana bayisi olamaz."})
 
     @property
     def rol_adi(self):

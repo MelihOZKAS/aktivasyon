@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% load panel %}
+
+{% block baslik %}Bayilerim · Aktivasyon{% endblock %}
+
+{% block icerik %}
+<div class="mx-auto max-w-4xl">
+
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 class="baslik text-xl font-bold">Bayilerim</h2>
+      <p class="mt-1.5 text-sm text-soluk">
+        Sana bağlı {{ bayiler|length }} bayi. Bayiye dokununca hesap hareketleri açılır.
+      </p>
+    </div>
+    {% if bayiler %}
+    <a href="{% url 'bayi:alt-bayi-hareketleri' %}" class="dugme dugme-sessiz w-full sm:w-auto">
+      Tüm hareketler
+    </a>
+    {% endif %}
+  </div>
+
+  {% if bayiler %}
+  {% comment %}
+    Ana bayi yalnızca görür. Bakiye büyük, borç ve son giriş altında.
+    Borç her satırda yazar (sıfırsa soluk): ana bayinin aradığı ilk şey o.
+    Satır, hareketler sayfasını o bayiye süzülmüş açar.
+  {% endcomment %}
+  <div class="yuzey mt-5 overflow-hidden rounded-kart">
+    {% for bayi in bayiler %}
+    <a href="{% url 'bayi:alt-bayi-hareketleri' %}?bayi={{ bayi.username|urlencode }}"
+       class="block px-5 py-4 hover:bg-zemin-koyu {% if not forloop.last %}border-b border-cizgi{% endif %}">
+      <div class="flex items-start gap-4">
+        <div class="min-w-0 flex-1">
+          {% if bayi.ad %}
+          <p class="truncate font-semibold">{{ bayi.ad }}</p>
+          <p class="rakam mt-0.5 text-xs text-soluk">{{ bayi.username|telefon }}</p>
+          {% else %}
+          <p class="rakam truncate font-semibold">{{ bayi.username|telefon }}</p>
+          {% endif %}
+        </div>
+        <div class="shrink-0 text-right">
+          <p class="rakam font-semibold">{{ bayi.hesap.bakiye|default:0|para }} ₺</p>
+          <p class="mt-0.5 text-xs text-soluk">Bakiye</p>
+        </div>
+      </div>
+
+      <dl class="mt-2.5 flex flex-wrap gap-x-6 gap-y-1 text-xs text-soluk">
+        <div class="flex items-baseline gap-1.5">
+          <dt>Borç</dt>
+          <dd class="rakam {% if bayi.hesap.borc %}font-semibold text-uyari{% endif %}">
+            {{ bayi.hesap.borc|default:0|para }} ₺
+          </dd>
+        </div>
+        <div class="flex items-baseline gap-1.5">
+          <dt>Son giriş</dt>
+          <dd>
+            {% if bayi.last_login %}{{ bayi.last_login|date:"j M Y, H:i" }}{% else %}Hiç girmedi{% endif %}
+          </dd>
+        </div>
+      </dl>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="yuzey sim mt-5 rounded-kart px-6 py-14 text-center">
+    <p class="baslik font-semibold">Henüz bağlı bayi yok</p>
+    <p class="mx-auto mt-1.5 max-w-xs text-sm text-soluk">
+      Bayilerini hesabına yönetim bağlar. Bağlandıklarında burada görünürler.
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -3016,3 +3016,108 @@ class PopupDuyuruTestleri(TestCase):
         self.assertContains(self.client.get(reverse("admin:bayi_popupduyuru_changelist")), "1 bayi")
         sayfa = self.client.get(reverse("admin:bayi_popupduyuru_change", args=[self.ilk.pk]))
         self.assertContains(sayfa, "Fadil Yiğit")
+
+
+class AnaBayiTestleri(TestCase):
+    """Ana bayi yalnızca yönetimin kendisine bağladığı bayileri görür.
+
+    Liste (bakiye, borç, son giriş) ve hesap hareketleri bayiye göre
+    süzülür. Başka ana bayinin bayisi hiçbir yoldan görünmez.
+    """
+
+    def setUp(self):
+        from apps.bayi.models import BayiProfili
+        from apps.finans.models import CuzdanHareketi, HareketTipi
+
+        self.ana = User.objects.create_user("5550000001", password="parola12345")
+        BayiProfili.objects.create(kullanici=self.ana, ana_bayi_mi=True)
+        Cuzdan.objects.create(bayi=self.ana)
+
+        self.baska_ana = User.objects.create_user("5550000002", password="parola12345")
+        BayiProfili.objects.create(kullanici=self.baska_ana, ana_bayi_mi=True)
+
+        self.alt = User.objects.create_user(
+            "5551112233", password="parola12345", first_name="Ece", last_name="Kaya"
+        )
+        BayiProfili.objects.create(kullanici=self.alt, ana_bayi=self.ana)
+        self.alt_cuzdan = Cuzdan.objects.create(
+            bayi=self.alt, bakiye=TL("1250.00"), borc=TL("340.00")
+        )
+
+        self.yabanci = User.objects.create_user(
+            "5559998877", password="parola12345", first_name="Yabancı", last_name="Bayi"
+        )
+        BayiProfili.objects.create(kullanici=self.yabanci, ana_bayi=self.baska_ana)
+        yabanci_cuzdan = Cuzdan.objects.create(bayi=self.yabanci, bakiye=TL("777.00"))
+
+        def hareket(cuzdan, anahtar, aciklama):
+            return CuzdanHareketi.objects.create(
+                cuzdan=cuzdan, tip=HareketTipi.YUKLEME, tutar=TL("100.00"),
+                onceki_bakiye=TL("0.00"), sonraki_bakiye=TL("100.00"),
+                onceki_borc=TL("0.00"), sonraki_borc=TL("0.00"),
+                idempotency_anahtari=anahtar, aciklama=aciklama,
+            )
+
+        hareket(self.alt_cuzdan, "a1", "Ece yüklemesi")
+        hareket(yabanci_cuzdan, "y1", "Yabancı yüklemesi")
+        hareket(Cuzdan.objects.get(bayi=self.ana), "k1", "Ana bayinin kendi yüklemesi")
+
+    def test_ana_bayi_olmayan_giremez(self):
+        self.client.force_login(self.alt)
+        for ad in ("bayi:alt-bayiler", "bayi:alt-bayi-hareketleri"):
+            self.assertRedirects(self.client.get(reverse(ad)), reverse("bayi:panel"))
+
+    def test_menu_yalnizca_ana_bayiye_gorunur(self):
+        self.client.force_login(self.alt)
+        self.assertNotContains(self.client.get(reverse("bayi:panel")), reverse("bayi:alt-bayiler"))
+        self.client.force_login(self.ana)
+        self.assertContains(self.client.get(reverse("bayi:panel")), reverse("bayi:alt-bayiler"))
+
+    def test_liste_yalnizca_bagli_bayileri_bakiye_borc_ve_son_girisle_gosterir(self):
+        self.client.force_login(self.ana)
+        yanit = self.client.get(reverse("bayi:alt-bayiler"))
+        self.assertContains(yanit, "Ece Kaya")
+        self.assertContains(yanit, "1.250,00")
+        self.assertContains(yanit, "340,00")
+        self.assertContains(yanit, "Hiç girmedi")
+        self.assertNotContains(yanit, "Yabancı")
+        self.assertNotContains(yanit, "777,00")
+
+    def test_hareketler_yalnizca_bagli_bayilerin(self):
+        self.client.force_login(self.ana)
+        yanit = self.client.get(reverse("bayi:alt-bayi-hareketleri"))
+        self.assertContains(yanit, "Ece yüklemesi")
+        self.assertNotContains(yanit, "Yabancı yüklemesi")
+        self.assertNotContains(yanit, "Ana bayinin kendi yüklemesi")
+
+    def test_bayi_suzgeci(self):
+        self.client.force_login(self.ana)
+        yanit = self.client.get(reverse("bayi:alt-bayi-hareketleri"), {"bayi": "5551112233"})
+        self.assertContains(yanit, "Ece yüklemesi")
+
+    def test_baska_ana_bayinin_bayisi_suzulemez(self):
+        self.client.force_login(self.ana)
+        yanit = self.client.get(reverse("bayi:alt-bayi-hareketleri"), {"bayi": "5559998877"})
+        self.assertEqual(yanit.status_code, 404)
+
+    def test_bayi_kendi_ana_bayisi_olamaz(self):
+        from django.core.exceptions import ValidationError
+
+        profil = self.ana.bayi_profili
+        profil.ana_bayi = self.ana
+        with self.assertRaises(ValidationError):
+            profil.full_clean()
+
+    def test_yonetim_kullanici_sayfasi_acilir(self):
+        yonetici = User.objects.create_superuser("yonetici", "y@ornek.com", "parola12345")
+        self.client.force_login(yonetici)
+        yanit = self.client.get(reverse("admin:auth_user_change", args=[self.alt.pk]))
+        self.assertContains(yanit, "Ana bayisi")
+        # Kutuda yalnızca ana bayiler çıkar: başka ana bayi var, sıradan bayi yok.
+        self.assertContains(yanit, "5550000002")
+        self.assertNotContains(yanit, "5559998877")
+        yanit = self.client.get(
+            reverse("admin:auth_user_changelist"), {"bayi_profili__ana_bayi__id__exact": self.ana.pk}
+        )
+        self.assertContains(yanit, "5551112233")
+        self.assertNotContains(yanit, "5559998877")

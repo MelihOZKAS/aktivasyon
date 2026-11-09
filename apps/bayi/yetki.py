@@ -26,6 +26,11 @@ def tedarikci_mi(kullanici):
     return bool(profil and profil.tedarikci_mi)
 
 
+def ana_bayi_mi(kullanici):
+    profil = _profil(kullanici)
+    return bool(profil and profil.ana_bayi_mi)
+
+
 def baslangic_sayfasi(kullanici):
     """Kullanıcı giriş yaptığında hangi ekrana düşmeli?"""
     if kullanici.is_staff:
@@ -59,6 +64,19 @@ def tedarikci_gerekli(gorunum):
             messages.info(
                 request, "Bu bölüm tedarikçi hesapları içindir."
             )
+            return redirect(baslangic_sayfasi(request.user))
+        return gorunum(request, *args, **kwargs)
+
+    return sarmalayici
+
+
+def ana_bayi_gerekli(gorunum):
+    """Yalnızca ana bayi yetkisi verilmiş hesaplara açar."""
+
+    @wraps(gorunum)
+    def sarmalayici(request, *args, **kwargs):
+        if not ana_bayi_mi(request.user):
+            messages.info(request, "Bu bölüm ana bayi hesapları içindir.")
             return redirect(baslangic_sayfasi(request.user))
         return gorunum(request, *args, **kwargs)
 

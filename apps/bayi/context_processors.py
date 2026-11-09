@@ -13,12 +13,13 @@ def bayi_baglami(request):
     if not kullanici or not kullanici.is_authenticated:
         return {}
 
-    from apps.bayi.yetki import bayi_mi, tedarikci_mi
+    from apps.bayi.yetki import ana_bayi_mi, bayi_mi, tedarikci_mi
 
     return {
         "cuzdan": Cuzdan.objects.filter(bayi=kullanici).select_related("grup").first(),
         "bayi_mi": bayi_mi(kullanici),
         "tedarikci_mi": tedarikci_mi(kullanici),
+        "ana_bayi_mi": ana_bayi_mi(kullanici),
     }
 
 

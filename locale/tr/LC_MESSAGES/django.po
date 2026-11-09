@@ -120,6 +120,9 @@ msgstr "Hayır"
 msgid "Select all rows"
 msgstr "Tüm satırları seç"
 
+msgid "Select value"
+msgstr "Seçin"
+
 msgid "Toggle password visibility"
 msgstr "Parolayı göster / gizle"
 

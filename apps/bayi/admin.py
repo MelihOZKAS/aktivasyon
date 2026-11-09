@@ -62,12 +62,30 @@ class KapaliKategoriKutusu:
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
 
-class BayiProfiliInline(KapaliKategoriKutusu, StackedInline):
+class AnaBayiKutusu:
+    """“Ana bayisi” kutusu: yalnızca ana bayiler, yanında düğme yok.
+
+    Kutunun yanındaki çöp kutusu seçimi değil seçili kullanıcının kendisini
+    siler (`BayiBasvurusuAdmin.formfield_for_foreignkey`'deki kural).
+    """
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        alan = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == "ana_bayi" and alan is not None:
+            for ozellik in ("can_add_related", "can_change_related", "can_delete_related"):
+                if hasattr(alan.widget, ozellik):
+                    setattr(alan.widget, ozellik, False)
+        return alan
+
+
+class BayiProfiliInline(AnaBayiKutusu, KapaliKategoriKutusu, StackedInline):
     model = BayiProfili
     can_delete = False
     extra = 0
+    fk_name = "kullanici"
     fields = (
-        ("bayi_mi", "tedarikci_mi"),
+        ("bayi_mi", "tedarikci_mi", "ana_bayi_mi"),
+        "ana_bayi",
         ("unvan", "yetkili_adi"),
         ("telefon", "sehir"),
         "adres",
@@ -161,7 +179,12 @@ class KullaniciAdmin(TemelKullaniciAdmin, ModelAdmin):
         "is_staff",
         "is_active",
     )
-    list_filter = ("is_staff", "is_superuser", "is_active", "cuzdan__grup")
+    # Ana bayi süzgeci yönetimin "kimi kime bağladım" sorusuna cevaptır.
+    list_filter = (
+        "is_staff", "is_superuser", "is_active", "cuzdan__grup",
+        "bayi_profili__ana_bayi_mi",
+        ("bayi_profili__ana_bayi", admin.RelatedOnlyFieldListFilter),
+    )
     # Bayinin numarasını kimse ezbere bilmiyor; ünvanından ve adından da
     # bulunsun. Otomatik tamamlama kutuları da bu listeden besleniyor.
     search_fields = (
@@ -274,23 +297,28 @@ class GrupAdmin(TemelGrupAdmin, ModelAdmin):
 
 
 @admin.register(BayiProfili)
-class BayiProfiliAdmin(KapaliKategoriKutusu, ModelAdmin):
-    list_display = ("kullanici", "unvan", "rol_rozeti", "telefon", "sehir")
+class BayiProfiliAdmin(AnaBayiKutusu, KapaliKategoriKutusu, ModelAdmin):
+    list_display = ("kullanici", "unvan", "rol_rozeti", "ana_bayi", "telefon", "sehir")
     search_fields = (
         "kullanici__username", "kullanici__first_name", "kullanici__last_name",
         "unvan", "yetkili_adi", "telefon", "vergi_no",
     )
     autocomplete_fields = ("kullanici",)
-    list_filter = ("bayi_mi", "tedarikci_mi", "sehir")
+    list_filter = (
+        "bayi_mi", "tedarikci_mi", "ana_bayi_mi",
+        ("ana_bayi", admin.RelatedOnlyFieldListFilter), "sehir",
+    )
     fieldsets = (
         (
             "Roller",
             {
-                "fields": (("bayi_mi", "tedarikci_mi"),),
+                "fields": (("bayi_mi", "tedarikci_mi", "ana_bayi_mi"), "ana_bayi"),
                 "description": (
                     "Roller birbirini dışlamaz. Bayi başvuru getirir ve hakediş alır; "
                     "tedarikçi kendisine atanan işlemin aktivasyonunu yapar, alış "
-                    "bedelini alacak olarak yazar."
+                    "bedelini alacak olarak yazar. Ana bayi kendisine bağlanan "
+                    "bayilerin bakiyesini, borcunu, son girişini ve hesap "
+                    "hareketlerini görür, hiçbir şeyi değiştiremez."
                 ),
             },
         ),
