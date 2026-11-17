@@ -45,13 +45,16 @@ class BayiBasvuruFormu(forms.ModelForm):
 
     class Meta:
         model = BayiBasvurusu
-        fields = ("isim", "soyisim", "irtibat")
+        fields = ("isim", "soyisim", "unvan", "irtibat")
         widgets = {
             "isim": forms.TextInput(
                 attrs={"class": "girdi", "autocomplete": "given-name"}
             ),
             "soyisim": forms.TextInput(
                 attrs={"class": "girdi", "autocomplete": "family-name"}
+            ),
+            "unvan": forms.TextInput(
+                attrs={"class": "girdi", "autocomplete": "organization"}
             ),
             "irtibat": forms.TextInput(
                 attrs={
@@ -63,6 +66,15 @@ class BayiBasvuruFormu(forms.ModelForm):
                 }
             ),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Modelde boş olabilir (eski başvurular), formda zorunlu: yönetim
+        # bayiyi listelerde ünvanıyla tanıyor.
+        self.fields["unvan"].required = True
+
+    def clean_unvan(self):
+        return " ".join(self.cleaned_data["unvan"].split())
 
     def clean_irtibat(self):
         # Numara aynı zamanda kullanıcı adı olacak: boşluk, ülke kodu ve

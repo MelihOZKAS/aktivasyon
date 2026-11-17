@@ -58,6 +58,30 @@ def kullanici_etiketi_html(kullanici):
     )
 
 
+def bayi_etiketi_html(kullanici):
+    """Başvuru listesi gibi bayinin firmasının da arandığı sütunlar: ad, altında
+    firma ünvanı, en altta numara. Ünvan addan farklı değilse yazılmaz —
+    başvurudan açılan eski hesaplarda ünvan ad soyadın kopyasıdır.
+
+    Sorguda `select_related("bayi__bayi_profili")` olmalı, yoksa satır başı
+    bir sorgu atar.
+    """
+    ad = gorunen_ad(kullanici)
+    numara = kullanici.get_username()
+    profil = getattr(kullanici, "bayi_profili", None)
+    unvan = (profil.unvan or "").strip() if profil else ""
+    if not unvan or unvan.casefold() == ad.casefold():
+        return kullanici_etiketi_html(kullanici)
+    return format_html(
+        '<span style="font-weight:600">{}</span><br>'
+        '<span>{}</span><br>'
+        '<span style="color:#6F7B8F;font-size:.75rem">{}</span>',
+        ad,
+        unvan,
+        numara,
+    )
+
+
 # `.values()` ile okuyan raporlar için: etiketin ihtiyaç duyduğu sütunlar,
 # kullanıcı FK'sinden itibaren. Sıra `ad_satirdan` ile eşleşir.
 _SUTUNLAR = ("username", "first_name", "last_name", "bayi_profili__unvan")

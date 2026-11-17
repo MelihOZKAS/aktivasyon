@@ -176,7 +176,7 @@ def bayi_hesabi_ac(basvuru):
 
         BayiProfili.objects.create(
             kullanici=kullanici,
-            unvan=basvuru.ad_soyad,
+            unvan=basvuru.unvan.strip() or basvuru.ad_soyad,
             yetkili_adi=basvuru.ad_soyad,
             telefon=basvuru.irtibat,
             bayi_mi=True,

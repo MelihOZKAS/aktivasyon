@@ -180,6 +180,7 @@ def bayi_basvurusu_bildir(basvuru):
                 "🤝 <b>Yeni bayi başvurusu</b>",
                 "",
                 _satir("Ad Soyad", basvuru.ad_soyad),
+                _satir("Ünvan", basvuru.unvan),
                 _satir("Telefon", basvuru.irtibat),
             ]
             if s is not None

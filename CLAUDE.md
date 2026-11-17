@@ -1055,7 +1055,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   sağlayıcının listesini çekip adla eşleştirir (`kurumlari_eslestir`): aynı
   adda iki kayıt (Bağ-kur) eşleştirilmez, dolu ve listede bulunan numaraya
   dokunulmaz; eşleşmeyen satırdan elle yazılır (Sağlayıcı No sütunu).
-- **Dekont müşteriye verilir: 58 mm, 80 mm termal ve A5** (`apps/bayi/dekont.py`,
+- **Dekont müşteriye verilir: 58 mm, 80 mm termal, A5 ve A4** (`apps/bayi/dekont.py`,
   `templates/dekont/sayfa.html`). Kontörde işlem sayfasından
   (`/kontor/islem/<ref>/dekont/`), faturada ödeme sayfasından
   (`/fatura/odeme/<ref>/dekont/`, ödemedeki bütün faturalar) ve **sepet**
@@ -1096,6 +1096,15 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   çizgiyi soluk basıyor). 58 mm'de "FATURA ÖDEME DEKONTU" tek satıra
   sığar, daha büyütülürse bölünür. Toplam en büyük rakamdır.
   Dekonta yeni bir bilgi eklersen aynı kalıpla ekle, yan yana dizme.
+  **A5 ve A4 bunun istisnasıdır:** rulo değil belgedir, **yatay** sayfa ve
+  satır/sütun tablosudur. Alt alta düzen orada dar bir sütun gibi duruyor,
+  fişi sayfalara taşıyordu; yönetim "yatay, satır ve sütun olarak, hem A4
+  hem A5" dedi. Her dekont şablonu iki gövde çizer: `dekont` (rulo,
+  `.dk-rulo`) ve `dekont_tablo` (+ başlığın sağına `dekont_tablo_ust`,
+  `.dk-tablo`); biçim hangisinin görüneceğini seçer. Dekonta bilgi eklersen
+  **ikisine de** ekle. Faturada her fatura bir satırdır (kurum, abone no,
+  abone, fatura no, son ödeme, tutar). Telefonda tablo kendi kutusunda kayar.
+  Fatura dekontunda işlem no yazılmaz (yönetim kaldırttı).
   · **Biçim cihaza aittir** (yazıcı o cihaza bağlı): seçim `localStorage`'da
   durur, sunucuya gitmez. **"Bu cihazda dekont açılınca hemen yazdır"** da
   öyle (`dekont-hemen-yazdir`): işaretliyse dekont açılır açılmaz (yazı tipi
@@ -1327,6 +1336,11 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   der. Girilmiş başvurular yerinde kalır — liste ve detay kısıtlanmaz, yarım
   kalan iş tamamlanabilsin. Katalogda bir tarife ancak geçerli olduğu
   **bütün** kategoriler kapalıysa düşer.
+- **Bayi başvuruda firma ünvanını da yazar** (`BayiBasvurusu.unvan`, formda
+  zorunlu, modelde eski kayıtlar için boş olabilir). Hesap açılınca profildeki
+  ünvana geçer, boşsa ad soyad yazılır. Başvuru listesindeki Bayi sütunu ad,
+  ünvan ve numarayı alt alta yazar (`etiket.bayi_etiketi_html`); ünvan adla
+  aynıysa (eski hesaplar) tekrar yazılmaz.
 - **Bayi parolasını başvuru sırasında kendisi seçer.** Kamuya açık formda
   parola alanı vardır; `BayiBasvurusu.parola_ozeti` yalnızca **özeti** tutar,
   düz metin hiçbir yere yazılmaz — Telegram bildirimine de girmez. Özet

@@ -384,6 +384,7 @@ class BayiBasvuruFormuTestleri(TestCase):
         veri = {
             "isim": "Melih",
             "soyisim": "Kaya",
+            "unvan": "Kaya  İletişim",
             "irtibat": "5321234567",
             # Parola artık başvuru sırasında seçiliyor; hesap açılınca
             # kullanıcı bu parolayla giriyor.
@@ -404,8 +405,14 @@ class BayiBasvuruFormuTestleri(TestCase):
 
         basvuru = self.model.objects.get()
         self.assertEqual(basvuru.ad_soyad, "Melih Kaya")
+        self.assertEqual(basvuru.unvan, "Kaya İletişim")
         self.assertEqual(basvuru.irtibat, "5321234567")
         self.assertEqual(basvuru.durum, "yeni")
+
+    def test_unvan_zorunludur(self):
+        yanit = self.client.post(self.url, self._veri(unvan="  "))
+        self.assertEqual(self.model.objects.count(), 0)
+        self.assertContains(yanit, "Bu alan zorunludur")
 
     def test_basindaki_sifir_temizlenir(self):
         self.client.post(self.url, self._veri(irtibat="0532 123 45 67"))
@@ -1160,6 +1167,7 @@ class BayiBasvurusundaParola(TestCase):
         veri = {
             "isim": "Melih",
             "soyisim": "Kaya",
+            "unvan": "Kaya İletişim",
             "irtibat": "5551234567",
             "parola": "CokGuclu-Parola-2026",
             "parola_tekrar": "CokGuclu-Parola-2026",
@@ -1236,6 +1244,7 @@ class BasvurudanHesapAcma(TestCase):
             {
                 "isim": "Melih",
                 "soyisim": "Kaya",
+                "unvan": "Kaya İletişim",
                 "irtibat": "5551234567",
                 "parola": "CokGuclu-Parola-2026",
                 "parola_tekrar": "CokGuclu-Parola-2026",
@@ -1267,6 +1276,29 @@ class BasvurudanHesapAcma(TestCase):
 
         self.assertTrue(kullanici.bayi_profili.bayi_mi)
         self.assertEqual(kullanici.bayi_profili.telefon, "5551234567")
+        self.assertEqual(kullanici.bayi_profili.unvan, "Kaya İletişim")
+
+    def test_unvansiz_eski_basvuruda_ad_soyad_yazilir(self):
+        from apps.bayi.services import bayi_hesabi_ac
+
+        self.basvuru.unvan = ""
+        self.basvuru.save(update_fields=["unvan"])
+
+        kullanici, _ = bayi_hesabi_ac(self.basvuru)
+
+        self.assertEqual(kullanici.bayi_profili.unvan, self.basvuru.ad_soyad)
+
+    def test_basvurudaki_unvan_profile_gecer(self):
+        from apps.bayi.etiket import bayi_etiketi_html
+        from apps.bayi.services import bayi_hesabi_ac
+
+        self.basvuru.unvan = "Gümüş İletişim"
+        self.basvuru.save(update_fields=["unvan"])
+
+        kullanici, _ = bayi_hesabi_ac(self.basvuru)
+
+        self.assertEqual(kullanici.bayi_profili.unvan, "Gümüş İletişim")
+        self.assertIn("Gümüş İletişim", bayi_etiketi_html(kullanici))
         self.assertEqual(kullanici.cuzdan.bakiye, 0)
         self.assertEqual(kullanici.cuzdan.grup, self.grup)
 
@@ -1387,6 +1419,7 @@ class YonetimdenOnaylama(TestCase):
             {
                 "isim": "Melih",
                 "soyisim": "Kaya",
+                "unvan": "Kaya İletişim",
                 "irtibat": "5551234567",
                 "parola": "CokGuclu-Parola-2026",
                 "parola_tekrar": "CokGuclu-Parola-2026",

@@ -67,6 +67,15 @@
         </div>
 
         <div>
+          <label for="{{ form.unvan.id_for_label }}" class="alan-etiketi mb-1.5">Firma ünvanı</label>
+          {{ form.unvan }}
+          <p class="mt-1.5 text-sm text-soluk">Dükkânınızın ya da firmanızın adı.</p>
+          {% for hata in form.unvan.errors %}
+          <p class="mt-1 text-sm text-olumsuz">{{ hata }}</p>
+          {% endfor %}
+        </div>
+
+        <div>
           <label for="{{ form.irtibat.id_for_label }}" class="alan-etiketi mb-1.5">
             İrtibat numarası
           </label>

@@ -194,7 +194,7 @@ class BasvuruAdmin(ModelAdmin):
         "referans_no",
         "ad_soyad",
         "kategori",
-        "bayi",
+        "bayi_sutunu",
         "tedarikci",
         "durum_rozeti",
         "tutar_ozeti",
@@ -224,6 +224,7 @@ class BasvuruAdmin(ModelAdmin):
         "bayi__username",
         "bayi__first_name",
         "bayi__last_name",
+        "bayi__bayi_profili__unvan",
     )
     # tarife/kampanya bilinçli olarak autocomplete değil: autocomplete
     # kutusu bağlı olduğu admin'in tüm kayıtlarını gösterir ve kategoriye
@@ -529,8 +530,17 @@ class BasvuruAdmin(ModelAdmin):
         return (
             super()
             .get_queryset(request)
-            .select_related("bayi", "tedarikci", "kategori", "operator", "tarife", "durum")
+            .select_related(
+                "bayi__bayi_profili", "tedarikci", "kategori", "operator", "tarife", "durum"
+            )
         )
+
+    @admin.display(description="Bayi", ordering="bayi__first_name")
+    def bayi_sutunu(self, obj):
+        """Ad, firma ünvanı ve numara (`apps.bayi.etiket.bayi_etiketi_html`)."""
+        from apps.bayi.etiket import bayi_etiketi_html
+
+        return bayi_etiketi_html(obj.bayi)
 
     def get_form(self, request, obj=None, **kwargs):
         """Düzenlenen başvurunun kategorisini forma taşır."""

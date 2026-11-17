@@ -31,3 +31,34 @@
 <hr class="dk-cizgi">
 <div class="dk-alan dk-toplam"><span>TUTAR</span><b>{{ tutar|para }} ₺</b></div>
 {% endblock %}
+
+{% block dekont_tablo_ust %}
+<p>Tarih: <b>{{ islem.sonuc_tarihi|default:islem.olusturma_tarihi|date:"d.m.Y H:i" }}</b></p>
+<p>İşlem no: <b>{{ islem.siparis.referans_no }}</b></p>
+{% endblock %}
+
+{% block dekont_tablo %}
+<table class="dk-tab">
+  <thead>
+    <tr>
+      {% if islem.kategori %}<th>Ürün grubu</th>{% endif %}
+      <th>Ürün</th>
+      {% if islem.hedef %}<th>{{ islem.kategori.hedef_basligi|default:"Numara" }}</th>{% endif %}
+      <th>Durum</th>
+      <th class="dk-sayi">Tutar</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      {% if islem.kategori %}<td>{{ islem.kategori.ad }}</td>{% endif %}
+      <td><b>{{ islem.paket_adi }}</b></td>
+      {% if islem.hedef %}<td>{% if islem.kategori.hedef == "telefon" %}{{ islem.hedef|telefon }}{% else %}{{ islem.hedef }}{% endif %}</td>{% endif %}
+      <td>{% if islem.durum == "basarili" %}{% if pin %}Teslim edildi{% else %}Yüklendi{% endif %}{% elif pin %}Hazırlanıyor{% else %}Yükleniyor{% endif %}</td>
+      <td class="dk-sayi">{{ tutar|para }} ₺</td>
+    </tr>
+  </tbody>
+</table>
+{% if pin and islem.durum == "basarili" and islem.sonuc_mesaji %}
+<p class="dk-pin">{{ islem.sonuc_mesaji }}</p>
+{% endif %}
+{% endblock %}

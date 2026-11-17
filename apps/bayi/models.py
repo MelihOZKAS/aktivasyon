@@ -471,6 +471,15 @@ class BayiBasvurusu(ZamanDamgali):
     isim = models.CharField("İsim", max_length=100)
     soyisim = models.CharField("Soyisim", max_length=100)
     irtibat = models.CharField("İrtibat Numarası", max_length=20)
+    unvan = models.CharField(
+        "Firma Ünvanı",
+        max_length=200,
+        blank=True,
+        help_text=(
+            "Başvuran girer; hesap açılınca bayi profilindeki ünvana yazılır. "
+            "Bu alandan önceki başvurularda boştur, o zaman ad soyad kullanılır."
+        ),
+    )
     durum = models.CharField(
         "Durum",
         max_length=20,

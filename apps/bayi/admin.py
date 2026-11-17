@@ -1034,11 +1034,11 @@ class BayiBasvurusuAdmin(ModelAdmin):
     form = BayiBasvurusuAdminFormu
 
     list_display = (
-        "ad_soyad", "irtibat_baglantisi", "durum_rozeti", "parola_secildi",
+        "ad_soyad", "unvan", "irtibat_baglantisi", "durum_rozeti", "parola_secildi",
         "bayi_grubu", "olusturulan_kullanici", "olusturma_tarihi",
     )
     list_filter = ("durum", "bayi_grubu", "olusturma_tarihi")
-    search_fields = ("isim", "soyisim", "irtibat")
+    search_fields = ("isim", "soyisim", "unvan", "irtibat")
     date_hierarchy = "olusturma_tarihi"
     readonly_fields = ("isim", "soyisim", "irtibat", "olusturma_tarihi")
     autocomplete_fields = ("olusturulan_kullanici",)
@@ -1047,8 +1047,11 @@ class BayiBasvurusuAdmin(ModelAdmin):
         (
             "Başvuran",
             {
-                "fields": ("isim", "soyisim", "irtibat", "olusturma_tarihi"),
-                "description": "Bu bilgiler başvuran tarafından girildi, değiştirilemez.",
+                "fields": ("isim", "soyisim", "unvan", "irtibat", "olusturma_tarihi"),
+                "description": (
+                    "Bu bilgiler başvuran tarafından girildi. Ünvan hesap "
+                    "açılmadan önce düzeltilebilir, gerisi değiştirilemez."
+                ),
             },
         ),
         (

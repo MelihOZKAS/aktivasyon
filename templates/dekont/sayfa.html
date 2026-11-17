@@ -35,7 +35,8 @@
   <style>
     html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 13.5px; }
     html[data-bicim="80"] { --dk-genislik: 72mm; --dk-yazi: 16px; }
-    html[data-bicim="a5"] { --dk-genislik: 124mm; --dk-yazi: 17px; }
+    html[data-bicim="a5"] { --dk-genislik: 190mm; --dk-yazi: 13px; }
+    html[data-bicim="a4"] { --dk-genislik: 273mm; --dk-yazi: 15px; }
 
     .dekont-kagit {
       max-width: 100%;
@@ -89,6 +90,42 @@
     }
     .dk-alt { margin-top: 0.8em; text-align: center; font-size: 0.9em; }
 
+    /* A5 ve A4 rulo değil, belgedir: yatay sayfa, satır ve sütun. Rulodaki
+       alt alta düzen orada dar bir sütun gibi duruyor, fişi sayfalara
+       taşıyordu. Her alt şablon iki gövde çizer: `.dk-rulo` (58/80 mm) ve
+       `.dk-tablo` (A5/A4); hangisinin görüneceğini biçim seçer. */
+    .dk-tablo, .dk-tablo-ust { display: none; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-rulo { display: none; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-tablo { display: block; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-tablo-ust { display: block; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dekont-kagit { overflow-x: auto; padding: 8mm; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dekont { max-width: none; padding: 0; font-weight: 500; line-height: 1.4; text-align: left; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-bas {
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 2em;
+      padding-bottom: 0.6em; border-bottom: 2px solid #000;
+    }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-ust { text-align: left; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-firma-ad { font-size: 1.6em; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-sag { text-align: right; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-baslik { margin: 0; padding: 0; border: 0; font-size: 1.2em; letter-spacing: 0.08em; }
+    /* Boşluk yalnızca hücrenin sağında: ilk sütun başlığın çizgisiyle hizalı
+       kalır (rowspan'li satırda :first-child başka sütuna düştüğü için onunla
+       yapılmaz). Tutar her zaman son sütundur. */
+    .dk-tab { width: 100%; margin-top: 1em; border-collapse: collapse; }
+    .dk-tab th {
+      padding: 0.4em 1.2em 0.4em 0; border-bottom: 1.5px solid #000;
+      text-align: left; font-size: 0.85em; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .dk-tab td { padding: 0.5em 1.2em 0.5em 0; border-bottom: 1px dotted #000; vertical-align: top; }
+    .dk-tab .dk-sayi { padding-right: 0; text-align: right; white-space: nowrap; font-weight: 700; }
+    .dk-tab td b { font-weight: 700; }
+    .dk-tab tfoot td { border-bottom: 0; padding-block: 0.35em; vertical-align: baseline; }
+    .dk-tab tfoot tr:first-child td { padding-top: 0.8em; border-top: 1.5px solid #000; }
+    .dk-tab tfoot .dk-toplam-satir td { font-size: 1.15em; font-weight: 800; }
+    .dk-tab tfoot .dk-toplam-satir .dk-sayi { font-size: 1.5em; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-pin { display: inline-block; margin: 1em 0 0; padding: 0.4em 1.2em; font-size: 1.4em; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-alt { margin-top: 2em; }
+
     .dk-bicim[aria-pressed="true"] {
       background: var(--color-murekkep);
       border-color: var(--color-murekkep);
@@ -118,6 +155,7 @@
         <button type="button" class="dugme dugme-sessiz dk-bicim flex-1" data-bicim="58" aria-pressed="false">58 mm</button>
         <button type="button" class="dugme dugme-sessiz dk-bicim flex-1" data-bicim="80" aria-pressed="true">80 mm</button>
         <button type="button" class="dugme dugme-sessiz dk-bicim flex-1" data-bicim="a5" aria-pressed="false">A5</button>
+        <button type="button" class="dugme dugme-sessiz dk-bicim flex-1" data-bicim="a4" aria-pressed="false">A4</button>
       </div>
       <label class="flex min-h-11 basis-full cursor-pointer items-center gap-2 text-sm">
         <input type="checkbox" data-hemen-yazdir class="size-5 shrink-0 accent-murekkep">
@@ -129,14 +167,20 @@
   <main class="px-4">
     <div class="dekont-kagit">
       <article class="dekont" id="dekont">
-        <div>
-          <p class="dk-firma-ad">{{ firma.ad }}</p>
-          {% if firma.adres %}<p class="dk-kucuk">{{ firma.adres }}</p>{% endif %}
-          {% if firma.telefon %}<p class="dk-kucuk">Tel: {{ firma.telefon|telefon }}</p>{% endif %}
-        </div>
-        <p class="dk-baslik">{% block dekont_basligi %}{% endblock %}</p>
+        <header class="dk-bas">
+          <div class="dk-ust">
+            <p class="dk-firma-ad">{{ firma.ad }}</p>
+            {% if firma.adres %}<p class="dk-kucuk">{{ firma.adres }}</p>{% endif %}
+            {% if firma.telefon %}<p class="dk-kucuk">Tel: {{ firma.telefon|telefon }}</p>{% endif %}
+          </div>
+          <div class="dk-sag">
+            <p class="dk-baslik">{% block dekont_basligi %}{% endblock %}</p>
+            <div class="dk-tablo-ust">{% block dekont_tablo_ust %}{% endblock %}</div>
+          </div>
+        </header>
 
-        {% block dekont %}{% endblock %}
+        <div class="dk-rulo">{% block dekont %}{% endblock %}</div>
+        <div class="dk-tablo">{% block dekont_tablo %}{% endblock %}</div>
 
         <div class="dk-alt">
           <p>Teşekkür ederiz.</p>
@@ -152,6 +196,8 @@
       var dekont = document.getElementById("dekont");
       var sayfaStili = document.getElementById("dekont-sayfa-boyutu");
       var RULO = { "58": 58, "80": 80 };
+      // Yatay sayfa; kenar boşluğu + --dk-genislik sayfanın enine eşittir.
+      var SAYFA = { a5: "A5 landscape; margin: 10mm", a4: "A4 landscape; margin: 12mm" };
 
       function oku() {
         try { return localStorage.getItem("dekont-bicimi"); } catch (e) { return null; }
@@ -167,8 +213,8 @@
       // ölçü baskıdakiyle aynı genişlikte ve aynı yazıyla alınır.
       function sayfayiKur() {
         var bicim = kok.dataset.bicim;
-        if (!RULO[bicim]) {
-          sayfaStili.textContent = "@page { size: A5 portrait; margin: 12mm; }";
+        if (SAYFA[bicim]) {
+          sayfaStili.textContent = "@page { size: " + SAYFA[bicim] + "; }";
           return;
         }
         var boy = Math.ceil(dekont.getBoundingClientRect().height * 25.4 / 96) + 6;
@@ -176,7 +222,7 @@
       }
 
       function sec(bicim) {
-        if (!RULO[bicim] && bicim !== "a5") bicim = "80";
+        if (!RULO[bicim] && !SAYFA[bicim]) bicim = "80";
         kok.dataset.bicim = bicim;
         document.querySelectorAll(".dk-bicim").forEach(function (dugme) {
           dugme.setAttribute("aria-pressed", String(dugme.dataset.bicim === bicim));
