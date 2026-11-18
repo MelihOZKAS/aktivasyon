@@ -135,7 +135,13 @@
     @media print {
       .dekont-arac { display: none !important; }
       html, body { background: #fff !important; margin: 0; }
-      .dekont-kagit { margin: 0 auto; border: 0; padding: 0; }
+      /* Ekrandaki kaydırma kutusu ve iç boşluk baskıya girmez: bir süre
+         A5/A4 kuralı bunu eziyordu, tablo sayfadan 16 mm taşıp sağdan
+         kesiliyor, kaydırma çubuğu da kâğıda basılıyordu. Tablo sayfanın
+         basılabilir enini doldurur; yazıcı sayfayı dikey açsa da sığar. */
+      html[data-bicim] .dekont-kagit { width: auto; margin: 0; border: 0; padding: 0; overflow: visible; }
+      .dekont { margin-inline: auto; }
+      :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dekont { width: 100%; }
     }
   </style>
   <style id="dekont-sayfa-boyutu"></style>
