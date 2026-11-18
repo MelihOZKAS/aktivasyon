@@ -35,7 +35,7 @@
   <style>
     html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 13.5px; }
     html[data-bicim="80"] { --dk-genislik: 72mm; --dk-yazi: 16px; }
-    html[data-bicim="a5"] { --dk-genislik: 190mm; --dk-yazi: 13px; }
+    html[data-bicim="a5"] { --dk-genislik: 186mm; --dk-yazi: 14px; }
     html[data-bicim="a4"] { --dk-genislik: 186mm; --dk-yazi: 14px; }
 
     .dekont-kagit {
@@ -205,9 +205,11 @@
       var dekont = document.getElementById("dekont");
       var sayfaStili = document.getElementById("dekont-sayfa-boyutu");
       var RULO = { "58": 58, "80": 80 };
-      // A5 yatay, A4 dikey (masaüstü yazıcının kâğıdı dik girer, yatay sayfa
-      // kâğıda yan basılıyordu); kenar boşluğu + --dk-genislik sayfanın enine eşittir.
-      var SAYFA = { a5: "A5 landscape; margin: 10mm", a4: "A4 portrait; margin: 12mm" };
+      // İkisi de dikey ve aynı endedir (210 mm), yalnızca boyu farklı: az
+      // faturada A5, çokta A4. Yatay sayfa kâğıda yan basılıyordu. A5'te
+      // boyut yazılmaz: 210×148 sayfa tarayıcıya "yatay" görünür ve yine yan
+      // basılırdı. Yön dikey, kâğıt yazıcının kendisi; dar kâğıtta sığdırılır.
+      var SAYFA = { a5: "margin: 12mm", a4: "size: A4 portrait; margin: 12mm" };
 
       function oku() {
         try { return localStorage.getItem("dekont-bicimi"); } catch (e) { return null; }
@@ -224,7 +226,7 @@
       function sayfayiKur() {
         var bicim = kok.dataset.bicim;
         if (SAYFA[bicim]) {
-          sayfaStili.textContent = "@page { size: " + SAYFA[bicim] + "; }";
+          sayfaStili.textContent = "@page { " + SAYFA[bicim] + "; }";
           return;
         }
         var boy = Math.ceil(dekont.getBoundingClientRect().height * 25.4 / 96) + 6;

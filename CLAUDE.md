@@ -1096,12 +1096,14 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   çizgiyi soluk basıyor). 58 mm'de "FATURA ÖDEME DEKONTU" tek satıra
   sığar, daha büyütülürse bölünür. Toplam en büyük rakamdır.
   Dekonta yeni bir bilgi eklersen aynı kalıpla ekle, yan yana dizme.
-  **A5 ve A4 bunun istisnasıdır:** rulo değil belgedir, **yatay** sayfa ve
+  **A5 ve A4 bunun istisnasıdır:** rulo değil belgedir, sayfa ve
   satır/sütun tablosudur. Alt alta düzen orada dar bir sütun gibi duruyor,
   fişi sayfalara taşıyordu; yönetim "yatay, satır ve sütun olarak, hem A4
-  hem A5" dedi. **A4 ise dikeydir** (tablo aynı): masaüstü yazıcıda kâğıt
-  dik girer, yatay A4 kâğıda yan basılıyordu ("normal basması lazım"). A5
-  yataydır, eni A4 dikeyin enine eşittir. Baskıda gövdenin ekran boyu
+  hem A5" dedi. **Sonra ikisi de dikey oldu**, tablo aynı: yatay sayfa
+  kâğıda yan basılıyordu ("normal basması lazım"). İkisinin eni aynıdır
+  (210 mm, tablo 186 mm), yalnızca boyu farklı: az faturada A5, çokta A4.
+  A5'te `@page` boyutu yazılmaz (yalnızca kenar): 210×148 sayfa tarayıcıya
+  yatay görünüp yine yan basılıyordu; kâğıdı yazıcı belirler. Baskıda gövdenin ekran boyu
   (`min-h-dvh`) sıfırlanır, yoksa tek sayfalık fiş boş ikinci sayfa açar.
   Dekont düğmeleri **yeni sekmede** açılır: bayi yazdırıp sekmeyi kapatır,
   sattığı ekran yerinde kalır. Her dekont şablonu iki gövde çizer: `dekont` (rulo,
