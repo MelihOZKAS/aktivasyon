@@ -366,8 +366,6 @@ def sepet_tamam(request):
     alinan = _para(request.GET.get("alinan"))
     dekontlu = [o for o in odemeler if o.durum != OdemeDurumu.IPTAL]
     sorgu = [("odeme", o.referans_no) for o in dekontlu]
-    if alinan is not None:
-        sorgu.append(("alinan", str(alinan)))
     return render(
         request,
         "fatura/sepet_tamam.html",
@@ -406,19 +404,14 @@ def odeme_durum(request, referans):
 def _dekont(request, odemeler, geri):
     bloklar = [dekont_ozeti(odeme) for odeme in odemeler]
     toplam = sum((b["toplam"] for b in bloklar), Decimal("0"))
-    # Sepetten gelince müşteriden alınan ve para üstü de fişe yazılır;
-    # kayıtta tutulmaz, yalnızca bu baskı içindir.
-    alinan = _para(request.GET.get("alinan"))
-    if alinan is not None and alinan < toplam:
-        alinan = None
+    # Alınan ve para üstü dekonta yazılmaz (yönetim kaldırttı); yalnızca
+    # sepetin ödeme sonrası ekranında durur.
     return render(
         request,
         "fatura/dekont.html",
         {
             "bloklar": bloklar,
             "toplam": toplam,
-            "alinan": alinan,
-            "para_ustu": alinan - toplam if alinan is not None else None,
             "referans": ", ".join(o.referans_no for o in odemeler),
             "firma": firma(request.user),
             "geri": geri,

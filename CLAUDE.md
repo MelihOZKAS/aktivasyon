@@ -1137,9 +1137,9 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   ödemeleri gösterir.
   · **Para üstü** sepet ekranında: "Müşteriden alınan" yazılır ya da hazır
   tutarlardan seçilir (Tam, toplamın üstündeki ilk 50/100/500/1000 katı);
-  eksikse uyarı renginde "Eksik". Kayda girmez; ödeme sonrası ekrana ve
-  tek dekonta (`?alinan=`, "Alınan" / "Para üstü" satırları) adresle
-  taşınır. "1.000" bin liradır (virgülsüz noktalı binlik, `views._para`
+  eksikse uyarı renginde "Eksik". Kayda girmez; ödeme sonrası ekrana
+  adresle (`?alinan=`) taşınır. **Dekonta yazılmaz:** bir süre "Alınan" /
+  "Para üstü" satırları vardı, yönetim "daha temiz olsun" diye kaldırttı. "1.000" bin liradır (virgülsüz noktalı binlik, `views._para`
   ve sayfadaki `oku` aynı kural); bir süre 1 ₺ okunuyordu.
   · **Ekran müşteriye dönüktür:** sepette ve ödeme sonrasında büyük rakam
   müşterinin ödeyeceğidir, bayinin alışı göz düğmesinde. Müşteri rakamı

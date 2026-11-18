@@ -1505,8 +1505,8 @@ class SepetTestleri(Temel):
         self.assertContains(tamam, "Para üstü")
         dekont = self.client.get(tamam.context["dekont_url"])
         self.assertEqual(dekont.context["toplam"], TL("695.00"))
-        self.assertContains(dekont, "Para üstü")
-        self.assertContains(dekont, "305,00")
+        self.assertNotContains(dekont, "Para üstü")  # yalnızca ekranda, dekonta yazılmaz
+        self.assertNotIn("alinan", tamam.context["dekont_url"])
 
         # Aynı form ikinci kez gelirse (geri tuşu) ikinci kez ödenmez.
         tekrar = self.client.post(reverse("fatura:sepet-ode"), {"islem_anahtari": anahtar, "alinan": "1000"})
