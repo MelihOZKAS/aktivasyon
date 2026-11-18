@@ -1101,7 +1101,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   fişi sayfalara taşıyordu; yönetim "yatay, satır ve sütun olarak, hem A4
   hem A5" dedi. **Sonra ikisi de dikey oldu**, tablo aynı: yatay sayfa
   kâğıda yan basılıyordu ("normal basması lazım"). İkisinin eni aynıdır
-  (210 mm, tablo 186 mm), yalnızca boyu farklı: az faturada A5, çokta A4.
+  (210 mm, kenar 5 mm, tablo 200 mm; 12 mm kenar "çok boşluk" dendi), yalnızca boyu farklı: az faturada A5, çokta A4.
   A5'te `@page` boyutu yazılmaz (yalnızca kenar): 210×148 sayfa tarayıcıya
   yatay görünüp yine yan basılıyordu; kâğıdı yazıcı belirler. Baskıda gövdenin ekran boyu
   (`min-h-dvh`) sıfırlanır, yoksa tek sayfalık fiş boş ikinci sayfa açar.

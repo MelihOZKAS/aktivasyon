@@ -35,8 +35,8 @@
   <style>
     html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 13.5px; }
     html[data-bicim="80"] { --dk-genislik: 72mm; --dk-yazi: 16px; }
-    html[data-bicim="a5"] { --dk-genislik: 186mm; --dk-yazi: 14px; }
-    html[data-bicim="a4"] { --dk-genislik: 186mm; --dk-yazi: 14px; }
+    html[data-bicim="a5"] { --dk-genislik: 200mm; --dk-yazi: 14px; }
+    html[data-bicim="a4"] { --dk-genislik: 200mm; --dk-yazi: 14px; }
 
     .dekont-kagit {
       max-width: 100%;
@@ -209,7 +209,7 @@
       // faturada A5, çokta A4. Yatay sayfa kâğıda yan basılıyordu. A5'te
       // boyut yazılmaz: 210×148 sayfa tarayıcıya "yatay" görünür ve yine yan
       // basılırdı. Yön dikey, kâğıt yazıcının kendisi; dar kâğıtta sığdırılır.
-      var SAYFA = { a5: "margin: 12mm", a4: "size: A4 portrait; margin: 12mm" };
+      var SAYFA = { a5: "margin: 5mm", a4: "size: A4 portrait; margin: 5mm" };
 
       function oku() {
         try { return localStorage.getItem("dekont-bicimi"); } catch (e) { return null; }
