@@ -1056,8 +1056,7 @@ def _sim_parasini_iade_et(kart, *, olusturan=None):
 def _zimmeti_bosalt(kart, *, olusturan=None):
     """Kartın parasını iade eder ve zimmet alanlarını boşaltır (kaydetmez)."""
     _sim_parasini_iade_et(kart, olusturan=olusturan)
-    if kart.zimmet_tarihi is not None:
-        kart.para_surumu += 1
+    kart.para_surumu += 1
     kart.zimmet_tarihi = None
     kart.alis_fiyati = None
     kart.satis_fiyati = None
@@ -1093,8 +1092,16 @@ def sim_kartlari_zimmetle(kartlar, bayi, *, olusturan=None):
 
         simdi = timezone.now()
         for kart in aktarilacak:
-            if kart.bayi_id:
+            # Önceki zimmetin izi (bayisi başka yoldan boşaltılmış olsa da)
+            # önce kapanır: iade edilir ve sürüm artar, defter anahtarı
+            # yeniden kullanılmaz.
+            if kart.bayi_id or kart.zimmet_tarihi is not None or kart.cuzdan_hareketleri.filter(
+                tip=HareketTipi.SIM_KART, ters_kayit__isnull=True
+            ).exists():
                 _zimmeti_bosalt(kart, olusturan=olusturan)
+                # İade aynı bayinin cüzdanına yazılmış olabilir; elimizdeki
+                # kopya eskidi, üstüne yazarsak iade kaybolur.
+                cuzdan.refresh_from_db()
             satis = kart.operator.sim_satis_fiyati if kart.operator else SIFIR
             kart.bayi = bayi
             kart.durum = SimKartDurumu.ATANDI
@@ -1103,7 +1110,7 @@ def sim_kartlari_zimmetle(kartlar, bayi, *, olusturan=None):
             kart.satis_fiyati = satis
             kart.save()
             if satis > SIFIR:
-                _hareket_yaz(
+                hareket = _hareket_yaz(
                     cuzdan=cuzdan,
                     tip=HareketTipi.SIM_KART,
                     tutar=-satis,
@@ -1112,6 +1119,12 @@ def sim_kartlari_zimmetle(kartlar, bayi, *, olusturan=None):
                     sim_kart=kart,
                     olusturan=olusturan,
                 )
+                if hareket is None:
+                    # Anahtar çarptı: kart parasız verilmiş olurdu. Hepsi geri alınır.
+                    raise SimAktarilamaz(
+                        f"{kart.imei} kartının bedeli yazılamadı (tekrarlanan kayıt). "
+                        "Hiçbir kart aktarılmadı."
+                    )
         return len(aktarilacak), toplam
 
 

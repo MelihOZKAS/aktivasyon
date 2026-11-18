@@ -3294,3 +3294,41 @@ class UcretliSimTesti(TestCase):
         self.assertEqual(sim["toplam"]["satis"], 300)
         self.assertEqual(sim["toplam"]["alis"], 240)
         self.assertEqual(sim["toplam"]["kar"], 60)
+
+    def test_kullanilmis_ya_da_arizali_kartin_bayisi_formdan_degismez(self):
+        from decimal import Decimal
+
+        kart = self.kartlar[0]
+        self._ata([kart])
+        yanit = self.client.post(
+            f"{self.LISTE}{kart.pk}/change/",
+            {"imei": kart.imei, "operator": self.operator.pk, "bayi": "",
+             "durum": "arizali", "basvuru": "", "aciklama": "", "iade_alinma_tarihi": "",
+             "yerine_verilen": "", "degisim_tarihi": ""},
+        )
+
+        self.assertEqual(yanit.status_code, 200)  # form hatayla geri döner
+        kart.refresh_from_db()
+        self.assertEqual(kart.bayi, self.bayi)
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("250.00"))
+
+    def test_baska_yoldan_bosaltilan_kart_yeniden_ucretli_aktarilir(self):
+        """Eski zimmetin izi kalmışsa defter anahtarı yeniden kullanılmaz."""
+        from decimal import Decimal
+
+        from apps.bayi.models import SimKart, SimKartDurumu
+
+        kart = self.kartlar[0]
+        self._ata([kart])
+        # Servisi atlayan eski bir yol: bayi boşaltılmış, para iade edilmemiş.
+        SimKart.objects.filter(pk=kart.pk).update(bayi=None, durum=SimKartDurumu.BEKLEMEDE)
+
+        self._ata([kart])
+
+        self.cuzdan.refresh_from_db()
+        # İlk bedel iade edildi, ikinci zimmet yeniden kesildi: net 150.
+        self.assertEqual(self.cuzdan.bakiye, Decimal("250.00"))
+        kart.refresh_from_db()
+        self.assertEqual(kart.bayi, self.bayi)
+        self.assertEqual(kart.cuzdan_hareketleri.filter(tip="sim_kart", ters_kayit__isnull=True).count(), 1)

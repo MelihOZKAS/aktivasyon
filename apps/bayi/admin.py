@@ -22,6 +22,7 @@ from unfold.widgets import (
 )
 
 from django.contrib.auth import update_session_auth_hash
+from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import path, reverse
@@ -363,10 +364,25 @@ class SimKartAdminFormu(forms.ModelForm):
         model = SimKart
         fields = "__all__"
 
+    SERBEST = (SimKartDurumu.BEKLEMEDE, SimKartDurumu.ATANDI)
+
     def clean(self):
         veri = super().clean()
         bayi, operator = veri.get("bayi"), veri.get("operator")
         durum = veri.get("durum")
+        # Bayi yalnızca stoktaki ya da zimmetli kartta değişir ve o zaman
+        # para servisten geçer. Kullanılmış/arızalı kartta (ya da aynı anda
+        # durumu oraya çekerken) bayiyi değiştirmek parayı atlardı.
+        eski_durum = self.instance.durum if self.instance.pk else SimKartDurumu.BEKLEMEDE
+        if "bayi" in self.changed_data and (
+            eski_durum not in self.SERBEST or durum not in self.SERBEST
+        ):
+            self.add_error(
+                "bayi",
+                "Kullanılmış ya da arızalı kartın bayisi buradan değişmez. Bayiyi "
+                "değiştirmek için kart stokta ya da zimmetli olmalı, durumu ayrı kaydedin.",
+            )
+            return veri
         if (
             bayi
             and operator
@@ -668,13 +684,14 @@ class SimKartAdmin(ModelAdmin):
         (`SimKartAdminFormu`), burada servis son kez bakar.
         """
         yeni_bayi = obj.bayi
-        eski_bayi_id = form.initial.get("bayi") if change else None
-        para_yolu = (
-            "bayi" in form.changed_data
-            and obj.durum not in (SimKartDurumu.KULLANILDI, SimKartDurumu.ARIZALI)
-        )
-        if not para_yolu:
+        # Karar kayıtlı hâlden verilir, gönderilen formdan değil.
+        eski = SimKart.objects.filter(pk=obj.pk).values("bayi_id", "durum").first() if change else None
+        eski_bayi_id = eski["bayi_id"] if eski else None
+        if eski_bayi_id == (yeni_bayi.pk if yeni_bayi else None):
             return super().save_model(request, obj, form, change)
+        # Form zaten reddeder; elle gönderilen isteğe karşı son kapı.
+        if (eski and eski["durum"] not in SimKartAdminFormu.SERBEST) or obj.durum not in SimKartAdminFormu.SERBEST:
+            raise PermissionDenied("Kullanılmış ya da arızalı kartın bayisi değiştirilemez.")
 
         obj.bayi_id = eski_bayi_id
         super().save_model(request, obj, form, change)
