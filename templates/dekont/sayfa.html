@@ -36,7 +36,7 @@
     html[data-bicim="58"] { --dk-genislik: 48mm; --dk-yazi: 13.5px; }
     html[data-bicim="80"] { --dk-genislik: 72mm; --dk-yazi: 16px; }
     html[data-bicim="a5"] { --dk-genislik: 190mm; --dk-yazi: 13px; }
-    html[data-bicim="a4"] { --dk-genislik: 273mm; --dk-yazi: 15px; }
+    html[data-bicim="a4"] { --dk-genislik: 186mm; --dk-yazi: 14px; }
 
     .dekont-kagit {
       max-width: 100%;
@@ -134,7 +134,10 @@
 
     @media print {
       .dekont-arac { display: none !important; }
-      html, body { background: #fff !important; margin: 0; }
+      /* Gövde ekranda en az ekran boyu (min-h-dvh); baskıda bu, içerik bir
+         sayfaya sığsa da boş ikinci sayfa açıyordu. */
+      html, body { background: #fff !important; margin: 0; min-height: 0 !important; height: auto !important; }
+      main { padding: 0 !important; }
       /* Ekrandaki kaydırma kutusu ve iç boşluk baskıya girmez: bir süre
          A5/A4 kuralı bunu eziyordu, tablo sayfadan 16 mm taşıp sağdan
          kesiliyor, kaydırma çubuğu da kâğıda basılıyordu. Tablo sayfanın
@@ -149,7 +152,7 @@
 <body class="min-h-dvh bg-zemin">
   <header class="dekont-arac sticky top-0 z-10 border-b border-cizgi bg-yuzey px-4 py-2">
     <div class="mx-auto flex max-w-xl flex-wrap items-center gap-2">
-      <a href="{{ geri }}" class="dugme dugme-sessiz shrink-0" aria-label="Geri dön">
+      <a href="{{ geri }}" class="dugme dugme-sessiz shrink-0" aria-label="Geri dön" data-geri>
         <span class="ikon" aria-hidden="true">arrow_back</span>
         <span class="hidden sm:inline">Geri</span>
       </a>
@@ -202,8 +205,9 @@
       var dekont = document.getElementById("dekont");
       var sayfaStili = document.getElementById("dekont-sayfa-boyutu");
       var RULO = { "58": 58, "80": 80 };
-      // Yatay sayfa; kenar boşluğu + --dk-genislik sayfanın enine eşittir.
-      var SAYFA = { a5: "A5 landscape; margin: 10mm", a4: "A4 landscape; margin: 12mm" };
+      // A5 yatay, A4 dikey (masaüstü yazıcının kâğıdı dik girer, yatay sayfa
+      // kâğıda yan basılıyordu); kenar boşluğu + --dk-genislik sayfanın enine eşittir.
+      var SAYFA = { a5: "A5 landscape; margin: 10mm", a4: "A4 portrait; margin: 12mm" };
 
       function oku() {
         try { return localStorage.getItem("dekont-bicimi"); } catch (e) { return null; }
@@ -241,6 +245,15 @@
           sec(dugme.dataset.bicim);
           sakla(dugme.dataset.bicim);
         });
+      });
+      // Dekont yeni sekmede açılır: geçmişi olmayan sekmede Geri sekmeyi
+      // kapatır, bayi sattığı ekrana döner. Kapanmazsa bağlantı işler.
+      document.querySelector("[data-geri]").addEventListener("click", function (olay) {
+        if (history.length > 1) return;
+        olay.preventDefault();
+        window.close();
+        var adres = this.href;
+        setTimeout(function () { location.href = adres; }, 200);
       });
       document.querySelector("[data-yazdir]").addEventListener("click", function () {
         sayfayiKur();

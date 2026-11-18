@@ -27,7 +27,7 @@
     alanıdır (`form="dekont-sepeti"`); çubuk ekranın altında durur, seçim
     yokken düğme kapalıdır.
   {% endcomment %}
-  <form id="dekont-sepeti" method="get" action="{% url 'fatura:dekont' %}" class="sticky bottom-0 z-10 mt-3 pb-3">
+  <form id="dekont-sepeti" method="get" action="{% url 'fatura:dekont' %}" target="_blank" class="sticky bottom-0 z-10 mt-3 pb-3">
     <div class="sim yuzey flex items-center justify-between gap-3 border border-cizgi-koyu px-4 py-2.5">
       <p class="min-w-0 text-sm" data-sepet-yazi>Tek dekontta vermek istediğin ödemeleri işaretle.</p>
       <button type="submit" class="dugme dugme-birincil shrink-0 disabled:cursor-not-allowed disabled:opacity-40" data-sepet-dugme disabled>

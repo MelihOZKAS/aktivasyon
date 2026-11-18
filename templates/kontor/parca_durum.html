@@ -68,7 +68,7 @@
     yeniden yükle" duruyordu — yönetim "direk dekont yazdırma gelsin" dedi.
   {% endcomment %}
   {% if islem.durum != "iptal" %}
-  <a href="{% url 'kontor:dekont' islem.siparis.referans_no %}" class="dugme dugme-birincil mt-4 w-full">
+  <a href="{% url 'kontor:dekont' islem.siparis.referans_no %}" target="_blank" rel="noopener" class="dugme dugme-birincil mt-4 w-full">
     <span class="ikon" aria-hidden="true">print</span> Dekont yazdır
   </a>
   {% endif %}

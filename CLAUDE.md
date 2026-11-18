@@ -1099,7 +1099,12 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   **A5 ve A4 bunun istisnasıdır:** rulo değil belgedir, **yatay** sayfa ve
   satır/sütun tablosudur. Alt alta düzen orada dar bir sütun gibi duruyor,
   fişi sayfalara taşıyordu; yönetim "yatay, satır ve sütun olarak, hem A4
-  hem A5" dedi. Her dekont şablonu iki gövde çizer: `dekont` (rulo,
+  hem A5" dedi. **A4 ise dikeydir** (tablo aynı): masaüstü yazıcıda kâğıt
+  dik girer, yatay A4 kâğıda yan basılıyordu ("normal basması lazım"). A5
+  yataydır, eni A4 dikeyin enine eşittir. Baskıda gövdenin ekran boyu
+  (`min-h-dvh`) sıfırlanır, yoksa tek sayfalık fiş boş ikinci sayfa açar.
+  Dekont düğmeleri **yeni sekmede** açılır: bayi yazdırıp sekmeyi kapatır,
+  sattığı ekran yerinde kalır. Her dekont şablonu iki gövde çizer: `dekont` (rulo,
   `.dk-rulo`) ve `dekont_tablo` (+ başlığın sağına `dekont_tablo_ust`,
   `.dk-tablo`); biçim hangisinin görüneceğini seçer. Dekonta bilgi eklersen
   **ikisine de** ekle. Faturada her fatura bir satırdır (kurum, abone no,
