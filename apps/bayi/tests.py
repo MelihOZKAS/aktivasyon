@@ -3154,3 +3154,143 @@ class AnaBayiTestleri(TestCase):
         )
         self.assertContains(yanit, "5551112233")
         self.assertNotContains(yanit, "5559998877")
+
+
+class UcretliSimTesti(TestCase):
+    """SIM kartın parası operatörde: alış (gider) ve bayiye satış.
+
+    Kart bayiye zimmetlenince satış bakiyesinden düşer, borca yazılmaz; 10
+    kartın toplamına bakiye yetmezse hiçbiri aktarılmaz. Geri alınınca iade
+    edilir. Kârlılık raporunda ayrı bölüm olarak görünür.
+    """
+
+    LISTE = "/yonetim/bayi/simkart/"
+
+    def setUp(self):
+        from decimal import Decimal
+
+        from django.contrib.auth.models import User
+
+        from apps.bayi.models import SimKart
+        from apps.finans.models import Cuzdan
+        from apps.katalog.models import Operator
+
+        self.operator = Operator.objects.create(
+            ad="Turkcell", sim_alis_fiyati=Decimal("120"), sim_satis_fiyati=Decimal("150")
+        )
+        self.bayi = User.objects.create_user("5321112233", password="parola12345")
+        self.cuzdan = Cuzdan.objects.create(bayi=self.bayi, bakiye=Decimal("400"))
+        self.kartlar = [
+            SimKart.objects.create(imei=f"89900000{i}", operator=self.operator) for i in range(3)
+        ]
+        self.yonetici = User.objects.create_superuser("yonetici", password="Panel-2026x")
+        self.client.force_login(self.yonetici)
+
+    def _ata(self, kartlar):
+        return self.client.post(
+            self.LISTE,
+            {"action": "bayiye_ata", "_selected_action": [k.pk for k in kartlar],
+             "uygula": "1", "bayi": self.bayi.pk},
+            follow=True,
+        )
+
+    def test_zimmette_bakiyeden_duser(self):
+        from decimal import Decimal
+
+        self._ata(self.kartlar[:2])
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("100.00"))
+        self.assertEqual(self.cuzdan.borc, Decimal("0"))
+        kart = self.kartlar[0]
+        kart.refresh_from_db()
+        self.assertEqual(kart.bayi, self.bayi)
+        self.assertEqual(kart.satis_fiyati, Decimal("150.00"))
+        self.assertEqual(kart.alis_fiyati, Decimal("120.00"))
+
+    def test_bakiye_yetmezse_hicbiri_aktarilmaz(self):
+        from decimal import Decimal
+
+        yanit = self._ata(self.kartlar)  # 450 ₺, bakiye 400
+
+        self.assertContains(yanit, "Hiçbir kart aktarılmadı")
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("400.00"))
+        for kart in self.kartlar:
+            kart.refresh_from_db()
+            self.assertIsNone(kart.bayi)
+
+    def test_geri_alininca_iade_edilir(self):
+        from decimal import Decimal
+
+        from apps.bayi.models import SimKartDurumu
+
+        self._ata(self.kartlar[:1])
+        self.client.post(
+            self.LISTE,
+            {"action": "bayiden_geri_al", "_selected_action": [self.kartlar[0].pk]},
+            follow=True,
+        )
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("400.00"))
+        kart = self.kartlar[0]
+        kart.refresh_from_db()
+        self.assertEqual(kart.durum, SimKartDurumu.BEKLEMEDE)
+        self.assertIsNone(kart.zimmet_tarihi)
+
+        # Yeniden zimmetlenince yine düşer: defter anahtarı sürümü içerir.
+        self._ata(self.kartlar[:1])
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("250.00"))
+
+    def test_toplu_ekle_bakiye_yetmezse_kart_acilmaz(self):
+        from apps.bayi.models import SimKart
+
+        yanit = self.client.post(
+            "/yonetim/bayi/simkart/toplu-ekle/",
+            {"operator": self.operator.pk, "bayi": self.bayi.pk, "aciklama": "",
+             "imeiler": "111\n222\n333"},
+        )
+
+        self.assertContains(yanit, "Hiçbir kart aktarılmadı")
+        self.assertFalse(SimKart.objects.filter(imei__in=["111", "222", "333"]).exists())
+
+    def test_tek_kart_formundan_bayi_secmek_ucretlidir(self):
+        from decimal import Decimal
+
+        kart = self.kartlar[0]
+        self.client.post(
+            f"{self.LISTE}{kart.pk}/change/",
+            {"imei": kart.imei, "operator": self.operator.pk, "bayi": self.bayi.pk,
+             "durum": "atandi", "basvuru": "", "aciklama": "", "iade_alinma_tarihi": "",
+             "yerine_verilen": "", "degisim_tarihi": ""},
+            follow=True,
+        )
+
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("250.00"))
+
+    def test_fiyatlar_listeden_girilir(self):
+        from decimal import Decimal
+
+        self.assertContains(self.client.get(self.LISTE), "SIM kart fiyatları")
+        self.client.post(
+            f"{self.LISTE}fiyatlar/",
+            {f"sim_alis_fiyati_{self.operator.pk}": "90",
+             f"sim_satis_fiyati_{self.operator.pk}": "100,50"},
+        )
+        self.operator.refresh_from_db()
+        self.assertEqual(self.operator.sim_alis_fiyati, Decimal("90.00"))
+        self.assertEqual(self.operator.sim_satis_fiyati, Decimal("100.50"))
+
+    def test_karlilik_raporunda_sim_bolumu(self):
+        self._ata(self.kartlar[:2])
+
+        yanit = self.client.get("/yonetim/rapor/")
+
+        sim = next(b for b in yanit.context["bolumler"] if b["kod"] == "sim")
+        self.assertEqual(sim["toplam"]["adet"], 2)
+        self.assertEqual(sim["toplam"]["satis"], 300)
+        self.assertEqual(sim["toplam"]["alis"], 240)
+        self.assertEqual(sim["toplam"]["kar"], 60)

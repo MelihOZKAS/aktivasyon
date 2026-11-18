@@ -221,7 +221,7 @@ def _satis_kirilimi(sorgu, alan, *etiket_alanlari, etiket=None):
     return sorted(satirlar, key=lambda s: s["kar"], reverse=True)
 
 
-def _satis_bolumu(kod, ad, sorgu, aciklama, kirilimlar):
+def _satis_bolumu(kod, ad, sorgu, aciklama, kirilimlar, tarih_alani="olusturma_tarihi"):
     """Bölüm: toplam, kırılımlar (sonda en çok kazandıran bayiler) ve gün → satır."""
     return {
         "kod": kod,
@@ -244,7 +244,7 @@ def _satis_bolumu(kod, ad, sorgu, aciklama, kirilimlar):
         ],
         "gunler": {
             ham["gun"]: _satis_satiri(ham)
-            for ham in sorgu.annotate(gun=TruncDate("olusturma_tarihi"))
+            for ham in sorgu.annotate(gun=TruncDate(tarih_alani))
             .values("gun")
             .annotate(**_satis_alanlari())
             .order_by()
@@ -315,6 +315,27 @@ def _fatura_bolumu(bas, bit):
     )
 
 
+def _sim_bolumu(bas, bit):
+    """Bayiye zimmetlenen SIM kartlar: bakiyesinden düşen satış, operatöre alış.
+
+    Gün zimmet günüdür. Zimmeti geri alınan kartın parası iade edildiği için
+    alanları boşalır ve sayılmaz. Bozuk kartın yerine verilen kart ücretsizdir,
+    zimmet kaydı yoktur.
+    """
+    from apps.bayi.models import SimKart
+
+    sorgu = SimKart.objects.filter(
+        zimmet_tarihi__gte=bas, zimmet_tarihi__lt=bit
+    ).annotate(rapor_satis=F("satis_fiyati"), rapor_alis=F("alis_fiyati"))
+    return _satis_bolumu(
+        "sim", "SIM Kart", sorgu,
+        "Aralıkta bayiye zimmetlenen SIM kartlar. Bayinin bakiyesinden düşen satış, "
+        "operatörden alışımız ve aradaki kâr. Zimmeti geri alınan kart sayılmaz.",
+        [("Operatöre göre", "Operatör", ("operator_id", "operator__ad"))],
+        tarih_alani="zimmet_tarihi",
+    )
+
+
 def _esim_bolumu(bas, bit):
     """eSIM satış bölümünün biçiminde (`apps.esim.rapor`): teslimat ve yükleme birlikte."""
     from apps.esim.rapor import esim_gunlugu, esim_raporu
@@ -382,9 +403,10 @@ def karlilik(request):
     toplam = _satir(ham, adet=ham["adet"] or 0)
     aktivasyon_gunleri = {s["etiket"]: s for s in _gunluk(sorgu, baslangic, bitis) if s["adet"]}
 
-    # Menüdeki sıra: kontör, fatura, oyun & pin, eSIM.
+    # Menüdeki sıra: kontör, fatura, oyun & pin, eSIM. SIM kart aktivasyonun
+    # malzemesidir, en sonda.
     kontor, oyun = _kontor_bolumleri(bas, bit)
-    bolumler = [kontor, _fatura_bolumu(bas, bit), oyun, _esim_bolumu(bas, bit)]
+    bolumler = [kontor, _fatura_bolumu(bas, bit), oyun, _esim_bolumu(bas, bit), _sim_bolumu(bas, bit)]
 
     return render(
         request,

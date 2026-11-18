@@ -1457,12 +1457,12 @@ class KarlilikRaporu(TestCase):
 
         self.assertEqual(len(gunluk["satirlar"]), 30)
         self.assertEqual(
-            gunluk["basliklar"], ["Aktivasyon", "Kontör", "Fatura", "Oyun & Pin", "eSIM"]
+            gunluk["basliklar"], ["Aktivasyon", "Kontör", "Fatura", "Oyun & Pin", "eSIM", "SIM Kart"]
         )
         # Bugün: yalnızca aktivasyonda iş var, öbür bölümlerin hücresi boş.
         bugun = gunluk["satirlar"][-1]
         self.assertEqual(bugun["gun"], self.bugun)
-        self.assertEqual(bugun["karlar"], [Decimal("150.00"), None, None, None, None])
+        self.assertEqual(bugun["karlar"], [Decimal("150.00"), None, None, None, None, None])
         self.assertEqual(bugun["kar"], Decimal("150.00"))
 
     def test_personel_olmayan_giremez(self):
@@ -1569,7 +1569,7 @@ class KarlilikRaporuSatisBolumleri(TestCase):
         yanit = self.client.get(self.ADRES)
         bolumler = self._bolumler(yanit)
 
-        self.assertEqual(list(bolumler), ["kontor", "fatura", "oyun", "esim"])
+        self.assertEqual(list(bolumler), ["kontor", "fatura", "oyun", "esim", "sim"])
         ozet = lambda kod: {
             ad: bolumler[kod]["toplam"][ad] for ad in ("adet", "satis", "alis", "kar", "eksik", "eksik_satis")
         }
@@ -1609,7 +1609,7 @@ class KarlilikRaporuSatisBolumleri(TestCase):
         self.assertEqual(
             [(s["kod"], s["kar"]) for s in genel["satirlar"]],
             [("aktivasyon", Decimal("0.00")), ("kontor", Decimal("10.00")), ("fatura", Decimal("23.25")),
-             ("oyun", Decimal("3.00")), ("esim", Decimal("0.00"))],
+             ("oyun", Decimal("3.00")), ("esim", Decimal("0.00")), ("sim", Decimal("0.00"))],
         )
         self.assertEqual(
             {ad: genel["toplam"][ad] for ad in ("adet", "gelir", "gider", "kar", "eksik")},
@@ -1618,9 +1618,9 @@ class KarlilikRaporuSatisBolumleri(TestCase):
         )
         gunler = {s["gun"]: s for s in yanit.context["gunluk"]["satirlar"]}
         self.assertEqual(
-            gunler[self.bugun]["karlar"], [None, Decimal("10.00"), Decimal("13.25"), Decimal("3.00"), None]
+            gunler[self.bugun]["karlar"], [None, Decimal("10.00"), Decimal("13.25"), Decimal("3.00"), None, None]
         )
-        self.assertEqual(gunler[self.dun]["karlar"], [None, None, Decimal("10.00"), None, None])
+        self.assertEqual(gunler[self.dun]["karlar"], [None, None, Decimal("10.00"), None, None, None])
         self.assertEqual(gunler[self.dun]["kar"], Decimal("10.00"))
 
     def test_sayfa(self):

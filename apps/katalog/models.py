@@ -40,6 +40,20 @@ class Operator(ZamanDamgali):
     sira = models.PositiveIntegerField("Sıra", default=0)
     aktif = models.BooleanField("Aktif", default=True)
 
+    # SIM kartın parası operatöre göre değişir. Alış operatöre ödediğimiz,
+    # satış bayiye zimmetlerken bakiyesinden düştüğümüzdür. İkisi ayrı tutulur:
+    # bugün kart çoğu zaman alış fiyatına geçiriliyor ama çalışma biçimi
+    # değişirse alan açmak gerekmesin. Rakamlar SIM Kart Stoğu listesinin
+    # üstünden girilir, zimmet anında karta kopyalanır.
+    sim_alis_fiyati = models.DecimalField(
+        "SIM Alış Fiyatı", max_digits=10, decimal_places=2, default=0,
+        help_text="Bir SIM kartın bize maliyeti. Kârlılık raporunda gider olarak düşer.",
+    )
+    sim_satis_fiyati = models.DecimalField(
+        "SIM Satış Fiyatı", max_digits=10, decimal_places=2, default=0,
+        help_text="Kart bayiye zimmetlenince bakiyesinden düşer. 0 ise ücretsiz verilir.",
+    )
+
     class Meta:
         verbose_name = "Operatör"
         verbose_name_plural = "Operatörler"

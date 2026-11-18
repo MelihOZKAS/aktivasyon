@@ -1729,6 +1729,32 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   ilk basışta jsDelivr'den SRI özetiyle yüklenir (iOS Safari). Kamera
   yalnızca HTTPS'te açılır; izin verilmezse ekran sebebini yazar. Klavye
   gibi yazan okuyucu cihaz da ayrıca bir şey gerektirmeden çalışır.
+- **SIM kartın bedeli zimmette bakiyeden düşer.** Bazı kartlar ücretli,
+  bayiye o yüzden yüksek hakediş veriliyordu ama kartın parası hiçbir yerde
+  tutulmuyordu. Fiyat **operatördedir** ve iki rakamdır: `sim_alis_fiyati`
+  (bize maliyeti) ve `sim_satis_fiyati` (bayiden alınan). Bugün kart çoğu
+  zaman alışına geçiriliyor ama yönetim ikisini ayrı istedi: çalışma biçimi
+  değişirse alan açmak gerekmesin. Rakamlar SIM Kart Stoğu listesinin
+  üstündeki kutulardan girilir (`SimKartAdmin.fiyatlari_kaydet`), her aktif
+  operatöre iki kutu, yeni operatör kendiliğinden gelir; 0 ücretsizdir.
+  · **Tek kapı `finans.services.sim_kartlari_zimmetle` /
+  `sim_zimmetini_kaldir`.** Kartı bayiye vermenin üç yolu da oradan geçer:
+  toplu ekle (bayi seçilirse), listedeki "bayiye zimmetle" ve kartın
+  sayfasındaki bayi alanı (`save_model`, ön denetim `SimKartAdminFormu`).
+  **Borca yazılmaz**, mağazadaki kuralın aynısı: kart elden çıkıyor.
+  **Hepsi ya da hiçbiri:** 10 kartın toplamına bakiye yetmezse hiçbiri
+  aktarılmaz, toplu eklemede kartlar hiç açılmaz, yönetici tutarı ve
+  bakiyeyi görür. Zimmet anındaki alış ve satış karta kopyalanır
+  (`SimKart.alis_fiyati/satis_fiyati/zimmet_tarihi`): fiyat sonra değişse de
+  ödenen tutar doğru kalır. Geri almak (listeden ya da bayi alanını boşaltmak)
+  ters kayıtla iade eder, `para_surumu` artar (defter anahtarı
+  `sim:<pk>:<sürüm>`). Başka bayiye taşımak önce eskisine iade eder.
+  Başvuru iptalinde kart bayinin stoğuna döner ve **iade yoktur**: kart hâlâ
+  bayinin elinde. **Bozuk kartın yerine verilen kart ücretsizdir**
+  (`sim_yerine_ver` servisten geçmez): bayi o kartın parasını zaten ödedi.
+  · Kârlılık raporunda ayrı **SIM Kart** bölümüdür (`rapor._sim_bolumu`):
+  satış − alış, gün zimmet günü, operatör ve bayi kırılımı. Geri alınan kart
+  sayılmaz.
 - **SIM kartlar bayiye zimmetlidir.** Bayi yalnızca kendisine atanmış ve
   "Bayiye Atandı" durumundaki kartlarla başvuru girebilir. Başvuru olumsuz
   sonuçlanınca kart otomatik olarak stoğa döner; kart fiziksel olarak bayide

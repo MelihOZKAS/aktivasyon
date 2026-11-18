@@ -51,6 +51,7 @@ def _hareket_yaz(
     aciklama="",
     basvuru=None,
     siparis=None,
+    sim_kart=None,
     kural=None,
     banka=None,
     olusturan=None,
@@ -83,6 +84,7 @@ def _hareket_yaz(
                 sonraki_borc=cuzdan.borc,
                 basvuru=basvuru,
                 siparis=siparis,
+                sim_kart=sim_kart,
                 kural=kural,
                 banka=banka,
                 idempotency_anahtari=idempotency_anahtari,
@@ -1001,3 +1003,141 @@ def siparis_durumunu_uygula(siparis, *, olusturan=None):
     if siparis.durum == SiparisDurumu.IPTAL:
         return siparis_odemesini_geri_al(siparis, olusturan=olusturan)
     return siparis_odemesini_isle(siparis, olusturan=olusturan)
+
+
+# --- SIM kart zimmeti --------------------------------------------------------
+#
+# Kart bayiye zimmetlenince operatörün SIM satış fiyatı bakiyesinden düşer.
+# **Borca yazılmaz**, mağazadaki kuralın aynısı: kart elden çıkıyor, parası
+# olmayana verilmez. Birden çok kartta hepsi ya da hiçbiri: 10 kartın
+# toplamına bakiye yetmezse hiçbiri aktarılmaz, yönetici sebebini görür.
+# Bozuk kartın yerine verilen kart buradan geçmez, ücretsizdir
+# (`bayi.services.sim_yerine_ver`).
+
+
+class SimAktarilamaz(Exception):
+    """Kartlar bayiye aktarılamadı; sebebi mesajda."""
+
+
+def _kilitli_kartlar(kartlar):
+    from apps.bayi.models import SimKart
+
+    idler = [k.pk for k in kartlar]
+    # `of=("self",)`: operatör boş olabilen FK, LEFT JOIN'in boş tarafını
+    # PostgreSQL kilitlemiyor.
+    return list(
+        SimKart.objects.select_for_update(of=("self",))
+        .select_related("operator")
+        .filter(pk__in=idler)
+        .order_by("pk")
+    )
+
+
+def _sim_parasini_iade_et(kart, *, olusturan=None):
+    hareketler = list(
+        kart.cuzdan_hareketleri.filter(ters_kayit__isnull=True, tip=HareketTipi.SIM_KART)
+    )
+    for hareket in hareketler:
+        cuzdan = Cuzdan.objects.select_for_update().get(pk=hareket.cuzdan_id)
+        ters = _hareket_yaz(
+            cuzdan=cuzdan,
+            tip=HareketTipi.IPTAL,
+            tutar=-hareket.tutar,
+            idempotency_anahtari=f"iptal:sim:{hareket.pk}",
+            aciklama=f"SIM {kart.imei} · zimmet geri alındı",
+            sim_kart=kart,
+            olusturan=olusturan,
+        )
+        if ters:
+            hareket.ters_kayit = ters
+            hareket.save(update_fields=["ters_kayit"])
+
+
+def _zimmeti_bosalt(kart, *, olusturan=None):
+    """Kartın parasını iade eder ve zimmet alanlarını boşaltır (kaydetmez)."""
+    _sim_parasini_iade_et(kart, olusturan=olusturan)
+    if kart.zimmet_tarihi is not None:
+        kart.para_surumu += 1
+    kart.zimmet_tarihi = None
+    kart.alis_fiyati = None
+    kart.satis_fiyati = None
+
+
+def sim_kartlari_zimmetle(kartlar, bayi, *, olusturan=None):
+    """Kartları bayiye zimmetler, satış fiyatlarını bakiyesinden düşer.
+
+    Kullanılmış ve arızalı kart atlanır, zaten bu bayide olan da. Başka
+    bayideki kart önce oradan geri alınır (parası iade edilir). Döner:
+    (aktarılan kart sayısı, düşülen toplam).
+    """
+    from apps.bayi.models import SimKartDurumu
+
+    with transaction.atomic():
+        kilitli = _kilitli_kartlar(kartlar)
+        aktarilacak = [
+            k for k in kilitli
+            if k.durum not in (SimKartDurumu.KULLANILDI, SimKartDurumu.ARIZALI)
+            and k.bayi_id != bayi.pk
+        ]
+        toplam = sum(
+            ((k.operator.sim_satis_fiyati if k.operator else SIFIR) for k in aktarilacak),
+            SIFIR,
+        )
+        cuzdan = _cuzdani_getir(bayi.pk)
+        if toplam > SIFIR and cuzdan.bakiye < toplam:
+            raise SimAktarilamaz(
+                f"{len(aktarilacak)} kartın bedeli {toplam:.2f} ₺, bayinin bakiyesi "
+                f"{cuzdan.bakiye:.2f} ₺. Kart bakiyeden düşülür, borca yazılmaz. "
+                "Hiçbir kart aktarılmadı."
+            )
+
+        simdi = timezone.now()
+        for kart in aktarilacak:
+            if kart.bayi_id:
+                _zimmeti_bosalt(kart, olusturan=olusturan)
+            satis = kart.operator.sim_satis_fiyati if kart.operator else SIFIR
+            kart.bayi = bayi
+            kart.durum = SimKartDurumu.ATANDI
+            kart.zimmet_tarihi = simdi
+            kart.alis_fiyati = kart.operator.sim_alis_fiyati if kart.operator else SIFIR
+            kart.satis_fiyati = satis
+            kart.save()
+            if satis > SIFIR:
+                _hareket_yaz(
+                    cuzdan=cuzdan,
+                    tip=HareketTipi.SIM_KART,
+                    tutar=-satis,
+                    idempotency_anahtari=f"sim:{kart.pk}:{kart.para_surumu}",
+                    aciklama=f"SIM {kart.imei} · {kart.operator}",
+                    sim_kart=kart,
+                    olusturan=olusturan,
+                )
+        return len(aktarilacak), toplam
+
+
+def sim_zimmetini_kaldir(kartlar, *, olusturan=None):
+    """Kartları bayiden geri alır, stoğa (Beklemede) döndürür, parasını iade eder.
+
+    Kullanılmış kart bir başvuruya bağlıdır, arızalı kart arıza takibindedir;
+    ikisine de dokunulmaz. Döner: geri alınan kart sayısı.
+    """
+    from apps.bayi.models import SimKartDurumu
+
+    with transaction.atomic():
+        adet = 0
+        for kart in _kilitli_kartlar(kartlar):
+            if kart.durum in (SimKartDurumu.KULLANILDI, SimKartDurumu.ARIZALI):
+                continue
+            _zimmeti_bosalt(kart, olusturan=olusturan)
+            kart.bayi = None
+            kart.durum = SimKartDurumu.BEKLEMEDE
+            kart.save()
+            adet += 1
+        return adet
+
+
+def sim_bedeli_yeterli_mi(bayi, tutar):
+    """Formun ön denetimi: bakiye tutara yetiyor mu? (yetiyor_mu, bakiye)"""
+    cuzdan = Cuzdan.objects.filter(bayi=bayi).first()
+    bakiye = cuzdan.bakiye if cuzdan else SIFIR
+    return tutar <= SIFIR or bakiye >= tutar, bakiye

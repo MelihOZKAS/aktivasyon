@@ -161,6 +161,7 @@ class HareketTipi(models.TextChoices):
     BORC_TAHSIL = "borc_tahsil", "Borç Tahsilatı"
     IADE = "iade", "Bayiye İade / Ödeme"
     SIPARIS = "siparis", "Ürün Siparişi"
+    SIM_KART = "sim_kart", "SIM Kart Bedeli"
     DUZELTME = "duzeltme", "Manuel Düzeltme"
     IPTAL = "iptal", "İptal / Ters Kayıt"
 
@@ -284,6 +285,14 @@ class CuzdanHareketi(models.Model):
     siparis = models.ForeignKey(
         "magaza.Siparis",
         verbose_name="Kaynak Sipariş",
+        related_name="cuzdan_hareketleri",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    sim_kart = models.ForeignKey(
+        "bayi.SimKart",
+        verbose_name="Kaynak SIM Kart",
         related_name="cuzdan_hareketleri",
         null=True,
         blank=True,

@@ -170,6 +170,22 @@ class SimKart(ZamanDamgali):
     )
     aciklama = models.CharField("Açıklama", max_length=255, blank=True)
 
+    # --- zimmet parası ---
+    # Kart bayiye zimmetlenince operatörün SIM satış fiyatı bakiyesinden düşer
+    # (`finans.services.sim_kartlari_zimmetle`). O anki alış ve satış karta
+    # kopyalanır: operatörün fiyatı sonra değişse de ödenen ve kâra yazılan
+    # tutar doğru kalır. Zimmet geri alınınca para iade edilir, alanlar
+    # boşalır ve sürüm artar (defter anahtarı sürümü içerir). Bozuk kartın
+    # yerine verilen kartta bu alanlar boştur: o kart ücretsizdir.
+    zimmet_tarihi = models.DateTimeField("Zimmet Tarihi", null=True, blank=True, editable=False)
+    alis_fiyati = models.DecimalField(
+        "Alış", max_digits=10, decimal_places=2, null=True, blank=True, editable=False
+    )
+    satis_fiyati = models.DecimalField(
+        "Bayiye Satış", max_digits=10, decimal_places=2, null=True, blank=True, editable=False
+    )
+    para_surumu = models.PositiveIntegerField(default=0, editable=False)
+
     # --- arıza takibi (yalnızca Arızalı kartta anlamlı) ---
     # Bozuk kart üç adımda kapanır: bayiden alınır, yerine bayiye stoktan
     # kart verilir, operatörden değişimi gelir. Para hiç oynamaz: bayi
