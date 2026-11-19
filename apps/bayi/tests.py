@@ -3159,9 +3159,8 @@ class AnaBayiTestleri(TestCase):
 class UcretliSimTesti(TestCase):
     """SIM kartın parası operatörde: alış (gider) ve bayiye satış.
 
-    Kart bayiye zimmetlenince satış bakiyesinden düşer, borca yazılmaz; 10
-    kartın toplamına bakiye yetmezse hiçbiri aktarılmaz. Geri alınınca iade
-    edilir. Kârlılık raporunda ayrı bölüm olarak görünür.
+    Kart bayiye zimmetlenince satış bakiyesinden düşer, yetmezse kalanı borca
+    yazılır; bir aktarım tek harekettir. Geri alınınca iade önce borcu kapatır. Kârlılık raporunda ayrı bölüm olarak görünür.
     """
 
     LISTE = "/yonetim/bayi/simkart/"
@@ -3208,17 +3207,33 @@ class UcretliSimTesti(TestCase):
         self.assertEqual(kart.satis_fiyati, Decimal("150.00"))
         self.assertEqual(kart.alis_fiyati, Decimal("120.00"))
 
-    def test_bakiye_yetmezse_hicbiri_aktarilmaz(self):
+    def test_bakiye_yetmezse_kalani_borca_yazilir(self):
         from decimal import Decimal
 
-        yanit = self._ata(self.kartlar)  # 450 ₺, bakiye 400
+        self._ata(self.kartlar)  # 450 ₺, bakiye 400
 
-        self.assertContains(yanit, "Hiçbir kart aktarılmadı")
         self.cuzdan.refresh_from_db()
-        self.assertEqual(self.cuzdan.bakiye, Decimal("400.00"))
+        self.assertEqual(self.cuzdan.bakiye, Decimal("0.00"))
+        self.assertEqual(self.cuzdan.borc, Decimal("50.00"))
         for kart in self.kartlar:
             kart.refresh_from_db()
-            self.assertIsNone(kart.bayi)
+            self.assertEqual(kart.bayi, self.bayi)
+
+        # Tek aktarım: bakiye ve borç kısmı, açıklama IMEI sonlarıyla.
+        hareketler = list(self.cuzdan.hareketler.all())
+        self.assertEqual(len(hareketler), 2)
+        self.assertIn("3 kart", hareketler[0].aciklama)
+        self.assertIn("…00002", hareketler[0].aciklama)
+
+        # Geri alınınca iade önce borcu kapatır.
+        self.client.post(
+            self.LISTE,
+            {"action": "bayiden_geri_al", "_selected_action": [k.pk for k in self.kartlar]},
+            follow=True,
+        )
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.borc, Decimal("0.00"))
+        self.assertEqual(self.cuzdan.bakiye, Decimal("400.00"))
 
     def test_geri_alininca_iade_edilir(self):
         from decimal import Decimal
@@ -3244,17 +3259,21 @@ class UcretliSimTesti(TestCase):
         self.cuzdan.refresh_from_db()
         self.assertEqual(self.cuzdan.bakiye, Decimal("250.00"))
 
-    def test_toplu_ekle_bakiye_yetmezse_kart_acilmaz(self):
+    def test_toplu_ekle_bayiye_bedel_yazar(self):
+        from decimal import Decimal
+
         from apps.bayi.models import SimKart
 
-        yanit = self.client.post(
+        self.client.post(
             "/yonetim/bayi/simkart/toplu-ekle/",
             {"operator": self.operator.pk, "bayi": self.bayi.pk, "aciklama": "",
              "imeiler": "111\n222\n333"},
         )
 
-        self.assertContains(yanit, "Hiçbir kart aktarılmadı")
-        self.assertFalse(SimKart.objects.filter(imei__in=["111", "222", "333"]).exists())
+        self.assertEqual(SimKart.objects.filter(imei__in=["111", "222", "333"], bayi=self.bayi).count(), 3)
+        self.cuzdan.refresh_from_db()
+        self.assertEqual(self.cuzdan.bakiye, Decimal("0.00"))
+        self.assertEqual(self.cuzdan.borc, Decimal("50.00"))
 
     def test_tek_kart_formundan_bayi_secmek_ucretlidir(self):
         from decimal import Decimal
@@ -3331,4 +3350,4 @@ class UcretliSimTesti(TestCase):
         self.assertEqual(self.cuzdan.bakiye, Decimal("250.00"))
         kart.refresh_from_db()
         self.assertEqual(kart.bayi, self.bayi)
-        self.assertEqual(kart.cuzdan_hareketleri.filter(tip="sim_kart", ters_kayit__isnull=True).count(), 1)
+        self.assertEqual(kart.odeyen, self.bayi)

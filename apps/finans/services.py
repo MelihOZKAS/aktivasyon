@@ -1007,16 +1007,16 @@ def siparis_durumunu_uygula(siparis, *, olusturan=None):
 
 # --- SIM kart zimmeti --------------------------------------------------------
 #
-# Kart bayiye zimmetlenince operatörün SIM satış fiyatı bakiyesinden düşer.
-# **Borca yazılmaz**, mağazadaki kuralın aynısı: kart elden çıkıyor, parası
-# olmayana verilmez. Birden çok kartta hepsi ya da hiçbiri: 10 kartın
-# toplamına bakiye yetmezse hiçbiri aktarılmaz, yönetici sebebini görür.
+# Kart bayiye zimmetlenince operatörün SIM satış fiyatı cüzdanına işlenir.
+# **Bakiye kontrolü yoktur:** bakiye yettiği kadar bakiyeden düşer, kalanı
+# borca yazılır (başvurudaki tahsilatın aynısı). Kartı yönetim veriyor,
+# parası o kartlarla gelen hakedişten kendiliğinden kapanır: bayiye giren
+# her kuruş önce borcu kapatır. Bayiyi durdurmak gerekirse cüzdandaki
+# `islem_yapabilir` kapatılır. Bir aktarım bir harekettir (bakiye ve borç
+# kısmı ayrı satır), açıklaması kart sayısı ve IMEI'lerin son haneleridir:
+# on kart bayinin cüzdanında on satır olmasın.
 # Bozuk kartın yerine verilen kart buradan geçmez, ücretsizdir
 # (`bayi.services.sim_yerine_ver`).
-
-
-class SimAktarilamaz(Exception):
-    """Kartlar bayiye aktarılamadı; sebebi mesajda."""
 
 
 def _kilitli_kartlar(kartlar):
@@ -1033,42 +1033,76 @@ def _kilitli_kartlar(kartlar):
     )
 
 
-def _sim_parasini_iade_et(kart, *, olusturan=None):
-    hareketler = list(
-        kart.cuzdan_hareketleri.filter(ters_kayit__isnull=True, tip=HareketTipi.SIM_KART)
-    )
-    for hareket in hareketler:
-        cuzdan = Cuzdan.objects.select_for_update().get(pk=hareket.cuzdan_id)
-        ters = _hareket_yaz(
-            cuzdan=cuzdan,
-            tip=HareketTipi.IPTAL,
-            tutar=-hareket.tutar,
-            idempotency_anahtari=f"iptal:sim:{hareket.pk}",
-            aciklama=f"SIM {kart.imei} · zimmet geri alındı",
-            sim_kart=kart,
-            olusturan=olusturan,
-        )
-        if ters:
-            hareket.ters_kayit = ters
-            hareket.save(update_fields=["ters_kayit"])
+def _imei_ozeti(kartlar, sinir=12):
+    """"…34455, …34456 (+3)": bayi kartı elindekiyle eşleştirsin, satır taşmasın."""
+    sonlar = [f"…{k.imei[-5:]}" for k in kartlar]
+    kalan = len(sonlar) - sinir
+    return ", ".join(sonlar[:sinir]) + (f" (+{kalan})" if kalan > 0 else "")
 
 
-def _zimmeti_bosalt(kart, *, olusturan=None):
-    """Kartın parasını iade eder ve zimmet alanlarını boşaltır (kaydetmez)."""
-    _sim_parasini_iade_et(kart, olusturan=olusturan)
+def _sim_aciklamasi(baslik, kartlar):
+    operatorler = sorted({str(k.operator) for k in kartlar if k.operator_id})
+    metin = f"{baslik} · {len(kartlar)} kart"
+    if operatorler:
+        metin += " · " + ", ".join(operatorler)
+    return (metin + " · " + _imei_ozeti(kartlar))[:255]
+
+
+def _sim_iadeleri_yaz(iadeler, *, olusturan=None):
+    """{kullanıcı_id: [(kart, tutar), ...]} → her cüzdana tek iade. Giren para önce borcu kapatır."""
+    import uuid
+
+    for kullanici_id, satirlar in iadeler.items():
+        kartlar = [k for k, _ in satirlar]
+        tutar = sum((t for _, t in satirlar), SIFIR)
+        if tutar <= SIFIR:
+            continue
+        cuzdan = _cuzdani_getir(kullanici_id)
+        anahtar = f"sim-iade:{uuid.uuid4().hex}"
+        aciklama = _sim_aciklamasi("SIM zimmeti geri alındı", kartlar)
+        borctan = min(tutar, cuzdan.borc)
+        bakiyeye = tutar - borctan
+        if borctan > SIFIR:
+            _hareket_yaz(
+                cuzdan=cuzdan, tip=HareketTipi.BORC_TAHSIL, tutar=-borctan,
+                idempotency_anahtari=f"{anahtar}:borc", aciklama=aciklama,
+                olusturan=olusturan, borca_yaz=True,
+            )
+        if bakiyeye > SIFIR:
+            _hareket_yaz(
+                cuzdan=cuzdan, tip=HareketTipi.IPTAL, tutar=bakiyeye,
+                idempotency_anahtari=f"{anahtar}:bakiye", aciklama=aciklama,
+                olusturan=olusturan,
+            )
+
+
+def _zimmeti_bosalt(kart, iadeler):
+    """Kartın zimmet alanlarını boşaltır (kaydetmez), iadesini listeye ekler.
+
+    İade kartın kendi kaydından okunur: kime (`odeyen`, eski kayıtta bayi)
+    ve ne kadar (`satis_fiyati`). Alanlar aynı transaction'da, satır kilidi
+    altında boşaldığı için aynı kart iki kez iade edilmez.
+    """
+    if kart.zimmet_tarihi is not None and kart.satis_fiyati:
+        odeyen = kart.odeyen_id or kart.bayi_id
+        if odeyen:
+            iadeler.setdefault(odeyen, []).append((kart, kart.satis_fiyati))
     kart.para_surumu += 1
     kart.zimmet_tarihi = None
     kart.alis_fiyati = None
     kart.satis_fiyati = None
+    kart.odeyen = None
 
 
 def sim_kartlari_zimmetle(kartlar, bayi, *, olusturan=None):
-    """Kartları bayiye zimmetler, satış fiyatlarını bakiyesinden düşer.
+    """Kartları bayiye zimmetler, bedelini cüzdanına (bakiye, yetmezse borç) yazar.
 
     Kullanılmış ve arızalı kart atlanır, zaten bu bayide olan da. Başka
-    bayideki kart önce oradan geri alınır (parası iade edilir). Döner:
-    (aktarılan kart sayısı, düşülen toplam).
+    bayideki ya da eski zimmetinin izi kalmış kart önce iade edilir.
+    Döner: (aktarılan kart sayısı, işlenen toplam).
     """
+    import uuid
+
     from apps.bayi.models import SimKartDurumu
 
     with transaction.atomic():
@@ -1078,58 +1112,49 @@ def sim_kartlari_zimmetle(kartlar, bayi, *, olusturan=None):
             if k.durum not in (SimKartDurumu.KULLANILDI, SimKartDurumu.ARIZALI)
             and k.bayi_id != bayi.pk
         ]
-        toplam = sum(
-            ((k.operator.sim_satis_fiyati if k.operator else SIFIR) for k in aktarilacak),
-            SIFIR,
-        )
-        cuzdan = _cuzdani_getir(bayi.pk)
-        if toplam > SIFIR and cuzdan.bakiye < toplam:
-            raise SimAktarilamaz(
-                f"{len(aktarilacak)} kartın bedeli {toplam:.2f} ₺, bayinin bakiyesi "
-                f"{cuzdan.bakiye:.2f} ₺. Kart bakiyeden düşülür, borca yazılmaz. "
-                "Hiçbir kart aktarılmadı."
-            )
-
+        iadeler = {}
         simdi = timezone.now()
+        toplam = SIFIR
         for kart in aktarilacak:
-            # Önceki zimmetin izi (bayisi başka yoldan boşaltılmış olsa da)
-            # önce kapanır: iade edilir ve sürüm artar, defter anahtarı
-            # yeniden kullanılmaz.
-            if kart.bayi_id or kart.zimmet_tarihi is not None or kart.cuzdan_hareketleri.filter(
-                tip=HareketTipi.SIM_KART, ters_kayit__isnull=True
-            ).exists():
-                _zimmeti_bosalt(kart, olusturan=olusturan)
-                # İade aynı bayinin cüzdanına yazılmış olabilir; elimizdeki
-                # kopya eskidi, üstüne yazarsak iade kaybolur.
-                cuzdan.refresh_from_db()
+            if kart.bayi_id or kart.zimmet_tarihi is not None:
+                _zimmeti_bosalt(kart, iadeler)
             satis = kart.operator.sim_satis_fiyati if kart.operator else SIFIR
             kart.bayi = bayi
             kart.durum = SimKartDurumu.ATANDI
             kart.zimmet_tarihi = simdi
             kart.alis_fiyati = kart.operator.sim_alis_fiyati if kart.operator else SIFIR
             kart.satis_fiyati = satis
+            kart.odeyen = bayi
             kart.save()
-            if satis > SIFIR:
-                hareket = _hareket_yaz(
-                    cuzdan=cuzdan,
-                    tip=HareketTipi.SIM_KART,
-                    tutar=-satis,
-                    idempotency_anahtari=f"sim:{kart.pk}:{kart.para_surumu}",
-                    aciklama=f"SIM {kart.imei} · {kart.operator}",
-                    sim_kart=kart,
+            toplam += satis
+
+        # Önce iadeler: aynı bayinin eski zimmeti varsa cüzdanı güncel okunur.
+        _sim_iadeleri_yaz(iadeler, olusturan=olusturan)
+
+        if toplam > SIFIR:
+            cuzdan = _cuzdani_getir(bayi.pk)
+            anahtar = f"sim-zimmet:{uuid.uuid4().hex}"
+            ucretli = [k for k in aktarilacak if k.satis_fiyati]
+            aciklama = _sim_aciklamasi("SIM zimmeti", ucretli)
+            bakiyeden = min(toplam, max(cuzdan.bakiye, SIFIR))
+            borca = toplam - bakiyeden
+            if bakiyeden > SIFIR:
+                _hareket_yaz(
+                    cuzdan=cuzdan, tip=HareketTipi.SIM_KART, tutar=-bakiyeden,
+                    idempotency_anahtari=f"{anahtar}:bakiye", aciklama=aciklama,
                     olusturan=olusturan,
                 )
-                if hareket is None:
-                    # Anahtar çarptı: kart parasız verilmiş olurdu. Hepsi geri alınır.
-                    raise SimAktarilamaz(
-                        f"{kart.imei} kartının bedeli yazılamadı (tekrarlanan kayıt). "
-                        "Hiçbir kart aktarılmadı."
-                    )
+            if borca > SIFIR:
+                _hareket_yaz(
+                    cuzdan=cuzdan, tip=HareketTipi.BORC_EKLE, tutar=borca,
+                    idempotency_anahtari=f"{anahtar}:borc", aciklama=f"{aciklama} (borç)"[:255],
+                    olusturan=olusturan, borca_yaz=True,
+                )
         return len(aktarilacak), toplam
 
 
 def sim_zimmetini_kaldir(kartlar, *, olusturan=None):
-    """Kartları bayiden geri alır, stoğa (Beklemede) döndürür, parasını iade eder.
+    """Kartları bayiden geri alır, stoğa (Beklemede) döndürür, bedelini iade eder.
 
     Kullanılmış kart bir başvuruya bağlıdır, arızalı kart arıza takibindedir;
     ikisine de dokunulmaz. Döner: geri alınan kart sayısı.
@@ -1137,20 +1162,15 @@ def sim_zimmetini_kaldir(kartlar, *, olusturan=None):
     from apps.bayi.models import SimKartDurumu
 
     with transaction.atomic():
+        iadeler = {}
         adet = 0
         for kart in _kilitli_kartlar(kartlar):
             if kart.durum in (SimKartDurumu.KULLANILDI, SimKartDurumu.ARIZALI):
                 continue
-            _zimmeti_bosalt(kart, olusturan=olusturan)
+            _zimmeti_bosalt(kart, iadeler)
             kart.bayi = None
             kart.durum = SimKartDurumu.BEKLEMEDE
             kart.save()
             adet += 1
+        _sim_iadeleri_yaz(iadeler, olusturan=olusturan)
         return adet
-
-
-def sim_bedeli_yeterli_mi(bayi, tutar):
-    """Formun ön denetimi: bakiye tutara yetiyor mu? (yetiyor_mu, bakiye)"""
-    cuzdan = Cuzdan.objects.filter(bayi=bayi).first()
-    bakiye = cuzdan.bakiye if cuzdan else SIFIR
-    return tutar <= SIFIR or bakiye >= tutar, bakiye

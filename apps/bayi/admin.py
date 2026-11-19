@@ -43,8 +43,6 @@ from apps.bayi.services import HesapAcilamadi, bayi_hesabi_ac
 from apps.bayi.telefon import normalize
 from apps.finans.models import Cuzdan
 from apps.finans.services import (
-    SimAktarilamaz,
-    sim_bedeli_yeterli_mi,
     sim_kartlari_zimmetle,
     sim_zimmetini_kaldir,
 )
@@ -358,7 +356,7 @@ class BayiProfiliAdmin(AnaBayiKutusu, KapaliKategoriKutusu, ModelAdmin):
 
 
 class SimKartAdminFormu(forms.ModelForm):
-    """Bayi seçilen kartta satış fiyatına bakiye yetiyor mu, kaydetmeden söyler."""
+    """Kullanılmış ya da arızalı kartın bayisi buradan değişmez (para atlanırdı)."""
 
     class Meta:
         model = SimKart
@@ -368,7 +366,6 @@ class SimKartAdminFormu(forms.ModelForm):
 
     def clean(self):
         veri = super().clean()
-        bayi, operator = veri.get("bayi"), veri.get("operator")
         durum = veri.get("durum")
         # Bayi yalnızca stoktaki ya da zimmetli kartta değişir ve o zaman
         # para servisten geçer. Kullanılmış/arızalı kartta (ya da aynı anda
@@ -383,19 +380,6 @@ class SimKartAdminFormu(forms.ModelForm):
                 "değiştirmek için kart stokta ya da zimmetli olmalı, durumu ayrı kaydedin.",
             )
             return veri
-        if (
-            bayi
-            and operator
-            and "bayi" in self.changed_data
-            and durum not in (SimKartDurumu.KULLANILDI, SimKartDurumu.ARIZALI)
-        ):
-            yeterli, bakiye = sim_bedeli_yeterli_mi(bayi, operator.sim_satis_fiyati)
-            if not yeterli:
-                self.add_error(
-                    "bayi",
-                    f"Kartın bedeli {operator.sim_satis_fiyati:.2f} ₺, bayinin bakiyesi "
-                    f"{bakiye:.2f} ₺. Kart bakiyeden düşülür, borca yazılmaz.",
-                )
         return veri
 
 
@@ -569,7 +553,7 @@ class SimKartAdmin(ModelAdmin):
             {
                 "fields": ("zimmet_tarihi", "satis_fiyati", "alis_fiyati"),
                 "description": (
-                    "Kart bayiye zimmetlenince operatörün SIM satış fiyatı bakiyesinden "
+                    "Kart bayiye zimmetlenince operatörün SIM satış fiyatı cüzdanına yazılır (bakiyeden, yetmezse borca) "
                     "düşer, bayiyi değiştirmek ya da boşaltmak parayı iade eder. "
                     "Fiyatlar SIM Kart Stoğu listesinin üstünden girilir."
                 ),
@@ -695,14 +679,10 @@ class SimKartAdmin(ModelAdmin):
 
         obj.bayi_id = eski_bayi_id
         super().save_model(request, obj, form, change)
-        try:
-            with transaction.atomic():
-                if yeni_bayi:
-                    sim_kartlari_zimmetle([obj], yeni_bayi, olusturan=request.user)
-                else:
-                    sim_zimmetini_kaldir([obj], olusturan=request.user)
-        except SimAktarilamaz as hata:
-            self.message_user(request, str(hata), messages.ERROR)
+        if yeni_bayi:
+            sim_kartlari_zimmetle([obj], yeni_bayi, olusturan=request.user)
+        else:
+            sim_zimmetini_kaldir([obj], olusturan=request.user)
         obj.refresh_from_db()
 
     # -- arıza takibi -----------------------------------------------------
@@ -848,38 +828,24 @@ class SimKartAdmin(ModelAdmin):
         yeniler = [n for n in numaralar if n not in kayitli]
 
         # Kartlar önce stoğa girer, bayi seçildiyse aynı transaction'da
-        # zimmet servisinden geçer: satış fiyatı bakiyeden düşer. Bakiye
-        # toplamına yetmezse hiçbir kart açılmaz, form yerinde kalır.
-        try:
-            with transaction.atomic():
-                SimKart.objects.bulk_create(
-                    [
-                        SimKart(
-                            imei=imei,
-                            operator=form.cleaned_data["operator"],
-                            durum=SimKartDurumu.BEKLEMEDE,
-                            aciklama=form.cleaned_data["aciklama"],
-                        )
-                        for imei in yeniler
-                    ]
-                )
-                if bayi and yeniler:
-                    sim_kartlari_zimmetle(
-                        list(SimKart.objects.filter(imei__in=yeniler)), bayi,
-                        olusturan=request.user,
+        # zimmet servisinden geçer: bedel cüzdana (bakiye, yetmezse borç) yazılır.
+        with transaction.atomic():
+            SimKart.objects.bulk_create(
+                [
+                    SimKart(
+                        imei=imei,
+                        operator=form.cleaned_data["operator"],
+                        durum=SimKartDurumu.BEKLEMEDE,
+                        aciklama=form.cleaned_data["aciklama"],
                     )
-        except SimAktarilamaz as hata:
-            form.add_error(None, str(hata))
-            return render(
-                request,
-                "admin/bayi/toplu_sim.html",
-                {
-                    **self.admin_site.each_context(request),
-                    "title": "Toplu SIM kart ekle",
-                    "form": form,
-                    "opts": self.model._meta,
-                },
+                    for imei in yeniler
+                ]
             )
+            if bayi and yeniler:
+                sim_kartlari_zimmetle(
+                    list(SimKart.objects.filter(imei__in=yeniler)), bayi,
+                    olusturan=request.user,
+                )
 
         if yeniler:
             nereye = (
@@ -959,22 +925,16 @@ class SimKartAdmin(ModelAdmin):
             if form.is_valid():
                 bayi = form.cleaned_data["bayi"]
                 # Kullanılmış kart başka bayiye devredilmez; arızalı kart
-                # zimmetlenirse "sağlam" görünüp başvuruya girerdi. Satış
-                # fiyatı bakiyeden düşer, yetmezse hiçbiri aktarılmaz.
-                try:
-                    adet, toplam = sim_kartlari_zimmetle(
-                        list(secilenler), bayi, olusturan=request.user
-                    )
-                except SimAktarilamaz as hata:
-                    self.message_user(
-                        request, f"{kullanici_etiketi(bayi)}: {hata}", messages.ERROR
-                    )
-                    return None
+                # zimmetlenirse "sağlam" görünüp başvuruya girerdi. Bedel
+                # cüzdana yazılır: bakiyeden, yetmezse borca.
+                adet, toplam = sim_kartlari_zimmetle(
+                    list(secilenler), bayi, olusturan=request.user
+                )
                 atlanan = secilenler.count() - adet
                 self.message_user(
                     request,
                     f"{adet} SIM kart {kullanici_etiketi(bayi)} bayisine zimmetlendi"
-                    + (f", bakiyesinden {toplam:.2f} ₺ düşüldü" if toplam else "")
+                    + (f", {toplam:.2f} ₺ bedel cüzdanına yazıldı" if toplam else "")
                     + (
                         f", {atlanan} tanesi kullanılmış, arızalı ya da zaten bu bayide olduğu için atlandı."
                         if atlanan

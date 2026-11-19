@@ -28,7 +28,7 @@
 {% if sim_fiyatlari %}
 {% comment %}
   SIM kartın parası operatöre göre: alış (bize maliyeti, kârlılık raporunda
-  gider) ve bayiye satış (zimmette bakiyesinden düşer, borca yazılmaz).
+  gider) ve bayiye satış (zimmette bakiyesinden, yetmezse borca yazılır).
   Değerler operatör kaydında durur, yeni operatörün kutusu kendiliğinden gelir.
 {% endcomment %}
 <form method="post" action="{% url 'admin:bayi_simkart_fiyatlar' %}"
@@ -37,7 +37,7 @@
   {% csrf_token %}
   <div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.5rem;margin-bottom:.75rem">
     <h2 class="font-semibold text-font-important-light dark:text-font-important-dark">SIM kart fiyatları</h2>
-    <p class="text-xs text-base-500">Satış, kart bayiye zimmetlenince bakiyesinden düşer. Bakiye yetmezse kart aktarılmaz. Alış, kârlılık raporunda gider olarak yazılır. 0 bırakılan ücretsizdir.</p>
+    <p class="text-xs text-base-500">Satış, kart bayiye zimmetlenince bakiyesinden düşer. Bakiye yetmezse kalanı borca yazılır, hakedişten kapanır. Alış, kârlılık raporunda gider olarak yazılır. 0 bırakılan ücretsizdir.</p>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.75rem">
     {% for op in sim_fiyatlari %}

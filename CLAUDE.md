@@ -1729,29 +1729,41 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   ilk basışta jsDelivr'den SRI özetiyle yüklenir (iOS Safari). Kamera
   yalnızca HTTPS'te açılır; izin verilmezse ekran sebebini yazar. Klavye
   gibi yazan okuyucu cihaz da ayrıca bir şey gerektirmeden çalışır.
-- **SIM kartın bedeli zimmette bakiyeden düşer.** Bazı kartlar ücretli,
-  bayiye o yüzden yüksek hakediş veriliyordu ama kartın parası hiçbir yerde
-  tutulmuyordu. Fiyat **operatördedir** ve iki rakamdır: `sim_alis_fiyati`
-  (bize maliyeti) ve `sim_satis_fiyati` (bayiden alınan). Bugün kart çoğu
-  zaman alışına geçiriliyor ama yönetim ikisini ayrı istedi: çalışma biçimi
-  değişirse alan açmak gerekmesin. Rakamlar SIM Kart Stoğu listesinin
-  üstündeki kutulardan girilir (`SimKartAdmin.fiyatlari_kaydet`), her aktif
-  operatöre iki kutu, yeni operatör kendiliğinden gelir; 0 ücretsizdir.
+- **SIM kartın bedeli zimmette bayinin cüzdanına yazılır.** Bazı kartlar
+  ücretli, bayiye o yüzden yüksek hakediş veriliyordu ama kartın parası
+  hiçbir yerde tutulmuyordu. Fiyat **operatördedir** ve iki rakamdır:
+  `sim_alis_fiyati` (bize maliyeti) ve `sim_satis_fiyati` (bayiden alınan).
+  Bugün kart çoğu zaman alışına geçiriliyor ama yönetim ikisini ayrı istedi:
+  çalışma biçimi değişirse alan açmak gerekmesin. Rakamlar SIM Kart Stoğu
+  listesinin üstündeki kutulardan girilir (`SimKartAdmin.fiyatlari_kaydet`),
+  her aktif operatöre iki kutu, yeni operatör kendiliğinden gelir; 0
+  ücretsizdir.
+  · **Bakiye kontrolü yoktur: bakiye yettiği kadar bakiyeden, kalanı
+  borca** (başvurudaki tahsilatın aynısı). İlk sürümde bakiye yetmezse kart
+  aktarılmıyordu; yönetim her seferinde bakiye açmakla uğraştı ve "direkt
+  borç olsun, hakediş gelince zaten borçtan düşüyor" dedi. Kartı yönetim
+  veriyor, bayi kendisi almıyor; bu yüzden kontör, fatura, eSIM ve
+  mağazadaki "borca yazılmaz" kuralı burada geçerli değildir. Bayiyi
+  durdurmak gerekirse `islem_yapabilir` kapatılır.
+  · **Bir aktarım bir harekettir** (bakiye ve borç kısmı ayrı satır):
+  açıklama kart sayısı, operatör ve IMEI'lerin son beş hanesidir
+  ("SIM zimmeti · 10 kart · Turkcell · …34455, …34456 (+8)"). On kart
+  bayinin cüzdanında on satır olmasın. İade de cüzdan başına tek harekettir
+  ve giren para olduğu için **önce borcu kapatır**, kalanı bakiyeye döner.
   · **Tek kapı `finans.services.sim_kartlari_zimmetle` /
   `sim_zimmetini_kaldir`.** Kartı bayiye vermenin üç yolu da oradan geçer:
   toplu ekle (bayi seçilirse), listedeki "bayiye zimmetle" ve kartın
-  sayfasındaki bayi alanı (`save_model`, ön denetim `SimKartAdminFormu`).
-  **Borca yazılmaz**, mağazadaki kuralın aynısı: kart elden çıkıyor.
-  **Hepsi ya da hiçbiri:** 10 kartın toplamına bakiye yetmezse hiçbiri
-  aktarılmaz, toplu eklemede kartlar hiç açılmaz, yönetici tutarı ve
-  bakiyeyi görür. Zimmet anındaki alış ve satış karta kopyalanır
-  (`SimKart.alis_fiyati/satis_fiyati/zimmet_tarihi`): fiyat sonra değişse de
-  ödenen tutar doğru kalır. Geri almak (listeden ya da bayi alanını boşaltmak)
-  ters kayıtla iade eder, `para_surumu` artar (defter anahtarı
-  `sim:<pk>:<sürüm>`). Başka bayiye taşımak önce eskisine iade eder.
-  Başvuru iptalinde kart bayinin stoğuna döner ve **iade yoktur**: kart hâlâ
-  bayinin elinde. **Bozuk kartın yerine verilen kart ücretsizdir**
-  (`sim_yerine_ver` servisten geçmez): bayi o kartın parasını zaten ödedi.
+  sayfasındaki bayi alanı (`save_model`). Kullanılmış ya da arızalı kartın
+  bayisi formdan değişmez (`SimKartAdminFormu`): durumu "Arızalı" yapıp
+  bayiyi aynı anda boşaltmak parayı atlıyordu; karar kayıtlı hâlden verilir.
+  Zimmet anındaki alış, satış ve ödeyen karta kopyalanır
+  (`SimKart.alis_fiyati/satis_fiyati/odeyen/zimmet_tarihi`): fiyat sonra
+  değişse de ödenen tutar doğru kalır, iade ödeyene döner. Bu alanlar
+  satır kilidi altında boşaldığı için aynı kart iki kez iade edilmez; iz
+  kalmış kart yeniden aktarılırken önce iade edilir. Başka bayiye taşımak
+  önce eskisine iade eder. Başvuru iptalinde kart bayinin stoğuna döner ve
+  **iade yoktur**: kart hâlâ bayinin elinde. **Bozuk kartın yerine verilen
+  kart ücretsizdir** (`sim_yerine_ver` servisten geçmez).
   · Kârlılık raporunda ayrı **SIM Kart** bölümüdür (`rapor._sim_bolumu`):
   satış − alış, gün zimmet günü, operatör ve bayi kırılımı. Geri alınan kart
   sayılmaz.
