@@ -75,7 +75,11 @@
     {% endfor %}
   </tbody>
   <tfoot>
-    <tr class="dk-toplam-satir"><td colspan="5">TOPLAM</td><td class="dk-sayi">{{ toplam|para }} ₺</td></tr>
+    <tr class="dk-toplam-satir">
+      <td colspan="4" class="dk-tab-alt">Teşekkür ederiz.<br>Bilgi amaçlıdır, mali değeri yoktur.</td>
+      <td>TOPLAM</td>
+      <td class="dk-sayi">{{ toplam|para }} ₺</td>
+    </tr>
   </tfoot>
 </table>
 {% endblock %}

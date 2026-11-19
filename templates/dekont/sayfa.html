@@ -132,6 +132,14 @@
     /* Belgede toplam etiketiyle birlikte sağda, rakamın yanında durur;
        teşekkür yazısı solda. Ortadaki yazı tablonun düzeninden kopuk duruyordu. */
     .dk-tab tfoot .dk-toplam-satir td:first-child { padding-right: 1em; text-align: right; }
+    /* Teşekkür yazısı toplamla aynı satırda, solda: sayfa bir satır daha
+       uzamasın. Tablo kendi yazısını taşıyorsa alttaki kutu basılmaz. */
+    .dk-tab tfoot .dk-toplam-satir td.dk-tab-alt {
+      vertical-align: middle; text-align: left; white-space: normal;
+      font-size: 0.75em; font-weight: 500; line-height: 1.35;
+    }
+    .dk-tab tfoot .dk-toplam-satir td.dk-tab-alt + td { text-align: right; padding-right: 1em; }
+    :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-tablo:has(.dk-tab-alt) ~ .dk-alt { display: none; }
     :is(html[data-bicim="a5"], html[data-bicim="a4"]) .dk-alt { margin-top: 2em; text-align: left; }
 
     .dk-bicim[aria-pressed="true"] {
