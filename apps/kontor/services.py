@@ -691,9 +691,9 @@ def bekleyenleri_isle():
 
 # Gönderim öncesi sorgunun cevabı beklenen kaynakta (robot) işlem en çok
 # bu kadar sırada bekler; cevap gelmezse ana paket gönderilir — sorgu satışı
-# durdurmaz. Robotun kendi sınırları (almadı 30 sn, yazmadı 60 sn) bundan
+# durdurmaz. Robotun kendi sınırları (almadı 30 sn, yazmadı 90 sn) bundan
 # önce de düşürebilir.
-PLAN_BEKLEMESI = timedelta(seconds=60)
+PLAN_BEKLEMESI = timedelta(seconds=90)
 
 PAKET_YOK_MESAJI = (
     "Bu numara bu paketi şu an alamıyor (vergi borcu ya da TL yüklemesi gerekebilir). "

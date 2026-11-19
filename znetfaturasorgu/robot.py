@@ -583,6 +583,12 @@ def _kayit_al(sayfa, ad):
         pass
 
 
+def _kesin_cevap_mi(govde):
+    """Paket listesi olmasa da sorgunun sonucu mu (limit, hata, uyarı)?"""
+    duz = _temiz(govde)
+    return bool(limit_doldu_mu(duz) or re.search(r"ZNET=\d+-HATA=", duz) or paket_uyarisi(govde)[0])
+
+
 def paket_sorgula(ctx, numara, beklenen=""):
     """Kontör sayfasında numaranın aboneye özel paketlerini sorgular.
 
@@ -641,14 +647,22 @@ def paket_sorgula(ctx, numara, beklenen=""):
 
         sayfa.on("response", yakala)
         dugme.click()
+        # Sağlayıcının cevabı bazen geç geliyor. Bekleme laptopta, sunucuyu
+        # yormaz: en çok 45 sn. Bir süre 25 sn'ydi ve ilk ağ cevabından 3 sn
+        # sonra "paket yok" denip bırakılıyordu; ilk cevap çoğu zaman paket
+        # listesi değil (operatör bulma vb.), asıl liste arkadan geliyordu.
+        # Artık ilk cevaptan sonra 12 sn beklenir; kesin cevap (paket, limit,
+        # hata, vergi borcu) gelince hemen çıkılır.
         ilk = None
-        for adim in range(50):          # en çok 25 sn
+        for adim in range(90):          # en çok 45 sn
             sayfa.wait_for_timeout(500)
             if any("yukle_onay(" in g for g in govdeler):
                 break
+            if any(_kesin_cevap_mi(g) for g in govdeler):
+                break
             if govdeler and ilk is None:
                 ilk = adim
-            if ilk is not None and adim - ilk >= 6:   # cevap geldi, paket yok
+            if ilk is not None and adim - ilk >= 24:  # 12 sn: paket gelmedi
                 break
 
         govde = next((g for g in govdeler if "yukle_onay(" in g), "")

@@ -768,8 +768,13 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `SorguHatasi`; onu tanımayan yer sorguyu yapılamamış sayar, satış sürer).
   Bayi kutusu "sorgulanıyor" der ve 2 sn'de bir aynı adresi ister; gönderim
   planı işlemi **sırada** bırakır (hiçbir şey gönderilmez), işçinin ya da
-  bayi sayfasının sonraki turu yeniden bakar, `PLAN_BEKLEMESI` (60 sn)
-  dolunca ana paket gider. Robot kapalıysa iş açılmaz, sebep (çalışma
+  bayi sayfasının sonraki turu yeniden bakar, `PLAN_BEKLEMESI` (90 sn)
+  dolunca ana paket gider. **Sağlayıcının cevabı geç gelebilir:** robot en
+  çok 45 sn bekler, ilk ağ cevabından sonra 12 sn daha (paket, limit, hata
+  ya da vergi borcu gelince hemen çıkar); Django'nun "yazmadı" sınırı
+  (`SONUC_SINIRI`) 90 sn. Bir süre 25 / 60 sn'ydi ve ilk ağ cevabından 3 sn
+  sonra "paket yok" deniyordu: geç gelen liste kayboluyordu. Bekleme
+  laptoptadır, sunucu yalnızca 2 sn'de bir tek satır okur. Robot kapalıysa iş açılmaz, sebep (çalışma
   saatleri) yazılır, plan beklemez. **Boş liste hata sayılır:**
   ayrıştırılamayan bir cevap "paket yok" diye okunsaydı plan ana paketi de
   numarada yok sayıp her satışı iptal ederdi. Robot hata anında sayfanın

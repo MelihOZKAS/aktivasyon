@@ -251,9 +251,10 @@ her zaman doğru gösterir ("Hesaplar · bugün" ve satır-içi tabloda renkli).
   robot o anki sayfanın görüntüsünü ve HTML'ini `kayitlar/`'a yazar. Giriş
   düşen hesabın context'i bırakılır, sonraki iş o hesaba yeniden giriş yapar.
 
-Django bekleme sınırları: robot 30 sn'de almazsa, aldıktan sonra 60 sn'de
-yazmazsa iş kapanır; gönderim planı en çok 60 sn bekler, sonra ana paketi
-gönderir.
+Django bekleme sınırları: robot 30 sn'de almazsa, aldıktan sonra 90 sn'de
+yazmazsa iş kapanır; gönderim planı en çok 90 sn bekler, sonra ana paketi
+gönderir. Robot sağlayıcının paket cevabını en çok 45 sn bekler; ilk ağ
+cevabından sonra 12 sn daha paket listesi gelmezse "paket yok" der.
 
 Elle deneme (Django'suz): `paket.bat turkcell 5321234567`.
 

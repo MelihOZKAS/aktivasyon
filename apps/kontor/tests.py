@@ -2444,7 +2444,7 @@ class RobotPaketSorgusuTestleri(Temel):
 
     def test_robot_cevap_vermezse_ana_paket_gider(self):
         islem = self.plan_ac()
-        Islem.objects.filter(pk=islem.pk).update(olusturma_tarihi=timezone.now() - timedelta(seconds=61))
+        Islem.objects.filter(pk=islem.pk).update(olusturma_tarihi=timezone.now() - timedelta(seconds=91))
         islem = isle(islem.pk)
         self.assertEqual(islem.plan, [self.paket.pk])
         self.assertEqual(len(DURUM["Bir"]["gonderilen"]), 1)

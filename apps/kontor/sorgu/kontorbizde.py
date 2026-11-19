@@ -81,7 +81,10 @@ from apps.kontor.sorgu.vodafone import tutar_metni
 # kapandıysa bayi sonsuza dek "sorgulanıyor" görmesin, plan beklemesin.
 ALINMA_SINIRI = timedelta(seconds=30)
 # Robotun aldığı ama sonucunu yazmadığı sorgu bu süreden sonra kapanır.
-SONUC_SINIRI = timedelta(seconds=60)
+# Robot sağlayıcının cevabını en çok 45 sn bekler, sayfa açılışı ve numara
+# yazımıyla 70 sn'yi bulabilir; 60 sn'yken geç gelen cevap robot yazmadan
+# kapanıyordu. Bekleyen bayi ekranı 2 sn'de bir tek satır okur, yük değil.
+SONUC_SINIRI = timedelta(seconds=90)
 # Sonuçlanan sorgu bu süre içinde aynı numara için yeniden açılmaz: yoklayan
 # bayi ekranı ve plan sonucu buradan okur, servis önbelleğe koyar. Hata da bu
 # süre boyunca gösterilir; sonra yeniden denenir.
