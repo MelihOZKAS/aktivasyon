@@ -1110,7 +1110,7 @@ güncellenir. Bir kez yalnızca ön yüz değiştirildi ve yönetim paneli mor k
   `.dk-rulo`) ve `dekont_tablo` (+ başlığın sağına `dekont_tablo_ust`,
   `.dk-tablo`); biçim hangisinin görüneceğini seçer. Dekonta bilgi eklersen
   **ikisine de** ekle. Faturada her fatura bir satırdır (kurum, abone no,
-  abone, fatura no, son ödeme, tutar). Telefonda tablo kendi kutusunda kayar.
+  abone, fatura no, son ödeme, tutar). Tabloda yazı 12 px ve her hücre tek satırdır (yalnızca uzun kurum adı kırılır): 14 px'te A5'in 138 mm basılabilir eninde abone no, fatura no ve tarih iki satıra bölünüyordu. Telefonda tablo kendi kutusunda kayar.
   Fatura dekontunda işlem no yazılmaz (yönetim kaldırttı).
   · **Biçim cihaza aittir** (yazıcı o cihaza bağlı): seçim `localStorage`'da
   durur, sunucuya gitmez. **"Bu cihazda dekont açılınca hemen yazdır"** da
